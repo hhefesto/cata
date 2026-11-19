@@ -76,6 +76,10 @@
           # in cata hs's first version, and why the others do not
           # (bend/Survey.bend)
           survey = bendBinary pkgs "survey" "Survey.bend";
+          # The example laws' oracle (bend/Law.bend): GHC's interpreter runs
+          # each original Haskell function on the inputs cata lists.  The same
+          # GHC hs-export is built with.
+          ghc = pkgs.haskellPackages.ghc;
           default = self.packages.${system}.hs-export;
         }
       );
