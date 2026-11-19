@@ -238,7 +238,7 @@ type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -410,59 +410,76 @@ def fd.df.find(xs: List<&2, Df>, +n: List<&2, U32>) -> Maybe<&2, Nat>:
 
 # What the fold knows where it is: the module's name, constructors and
 # defs, the type of the right-hand side it is in (None in an argument),
-# the type arguments a recursive call passes, and the locals in scope.
+# the type arguments a recursive call passes, the locals in scope, and the
+# module's type synonyms.
+
+# a type synonym of the module: its Haskell name, its type variables, and
+# its right-hand side, folded
+type Syn is Data:
+  Syn{n: List<&2, U32>, tvs: List<&2, List<&2, U32>>, body: T.Bt}
+
 type Env is Data:
-  Env{m: List<&2, U32>, cons: List<&2, Ctr>, defs: List<&2, Df>, res: Maybe<&2, T.Bt>, self: List<&2, T.Bt>, ls: List<&2, List<&2, U32>>}
+  Env{m: List<&2, U32>, cons: List<&2, Ctr>, defs: List<&2, Df>, res: Maybe<&2, T.Bt>, self: List<&2, T.Bt>, ls: List<&2, List<&2, U32>>, syn: List<&2, Syn>}
 
 def fd.env.m(e: Env) -> List<&2, U32>:
   match e:
-    case Env{m, c, d, r, s, l}:
+    case Env{m, c, d, r, s, l, y}:
       m
 
 def fd.env.cons(e: Env) -> List<&2, Ctr>:
   match e:
-    case Env{m, c, d, r, s, l}:
+    case Env{m, c, d, r, s, l, y}:
       c
 
 def fd.env.defs(e: Env) -> List<&2, Df>:
   match e:
-    case Env{m, c, d, r, s, l}:
+    case Env{m, c, d, r, s, l, y}:
       d
 
 def fd.env.res(e: Env) -> Maybe<&2, T.Bt>:
   match e:
-    case Env{m, c, d, r, s, l}:
+    case Env{m, c, d, r, s, l, y}:
       r
 
 def fd.env.self(e: Env) -> List<&2, T.Bt>:
   match e:
-    case Env{m, c, d, r, s, l}:
+    case Env{m, c, d, r, s, l, y}:
       s
 
 def fd.env.ls(e: Env) -> List<&2, List<&2, U32>>:
   match e:
-    case Env{m, c, d, r, s, l}:
+    case Env{m, c, d, r, s, l, y}:
       l
+
+def fd.env.syn(e: Env) -> List<&2, Syn>:
+  match e:
+    case Env{m, c, d, r, s, l, y}:
+      y
+
+def fd.withsyn(e: Env, ys: List<&2, Syn>) -> Env:
+  match e:
+    case Env{m, c, d, r, s, l, y}:
+      Env{m, c, d, r, s, l, ys}
 
 def fd.withres(e: Env, t: T.Bt) -> Env:
   match e:
-    case Env{m, c, d, r, s, l}:
-      Env{m, c, d, Some{t}, s, l}
+    case Env{m, c, d, r, s, l, y}:
+      Env{m, c, d, Some{t}, s, l, y}
 
 def fd.notail(e: Env) -> Env:
   match e:
-    case Env{m, c, d, r, s, l}:
-      Env{m, c, d, None{}, s, l}
+    case Env{m, c, d, r, s, l, y}:
+      Env{m, c, d, None{}, s, l, y}
 
 def fd.addls(e: Env, xs: List<&2, List<&2, U32>>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l}:
-      Env{m, c, d, r, s, List.append(&2, List<&2, U32>, xs, l)}
+    case Env{m, c, d, r, s, l, y}:
+      Env{m, c, d, r, s, List.append(&2, List<&2, U32>, xs, l), y}
 
 def fd.withself(e: Env, ts: List<&2, T.Bt>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l}:
-      Env{m, c, d, r, ts, l}
+    case Env{m, c, d, r, s, l, y}:
+      Env{m, c, d, r, ts, l, y}
 
 # Calls ---------------------------------------------------------------------
 
@@ -1419,9 +1436,51 @@ def fd.grhss(bs: R, gs: R, +env: Env) -> R:
 def fd.multiif(+ty: R, gs: R) -> R:
   RE{fd.et(fd.expr(fd.chain(fd.items(gs), Some{fd.rt(ty)})))}
 
+# A type synonym is replaced by its right-hand side, its variables by the
+# arguments, all at once: first each variable X becomes X% (no Haskell
+# name has a %), then each X% its argument.
+def fd.syn.mark(tvs: List<&2, List<&2, U32>>, body: T.Bt) -> T.Bt:
+  match tvs:
+    case +v <> t:
+      fd.syn.mark(t, T.tba.subst(body, v, T.BtVar{fd.cat(v, S.b("%"))}))
+    case Nil{}:
+      body
+
+def fd.syn.fill(tvs: List<&2, List<&2, U32>>, body: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
+  match tvs args:
+    case v <> t a <> u:
+      fd.syn.fill(t, T.tba.subst(body, fd.cat(v, S.b("%")), a), u)
+    case Nil{} Nil{}:
+      body
+    case _ _:
+      fd.todo("fold:synonym-arity")
+
+# the module's synonym named n (none for another module's type)
+def fd.syn.find(ss: List<&2, Syn>, +n: List<&2, U32>) -> Maybe<&2, Syn>:
+  match ss:
+    case Syn{+sn, tvs, body} <> t:
+      Bool.pick(Maybe<&2, Syn>, S.eq(sn, n), Some{Syn{sn, tvs, body}}, fd.syn.find(t, n))
+    case Nil{}:
+      None{}
+
+def fd.syn.own(own: Bool, ss: List<&2, Syn>) -> List<&2, Syn>:
+  match own:
+    case True{}:
+      ss
+    case False{}:
+      Nil{}
+
+def fd.tc.syn(found: Maybe<&2, Syn>, k: Tk, own: Bool, +n: List<&2, U32>, +key: List<&2, U32>, +args: List<&2, T.Bt>) -> T.Bt:
+  match found:
+    case Some{Syn{sn, +tvs, body}}:
+      fd.syn.fill(tvs, fd.syn.mark(tvs, body), args)
+    case None{}:
+      fd.tc.of(k, own, n, key, args)
+
 def fd.tc(+m: List<&2, U32>, +n: List<&2, U32>, args: R, +env: Env) -> R:
   +key = fd.cat3(m, S.b("."), n)
-  RT{fd.tc.of(fd.tk.find(fd.tktab(), key), S.eq(m, fd.env.m(env)), n, key, fd.bts(fd.items(args)))}
+  +own = S.eq(m, fd.env.m(env))
+  RT{fd.tc.syn(fd.syn.find(fd.syn.own(own, fd.env.syn(env)), n), fd.tk.find(fd.tktab(), key), own, n, key, fd.bts(fd.items(args)))}
 
 def fd.tfun(a: R, b: R) -> R:
   RT{T.BtPi{T.BmLive{}, S.b("_"), False{}, fd.rt(a), fd.rt(b)}}
@@ -1773,20 +1832,6 @@ def fd.ctrs(xs: List<&2, X.Sx>) -> List<&2, Ctr>:
     case Nil{}:
       Nil{}
 
-def fd.datas.if(d: Bool, +x: X.Sx, +env: Env, acc: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  match d:
-    case True{}:
-      fd.data(x, env) <> acc
-    case False{}:
-      acc
-
-def fd.datas(xs: List<&2, X.Sx>, +env: Env) -> List<&2, T.BItem>:
-  match xs:
-    case +h <> t:
-      fd.datas.if(fd.isdata(h), h, env, fd.datas(t, env))
-    case Nil{}:
-      Nil{}
-
 # Top-level bindings -----------------------------------------------------------------
 
 # A binding of the module: its Haskell name, its type variables, and the
@@ -1882,6 +1927,22 @@ def fd.got.todos(+n: List<&2, U32>, +it: T.BItem, todos: List<&2, List<&2, U32>>
 def fd.got.def(+n: List<&2, U32>, +it: T.BItem) -> Got:
   fd.got.todos(n, it, List.reverse(&2, List<&2, U32>, T.tba.item.fold(~T.tba.todos, it, Nil{})))
 
+# the module's data types; one with a field type the fold cannot write is
+# out, with that type as the reason, like a def
+def fd.datas.if(d: Bool, +x: X.Sx, +env: Env, acc: List<&2, Got>) -> List<&2, Got>:
+  match d:
+    case True{}:
+      fd.got.def(V.sv.str(x, 1n), fd.data(x, env)) <> acc
+    case False{}:
+      acc
+
+def fd.datas(xs: List<&2, X.Sx>, +env: Env) -> List<&2, Got>:
+  match xs:
+    case +h <> t:
+      fd.datas.if(fd.isdata(h), h, env, fd.datas(t, env))
+    case Nil{}:
+      Nil{}
+
 def fd.got.of(ok: Bool, tb: Tb, +env: Env) -> Got:
   match ok tb:
     case True{} TbFun{+n, +tvs, f}:
@@ -1968,10 +2029,10 @@ def fd.splice.at(hit: Bool, h: List<&2, U32>, t: List<&2, List<&2, U32>>, pre: L
     case False{}:
       h <> t
 
-def fd.splice.go(ls: List<&2, List<&2, U32>>, pre: List<&2, U32>) -> List<&2, List<&2, U32>>:
+def fd.splice.go(ls: List<&2, List<&2, U32>>, +pre: List<&2, U32>) -> List<&2, List<&2, U32>>:
   match ls:
     case +h <> t:
-      fd.splice.at(fd.is(h, "import Base"), h, t, pre)
+      fd.splice.at(fd.is(h, "import Base"), h, fd.splice.go(t, pre), pre)
     case Nil{}:
       Nil{}
 
@@ -2084,18 +2145,34 @@ def fd.iserr(ls: List<&2, List<&2, U32>>) -> Bool:
     case Nil{}:
       False{}
 
-# the line after "Error:", Bend's reason
-def fd.errwhy.go(ls: List<&2, List<&2, U32>>, hit: Bool) -> List<&2, U32>:
-  match ls hit:
-    case h <> n <> t True{}:
-      fd.tabless(n)
-    case h <> +t False{}:
-      fd.errwhy.go(t, fd.iserr(t))
+# at most k characters of a line
+def fd.clip(s: List<&2, U32>, k: Nat) -> List<&2, U32>:
+  match s k:
+    case c <> t 1n+k:
+      c <> fd.clip(t, k)
     case _ _:
+      Nil{}
+
+# the first line, for output without an "Error:" line
+def fd.line1(ls: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match ls:
+    case h <> t:
+      h
+    case Nil{}:
       S.b("unknown")
 
+# the two lines after "Error:", Bend's reason and what it saw
+def fd.errwhy.go(ls: List<&2, List<&2, U32>>, hit: Bool, raw: List<&2, U32>) -> List<&2, U32>:
+  match ls hit:
+    case h <> n <> o <> t True{}:
+      fd.cat(fd.tabless(n), fd.cat(S.b(" | "), fd.clip(fd.tabless(o), 100n)))
+    case h <> +t False{}:
+      fd.errwhy.go(t, fd.iserr(t), raw)
+    case _ _:
+      fd.cat(S.b("raw: "), raw)
+
 def fd.errwhy(+ls: List<&2, List<&2, U32>>) -> List<&2, U32>:
-  fd.errwhy.go(ls, fd.iserr(ls))
+  fd.errwhy.go(ls, fd.iserr(ls), fd.clip(fd.tabless(fd.line1(ls)), 100n))
 
 def fd.item.names(+it: T.BItem) -> List<&2, List<&2, U32>>:
   T.tba.item.names(it, Nil{})
@@ -2316,7 +2393,38 @@ def fd.module.fin(+out: String, +file: List<&2, U32>, +m: List<&2, U32>, +path: 
         S.add(out ++ "/ledger.tsv", fd.ledger(file, k, o))
 
 def fd.env0(m: List<&2, U32>, cs: List<&2, Ctr>, ds: List<&2, Df>) -> Env:
-  Env{m, cs, ds, None{}, Nil{}, Nil{}}
+  Env{m, cs, ds, None{}, Nil{}, Nil{}, Nil{}}
+
+# (synonym NAME (TV...) TYPE SPAN), folded with the synonyms of the round
+# before; as many rounds as there are synonyms, so one that names another
+# declared after it is still expanded
+def fd.syns.if(d: Bool, +x: X.Sx, +env: Env, acc: List<&2, Syn>) -> List<&2, Syn>:
+  match d:
+    case True{}:
+      Syn{V.sv.str(x, 1n), fd.tvs(V.sv.at(x, 2n)), fd.rt(fd.go(V.sv.at(x, 3n), fd.k(RoTy{}, V.sv.at(x, 3n)), env))} <> acc
+    case False{}:
+      acc
+
+def fd.syns.round(xs: List<&2, X.Sx>, +env: Env) -> List<&2, Syn>:
+  match xs:
+    case +h <> t:
+      fd.syns.if(V.sv.is(V.sv.hd(h), "synonym"), h, env, fd.syns.round(t, env))
+    case Nil{}:
+      Nil{}
+
+def fd.syns(fuel: Nat, +xs: List<&2, X.Sx>, +env: Env) -> Env:
+  match fuel:
+    case 0n:
+      env
+    case 1n+p:
+      fd.syns(p, xs, fd.withsyn(env, fd.syns.round(xs, env)))
+
+def fd.nsyn(xs: List<&2, X.Sx>) -> Nat:
+  match xs:
+    case h <> t:
+      Nat.add(Bool.pick(Nat, V.sv.is(V.sv.hd(h), "synonym"), 1n, 0n), fd.nsyn(t))
+    case Nil{}:
+      0n
 
 # the items that use a binding that is out go too, before the first check
 def fd.predrop(+its: List<&2, T.BItem>, +outs: List<&2, Dr>) -> Gs:
@@ -2328,9 +2436,9 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +xs = X.tsx.read(bytes)
   +m = V.sv.modname(xs)
   +tbs = fd.tbs(xs)
-  +env = fd.env0(m, fd.ctrs(xs), fd.dfs(tbs))
-  +gs = fd.gots(tbs, fd.ok(xs), env)
-  +its = List.append(&2, T.BItem, fd.datas(xs, env), fd.got.items(gs))
+  +env = fd.syns(fd.nsyn(xs), xs, fd.env0(m, fd.ctrs(xs), fd.dfs(tbs)))
+  +gs = List.append(&2, Got, fd.datas(xs, env), fd.gots(tbs, fd.ok(xs), env))
+  +its = fd.got.items(gs)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
   do IO<Unit>:
