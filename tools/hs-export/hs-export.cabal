@@ -1,0 +1,27 @@
+cabal-version:      2.4
+name:               hs-export
+version:            0.1.0
+synopsis:           GHC's typechecked syntax as S-expressions (cata's Haskell front end)
+description:
+  Type-checks one Haskell module with GHC 9.10's API and writes its
+  typechecked syntax as S-expressions: types and classes, instances, and
+  every binding with each binder's type and the instance chosen for each
+  class method.  It translates and decides nothing; FORMAT.md is the format.
+license:            MIT
+build-type:         Simple
+extra-doc-files:    FORMAT.md
+
+executable hs-export
+  main-is:          Main.hs
+  hs-source-dirs:   src
+  other-modules:
+    HsExport.Sexp
+  build-depends:
+    , base         >=4.18 && <5
+    , bytestring
+    , containers
+    , ghc          >=9.10 && <9.11
+    , ghc-paths
+    , mtl
+  default-language: Haskell2010
+  ghc-options:      -O1 -Wall -Wno-name-shadowing -Wno-unused-do-bind -rtsopts "-with-rtsopts=-M4g"
