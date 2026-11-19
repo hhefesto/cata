@@ -119,7 +119,7 @@ original, 7 were right on the tests and 18 wrong or slow (13 untested). The
 check alone overstates her about twofold; a law filter is needed before
 anything she writes is kept.
 
-## Step 2: the fold (design, 2026-11-19; not built yet)
+## Step 2: the fold (design, 2026-11-19; built as bend/Fold.bend, see "Step 2 results")
 
 `cata hs FILE.sexp OUT`: the export's v1 bindings into ToBend's syntax tree
 (`bend/a2b/ToBend/Ast.bend`), ordered (`ToBend/Order.bend`), quantities
@@ -158,3 +158,31 @@ first and deterministically, writes them both as Haskell and as Bend
 literals, writes a Haskell harness that prints each output, runs it with
 GHC, and writes `law f.exK: {f(a) == v : R}` with `def f.exK(): {==}`. The
 Codex translations are never consulted.
+
+## Step 2 results (2026-11-19, hs1003's 643 modules, olimpo's CPU, no AI)
+
+`run/fold OUT FILE.sexp...` (bend/Fold.bend, compiled with Bend 2.0.39)
+writes OUT/NNNNN.bend and OUT/ledger.tsv. Every file it writes passes
+`bend --check-only`; that is all "ok" means here (no example laws yet).
+
+| run | functions ok | types ok | out | files |
+|---|---|---|---|---|
+| fold1 (0b83518) | 1,027 | 489 | 3,828 | 284 |
+| fold5 | 1,261 | 558 | 3,525 | 329 |
+
+What changed from fold1 to fold5: the prelude (Bool.if) is written (it
+never was); a data type with a field type the fold cannot write is out,
+like a def; the module's type synonyms are expanded (all variables at
+once), FilePath is String; templates (a function parameter used twice,
+and every parameter a template argument names, is ~, moved to the front,
+and calls pass ~ there; a closure as a template is out); a local `abs`
+(a generalised where-binding with no dictionary) is its one bind, its
+value annotated; a local binding the fold cannot write is out (it was
+dropped, and its name then resolved to a top-level def of the same name:
+fold1-fold4 wrote mult1 = x * y with the module's x and y, not the
+where-bound ones. Bend's check cannot see that; example laws will).
+
+Biggest reasons left (fold5): `==` on other types (79), building a
+record (52), case on a computed value (50), flip (27), sections (26),
+type applications of a variable (24), recursive local groups (23),
+local functions (22), do (19), Double (17).

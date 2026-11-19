@@ -516,8 +516,10 @@ def fd.closed.go(fs: List<&2, List<&2, U32>>, +ls: List<&2, List<&2, U32>>) -> B
     case +h <> t:
       Bool.and(Bool.not(S.mem(h, ls)), fd.closed.go(t, ls))
 
+# (whether it is closed is decided once the module's templates are known:
+# see Templates)
 def fd.tpl(+ls: List<&2, List<&2, U32>>, +f: T.Bt) -> T.Bt:
-  Bool.pick(T.Bt, fd.closed.go(T.tba.frees(f, Nil{}), ls), T.BtTplArg{f}, fd.todo("fold:closure-argument"))
+  T.BtTplArg{f}
 
 # Base's functions ------------------------------------------------------------
 
@@ -1040,6 +1042,10 @@ def fd.char(+n: Nat) -> T.Bt:
 def fd.bvname(+bv: X.Sx) -> List<&2, U32>:
   fd.vname(V.sv.str(V.sv.at(bv, 1n), 1n))
 
+# a bind's VAR: (l NAME N), or (self (l NAME N)) inside an abs
+def fd.unself(+v: X.Sx) -> X.Sx:
+  Bool.pick(X.Sx, V.sv.is(V.sv.hd(v), "self"), V.sv.at(v, 1n), v)
+
 # an olit: (olit (int N) TYPE WITNESS), N at Nat
 def fd.olit.of(q: Tq, +v: X.Sx) -> T.Bt:
   match q:
@@ -1351,8 +1357,10 @@ def fd.lets(bs: List<&2, R>, b: T.Bt) -> T.Bt:
   match bs:
     case RB{x, v} <> t:
       T.BtLet{x, fd.expr(v), fd.lets(t, b)}
+    case RT{v} <> t:
+      T.BtLet{S.b("_"), v, fd.lets(t, b)}
     case _ <> t:
-      fd.lets(t, b)
+      T.BtLet{S.b("_"), fd.todo("fold:local-binding"), fd.lets(t, b)}
     case Nil{}:
       fd.stmt(b)
 
@@ -1370,7 +1378,7 @@ def fd.bnames(bs: List<&2, R>) -> List<&2, List<&2, U32>>:
 def fd.lbind(+x: List<&2, U32>, r: R) -> R:
   match r:
     case RMs{Nil{}, res, RC{Nil{}, b} <> Nil{}}:
-      RB{x, b}
+      RB{x, T.BtAnn{fd.expr(b), res}}
     case _:
       RB{x, fd.todo("fold:local-function")}
 
@@ -1574,6 +1582,8 @@ type K is Data:
   KGroups{}
   KNonrec{}
   KBfun{}
+  KBabs{}
+  KAbs1{}
   KBad{why: List<&2, U32>}
 
 type Kt is Data:
@@ -1633,8 +1643,13 @@ def fd.k.guard(+x: X.Sx) -> K:
 def fd.k.group(+x: X.Sx) -> K:
   Bool.pick(K, V.sv.is(V.sv.hd(x), "nonrec"), KNonrec{}, KBad{S.b("fold:recursive-local")})
 
+# a local abs (GHC's generalised group) that takes no dictionary is its one
+# bind (its type variables are erased in a let)
+def fd.k.abs(+x: X.Sx) -> K:
+  Bool.pick(K, Nat.is_eq(X.tsx.len(V.sv.at(x, 2n)), 0n), KBabs{}, KBad{S.b("fold:local-abs-class")})
+
 def fd.k.bind(+x: X.Sx) -> K:
-  Bool.pick(K, V.sv.is(V.sv.hd(x), "fun"), KBfun{}, fd.k.bad("fold:local-", V.sv.hd(x)))
+  Bool.pick(K, V.sv.is(V.sv.hd(x), "fun"), KBfun{}, Bool.pick(K, V.sv.is(V.sv.hd(x), "abs"), fd.k.abs(x), fd.k.bad("fold:local-", V.sv.hd(x))))
 
 # The fold: one def over the export's tree, the form k of x given by the
 # parent (Bend allows no mutual recursion, so types, patterns, expressions
@@ -1751,8 +1766,14 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.nil()
     case X.SxCons{_, X.SxCons{+b, _}} KNonrec{}:
       fd.go(b, fd.k.bind(b), env)
+    case X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{bs, _}}}}}} KBabs{}:
+      fd.go(bs, KAbs1{}, env)
+    case X.SxCons{+b, X.SxNil{}} KAbs1{}:
+      fd.go(b, fd.k.bind(b), env)
+    case _ KAbs1{}:
+      fd.bad(S.b("fold:local-group"))
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{ms, _}}}}} KBfun{}:
-      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{v, X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)))
+      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)))
     case _ KBad{why}:
       fd.bad(why)
     case _ _:
@@ -2426,6 +2447,411 @@ def fd.nsyn(xs: List<&2, X.Sx>) -> Nat:
     case Nil{}:
       0n
 
+# Templates ---------------------------------------------------------------------
+
+# A function parameter used twice must be a template (~f), and so must
+# every parameter a template argument names: a template is known when the
+# program is compiled, so its argument names no local but templates (a
+# type variable a template's type names is one too). The module's defs take
+# ~ at their template positions and their calls pass it there; the flags
+# settle by rounds, at most as many as there are items. A template argument
+# that names a pattern's, a lambda's or a let's variable is a closure, and
+# its def is out (fold:closure-argument).
+
+# the names the template arguments in t use
+def fd.tas(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtTplArg{a}:
+      T.tba.frees(a, acc)
+    case T.BtRw{e, p, b}:
+      fd.tas(e, fd.tas(p, fd.tas(b, acc)))
+    case T.BtLet{x, v, b}:
+      fd.tas(v, fd.tas(b, acc))
+    case T.BtDead{a}:
+      fd.tas(a, acc)
+    case T.BtApp{f, a}:
+      fd.tas(f, fd.tas(a, acc))
+    case T.BtLam{m, x, b}:
+      fd.tas(b, acc)
+    case T.BtPi{m, x, d, a, b}:
+      fd.tas(a, fd.tas(b, acc))
+    case T.BtCon{c, a}:
+      fd.tas(a, acc)
+    case T.BtTyApp{n, a}:
+      fd.tas(a, acc)
+    case T.BtEq{ty, a, b}:
+      fd.tas(ty, fd.tas(a, fd.tas(b, acc)))
+    case T.BtSucc{a}:
+      fd.tas(a, acc)
+    case T.BtAnn{a, ty}:
+      fd.tas(a, fd.tas(ty, acc))
+    case T.BtMatch{xs, cs}:
+      fd.tas(xs, fd.tas(cs, acc))
+    case T.BtExpr{e}:
+      fd.tas(e, acc)
+    case T.BtCase{p, b, rest}:
+      fd.tas(b, fd.tas(rest, acc))
+    case T.BtArgs{a, rest}:
+      fd.tas(a, fd.tas(rest, acc))
+    case _:
+      acc
+
+# a let's name without the + fd.mark gave it
+def fd.unplus(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case 43 <> t:
+      t
+    case u:
+      u
+
+# the names a body binds: patterns', lambdas', lets'
+def fd.binds(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtLet{x, v, b}:
+      fd.binds(v, fd.unplus(x) <> fd.binds(b, acc))
+    case T.BtLam{m, x, b}:
+      x <> fd.binds(b, acc)
+    case T.BtCase{p, b, rest}:
+      T.tba.pvars(p, fd.binds(b, fd.binds(rest, acc)))
+    case T.BtRw{e, p, b}:
+      fd.binds(e, fd.binds(p, fd.binds(b, acc)))
+    case T.BtDead{a}:
+      fd.binds(a, acc)
+    case T.BtApp{f, a}:
+      fd.binds(f, fd.binds(a, acc))
+    case T.BtTplArg{a}:
+      fd.binds(a, acc)
+    case T.BtCon{c, a}:
+      fd.binds(a, acc)
+    case T.BtSucc{a}:
+      fd.binds(a, acc)
+    case T.BtAnn{a, ty}:
+      fd.binds(a, acc)
+    case T.BtMatch{xs, cs}:
+      fd.binds(cs, acc)
+    case T.BtExpr{e}:
+      fd.binds(e, acc)
+    case T.BtArgs{a, rest}:
+      fd.binds(a, fd.binds(rest, acc))
+    case _:
+      acc
+
+def fd.anyin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case +h <> t:
+      Bool.or(S.mem(h, ys), fd.anyin(t, ys))
+    case Nil{}:
+      False{}
+
+def fd.ispi(t: T.Bt) -> Bool:
+  match t:
+    case T.BtPi{m, x, d, a, b}:
+      True{}
+    case _:
+      False{}
+
+def fd.istpl(m: T.BMode) -> Bool:
+  match m:
+    case T.BmTpl{}:
+      True{}
+    case _:
+      False{}
+
+def fd.iscopy(m: T.BMode) -> Bool:
+  match m:
+    case T.BmCopy{}:
+      True{}
+    case _:
+      False{}
+
+def fd.isera(m: T.BMode) -> Bool:
+  match m:
+    case T.BmErased{}:
+      True{}
+    case _:
+      False{}
+
+# a value parameter is a template if it was, if it is a function used
+# twice, or if a template argument names it
+def fd.vtpl(+m: T.BMode, ty: T.Bt, +x: List<&2, U32>, +tas: List<&2, List<&2, U32>>) -> Bool:
+  Bool.or(fd.istpl(m), Bool.or(Bool.and(fd.iscopy(m), fd.ispi(ty)), S.mem(x, tas)))
+
+# the names in the types of the value parameters that are templates
+def fd.vfrees(ps: List<&2, T.BParam>, +tas: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case T.BParam{+m, +x, +ty} <> t:
+      List.append(&2, List<&2, U32>, Bool.pick(List<&2, List<&2, U32>>, Bool.and(Bool.not(fd.isera(m)), fd.vtpl(m, ty, x, tas)), T.tba.frees(ty, Nil{}), Nil{}), fd.vfrees(t, tas))
+    case Nil{}:
+      Nil{}
+
+# each parameter's flag: a type variable is a template if a template
+# argument or a template parameter's type names it
+def fd.pflags(ps: List<&2, T.BParam>, +tas: List<&2, List<&2, U32>>, +tyf: List<&2, List<&2, U32>>) -> List<&2, Bool>:
+  match ps:
+    case T.BParam{+m, +x, ty} <> t:
+      Bool.pick(Bool, fd.isera(m), Bool.or(S.mem(x, tas), S.mem(x, tyf)), fd.vtpl(m, ty, x, tas)) <> fd.pflags(t, tas, tyf)
+    case Nil{}:
+      Nil{}
+
+def fd.bpick.ps(b: Bool, p: T.BParam, t: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match b:
+    case True{}:
+      p <> t
+    case False{}:
+      t
+
+def fd.setp(ps: List<&2, T.BParam>, fl: List<&2, Bool>) -> List<&2, T.BParam>:
+  match ps fl:
+    case T.BParam{m, x, ty} <> t True{} <> u:
+      T.BParam{T.BmTpl{}, x, ty} <> fd.setp(t, u)
+    case p <> t False{} <> u:
+      p <> fd.setp(t, u)
+    case qs _:
+      qs
+
+type Tf is Data:
+  Tf{n: List<&2, U32>, fl: List<&2, Bool>}
+
+def fd.tf.find(ts: List<&2, Tf>, +n: List<&2, U32>) -> Maybe<&2, List<&2, Bool>>:
+  match ts:
+    case Tf{+k, fl} <> t:
+      Bool.pick(Maybe<&2, List<&2, Bool>>, S.eq(k, n), Some{fl}, fd.tf.find(t, n))
+    case Nil{}:
+      None{}
+
+def fd.tplarg(x: T.Bt) -> T.Bt:
+  match x:
+    case T.BtTplArg{y}:
+      T.BtTplArg{y}
+    case u:
+      T.BtTplArg{u}
+
+def fd.wrap1(b: Bool, x: T.Bt) -> T.Bt:
+  match b:
+    case True{}:
+      fd.tplarg(x)
+    case False{}:
+      x
+
+def fd.wrap(fl: List<&2, Bool>, a: T.Bt) -> T.Bt:
+  match fl a:
+    case b <> t T.BtArgs{x, rest}:
+      T.BtArgs{fd.wrap1(b, x), fd.wrap(t, rest)}
+    case _ u:
+      u
+
+def fd.wrapargs(found: Maybe<&2, List<&2, Bool>>, a: T.Bt) -> T.Bt:
+  match found:
+    case Some{fl}:
+      fd.wrap(fl, a)
+    case None{}:
+      a
+
+def fd.tcall.app(f: T.Bt, a: T.Bt, +tfs: List<&2, Tf>) -> T.Bt:
+  match f:
+    case T.BtVar{+g}:
+      T.BtApp{T.BtVar{g}, fd.wrapargs(fd.tf.find(tfs, g), a)}
+    case u:
+      T.BtApp{u, a}
+
+# the calls of the module's defs in t, ~ at their template positions
+def fd.tcall(t: T.Bt, +tfs: List<&2, Tf>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.tcall.app(fd.tcall(f, tfs), fd.tcall(a, tfs), tfs)
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.tcall(a, tfs), fd.tcall(rest, tfs)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.tcall(a, tfs)}
+    case T.BtLam{m, y, b}:
+      T.BtLam{m, y, fd.tcall(b, tfs)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.tcall(a, tfs)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.tcall(cs, tfs)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.tcall(b, tfs), fd.tcall(rest, tfs)}
+    case T.BtLet{y, v, b}:
+      T.BtLet{y, fd.tcall(v, tfs), fd.tcall(b, tfs)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.tcall(e, tfs)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.tcall(a, tfs), ty}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.tcall(a, tfs)}
+    case u:
+      u
+
+def fd.tpl.def(n: List<&2, U32>, +ps: List<&2, T.BParam>, r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>) -> T.BItem:
+  +tas = fd.tas(b, Nil{})
+  T.BiDef{n, fd.setp(ps, fd.pflags(ps, tas, fd.vfrees(ps, tas))), r, b, d}
+
+# one round on an item: its calls with the flags so far, then its own
+def fd.tpl.item(it: T.BItem, +tfs: List<&2, Tf>) -> T.BItem:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      fd.tpl.def(n, ps, r, fd.tcall(b, tfs), d)
+    case u:
+      u
+
+def fd.pfl(ps: List<&2, T.BParam>) -> List<&2, Bool>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      fd.istpl(m) <> fd.pfl(t)
+    case Nil{}:
+      Nil{}
+
+def fd.tfs(gs: List<&2, Got>) -> List<&2, Tf>:
+  match gs:
+    case GotDef{n, T.BiDef{k, ps, r, b, d}} <> t:
+      Tf{k, fd.pfl(ps)} <> fd.tfs(t)
+    case _ <> t:
+      fd.tfs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.bits(fl: List<&2, Bool>) -> List<&2, U32>:
+  match fl:
+    case b <> t:
+      Bool.pick(U32, b, 49, 48) <> fd.bits(t)
+    case Nil{}:
+      Nil{}
+
+# the flags as text, to see whether a round changed them
+def fd.tfs.key(ts: List<&2, Tf>) -> List<&2, U32>:
+  match ts:
+    case Tf{n, fl} <> t:
+      fd.cat(n, fd.cat(fd.bits(fl), 32 <> fd.tfs.key(t)))
+    case Nil{}:
+      Nil{}
+
+def fd.tpl.round(gs: List<&2, Got>, +tfs: List<&2, Tf>) -> List<&2, Got>:
+  match gs:
+    case GotDef{n, it} <> t:
+      GotDef{n, fd.tpl.item(it, tfs)} <> fd.tpl.round(t, tfs)
+    case g <> t:
+      g <> fd.tpl.round(t, tfs)
+    case Nil{}:
+      Nil{}
+
+def fd.tpl.rounds(fuel: Nat, done: Bool, +gs: List<&2, Got>) -> List<&2, Got>:
+  match fuel done:
+    case 0n _:
+      gs
+    case 1n+p True{}:
+      gs
+    case 1n+p False{}:
+      +g2 = fd.tpl.round(gs, fd.tfs(gs))
+      fd.tpl.rounds(p, S.eq(fd.tfs.key(fd.tfs(gs)), fd.tfs.key(fd.tfs(g2))), g2)
+
+# a def whose template argument is a closure is out
+def fd.tpl.check(it: T.BItem) -> T.BItem:
+  match it:
+    case T.BiDef{n, ps, r, +b, d}:
+      T.BiDef{n, ps, r, Bool.pick(T.Bt, fd.anyin(fd.tas(b, Nil{}), fd.binds(b, Nil{})), fd.todo("fold:closure-argument"), b), d}
+    case u:
+      u
+
+# Only leading binders take ~: once the flags are settled, a def's
+# templates move to the front (in their order), and so do its calls'
+# arguments at those positions.
+def fd.ps.tpl(ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{+m, x, ty} <> t:
+      fd.bpick.ps(fd.istpl(m), T.BParam{m, x, ty}, fd.ps.tpl(t))
+    case Nil{}:
+      Nil{}
+
+def fd.ps.rest(ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{+m, x, ty} <> t:
+      fd.bpick.ps(Bool.not(fd.istpl(m)), T.BParam{m, x, ty}, fd.ps.rest(t))
+    case Nil{}:
+      Nil{}
+
+def fd.pick.t(fl: List<&2, Bool>, xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match fl xs:
+    case True{} <> t x <> u:
+      x <> fd.pick.t(t, u)
+    case False{} <> t x <> u:
+      fd.pick.t(t, u)
+    case _ _:
+      Nil{}
+
+def fd.pick.f(fl: List<&2, Bool>, xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match fl xs:
+    case True{} <> t x <> u:
+      fd.pick.f(t, u)
+    case False{} <> t x <> u:
+      x <> fd.pick.f(t, u)
+    case _ u:
+      u
+
+def fd.args.perm(+fl: List<&2, Bool>, a: T.Bt) -> T.Bt:
+  +xs = fd.spine(a)
+  T.tba.args(List.append(&2, T.Bt, fd.pick.t(fl, xs), fd.pick.f(fl, xs)))
+
+def fd.permargs(found: Maybe<&2, List<&2, Bool>>, a: T.Bt) -> T.Bt:
+  match found:
+    case Some{fl}:
+      fd.args.perm(fl, a)
+    case None{}:
+      a
+
+def fd.tperm.app(f: T.Bt, a: T.Bt, +tfs: List<&2, Tf>) -> T.Bt:
+  match f:
+    case T.BtVar{+g}:
+      T.BtApp{T.BtVar{g}, fd.permargs(fd.tf.find(tfs, g), a)}
+    case u:
+      T.BtApp{u, a}
+
+def fd.tperm(t: T.Bt, +tfs: List<&2, Tf>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.tperm.app(fd.tperm(f, tfs), fd.tperm(a, tfs), tfs)
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.tperm(a, tfs), fd.tperm(rest, tfs)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.tperm(a, tfs)}
+    case T.BtLam{m, y, b}:
+      T.BtLam{m, y, fd.tperm(b, tfs)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.tperm(a, tfs)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.tperm(cs, tfs)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.tperm(b, tfs), fd.tperm(rest, tfs)}
+    case T.BtLet{y, v, b}:
+      T.BtLet{y, fd.tperm(v, tfs), fd.tperm(b, tfs)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.tperm(e, tfs)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.tperm(a, tfs), ty}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.tperm(a, tfs)}
+    case u:
+      u
+
+def fd.tpl.order(it: T.BItem, +tfs: List<&2, Tf>) -> T.BItem:
+  match it:
+    case T.BiDef{n, +ps, r, b, d}:
+      T.BiDef{n, List.append(&2, T.BParam, fd.ps.tpl(ps), fd.ps.rest(ps)), r, fd.tperm(b, tfs), d}
+    case u:
+      u
+
+def fd.tpl.fin(gs: List<&2, Got>, +tfs: List<&2, Tf>) -> List<&2, Got>:
+  match gs:
+    case GotDef{+n, it} <> t:
+      fd.got.def(n, fd.tpl.check(fd.tpl.order(it, tfs))) <> fd.tpl.fin(t, tfs)
+    case g <> t:
+      g <> fd.tpl.fin(t, tfs)
+    case Nil{}:
+      Nil{}
+
+def fd.templates(+gs: List<&2, Got>) -> List<&2, Got>:
+  +g2 = fd.tpl.rounds(1n+List.length(&2, Got, gs), False{}, gs)
+  fd.tpl.fin(g2, fd.tfs(g2))
+
 # the items that use a binding that is out go too, before the first check
 def fd.predrop(+its: List<&2, T.BItem>, +outs: List<&2, Dr>) -> Gs:
   +s = fd.closure(List.length(&2, T.BItem, its), fd.split(its, fd.dr.names(outs), S.b("dep")), S.b("dep"), outs)
@@ -2437,7 +2863,7 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +m = V.sv.modname(xs)
   +tbs = fd.tbs(xs)
   +env = fd.syns(fd.nsyn(xs), xs, fd.env0(m, fd.ctrs(xs), fd.dfs(tbs)))
-  +gs = List.append(&2, Got, fd.datas(xs, env), fd.gots(tbs, fd.ok(xs), env))
+  +gs = fd.templates(List.append(&2, Got, fd.datas(xs, env), fd.gots(tbs, fd.ok(xs), env)))
   +its = fd.got.items(gs)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
