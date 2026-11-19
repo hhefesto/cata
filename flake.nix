@@ -76,6 +76,11 @@
           # in cata hs's first version, and why the others do not
           # (bend/Survey.bend)
           survey = bendBinary pkgs "survey" "Survey.bend";
+          # `fold OUT FILE.sexp...`: step 2's fold into checked Bend (bend/Fold.bend)
+          fold = bendBinary pkgs "fold" "Fold.bend";
+          # `law OUT FILE.sexp...`: the fold with GHC's example laws
+          # (bend/Law.bend; GHC names the ghc, the .#ghc below)
+          law = bendBinary pkgs "law" "Law.bend";
           # The example laws' oracle (bend/Law.bend): GHC's interpreter runs
           # each original Haskell function on the inputs cata lists.  The same
           # GHC hs-export is built with.

@@ -186,3 +186,43 @@ Biggest reasons left (fold5): `==` on other types (79), building a
 record (52), case on a computed value (50), flip (27), sections (26),
 type applications of a variable (24), recursive local groups (23),
 local functions (22), do (19), Double (17).
+
+### Example laws (bend/Law.bend, `run/law`, 2026-11-19)
+
+`law OUT FILE.sexp...` folds and gates each module as `fold` does, then
+lists inputs for every def the gate kept, by its Haskell type (Int,
+Integer, Natural 0..3; Bool; Char 'a' 'b' ' '; lists up to 3 long;
+Maybe, Either, tuples, Ordering, unit; the module's own types two
+constructors deep; a type variable is Int), at most 8 per def, smallest
+first. GHC 9.10.3's interpreter (the flake's `.#ghc`) loads the original
+module and runs each call with a 2 s limit, printing the answer as an
+S-expression; every name in the script is qualified (`LawP` is the
+Prelude), so a module's own Maybe changes nothing. Each answer becomes
+`def f.exK() -> {f(Nat, a, b) == v : R}: {==}` in the module's file, and
+the gate runs again: a law Bend refuses takes its def out (`law:` and
+Bend's first error line), with what uses it. Bend's checker computes both
+sides; nothing else is trusted.
+
+hs1003, all 643 modules (run/law3, 6 processes, about 6 minutes):
+
+| | defs |
+|---|---|
+| check, and every example law holds (`ok-law`) | 1,075 (4,218 laws) |
+| of these, no arguments: the one law is the whole def | 415 |
+| check, no law (`ok-check`): a function argument | 128 |
+| ... a Float argument or result | 41 |
+| ... no input (an empty type, a function inside) | 8 |
+| ... GHC gave no answer in 2 s (Peano numbers to 10^7) | 7 |
+| ... Bend's checker overflowed on an answer (1000000n, a long string) | 2 |
+| a law failed | 0 |
+
+No def of fold5 fails its laws. The oracle does catch what the check
+cannot: the fold as it was at db802bf (before ac26f36's where fix), run
+through the same laws on 00303, loses mult1, mult2, mult3 and waxOn, each
+to its first law (`expected : 70n | observed : 30n`: Bend's value of the
+translation, then GHC's answer), and keeps the four defs that were right.
+
+What the laws do not cover yet: functions taking functions (128; a
+fixed set of small closed functions as inputs is the next rule), Float
+(no inputs; F32 answers are not compared), and more than one shape of
+input for the module's recursive types (two constructors deep).

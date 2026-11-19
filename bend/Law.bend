@@ -772,38 +772,38 @@ def lw.okind(+x: X.Sx) -> Ok:
   +h = V.sv.hd(x)
   Bool.pick(Ok, V.sv.is(h, "nat"), OkNat{}, Bool.pick(Ok, V.sv.is(h, "neg"), OkNeg{}, Bool.pick(Ok, V.sv.is(h, "char"), OkChar{}, Bool.pick(Ok, V.sv.is(h, "list"), OkList{}, Bool.pick(Ok, V.sv.is(h, "tuple"), OkTup{}, Bool.pick(Ok, V.sv.is(h, "con"), OkCon{}, OkNo{}))))))
 
-# an answer in Bend; a negative number has none (the fold's Int is Nat)
-def lw.out(fuel: Nat, k: Ok, mode: Vm, x: X.Sx) -> T.Bt:
-  match fuel k mode x:
-    case 0n _ _ _:
-      T.BtTodo{S.b("law:answer-depth")}
-    case 1n+(+p) _ VmSp{} X.SxCons{+h, t}:
-      T.BtArgs{lw.out(p, lw.okind(h), VmVal{}, h), lw.out(p, OkNo{}, VmSp{}, t)}
-    case 1n+p _ VmSp{} _:
+# an answer in Bend; a negative number has none (the fold's Int is Nat).
+# It recurses on the tree's own parts (a string's answer is as long as the
+# string)
+def lw.out(x: X.Sx, k: Ok, mode: Vm) -> T.Bt:
+  match x k mode:
+    case X.SxCons{+h, t} _ VmSp{}:
+      T.BtArgs{lw.out(h, lw.okind(h), VmVal{}), lw.out(t, OkNo{}, VmSp{})}
+    case _ _ VmSp{}:
       T.BtANil{}
-    case 1n+(+p) _ VmList{} X.SxCons{+h, t}:
-      T.BtCon{S.b("Con"), T.BtArgs{lw.out(p, lw.okind(h), VmVal{}, h), T.BtArgs{lw.out(p, OkNo{}, VmList{}, t), T.BtANil{}}}}
-    case 1n+p _ VmList{} _:
+    case X.SxCons{+h, t} _ VmList{}:
+      T.BtCon{S.b("Con"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}), T.BtArgs{lw.out(t, OkNo{}, VmList{}), T.BtANil{}}}}
+    case _ _ VmList{}:
       F.fd.con0("Nil")
-    case 1n+p _ VmTup{} X.SxCons{+h, X.SxNil{}}:
-      lw.out(p, lw.okind(h), VmVal{}, h)
-    case 1n+(+p) _ VmTup{} X.SxCons{+h, t}:
-      T.BtCon{S.b("Tuple"), T.BtArgs{lw.out(p, lw.okind(h), VmVal{}, h), T.BtArgs{lw.out(p, OkNo{}, VmTup{}, t), T.BtANil{}}}}
-    case 1n+p _ VmTup{} _:
+    case X.SxCons{+h, X.SxNil{}} _ VmTup{}:
+      lw.out(h, lw.okind(h), VmVal{})
+    case X.SxCons{+h, t} _ VmTup{}:
+      T.BtCon{S.b("Tuple"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}), T.BtArgs{lw.out(t, OkNo{}, VmTup{}), T.BtANil{}}}}
+    case _ _ VmTup{}:
       F.fd.con0("Unit")
-    case 1n+p OkNat{} _ +x:
-      T.BtNat{X.tsx.atom.of(X.tsx.at(1n, x))}
-    case 1n+p OkNeg{} _ _:
+    case +y OkNat{} _:
+      T.BtNat{X.tsx.atom.of(X.tsx.at(1n, y))}
+    case _ OkNeg{} _:
       T.BtTodo{S.b("law:negative-answer")}
-    case 1n+p OkChar{} _ +x:
-      F.fd.char(X.tsx.nat(X.tsx.at(1n, x)))
-    case 1n+p OkList{} _ x:
-      lw.out(p, OkNo{}, VmList{}, X.tsx.args(x))
-    case 1n+p OkTup{} _ x:
-      lw.out(p, OkNo{}, VmTup{}, X.tsx.args(x))
-    case 1n+p OkCon{} _ +x:
-      T.BtCon{V.sv.str(x, 1n), lw.out(p, OkNo{}, VmSp{}, X.tsx.args(X.tsx.args(x)))}
-    case 1n+p _ _ _:
+    case +y OkChar{} _:
+      F.fd.char(X.tsx.nat(X.tsx.at(1n, y)))
+    case X.SxCons{h, t} OkList{} _:
+      lw.out(t, OkNo{}, VmList{})
+    case X.SxCons{h, t} OkTup{} _:
+      lw.out(t, OkNo{}, VmTup{})
+    case X.SxCons{h, X.SxCons{c, t}} OkCon{} _:
+      T.BtCon{X.tsx.str.of(c), lw.out(t, OkNo{}, VmSp{})}
+    case _ _ _:
       T.BtTodo{S.b("law:answer")}
 
 # One line GHCi printed: @law NAME K ok|err|timeout [ANSWER]
@@ -1027,19 +1027,32 @@ def lw.ctx(tvs: List<&2, List<&2, U32>>) -> List<&2, U32>:
     case +h <> t:
       40 <> lw.cat(S.join(lw.ctxs(h <> t), 44), S.b(") => "))
 
-# lawSx for one of the module's data types (one :{ :} block each, so one
-# GHCi refuses, a type with a function field say, costs only its laws)
+# lawSx for one of the module's data types
 def lw.inst(+m: List<&2, U32>, d: Dd) -> List<&2, U32>:
   match d:
     case Dd{+n, +tvs, cs}:
-      lw.cat3(S.b(":{\ninstance "), lw.ctx(tvs), lw.cat3(S.b("LawSx ("), lw.cat3(m, 46 <> n, S.join(S.b("") <> tvs, 32)), lw.cat3(S.b(") where\n  lawSx v = case v of\n"), lw.alts(m, n, cs), S.b(":}\n"))))
+      lw.cat3(S.b("instance "), lw.ctx(tvs), lw.cat3(S.b("LawSx ("), lw.cat3(m, 46 <> n, S.join(S.b("") <> tvs, 32)), lw.cat(S.b(") where\n  lawSx v = case v of\n"), lw.alts(m, n, cs))))
 
-def lw.insts(+m: List<&2, U32>, ds: List<&2, Dd>) -> List<&2, U32>:
+# the instances in one block (types that use each other, in any order),
+# then each in its own block twice (so one GHCi refuses, a type with a
+# function field say, costs only its own laws; the second round sees the
+# first's; GHCi lets an instance shadow the same one declared before)
+def lw.insts.one(+m: List<&2, U32>, ds: List<&2, Dd>) -> List<&2, U32>:
   match ds:
     case d <> t:
-      lw.cat(lw.inst(m, d), lw.insts(m, t))
+      lw.cat(lw.inst(m, d), lw.insts.one(m, t))
     case Nil{}:
       Nil{}
+
+def lw.insts.each(+m: List<&2, U32>, ds: List<&2, Dd>) -> List<&2, U32>:
+  match ds:
+    case d <> t:
+      lw.cat3(S.b(":{\n"), lw.inst(m, d), lw.cat(S.b(":}\n"), lw.insts.each(m, t)))
+    case Nil{}:
+      Nil{}
+
+def lw.insts(+m: List<&2, U32>, +ds: List<&2, Dd>) -> List<&2, U32>:
+  lw.cat3(lw.cat3(S.b(":{\n"), lw.insts.one(m, ds), S.b(":}\n")), lw.insts.each(m, ds), lw.insts.each(m, ds))
 
 # lawRun "f" 3 ((M.f :: T) a b)
 def lw.lines.lc(ls: List<&2, Lc>, +b: List<&2, U32>) -> List<&2, U32>:
@@ -1071,7 +1084,7 @@ def lw.law.sx(m: Maybe<&2, X.Sx>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: Lis
   match m:
     case Some{+x}:
       +doc = lw.cat3(S.b("GHC: "), hs, lw.cat(S.b(") = "), v))
-      T.BiDef{lw.lawname(b, k), Nil{}, T.BtEq{ret, call, lw.out(64n, lw.okind(x), VmVal{}, x)}, T.BtExpr{T.BtRefl{}}, doc <> Nil{}} <> Nil{}
+      T.BiDef{lw.lawname(b, k), Nil{}, T.BtEq{ret, call, lw.out(x, lw.okind(x), VmVal{})}, T.BtExpr{T.BtRefl{}}, doc <> Nil{}} <> Nil{}
     case None{}:
       Nil{}
 
@@ -1158,6 +1171,34 @@ def lw.whykind(m: Maybe<&2, List<&2, U32>>) -> List<&2, U32>:
     case None{}:
       S.b("check:")
 
+# the names of the items that are not laws
+def lw.defnames(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case +h <> t:
+      +n = F.fd.item.name(h)
+      +r = lw.defnames(t)
+      F.fd.bpicks(lw.dotted(n), r, n <> r)
+    case Nil{}:
+      Nil{}
+
+def lw.prune.go(its: List<&2, T.BItem>, +defs: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case +h <> t:
+      +n = F.fd.item.name(h)
+      F.fd.without.put(Bool.and(lw.dotted(n), Bool.not(S.mem(lw.undot(n), defs))), h, lw.prune.go(t, defs))
+    case Nil{}:
+      Nil{}
+
+# the laws whose def is gone go too (a law names its def only in its
+# type, where the gate's closure, Fold's fd.hits, does not look)
+def lw.prune(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  lw.prune.go(its, lw.defnames(its))
+
+def lw.pruned(g: F.Gs) -> F.Gs:
+  match g:
+    case F.Gs{k, o, d}:
+      F.Gs{lw.prune(k), o, d}
+
 def lw.gate.step(g: F.Gs, +file: List<&2, U32>, +m: List<&2, U32>, +out: List<&2, U32>) -> F.Gs:
   match g:
     case F.Gs{its, o, True{}}:
@@ -1165,7 +1206,7 @@ def lw.gate.step(g: F.Gs, +file: List<&2, U32>, +m: List<&2, U32>, +out: List<&2
     case F.Gs{+its, +o, False{}}:
       +ls = S.split(out, 10)
       +who = F.fd.gate.who(F.fd.errline(ls), F.fd.render(file, m, its))
-      Bool.pick(F.Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), F.Gs{its, o, True{}}, F.fd.gate.drop(lw.who(who), its, o, lw.cat(lw.whykind(who), F.fd.errwhy(ls))))
+      Bool.pick(F.Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), F.Gs{its, o, True{}}, lw.pruned(F.fd.gate.drop(lw.who(who), its, o, lw.cat(lw.whykind(who), F.fd.errwhy(ls)))))
 
 def lw.gate(fuel: Nat, g: F.Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>) -> IO(F.Gs):
   match fuel:
@@ -1279,8 +1320,25 @@ def lw.pick(fb: Bool, g1: F.Gs, g2: F.Gs) -> F.Gs:
     case False{}:
       g2
 
+def lw.names(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case h <> t:
+      F.fd.item.name(h) <> lw.names(t)
+    case Nil{}:
+      Nil{}
+
+# whether the gate with the laws refused, not for a law, an item the gate
+# before had kept (Bend died on the file, or ran out of time, so no item
+# was to blame): then the module is written as before, with no laws
+def lw.anomaly(ds: List<&2, F.Dr>, +names: List<&2, List<&2, U32>>) -> Bool:
+  match ds:
+    case F.Dr{+n, +w} <> t:
+      Bool.or(Bool.and(S.mem(n, names), S.prefix(w, S.b("check:"))), lw.anomaly(t, names))
+    case Nil{}:
+      False{}
+
 def lw.fin(+out: String, +file: List<&2, U32>, +m: List<&2, U32>, +path: String, +g1: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>) -> IO(Unit):
-  +fb = Bool.and(F.fd.hasdef(lw.gs.its(g1)), Bool.not(F.fd.hasdef(lw.gs.its(g2))))
+  +fb = lw.anomaly(lw.gs.out(g2), lw.names(lw.gs.its(g1)))
   +g = lw.pick(fb, g1, g2)
   +its = lw.gs.its(g)
   do IO<Unit>:
@@ -1290,7 +1348,7 @@ def lw.fin(+out: String, +file: List<&2, U32>, +m: List<&2, U32>, +path: String,
 def lw.start(g: F.Gs, laws: List<&2, T.BItem>, +bad: List<&2, F.Dr>) -> F.Gs:
   match g:
     case F.Gs{k, o, d}:
-      lw.undone(lw.drops(bad, F.Gs{List.append(&2, T.BItem, k, laws), o, False{}}))
+      lw.undone(lw.pruned(lw.drops(bad, F.Gs{List.append(&2, T.BItem, k, laws), o, False{}})))
 
 def lw.laws2(+bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +path: String, +try: String, +g1: F.Gs, +ps: List<&2, Pl>, +laws: List<&2, T.BItem>) -> IO(Unit):
   +good = lw.good(laws)
