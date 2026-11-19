@@ -118,3 +118,43 @@ Of her direct and fill bodies that pass the check and differ from the
 original, 7 were right on the tests and 18 wrong or slow (13 untested). The
 check alone overstates her about twofold; a law filter is needed before
 anything she writes is kept.
+
+## Step 2: the fold (design, 2026-11-19; not built yet)
+
+`cata hs FILE.sexp OUT`: the export's v1 bindings into ToBend's syntax tree
+(`bend/a2b/ToBend/Ast.bend`), ordered (`ToBend/Order.bend`), quantities
+marked (`ToBend/Copy.bend`'s `tcp.decide`/`tcp.finish` with an empty
+`QF.TqEnv`, or a smaller pass of cata's own if that one is too tied to
+Agda), printed (`ToBend/Print.bend`), then checked; every binding out goes
+to `OUT/ledger.tsv` with the survey's reason or the checker's.
+
+What Bend 2.0.39 forces, and the rule for each:
+
+- **No `if`, and `match` only on a parameter or a pattern variable.** A
+  guard or an `if` becomes a call of cata's prelude `Hs.if(R, c, u => a, u
+  => b)`, branches as thunks, the way Base writes `List.any.if`; a helper
+  def would call the function back (mutual recursion, refused). `case` on
+  a parameter or a part of one is a `match`; on a computed value, a
+  type's eliminator (`T.case`, generated per data type) with the branches
+  as lambdas. A recursive call through an eliminator's lambda does not
+  shrink to the checker, so such a binding is ledgered.
+- **A `let` may not precede a `match` on a parameter.** `where` bindings go
+  at the top of each case's body.
+- **No mutual recursion; a def calls only defs above it.** Order.bend sorts;
+  the survey already ledgers mutual groups.
+- **Termination reads arguments left to right.** The parameter that shrinks
+  (the survey finds it) is moved first; callers follow the new order.
+- **Affine variables.** Data used twice is `+`; a function argument used
+  twice must be a template (`~f`), so a call that passes a closure over
+  locals is ledgered unless the callee is specialized for it.
+- **Haskell's `String` is `[Char]`.** v1 maps every list, strings included,
+  to `List<&2, T>`; mapping `[Char]` to Bend's `String` (SNil/SCon) with
+  `String` versions of the prelude is a later rule.
+- **Int as Nat** only where nothing subtracts or negates (the survey
+  marks it); `n + 1` patterns of countdowns are not v1.
+
+Example laws (step 2's oracle): cata (Bend) lists inputs by type, smallest
+first and deterministically, writes them both as Haskell and as Bend
+literals, writes a Haskell harness that prints each output, runs it with
+GHC, and writes `law f.exK: {f(a) == v : R}` with `def f.exK(): {==}`. The
+Codex translations are never consulted.
