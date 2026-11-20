@@ -908,3 +908,68 @@ non-structural recursion is waiting on something else as well: the
 parser (megaparsec, TelomareParser), the pretty printers' Show at Fix
 through Show1 (now the sole blocker of 30), view patterns (100 affected),
 Applicative at a type variable (103), `error` (83), `!!`.
+
+## Telomare's rules, 12: type arguments, as-patterns, `\case`, `<*>` chains (2026-11-20)
+
+The goal stands ("have cata be able to generate a working version of
+telomare's master"). Measured from the pipeline's roots
+(`Driver.compileModules`, `evalLoopCore`, `Fast.compileFast`,
+`runFastLoop`), 316 of telomare's functions they reach were out in the
+survey; the four rules here are what stood between the survey and the
+fold, or between the fold and Bend's check:
+
+- **Type arguments normal** (Spec): every `tyapp`'s type has the
+  package's synonyms expanded and families applied. `cata` at `Term3`,
+  `BasicExpr`, `PatternA`, `UnsizedExpr`... (synonyms of Fix and Cofree)
+  was `method:Recursive.cata@Term3` to the survey; it is cata at Cofree
+  now. The pipeline's closure: 316 -> 309 out.
+- **As-patterns** (Spec): a clause's `x@p` is `p`, its wildcards named
+  (`as_wPATH`), and each use of `x` in the clause the term `p` builds
+  (the constructor at the pattern's types applied to its fields, a tuple,
+  a list, a literal). A clause whose as-pattern holds a record pattern, a
+  negative literal or a view is left as it was (`fold:pattern-pas`); so is
+  one in a do or list-comprehension bind. Telomare's export had 235.
+- **`\case` and `\cases` in an expression** (Fold): a lambda by cases,
+  lifted like any lambda whose patterns are not all variables (it was
+  `fold:lambda-case`: `b2v = cata $ \case ..`).
+- **`<*>` after `<$>`** (Fold): `g <$> y <*> x` is `y >>= \v -> fmap (g v)
+  x`, `(y >>= \v -> e) <*> x` is `y >>= \v -> (e <*> x)` and `pure g <*>
+  x` is `fmap g x`, at Maybe, Either and ExceptT over State. The old
+  `f >>= \g -> fmap g x` put a function inside a Maybe, which Bend refuses
+  (a function is Type, a Maybe's part Data): 27 of telomare's defs failed
+  Bend's check so (`b2s`, `cshowP1__*`, `checks`).
+- `sum` and `product` at Int and Integer (HsInt).
+
+**Tests**: `tests/hs/LamCase.hs` (all 9 in: 6 laws, 3 check),
+`tests/hs/As.hs` (as-patterns in clauses, nested, in a case, under a
+tuple, a list and a char literal: 8 laws; `pick` waits on a guard that
+falls through, `heads` on a list comprehension), `tests/hs/Ap.hs` (7 laws,
+were 5 check failures), `tests/hs/Lifted.hs` (a where-function that calls
+its def: a cycle, rule 11's `.mu`; 2 laws). Fuel, Shows, Nt and Help
+unchanged.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 11 (spec9, law19) | 536 | 87 | 171 | 110 |
+| telomare after rule 12 (spec11, law22, 281 s) | 519 | 88 | 187 | 110 |
+| hs1003 after rule 11 (law24) | 2969 | 1559 | 255 | 561 |
+| hs1003 after rule 12 (law26) | 2959 | 1569 | 255 | 561 |
+
+No def lost its verdict on either (hs1003 does not go through the
+specialiser, so it sees the fold's two). Telomare's copies: 628 check
+(611), 225 out (242).
+
+What the pipeline's closure waits on now (309 out, survey of spec11):
+megaparsec (TelomareParser 56, ParsecT 55 and its methods: Parse's 60),
+`error` (17), EAL's simplex over Rational (Rational 10, Tab 7, Row 5,
+Data.Graph), view patterns (11), `!!` and `iterate` (8, 7), Show at Fix
+(8), ReaderT (6), a function passed as a value that is the def itself or
+its group (`rec-value`, 24: `parent >>= locStartLineColumn`, `foldMap
+refsOf x`, `maybe (pure t) walkTau`, `tag anno <$> project x`), IO
+(`evalLoopCore`, `runFastLoop`). The fold's own gaps there: local pattern
+bindings (`let (r, (m, _)) = ..`, 7), sections (9), `let`/`if` in an
+argument (7), Show at a Maybe of the module's own type (`cshowsPrec__LocTag`,
+11 copies), a guard that falls through to the next clause.
+
+Next: specialise a call at a known function argument (rec-value and
+closures; `tests/hs/RecV.hs`'s shapes), then `error`.

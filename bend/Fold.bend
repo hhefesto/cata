@@ -1732,10 +1732,17 @@ def fd.elem(q: Tq, +t: T.Bt, x: T.Bt, xs: T.Bt) -> T.Bt:
     case _:
       fd.callS("List.contains", [fd.tpl0(t), fd.tpl0(fd.eqfn(t, Nil{})), xs, x])
 
-def fd.sum(q: Tq, f: T.Bt, z: T.Bt, xs: T.Bt) -> T.Bt:
+# a * b at Nat, as a template
+def fd.nmul() -> T.Bt:
+  T.BtLam{T.BmLive{}, S.b("p"), T.BtLam{T.BmLive{}, S.b("q"), fd.callS("Nat.mul", [fd.v("p"), fd.v("q")])}}
+
+# sum and product (prod) at Nat and at HsPrelude's HsInt (Int, Integer)
+def fd.sum(q: Tq, +prod: Bool, +t: T.Bt, xs: T.Bt) -> T.Bt:
   match q:
     case TqNat{}:
-      fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(f), xs, z])
+      fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(Bool.pick(T.Bt, prod, fd.nmul(), fd.v("Nat.add"))), xs, T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])
+    case TqInt{}:
+      fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(t), fd.tpl0(t), fd.tpl0(fd.v(Bool.pick(String, prod, "HsPrelude.HsInt.mul", "HsPrelude.HsInt.add"))), xs, T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])}])
     case _:
       fd.todo("fold:sum-at-type")
 
@@ -1913,8 +1920,92 @@ def fd.fmap(k: Mk, a: T.Bt, b: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
     case _:
       fd.todo("fold:fmap-at-type")
 
+# A folded fmap, >>= or pure of the monad k, so that <*> after one is a
+# >>=: g <$> y <*> x is y >>= \v -> fmap (g v) x, (y >>= \v -> e) <*> x is
+# y >>= \v -> (e <*> x), and pure g <*> x is fmap g x. A chain f <$> a <*>
+# b <*> c then holds no Maybe or Either of a function (a function is
+# Type, and their parts are Data).
+type Apv is Data:
+  ApFmap{a0: T.Bt, g: T.Bt, y: T.Bt}
+  ApBind{a0: T.Bt, y: T.Bt, v: List<&2, U32>, body: T.Bt}
+  ApPure{g: T.Bt}
+  ApOther{f: T.Bt}
+
+def fd.ap.argl(a: T.Bt) -> List<&2, T.Bt>:
+  match a:
+    case T.BtArgs{h, t}:
+      h <> fd.ap.argl(t)
+    case _:
+      Nil{}
+
+def fd.ap.drop(n: Nat, xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match n xs:
+    case Succ{p} _ <> t:
+      fd.ap.drop(p, t)
+    case _ ys:
+      ys
+
+# k's fmap, >>= and pure (at State and ExceptT, calls), and how many of
+# their arguments come before the element types
+def fd.ap.pre(k: Mk) -> Nat:
+  match k:
+    case MkExS{e, s}:
+      2n
+    case _:
+      1n
+
+def fd.ap.name(k: Mk, +w: Nat) -> String:
+  match k:
+    case MkMaybe{}:
+      Bool.pick(String, Nat.is_eq(w, 0n), "Maybe.map", Bool.pick(String, Nat.is_eq(w, 1n), "Maybe.bind", ""))
+    case MkEither{e}:
+      Bool.pick(String, Nat.is_eq(w, 0n), "hs.either.map", Bool.pick(String, Nat.is_eq(w, 1n), "hs.either.bind", ""))
+    case MkState{s}:
+      Bool.pick(String, Nat.is_eq(w, 0n), "hs.state.map", Bool.pick(String, Nat.is_eq(w, 1n), "hs.state.bind", "hs.state.pure"))
+    case MkExS{e, s}:
+      Bool.pick(String, Nat.is_eq(w, 0n), "hs.exs.map", Bool.pick(String, Nat.is_eq(w, 1n), "hs.exs.bind", "hs.exs.pure"))
+    case _:
+      ""
+
+def fd.ap.view.call(ism: Bool, isb: Bool, isp: Bool, xs: List<&2, T.Bt>, f: T.Bt) -> Apv:
+  match ism isb isp xs:
+    case True{} _ _ a0 <> ab <> g <> y <> Nil{}:
+      ApFmap{a0, g, y}
+    case False{} True{} _ a0 <> mb <> y <> T.BtLam{m, v, body} <> Nil{}:
+      ApBind{a0, y, v, body}
+    case False{} False{} True{} a <> g <> Nil{}:
+      ApPure{g}
+    case _ _ _ _:
+      ApOther{f}
+
+def fd.ap.view(+k: Mk, +f: T.Bt) -> Apv:
+  match f:
+    case T.BtApp{T.BtVar{+n}, args}:
+      fd.ap.view.call(fd.is(n, fd.ap.name(k, 0n)), fd.is(n, fd.ap.name(k, 1n)), fd.is(n, fd.ap.name(k, 2n)), fd.ap.drop(fd.ap.pre(k), fd.ap.argl(args)), f)
+    case T.BtCon{+c, T.BtArgs{g, T.BtANil{}}}:
+      Bool.pick(Apv, Bool.or(fd.is(c, "Some"), fd.is(c, "Inr")), ApPure{g}, ApOther{f})
+    case _:
+      ApOther{f}
+
+def fd.ap.var(n: Nat) -> List<&2, U32>:
+  List.append(&2, U32, S.b("apx_"), fd.nshow(n))
+
+# f <*> x at k (not Identity, not State), chains of at most n
+def fd.ap.go(n: Nat, v: Apv, +k: Mk, +a: T.Bt, +b: T.Bt, x: T.Bt) -> T.Bt:
+  match n v:
+    case Succ{+p} ApFmap{a0, g, y}:
+      fd.bind(k, a0, b, y, T.BtLam{T.BmLive{}, fd.ap.var(p), fd.fmap(k, a, b, fd.tpl0(T.tba.call(fd.untpl(g), [T.BtVar{fd.ap.var(p)}])), x)})
+    case Succ{p} ApBind{a0, y, w, body}:
+      fd.bind(k, a0, b, y, T.BtLam{T.BmLive{}, w, fd.ap.go(p, fd.ap.view(k, body), k, a, b, x)})
+    case Succ{p} ApPure{g}:
+      fd.fmap(k, a, b, fd.tpl0(g), x)
+    case _ ApOther{f}:
+      fd.bind(k, T.BtPi{T.BmLive{}, S.b("_"), False{}, a, b}, b, f, T.BtLam{T.BmLive{}, S.b("ap_"), fd.fmap(k, a, b, fd.tpl0(fd.v("ap_")), x)})
+    case Zero{} _:
+      fd.todo("fold:applicative-chain")
+
 # <*>, and MonadState's methods (mtl), at State s
-# (<*> at Maybe, Either e and ExceptT e (State s): f >>= \g -> fmap g x)
+# (<*> at Maybe, Either e and ExceptT e (State s): see Apv)
 def fd.ap(k: Mk, +a: T.Bt, +b: T.Bt, f: T.Bt, x: T.Bt) -> T.Bt:
   match k:
     case MkIdentity{}:
@@ -1922,7 +2013,7 @@ def fd.ap(k: Mk, +a: T.Bt, +b: T.Bt, f: T.Bt, x: T.Bt) -> T.Bt:
     case MkState{s}:
       fd.callS("hs.state.ap", [s, a, b, fd.untpl(f), x])
     case +k2:
-      fd.bind(k2, T.BtPi{T.BmLive{}, S.b("_"), False{}, a, b}, b, f, T.BtLam{T.BmLive{}, S.b("ap_"), fd.fmap(k2, a, b, fd.tpl0(fd.v("ap_")), x)})
+      fd.ap.go(16n, fd.ap.view(k2, f), k2, a, b, x)
 
 def fd.st.get(k: Mk, s: T.Bt) -> T.Bt:
   match k:
@@ -2262,9 +2353,6 @@ def fd.cata(t: T.Bt, r: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
     case _:
       fd.todo("fold:cata-at-type")
 
-def fd.mul2() -> T.Bt:
-  T.BtLam{T.BmLive{}, S.b("p"), T.BtLam{T.BmLive{}, S.b("q"), fd.callS("Nat.mul", [fd.v("p"), fd.v("q")])}}
-
 # a saturated call of one of base's functions, as Base writes it
 def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<&2, U32>>) -> T.Bt:
   match f tys xs:
@@ -2311,9 +2399,9 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
     case BfElem{} +c <> +t <> _ x <> l <> _:
       fd.foldable(c, fd.elem(fd.tq(t), t, x, fd.fl(c, t, l)))
     case BfSum{} +c <> +t <> _ l <> _:
-      fd.foldable(c, fd.sum(fd.tq(t), fd.v("Nat.add"), T.BtNat{S.b("0")}, fd.fl(c, t, l)))
-    case BfProduct{} c <> +t <> _ l <> _:
-      fd.foldable(c, fd.sum(fd.tq(t), fd.mul2(), T.BtNat{S.b("1")}, l))
+      fd.foldable(c, fd.sum(fd.tq(t), False{}, t, fd.fl(c, t, l)))
+    case BfProduct{} +c <> +t <> _ l <> _:
+      fd.foldable(c, fd.sum(fd.tq(t), True{}, t, fd.fl(c, t, l)))
     case BfAndL{} c <> _ l <> _:
       fd.foldable(c, fd.callS("List.all", [fd.tpl0(fd.v("&2")), fd.tpl0(fd.ty0("Bool")), fd.tpl0(T.BtLam{T.BmLive{}, S.b("b"), fd.v("b")}), l]))
     case BfOrL{} c <> _ l <> _:
@@ -4140,7 +4228,7 @@ def fd.k.ex(k: K, +x: X.Sx) -> K:
     case KEcase{}:
       Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 1n)), "l"), KEcase{}, KEcaseC{})
     case KElam{}:
-      Bool.pick(K, V.sv.is(X.tsx.atom.of(V.sv.at(x, 1n)), "single"), KElam{}, KBad{S.b("fold:lambda-case")})
+      KElam{}
     case k1:
       k1
 

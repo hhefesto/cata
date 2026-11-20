@@ -1278,11 +1278,228 @@ def sp.copy(+rq: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
       +top = sp.lc.find(lcs, m, i)
       sp.copy.of(Maybe.bind(&2, X.Sx, X.Sx, top, t => sp.fun.of(t)), sp.strs(sp.at(sp.at(Maybe.default(&2, X.Sx, top, X.SxNil{}), 1n), 1n)), n, tys, cur, Ix{dfs, lcs, pss, ins, cls, sys, fms})
 
-# a binding's passes: pattern synonyms, views, copies' calls
+# As-patterns ---------------------------------------------------------------
+
+# A clause's x@p is p, its wildcards under it named, and each use of x in
+# the clause (its guards, bodies and where-bindings) the term p builds: the
+# constructor at the pattern's types applied to its fields, a tuple, a
+# list, a literal (Bend matches a parameter and hands out its fields, not
+# the whole as well). A clause with an x@p this cannot rebuild (record
+# fields, a negative literal, a view) is left as it is.
+
+# a use of an as-pattern's variable: the var (l NAME ID), the term
+type Asb is Data:
+  Asb{v: X.Sx, e: X.Sx}
+
+# a pattern rebuilt: the pattern, its term, the uses to replace, whether it
+# could be (for a sequence of patterns, p and e are the lists)
+type Ap is Data:
+  Ap{p: X.Sx, e: X.Sx, s: List<&2, Asb>, ok: Bool}
+
+type Pk is Data:
+  PkVar{}
+  PkWild{}
+  PkWrap{}
+  PkAs{}
+  PkCon{}
+  PkTuple{}
+  PkList{}
+  PkLit{}
+  PkNlit{}
+  PkSeq{}
+  PkBad{}
+
+def sp.as.kind.of(+a: List<&2, U32>, +x: X.Sx) -> Pk:
+  +con = Bool.and(sp.is(a, "pcon"), sp.head.is(sp.at(x, 3n), "args"))
+  +nlit = Bool.and(sp.is(a, "pnlit"), sp.is(X.tsx.atom.of(sp.at(x, 2n)), "pos"))
+  Bool.pick(Pk, sp.is(a, "pvar"), PkVar{}, Bool.pick(Pk, sp.is(a, "pwild"), PkWild{}, Bool.pick(Pk, Bool.or(sp.is(a, "pbang"), sp.is(a, "plazy")), PkWrap{}, Bool.pick(Pk, sp.is(a, "pas"), PkAs{}, Bool.pick(Pk, con, PkCon{}, Bool.pick(Pk, sp.is(a, "ptuple"), PkTuple{}, Bool.pick(Pk, sp.is(a, "plist"), PkList{}, Bool.pick(Pk, sp.is(a, "plit"), PkLit{}, Bool.pick(Pk, nlit, PkNlit{}, PkBad{})))))))))
+
+# what a pattern node is
+def sp.as.kind(+x: X.Sx) -> Pk:
+  sp.as.kind.of(X.tsx.atom.of(sp.at(x, 0n)), x)
+
+def sp.as.one(p: X.Sx, e: X.Sx) -> Ap:
+  Ap{p, e, Nil{}, True{}}
+
+def sp.as.bad(p: X.Sx) -> Ap:
+  Ap{p, X.SxNil{}, Nil{}, False{}}
+
+# (pbang P'), (plazy P')
+def sp.as.wrap(+h: X.Sx, a: Ap) -> Ap:
+  match a:
+    case Ap{p, e, s, ok}:
+      Ap{X.SxCons{h, X.SxCons{p, X.SxNil{}}}, e, s, ok}
+
+# x@p inside: p's term for x
+def sp.as.as(+v: X.Sx, a: Ap) -> Ap:
+  match a:
+    case Ap{p, +e, s, ok}:
+      Ap{p, e, Asb{v, e} <> s, ok}
+
+# a constructor at its types, applied to the fields' terms
+def sp.as.tyapps(tys: List<&2, X.Sx>, c: X.Sx) -> X.Sx:
+  match tys:
+    case Nil{}:
+      c
+    case t <> r:
+      sp.as.tyapps(r, sp.l([sp.a("tyapp"), c, t]))
+
+def sp.as.apps(es: List<&2, X.Sx>, f: X.Sx) -> X.Sx:
+  match es:
+    case Nil{}:
+      f
+    case e <> r:
+      sp.as.apps(r, sp.l([sp.a("app"), f, e]))
+
+def sp.as.con(+h: X.Sx, +con: X.Sx, +tys: X.Sx, +args: X.Sx, a: Ap) -> Ap:
+  match a:
+    case Ap{ps, es, s, ok}:
+      Ap{sp.l([h, con, tys, X.SxCons{args, ps}]), sp.as.apps(sp.els(es), sp.as.tyapps(sp.els(tys), con)), s, ok}
+
+def sp.as.tuple(+h: X.Sx, a: Ap) -> Ap:
+  match a:
+    case Ap{ps, es, s, ok}:
+      Ap{sp.l([h, ps]), X.SxCons{sp.a("tuple"), es}, s, ok}
+
+def sp.as.list(+h: X.Sx, +t: X.Sx, a: Ap) -> Ap:
+  match a:
+    case Ap{ps, es, s, ok}:
+      Ap{sp.l([h, t, ps]), sp.l([sp.a("list"), t, es]), s, ok}
+
+def sp.as.seq(a: Ap, b: Ap) -> Ap:
+  match a b:
+    case Ap{p, e, s, ok} Ap{ps, es, s2, ok2}:
+      Ap{X.SxCons{p, ps}, X.SxCons{e, es}, List.append(&2, Asb, s, s2), Bool.and(ok, ok2)}
+
+# a wildcard under an x@p, named by its place
+def sp.as.wvar(+path: List<&2, U32>) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("as_w"), path)}, sp.a("0")])
+
+# the pattern x (of kind k) rebuilt, the wildcards under it named from path
+def sp.as.go(x: X.Sx, k: Pk, +path: List<&2, U32>) -> Ap:
+  match x k:
+    case X.SxCons{+h, X.SxCons{+bv, X.SxNil{}}} PkVar{}:
+      sp.as.one(sp.l([h, bv]), sp.at(bv, 1n))
+    case X.SxCons{_, X.SxCons{+t, X.SxNil{}}} PkWild{}:
+      +v = sp.as.wvar(path)
+      sp.as.one(sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, t])]), v)
+    case X.SxCons{+h, X.SxCons{+p, X.SxNil{}}} PkWrap{}:
+      sp.as.wrap(h, sp.as.go(p, sp.as.kind(p), path))
+    case X.SxCons{_, X.SxCons{+bv, X.SxCons{+p, X.SxNil{}}}} PkAs{}:
+      sp.as.as(sp.at(bv, 1n), sp.as.go(p, sp.as.kind(p), path))
+    case X.SxCons{+h, X.SxCons{+con, X.SxCons{+tys, X.SxCons{X.SxCons{+args, ps}, X.SxNil{}}}}} PkCon{}:
+      sp.as.con(h, con, tys, args, sp.as.go(ps, PkSeq{}, path))
+    case X.SxCons{+h, X.SxCons{ps, X.SxNil{}}} PkTuple{}:
+      sp.as.tuple(h, sp.as.go(ps, PkSeq{}, path))
+    case X.SxCons{+h, X.SxCons{+t, X.SxCons{ps, X.SxNil{}}}} PkList{}:
+      sp.as.list(h, t, sp.as.go(ps, PkSeq{}, path))
+    case X.SxCons{+h, X.SxCons{+lit, X.SxNil{}}} PkLit{}:
+      sp.as.one(sp.l([h, lit]), lit)
+    case X.SxCons{+h, X.SxCons{+ol, +r}} PkNlit{}:
+      sp.as.one(X.SxCons{h, X.SxCons{ol, r}}, ol)
+    case X.SxCons{+p, rest} PkSeq{}:
+      sp.as.seq(sp.as.go(p, sp.as.kind(p), sp.cat(path, S.b("a"))), sp.as.go(rest, PkSeq{}, sp.cat(path, S.b("b"))))
+    case X.SxNil{} PkSeq{}:
+      sp.as.one(X.SxNil{}, X.SxNil{})
+    case y _:
+      sp.as.bad(y)
+
+# the as-patterns of a clause's patterns rebuilt, the rest kept
+def sp.as.find.at(isas: Bool, +x: X.Sx, a: Ap, b: Ap, +path: List<&2, U32>) -> Ap:
+  match isas:
+    case True{}:
+      sp.as.go(x, PkAs{}, path)
+    case False{}:
+      sp.as.seq(a, b)
+
+def sp.as.isas(+x: X.Sx) -> Bool:
+  sp.head.is(x, "pas")
+
+def sp.as.find(x: X.Sx, isas: Bool, +path: List<&2, U32>) -> Ap:
+  match x:
+    case X.SxCons{+h, +t}:
+      sp.as.find.at(isas, X.SxCons{h, t}, sp.as.find(h, sp.as.isas(h), sp.cat(path, S.b("a"))), sp.as.find(t, False{}, sp.cat(path, S.b("b"))), path)
+    case y:
+      sp.as.one(y, X.SxNil{})
+
+# the term a use of an as-pattern's variable stands for
+def sp.as.look(+x: X.Sx, s: List<&2, Asb>) -> Maybe<&2, X.Sx>:
+  match s:
+    case Nil{}:
+      None{}
+    case Asb{v, +e} <> t:
+      Bool.pick(Maybe<&2, X.Sx>, sp.eq(x, v), Some{e}, sp.as.look(x, t))
+
+# each use of an as-pattern's variable as its term (m: what x is, its caller
+# says)
+def sp.as.sub(x: X.Sx, m: Maybe<&2, X.Sx>, +s: List<&2, Asb>) -> X.Sx:
+  match x m:
+    case _ Some{e}:
+      e
+    case X.SxCons{+h, t} None{}:
+      X.SxCons{sp.as.sub(h, sp.as.look(h, s), s), sp.as.sub(t, None{}, s)}
+    case y None{}:
+      y
+
+def sp.as.clause.of(a: Ap, +ps: X.Sx, +rest: X.Sx) -> X.Sx:
+  match a:
+    case Ap{ps2, e, +s, ok}:
+      +any = Bool.not(Nat.is_eq(List.length(&2, Asb, s), 0n))
+      Bool.pick(X.Sx, Bool.and(ok, any), X.SxCons{ps2, sp.as.sub(rest, None{}, s)}, X.SxCons{ps, rest})
+
+# (match PATS GRHSS) with its as-patterns rebuilt
+def sp.as.clause(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{+h, X.SxCons{+ps, +rest}}:
+      X.SxCons{h, sp.as.clause.of(sp.as.find(ps, False{}, Nil{}), ps, rest)}
+    case y:
+      y
+
+def sp.p8.at(ism: Bool, x: X.Sx) -> X.Sx:
+  match ism:
+    case True{}:
+      sp.as.clause(x)
+    case False{}:
+      x
+
+# each clause's as-patterns, inner clauses first (ism: x is a clause)
+def sp.p8(x: X.Sx, ism: Bool) -> X.Sx:
+  match x:
+    case X.SxCons{+h, t}:
+      sp.p8.at(ism, X.SxCons{sp.p8(h, sp.head.is(h, "match")), sp.p8(t, False{})})
+    case y:
+      y
+
+# Type arguments normal (synonyms expanded, families applied): the survey
+# and the fold read a method's instance off its type argument, so cata at
+# telomare's Term3 is cata at Cofree Term3F LocTag
+def sp.p7.at(ty: Bool, +a: List<&2, U32>, f: X.Sx, t: X.Sx, +ix: Ix) -> X.Sx:
+  match ty:
+    case True{}:
+      sp.l([sp.a("tyapp"), f, sp.norm(t, ix)])
+    case False{}:
+      X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{t, X.SxNil{}}}}
+
+def sp.p7(x: X.Sx, +ix: Ix) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{f, X.SxCons{t, X.SxNil{}}}}:
+      sp.p7.at(sp.is(a, "tyapp"), a, sp.p7(f, ix), sp.p7(t, ix), ix)
+    case X.SxCons{h, t}:
+      X.SxCons{sp.p7(h, ix), sp.p7(t, ix)}
+    case y:
+      y
+
+def sp.rw.p7(r: Rw, +ix: Ix) -> Rw:
+  match r:
+    case Rw{x, q}:
+      Rw{sp.p7(x, ix), q}
+
+# a binding's passes: pattern synonyms, views, copies' calls, normal type
+# arguments
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix) -> Rw:
   +x0 = sp.p0(x, sp.isfun(x))
   +y = sp.p1.go(12n, x0, sp.has.str(x0, S.b("PatSynCon")), ix)
-  sp.p4(sp.p3(y, sp.ispv(y), ix), True{}, cur, ix)
+  sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix)
 
 def sp.rq.name(rq: Rq) -> List<&2, U32>:
   match rq:

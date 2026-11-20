@@ -19,8 +19,13 @@ reason. PLAN.md has the decisions, the steps and what has been measured.
   package's instances) as the plain pattern it is, and each call of a def
   that takes dictionaries, or of a method at an instance the package wrote,
   at types with no variable left, as a call of a copy at those types
-  (`NAME__TYPES`, written into the calling module). Survey, fold and law
-  read its output.
+  (`NAME__TYPES`, written into the calling module). It writes every type
+  argument with the package's synonyms expanded and type families applied
+  (`cata` at telomare's `Term3` is `cata` at `Cofree Term3F LocTag`), and
+  each as-pattern `x@p` of a clause as `p`, its wildcards named and each
+  use of `x` the term `p` builds (Bend matches a parameter and hands out
+  its fields, not the whole as well). Survey, fold and law read its
+  output.
 - `bend/Survey.bend`: `survey OUT FILE.sexp...` judges every binding of
   the exports against cata hs's first version and says why each one out is
   out.
@@ -178,11 +183,15 @@ list the zip ends) are HsList's `zipFrom`, `zipR`, `zipWithFrom`,
 and `bimap` at Either and pairs; `mempty` at lists, Maps, Sets, Ordering
 and (); `flip`; `liftM2` as `liftA2`; `trace` its second argument (the
 message to stderr not modelled); `<*>` at Maybe, Either and ExceptT over
-State as `>>=` and `fmap`. Foldable's functions at a Set are at its
-elements, at a Map at its values (in key order), as Data.Foldable has
-them, and `fmap` at a Map its `map`. Data.Sequence's `Seq a` is a list
-(front first) and `ViewL a` too (`EmptyL` the empty list, `x :< s` a
-cons): `empty`, `|>`, `<|`, `viewl`, `fromList`.
+State as `>>=` and `fmap`, a chain `f <$> a <*> b <*> c` (or `pure f <*>
+..`) as `a >>= \x -> b >>= \y -> fmap (f x y) c`, so that no Maybe or
+Either holds a function (a function is `Type`, their parts `Data`);
+`sum` and `product` at Int and Integer (HsInt) as at Nat. Foldable's
+functions at a Set are at its elements, at a Map at its values (in key
+order), as Data.Foldable has them, and `fmap` at a Map its `map`.
+Data.Sequence's `Seq a` is a list (front first) and `ViewL a` too
+(`EmptyL` the empty list, `x :< s` a cons): `empty`, `|>`, `<|`, `viewl`,
+`fromList`.
 
 Show at base's types is HsPrelude's `HsShow`, GHC.Show's text: `showsPrec`,
 `show` and `shows` at Int (HsInt; a negative number in parentheses above
@@ -208,14 +217,15 @@ Bend matches only parameters and pattern fields, not a local or a computed
 value, and no match may follow a local statement; a lambda holds one
 expression. So these become defs of their own: a `case` on a computed value
 or in an argument, a lambda whose body is a `let` or a `case` (or whose
-patterns are not all variables), a local value whose body is one, a `case`
-after a `let`, and every `where` or `let` function (one that calls itself
-too). A lifted def is `NAME.lK` (`NAME.go` for a local `go`); its
-parameters are the enclosing def's type variables, the locals its body
-uses, with the types GHC gave their binders, and its own. A use of a local
-function becomes a call of its def with those locals first. The ledger
-says `ok-gen` for a lifted def; a lifted def that calls the def it came
-from makes the two mutually recursive, which Bend refuses (both out).
+patterns are not all variables, as a `\case` or `\cases`), a local value
+whose body is one, a `case` after a `let`, and every `where` or `let`
+function (one that calls itself too). A lifted def is `NAME.lK`
+(`NAME.go` for a local `go`); its parameters are the enclosing def's type
+variables, the locals its body uses, with the types GHC gave their
+binders, and its own. A use of a local function becomes a call of its def
+with those locals first. The ledger says `ok-gen` for a lifted def; a
+lifted def that calls the def it came from is in a cycle of calls with it
+(see "Recursion Bend refuses").
 
 ## Equality
 
