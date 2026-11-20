@@ -849,3 +849,62 @@ Show still blocks most of telomare's: its types' Show instances call the
 imported ones (SourceSpan, UnsizedRecursionToken), Show at Fix is
 through Show1 (mutual), and its pretty printer (PrettyPrintable) is
 mutual.
+
+## Telomare's rules, 11: recursion Bend refuses, with fuel (2026-11-20)
+
+The user: "What still blocks telomare's own functions: our bend branch of
+telomare should signal you how to approach these. Do not use unsafe."
+
+The bend branch writes each recursion Bend refuses with a Nat fuel, none
+with `@unsafe`: Desugar.bend's `go(+fuel, scope, n: ON) -> OV` is master's
+mutually recursive walks over terms, patterns, their lists and bindings as
+one def of a sum (`ON`: OT, OP, OTs, OBs, OAs, OArgs, OSpine) answering a
+sum (`OV`, taken apart by `vt`, `vp`, ... with a default at the others),
+`fuel()` = `U32.to_nat(4294967295)`, at 0 a default (`VT{S.SZero{..}}`);
+Levels.bend's `occ` the same with one answer type; Expand, Resolve, Size,
+EAL, Mega and Parse likewise. The fold now writes them so (README,
+"Recursion Bend refuses: fuel"):
+
+- the gate reads Bend's "a decreasing self-call" and, when a default of
+  the def's type is to hand, writes the def as `f.fu` (the fuel after its
+  type and template parameters) and `f` (from 2^32 - 1) instead of taking
+  it out; Bend's own check decides which defs need it, so a def Bend sees
+  shrink keeps its structural recursion;
+- before the gate, each cycle of calls among the module's defs (two or
+  more, found by reachability) whose members take no type or template
+  parameters and fold whole is one def `HEAD.mu` over `HEAD.mu.In`, its
+  answer the members' or `HEAD.mu.Out`;
+- defaults: Base's and HsPrelude's types, pairs, Either, Fix, Cofree, and
+  data types, the module's or (in a package) the modules' before it, now
+  handed on in the package (`Px`'s `dt`, the types as a later module
+  names them);
+- the survey no longer puts a def out for `nonstructural` or `mutual`
+  (both are its notes now); `rec-value` stays a reason (a function value:
+  Bend's templates take only closed arguments, and `f.fu(p)` is not);
+- the specialiser writes `f $ x` as `f x` and `(f . g) x` as `f (g x)`
+  (`f` passed to `$` was a use as a value: rec-value 57 -> 44 in the
+  survey of telomare).
+
+**Test** (`tests/hs/Fuel.hs`): `halvings`, `digits`, `gcd'` (no argument
+shrinks), `isEven`/`isOdd`, `sizeR`/`sizeF` (a rose tree through its
+list), `render`/`renderAll` (a String and a [String]: the Out sum) with
+laws, GHC agrees: 16 ok-law, 3 types; out: `collatz` (base's `even`),
+`build` (a let in an expression), `range` (build's).
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 10 (law13) | 538 | 85 | 171 | 110 |
+| telomare after rule 11 (spec9, law19, 224 s) | 536 | 87 | 171 | 110 |
+| hs1003 after rule 10 (law22) | 3023 | 1515 | 245 | 561 |
+| hs1003 after rule 11 (law24) | 2969 | 1559 | 255 | 561 |
+
+No def lost its verdict on either. Telomare's copies: 611 check (595).
+Newly in: `indentation`, `decendant`, derived Show of EAL's Tau, Sigma
+and CapShape (a mutual group) and IR.Types' DataType, Size's `intB` (a
+default of another module's type), `unsizedStepBody`, copies of `i2B`,
+`s2b`, `deferS` and `bLamAFP`. The survey of telomare's own functions:
+449 -> 447 out (467 before rule 11). Most of its mutual and
+non-structural recursion is waiting on something else as well: the
+parser (megaparsec, TelomareParser), the pretty printers' Show at Fix
+through Show1 (now the sole blocker of 30), view patterns (100 affected),
+Applicative at a type variable (103), `error` (83), `!!`.

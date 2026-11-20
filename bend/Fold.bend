@@ -830,35 +830,42 @@ type Tf is Data:
 # what they have in, their synonyms, and their defs' template flags.  A
 # module alone has fd.px0().
 type Px is Data:
-  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>}
+  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>, dt: List<&2, T.BItem>}
 
 def fd.px0() -> Px:
-  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
+  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
 
 def fd.px.home(p: Px) -> List<&2, List<&2, U32>>:
   match p:
-    case Px{h, f, i, s, t}:
+    case Px{h, f, i, s, t, z}:
       h
 
 def fd.px.files(p: Px) -> List<&2, List<&2, U32>>:
   match p:
-    case Px{h, f, i, s, t}:
+    case Px{h, f, i, s, t, z}:
       f
 
 def fd.px.ix(p: Px) -> List<&2, Ix>:
   match p:
-    case Px{h, f, i, s, t}:
+    case Px{h, f, i, s, t, z}:
       i
 
 def fd.px.sy(p: Px) -> List<&2, Sy>:
   match p:
-    case Px{h, f, i, s, t}:
+    case Px{h, f, i, s, t, z}:
       s
 
 def fd.px.tfs(p: Px) -> List<&2, Tf>:
   match p:
-    case Px{h, f, i, s, t}:
+    case Px{h, f, i, s, t, z}:
       t
+
+# the data types of the modules before, written as this module names them
+# (Alias.T, Alias.T.C): the fuel's defaults take theirs
+def fd.px.dt(p: Px) -> List<&2, T.BItem>:
+  match p:
+    case Px{h, f, i, s, t, z}:
+      z
 
 def fd.ix.key(i: Ix) -> List<&2, U32>:
   match i:
@@ -5883,14 +5890,854 @@ def fd.gate.who2(tl: Maybe<&2, List<&2, U32>>, ls: List<&2, List<&2, U32>>, +tex
     case None{}:
       fd.gate.who(fd.errline(ls), text)
 
+# Fuel -----------------------------------------------------------------------------
+#
+# Recursion Bend refuses, written as telomare's bend branch writes it (no
+# @unsafe): a def whose self-call Bend does not see shrink ("a decreasing
+# self-call") is f.fu, with a Nat after its type and template parameters,
+# one less at each self-call, U32.to_nat(4294967295) from f (a depth no run
+# reaches), and at 0 a default of the result's type (Desugar.bend's go and
+# fuel()).
+
+# U32.to_nat(4294967295): the depth a fuelled def starts with
+def fd.fu.max() -> T.Bt:
+  fd.callS("U32.to_nat", [T.BtVar{S.b("4294967295")}])
+
+# Defaults: a value of a type, for the fuel's end.  Base's types and
+# HsPrelude's have theirs; a pair, an Either, Fix and Cofree are
+# constructors of their parts; the module's own types, a constructor with
+# no fields first, then one whose fields do not name the type, then any
+# (its fields' defaults in turn).  A type variable, or a type of another
+# module, has none: the def is out (fold:fuel-default-at-type).  One def
+# answers every question (Bend allows no mutual recursion): a question is a
+# Dq, an answer a Da, a step that needs no recursion a Dn.
+type Dq is Data:
+  DqTy{ty: T.Bt}
+  DqRun{n: Dn}
+  DqCs{cs: List<&2, T.BCtor>, next: List<&2, List<&2, T.BCtor>>, ps: List<&2, T.BParam>, args: T.Bt}
+  DqPick{r: Da, c: List<&2, U32>, cs: List<&2, T.BCtor>, next: List<&2, List<&2, T.BCtor>>, ps: List<&2, T.BParam>, args: T.Bt}
+  DqFs{fs: List<&2, T.BField>, ps: List<&2, T.BParam>, args: T.Bt}
+  DqCons{r: Da, fs: List<&2, T.BField>, ps: List<&2, T.BParam>, args: T.Bt}
+
+type Dn is Data:
+  DnDone{a: Da}
+  DnAsk{q: Dq}
+  DnLam{ty: T.Bt}
+
+type Da is Data:
+  DaOne{m: Maybe<&2, T.Bt>}
+  DaMany{m: Maybe<&2, List<&2, T.Bt>>}
+
+type DfB is Data:
+  DfB{n: String, v: String}
+
+type Dk is Data:
+  DkSigma{}
+  DkEither{}
+  DkFix{}
+  DkCofree{}
+  DkCofreeF{}
+  DkOwn{}
+
+def fd.dv.bases() -> List<&2, DfB>:
+  [DfB{"Nat", "0n"}, DfB{"U32", "0"}, DfB{"Char", "' '"}, DfB{"Bool", "False{}"}, DfB{"Unit", "Unit{}"}, DfB{"F32", "0.0"}, DfB{"Cmp", "EQ{}"}, DfB{"List", "[]"}, DfB{"Maybe", "None{}"}, DfB{"HsPrelude.HsInt", "HsPrelude.HsInt.Pos{0n}"}, DfB{"HsPrelude.HsMap", "HsPrelude.HsMap.Tip{}"}, DfB{"HsPrelude.HsSet", "HsPrelude.HsSet.Tip{}"}]
+
+def fd.dv.base(xs: List<&2, DfB>, +n: List<&2, U32>) -> Maybe<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      None{}
+    case DfB{k, v} <> t:
+      Bool.pick(Maybe<&2, T.Bt>, S.eq(S.b(k), n), Some{T.BtVar{S.b(v)}}, fd.dv.base(t, n))
+
+# a type function applied, reduced: (r => B)(X) is B with X for r
+def fd.dv.beta(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtLam{m, x, b}, T.BtArgs{a, T.BtANil{}}}:
+      T.tba.subst(b, x, a)
+    case u:
+      u
+
+# a type's parameters given: ps[i] is args[i] in ty
+def fd.dv.sub(ps: List<&2, T.BParam>, args: T.Bt, ty: T.Bt) -> T.Bt:
+  match ps args:
+    case T.BParam{m, x, k} <> pt T.BtArgs{a, rest}:
+      fd.dv.sub(pt, rest, T.tba.subst(ty, x, a))
+    case _ _:
+      ty
+
+def fd.dv.list(a: T.Bt) -> List<&2, T.Bt>:
+  match a:
+    case T.BtArgs{h, t}:
+      h <> fd.dv.list(t)
+    case _:
+      Nil{}
+
+def fd.dv.f(x: String, ty: T.Bt) -> T.BField:
+  T.BField{S.b(x), ty}
+
+def fd.dv.isty(it: T.BItem) -> Bool:
+  match it:
+    case T.BiType{n, ps, k, cs, d}:
+      True{}
+    case _:
+      False{}
+
+def fd.dv.find(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      None{}
+    case +h <> t:
+      Bool.pick(Maybe<&2, T.BItem>, Bool.and(fd.dv.isty(h), S.eq(fd.item.name(h), n)), Some{h}, fd.dv.find(t, n))
+
+def fd.dv.keep(b: Bool, c: T.BCtor, rest: List<&2, T.BCtor>) -> List<&2, T.BCtor>:
+  match b:
+    case True{}:
+      c <> rest
+    case False{}:
+      rest
+
+def fd.dv.nullary(cs: List<&2, T.BCtor>) -> List<&2, T.BCtor>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case T.BCtor{c, +fs} <> t:
+      fd.dv.keep(List.is_empty(&2, T.BField, fs), T.BCtor{c, fs}, fd.dv.nullary(t))
+
+# whether a field's type names n
+def fd.dv.names(fs: List<&2, T.BField>, +n: List<&2, U32>) -> Bool:
+  match fs:
+    case Nil{}:
+      False{}
+    case T.BField{x, ty} <> t:
+      Bool.or(S.mem(n, T.tba.refs(ty, Nil{})), fd.dv.names(t, n))
+
+def fd.dv.flat(+n: List<&2, U32>, cs: List<&2, T.BCtor>) -> List<&2, T.BCtor>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case T.BCtor{c, +fs} <> t:
+      fd.dv.keep(Bool.not(fd.dv.names(fs, n)), T.BCtor{c, fs}, fd.dv.flat(n, t))
+
+def fd.dv.one(cs: List<&2, T.BCtor>) -> Dn:
+  DnAsk{DqCs{cs, Nil{}, Nil{}, T.BtANil{}}}
+
+def fd.dv.none() -> Dn:
+  DnDone{DaOne{None{}}}
+
+def fd.dv.own(m: Maybe<&2, T.BItem>, args: T.Bt) -> Dn:
+  match m:
+    case Some{T.BiType{+n, ps, k, +cs, d}}:
+      DnAsk{DqCs{fd.dv.nullary(cs), [fd.dv.flat(n, cs), cs], ps, args}}
+    case _:
+      fd.dv.none()
+
+def fd.dv.kind(+n: List<&2, U32>) -> Dk:
+  Bool.pick(Dk, fd.is(n, "Sigma"), DkSigma{}, Bool.pick(Dk, fd.is(n, "Either"), DkEither{}, Bool.pick(Dk, fd.is(n, "HsPrelude.Fix"), DkFix{}, Bool.pick(Dk, fd.is(n, "HsPrelude.Cofree"), DkCofree{}, Bool.pick(Dk, fd.is(n, "HsPrelude.CofreeF"), DkCofreeF{}, DkOwn{})))))
+
+def fd.dv.app2(k: Dk, +n: List<&2, U32>, xs: List<&2, T.Bt>, +tys: List<&2, T.BItem>) -> Dn:
+  match k xs:
+    case DkSigma{} q1 <> q2 <> a <> T.BtLam{m, x, b} <> Nil{}:
+      fd.dv.one([T.BCtor{S.b("Tuple"), [fd.dv.f("a", a), fd.dv.f("b", b)]}])
+    case DkEither{} q1 <> q2 <> a <> b <> Nil{}:
+      fd.dv.one([T.BCtor{S.b("Inl"), [fd.dv.f("a", a)]}, T.BCtor{S.b("Inr"), [fd.dv.f("b", b)]}])
+    case DkFix{} +f <> Nil{}:
+      fd.dv.one([T.BCtor{S.b("HsPrelude.Fix.Fix"), [fd.dv.f("a", fd.dv.beta(T.BtApp{f, T.tba.args([T.BtTyApp{n, T.tba.args([f])}])}))]}])
+    case DkCofree{} +f <> +a <> Nil{}:
+      fd.dv.one([T.BCtor{S.b("HsPrelude.Cofree.Cofree"), [fd.dv.f("a", a), fd.dv.f("b", fd.dv.beta(T.BtApp{f, T.tba.args([T.BtTyApp{n, T.tba.args([f, a])}])}))]}])
+    case DkCofreeF{} f <> a <> b <> Nil{}:
+      fd.dv.one([T.BCtor{S.b("HsPrelude.CofreeF.CofreeF"), [fd.dv.f("a", a), fd.dv.f("b", fd.dv.beta(T.BtApp{f, T.tba.args([b])}))]}])
+    case DkOwn{} ys:
+      fd.dv.own(fd.dv.find(tys, n), T.tba.args(ys))
+    case _ _:
+      fd.dv.none()
+
+def fd.dv.app(b: Maybe<&2, T.Bt>, +n: List<&2, U32>, args: T.Bt, +tys: List<&2, T.BItem>) -> Dn:
+  match b:
+    case Some{v}:
+      DnDone{DaOne{Some{v}}}
+    case None{}:
+      fd.dv.app2(fd.dv.kind(n), n, fd.dv.list(args), tys)
+
+def fd.dv.ty(ty: T.Bt, +tys: List<&2, T.BItem>) -> Dn:
+  match ty:
+    case T.BtTyApp{+n, args}:
+      fd.dv.app(fd.dv.base(fd.dv.bases(), n), n, args, tys)
+    case T.BtVar{+n}:
+      fd.dv.app(fd.dv.base(fd.dv.bases(), n), n, T.BtANil{}, tys)
+    case T.BtPi{m, x, d, a, b}:
+      DnLam{b}
+    case _:
+      fd.dv.none()
+
+def fd.dv.lam(a: Da) -> Da:
+  match a:
+    case DaOne{m}:
+      match m:
+        case Some{v}:
+          DaOne{Some{T.BtLam{T.BmLive{}, S.b("_"), v}}}
+        case None{}:
+          DaOne{None{}}
+    case DaMany{m}:
+      DaOne{None{}}
+
+def fd.dv.cons(v: T.Bt, a: Da) -> Da:
+  match a:
+    case DaMany{m}:
+      match m:
+        case Some{xs}:
+          DaMany{Some{v <> xs}}
+        case None{}:
+          DaMany{None{}}
+    case DaOne{m}:
+      DaMany{None{}}
+
+def fd.dv.go(fuel: Nat, q: Dq, +tys: List<&2, T.BItem>) -> Da:
+  match fuel:
+    case 0n:
+      DaOne{None{}}
+    case 1n+(+p):
+      match q:
+        case DqTy{ty}:
+          fd.dv.go(p, DqRun{fd.dv.ty(fd.dv.beta(ty), tys)}, tys)
+        case DqRun{n}:
+          match n:
+            case DnDone{a}:
+              a
+            case DnAsk{q2}:
+              fd.dv.go(p, q2, tys)
+            case DnLam{ty}:
+              fd.dv.lam(fd.dv.go(p, DqTy{ty}, tys))
+        case DqCs{cs, next, +ps, +args}:
+          match cs:
+            case Nil{}:
+              match next:
+                case Nil{}:
+                  DaOne{None{}}
+                case h <> t:
+                  fd.dv.go(p, DqCs{h, t, ps, args}, tys)
+            case T.BCtor{c, fs} <> t:
+              fd.dv.go(p, DqPick{fd.dv.go(p, DqFs{fs, ps, args}, tys), c, t, next, ps, args}, tys)
+        case DqPick{r, c, cs, next, ps, args}:
+          match r:
+            case DaMany{m}:
+              match m:
+                case Some{xs}:
+                  DaOne{Some{T.BtCon{c, T.tba.args(xs)}}}
+                case None{}:
+                  fd.dv.go(p, DqCs{cs, next, ps, args}, tys)
+            case DaOne{m}:
+              fd.dv.go(p, DqCs{cs, next, ps, args}, tys)
+        case DqFs{fs, +ps, +args}:
+          match fs:
+            case Nil{}:
+              DaMany{Some{Nil{}}}
+            case T.BField{x, ty} <> t:
+              fd.dv.go(p, DqCons{fd.dv.go(p, DqTy{fd.dv.sub(ps, args, ty)}, tys), t, ps, args}, tys)
+        case DqCons{r, fs, ps, args}:
+          match r:
+            case DaOne{m}:
+              match m:
+                case Some{v}:
+                  fd.dv.cons(v, fd.dv.go(p, DqFs{fs, ps, args}, tys))
+                case None{}:
+                  DaMany{None{}}
+            case DaMany{m}:
+              DaMany{None{}}
+
+def fd.dv.out(a: Da) -> T.Bt:
+  match a:
+    case DaOne{m}:
+      match m:
+        case Some{v}:
+          v
+        case None{}:
+          fd.todo("fold:fuel-default-at-type")
+    case DaMany{m}:
+      fd.todo("fold:fuel-default-at-type")
+
+# a default of type ty (the module's items tys give its own types)
+def fd.dv(ty: T.Bt, +tys: List<&2, T.BItem>) -> T.Bt:
+  fd.dv.out(fd.dv.go(120n, DqTy{ty}, tys))
+
+# The fuelled def --------------------------------------------------------------
+
+# how many type and template parameters lead
+def fd.fu.lead(ps: List<&2, T.BParam>) -> Nat:
+  match ps:
+    case T.BParam{T.BmErased{}, x, ty} <> t:
+      1n+fd.fu.lead(t)
+    case T.BParam{T.BmTpl{}, x, ty} <> t:
+      1n+fd.fu.lead(t)
+    case _:
+      0n
+
+# the parameters with fuel_ after the first k
+def fd.fu.ps(k: Nat, ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match k ps:
+    case 1n+j h <> t:
+      h <> fd.fu.ps(j, t)
+    case _ rest:
+      T.BParam{T.BmLive{}, S.b("fuel_"), fd.ty0("Nat")} <> rest
+
+# an argument spine with f after the first k
+def fd.fu.args(k: Nat, a: T.Bt, f: T.Bt) -> T.Bt:
+  match k a:
+    case 1n+j T.BtArgs{h, t}:
+      T.BtArgs{h, fd.fu.args(j, t, f)}
+    case _ rest:
+      T.BtArgs{f, rest}
+
+# the parameters as the arguments of a call
+def fd.fu.pargs(ps: List<&2, T.BParam>) -> T.Bt:
+  match ps:
+    case T.BParam{T.BmErased{}, x, ty} <> t:
+      T.BtArgs{T.BtDead{T.BtVar{x}}, fd.fu.pargs(t)}
+    case T.BParam{T.BmTpl{}, x, ty} <> t:
+      T.BtArgs{T.BtTplArg{T.BtVar{x}}, fd.fu.pargs(t)}
+    case T.BParam{m, x, ty} <> t:
+      T.BtArgs{T.BtVar{x}, fd.fu.pargs(t)}
+    case Nil{}:
+      T.BtANil{}
+
+# the place of x in ms
+def fd.fu.idx(ms: List<&2, List<&2, U32>>, +x: List<&2, U32>, +i: Nat) -> Maybe<&2, Nat>:
+  match ms:
+    case Nil{}:
+      None{}
+    case +h <> t:
+      Bool.pick(Maybe<&2, Nat>, S.eq(h, x), Some{i}, fd.fu.idx(t, x, 1n+i))
+
+def fd.mu.inc(+g: List<&2, U32>, +i: Nat) -> List<&2, U32>:
+  fd.cat(g, fd.cat(S.b(".In.I"), fd.nshow(i)))
+
+def fd.mu.outp(+g: List<&2, U32>, +i: Nat) -> List<&2, U32>:
+  fd.cat(g, fd.cat(S.b(".out"), fd.nshow(i)))
+
+# a call of member i of the defs being fuelled: in a group (mu), the
+# group's def at member i's constructor, its answer taken out unless the
+# members share it (same); alone, its .fu with the fuel after the first k
+def fd.fu.app(idx: Maybe<&2, Nat>, x: List<&2, U32>, a: T.Bt, +mu: Bool, +g: List<&2, U32>, +k: Nat, +f: T.Bt, +same: Bool) -> T.Bt:
+  match idx mu same:
+    case None{} _ _:
+      T.BtApp{T.BtVar{x}, a}
+    case Some{i} False{} _:
+      T.BtApp{T.BtVar{fd.cat(g, S.b(".fu"))}, fd.fu.args(k, a, f)}
+    case Some{+i} True{} True{}:
+      T.BtApp{T.BtVar{g}, T.tba.args([f, T.BtCon{fd.mu.inc(g, i), a}])}
+    case Some{+i} True{} False{}:
+      T.BtApp{T.BtVar{fd.mu.outp(g, i)}, T.tba.args([T.BtApp{T.BtVar{g}, T.tba.args([f, T.BtCon{fd.mu.inc(g, i), a}])}])}
+
+# t with each call of a member of ms made as fd.fu.app makes it
+def fd.fu.rw(t: T.Bt, +ms: List<&2, List<&2, U32>>, +mu: Bool, +g: List<&2, U32>, +k: Nat, +f: T.Bt, +same: Bool) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, a}:
+      fd.fu.app(fd.fu.idx(ms, x, 0n), x, fd.fu.rw(a, ms, mu, g, k, f, same), mu, g, k, f, same)
+    case T.BtApp{h, a}:
+      T.BtApp{fd.fu.rw(h, ms, mu, g, k, f, same), fd.fu.rw(a, ms, mu, g, k, f, same)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.fu.rw(a, ms, mu, g, k, f, same)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.fu.rw(b, ms, mu, g, k, f, same)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.fu.rw(a, ms, mu, g, k, f, same)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.fu.rw(a, ms, mu, g, k, f, same), fd.fu.rw(b, ms, mu, g, k, f, same)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.fu.rw(a, ms, mu, g, k, f, same)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.fu.rw(a, ms, mu, g, k, f, same), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.fu.rw(cs, ms, mu, g, k, f, same)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.fu.rw(e, ms, mu, g, k, f, same)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.fu.rw(e, ms, mu, g, k, f, same), p, fd.fu.rw(b, ms, mu, g, k, f, same)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.fu.rw(v, ms, mu, g, k, f, same), fd.fu.rw(b, ms, mu, g, k, f, same)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.fu.rw(b, ms, mu, g, k, f, same), fd.fu.rw(rest, ms, mu, g, k, f, same)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.fu.rw(a, ms, mu, g, k, f, same), fd.fu.rw(rest, ms, mu, g, k, f, same)}
+    case u:
+      u
+
+# the pattern 1n+fuel_p, 1n+(+fuel_p) when the body uses it twice (written
+# as text: ToBend's printer writes a copied successor's variable 1n++x)
+def fd.fu.pv(m: T.BMode) -> T.Bt:
+  match m:
+    case T.BmCopy{}:
+      T.BtSucc{T.BtVar{S.b("(+fuel_p)")}}
+    case _:
+      T.BtSucc{T.BtPv{T.BmLive{}, S.b("fuel_p")}}
+
+# match fuel_: 0n is the default, 1n+fuel_p the body (its self-calls given
+# fuel_p)
+def fd.fu.body(+k: Nat, +n: List<&2, U32>, +r: T.Bt, b: T.Bt, +tys: List<&2, T.BItem>) -> T.Bt:
+  +b2 = fd.fu.rw(b, [n], False{}, n, k, T.BtVar{S.b("fuel_p")}, False{})
+  T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(fd.mode(fd.uses(b2, S.b("fuel_p"))))]), b2, T.BtCEnd{}}}}
+
+# a def Bend refuses for its self-call: f.fu with the fuel, and f
+def fd.fu.def(it: T.BItem, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match it:
+    case T.BiDef{+n, +ps, +r, b, d}:
+      +k = fd.fu.lead(ps)
+      [T.BiDef{fd.cat(n, S.b(".fu")), fd.fu.ps(k, ps), r, fd.fu.body(k, n, r, b, tys), S.b("generated: fuel: Bend sees no argument of the self-call shrink, so a Nat counts the depth down") <> d}, T.BiDef{n, ps, r, T.BtExpr{T.BtApp{T.BtVar{fd.cat(n, S.b(".fu"))}, fd.fu.args(k, fd.fu.pargs(ps), fd.fu.max())}}, [S.b("fuel: 2^32 - 1, a depth no run reaches")]}]
+    case other:
+      [other]
+
+def fd.fu.one(hit: Bool, h: T.BItem, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match hit:
+    case True{}:
+      fd.fu.def(h, tys)
+    case False{}:
+      [h]
+
+# its with the def named n fuelled
+def fd.fu.swap(its: List<&2, T.BItem>, +n: List<&2, U32>, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      List.append(&2, T.BItem, fd.fu.one(S.eq(fd.item.name(h), n), h, tys), fd.fu.swap(t, n, tys))
+
+# whether a def of its is named n
+def fd.fu.isdef(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
+  match its:
+    case Nil{}:
+      False{}
+    case +h <> t:
+      Bool.or(Bool.and(Bool.not(fd.dv.isty(h)), S.eq(fd.item.name(h), n)), fd.fu.isdef(t, n))
+
+# the result type of the def named n
+def fd.fu.ret(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.Bt>:
+  match its:
+    case Nil{}:
+      None{}
+    case T.BiDef{+k, ps, r, b, d} <> t:
+      Bool.pick(Maybe<&2, T.Bt>, S.eq(k, n), Some{r}, fd.fu.ret(t, n))
+    case h <> t:
+      fd.fu.ret(t, n)
+
+# whether a default of the type is to hand (else the def is dropped as
+# before: a ?TODO in the file names no def to blame)
+def fd.fu.dvok(m: Maybe<&2, T.Bt>, +tys: List<&2, T.BItem>) -> Bool:
+  match m:
+    case Some{r}:
+      List.is_empty(&2, List<&2, U32>, T.tba.todos(fd.dv(r, tys), Nil{}))
+    case None{}:
+      False{}
+
+# whether the error is a self-call Bend does not see shrink, in a def not
+# fuelled yet
+def fd.fu.can(who: Maybe<&2, List<&2, U32>>, +why: List<&2, U32>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> Bool:
+  match who:
+    case Some{+n}:
+      Bool.and(Bool.and(Bool.and(S.infix(why, S.b("a decreasing self-call")), fd.fu.isdef(its, n)), Bool.not(fd.fu.isdef(its, fd.cat(n, S.b(".fu"))))), fd.fu.dvok(fd.fu.ret(its, n), List.append(&2, T.BItem, its, dt)))
+    case None{}:
+      False{}
+
+def fd.fu.name(who: Maybe<&2, List<&2, U32>>) -> List<&2, U32>:
+  match who:
+    case Some{n}:
+      n
+    case None{}:
+      Nil{}
+
+# the gate's repair: fuel for a self-call Bend refuses, else the drop
+def fd.gate.fix(can: Bool, who: Maybe<&2, List<&2, U32>>, +its: List<&2, T.BItem>, o: List<&2, Dr>, +why: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
+  match can:
+    case True{}:
+      Gs{fd.fu.swap(its, fd.fu.name(who), List.append(&2, T.BItem, its, dt)), o, False{}}
+    case False{}:
+      fd.gate.drop(who, its, o, why)
+
+
+# A group of defs that call each other (a cycle of calls, which Bend
+# refuses) is one def g = HEAD.mu, as telomare's bend branch writes its
+# mutual walks (Desugar.bend's go over ON, Levels.bend's occ): its
+# parameters the fuel and a sum g.In with a constructor per member holding
+# the member's arguments; its answer the members' answer when they share
+# it, else a sum g.Out with a constructor per member's answer (g.outK takes
+# it out, a default at the others); each member a call of g at its own
+# constructor.  Only groups whose members take no type or template
+# parameter and fold whole (no ?TODO) are merged; the others are left for
+# the gate, as before.
+
+def fd.mu.isdef(it: T.BItem) -> Bool:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      True{}
+    case _:
+      False{}
+
+def fd.mu.opt(m: Maybe<&2, T.BItem>) -> List<&2, T.BItem>:
+  match m:
+    case Some{x}:
+      [x]
+    case None{}:
+      Nil{}
+
+# the module's defs, each with the module's defs it names
+type Mcg is Data:
+  Mcg{n: List<&2, U32>, cs: List<&2, List<&2, U32>>}
+
+# what each def reaches by its calls
+type Mrch is Data:
+  Mrch{n: List<&2, U32>, r: Map<&2, Bool>}
+
+def fd.mu.names(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      T.tba.keep(Bool.not(fd.mu.isdef(h)), fd.item.name(h), fd.mu.names(t))
+
+def fd.mu.keep(xs: List<&2, List<&2, U32>>, +ns: Map<&2, Bool>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      T.tba.keep(Bool.not(T.tba.has.got(Map.has(&2, Bool, ns, S.str(x)))), x, fd.mu.keep(t, ns))
+
+def fd.mu.cgput(b: Bool, c: Mcg, rest: List<&2, Mcg>) -> List<&2, Mcg>:
+  match b:
+    case True{}:
+      c <> rest
+    case False{}:
+      rest
+
+def fd.mu.cg(its: List<&2, T.BItem>, +ns: Map<&2, Bool>) -> List<&2, Mcg>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      fd.mu.cgput(fd.mu.isdef(h), Mcg{fd.item.name(h), fd.mu.keep(T.tba.item.refs(h), ns)}, fd.mu.cg(t, ns))
+
+def fd.mu.calls(cg: List<&2, Mcg>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match cg:
+    case Nil{}:
+      Nil{}
+    case Mcg{+k, +cs} <> t:
+      Bool.pick(List<&2, List<&2, U32>>, S.eq(k, n), cs, fd.mu.calls(t, n))
+
+def fd.mu.visit(seen: Bool, +h: List<&2, U32>, t: List<&2, List<&2, U32>>, s: Map<&2, Bool>, +cg: List<&2, Mcg>) -> List<&2, List<&2, U32>> & Map<&2, Bool>:
+  match seen:
+    case True{}:
+      (t, s)
+    case False{}:
+      (List.append(&2, List<&2, U32>, fd.mu.calls(cg, h), t), Map.set(&2, Bool, s, S.str(h), True{}))
+
+def fd.mu.step(r: Map<&2, Bool> & Bool, +h: List<&2, U32>, t: List<&2, List<&2, U32>>, +cg: List<&2, Mcg>) -> List<&2, List<&2, U32>> & Map<&2, Bool>:
+  match r:
+    case Tuple{s1, b}:
+      fd.mu.visit(b, h, t, s1, cg)
+
+# the defs reached from the todo list (a walk; seen, the map)
+def fd.mu.reach(fuel: Nat, st: List<&2, List<&2, U32>> & Map<&2, Bool>, +cg: List<&2, Mcg>) -> Map<&2, Bool>:
+  match fuel:
+    case 0n:
+      match st:
+        case Tuple{todo, s}:
+          s
+    case 1n+p:
+      match st:
+        case Tuple{todo, s}:
+          match todo:
+            case +h <> t:
+              fd.mu.reach(p, fd.mu.step(Map.has(&2, Bool, s, S.str(h)), h, t, cg), cg)
+            case Nil{}:
+              s
+
+def fd.mu.edges(cg: List<&2, Mcg>) -> Nat:
+  match cg:
+    case Nil{}:
+      1n
+    case Mcg{k, cs} <> t:
+      Nat.add(1n+List.length(&2, List<&2, U32>, cs), fd.mu.edges(t))
+
+def fd.mu.rchs(ns: List<&2, List<&2, U32>>, +cg: List<&2, Mcg>, +fuel: Nat) -> List<&2, Mrch>:
+  match ns:
+    case Nil{}:
+      Nil{}
+    case +n <> t:
+      Mrch{n, fd.mu.reach(fuel, (fd.mu.calls(cg, n), Map.new(&2, Bool)), cg)} <> fd.mu.rchs(t, cg, fuel)
+
+# whether a reaches b
+def fd.mu.reaches(rs: List<&2, Mrch>, +a: List<&2, U32>, +b: List<&2, U32>) -> Bool:
+  match rs:
+    case Nil{}:
+      False{}
+    case Mrch{+k, +r} <> t:
+      Bool.pick(Bool, S.eq(k, a), T.tba.has.got(Map.has(&2, Bool, r, S.str(b))), fd.mu.reaches(t, a, b))
+
+# the defs of n's cycle: those n reaches that reach n
+def fd.mu.group(ns: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case Nil{}:
+      Nil{}
+    case +m <> t:
+      T.tba.keep(Bool.not(Bool.and(fd.mu.reaches(rs, n, m), fd.mu.reaches(rs, m, n))), m, fd.mu.group(t, rs, n))
+
+def fd.mu.put(fresh: Bool, g: List<&2, List<&2, U32>>, gs: List<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, List<&2, U32>>>:
+  match fresh:
+    case True{}:
+      g <> gs
+    case False{}:
+      gs
+
+def fd.mu.inany(gs: List<&2, List<&2, List<&2, U32>>>, +n: List<&2, U32>) -> Bool:
+  match gs:
+    case Nil{}:
+      False{}
+    case +g <> t:
+      Bool.or(S.mem(n, g), fd.mu.inany(t, n))
+
+# the cycles of two defs or more, each once
+def fd.mu.groups(ns: List<&2, List<&2, U32>>, +all: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +acc: List<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, List<&2, U32>>>:
+  match ns:
+    case Nil{}:
+      acc
+    case +n <> t:
+      +g = fd.mu.group(all, rs, n)
+      fd.mu.groups(t, all, rs, fd.mu.put(Bool.and(Nat.is_gt(List.length(&2, List<&2, U32>, g), 1n), Bool.not(fd.mu.inany(acc, n))), g, acc))
+
+# the def named n
+def fd.mu.get(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      None{}
+    case +h <> t:
+      Bool.pick(Maybe<&2, T.BItem>, Bool.and(fd.mu.isdef(h), S.eq(fd.item.name(h), n)), Some{h}, fd.mu.get(t, n))
+
+def fd.mu.gets(ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match ns:
+    case Nil{}:
+      Nil{}
+    case n <> t:
+      List.append(&2, T.BItem, fd.mu.opt(fd.mu.get(its, n)), fd.mu.gets(t, its))
+
+def fd.mu.anytpl(ps: List<&2, T.BParam>) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case T.BParam{T.BmErased{}, x, ty} <> t:
+      True{}
+    case T.BParam{T.BmTpl{}, x, ty} <> t:
+      True{}
+    case h <> t:
+      fd.mu.anytpl(t)
+
+# whether a member can be merged: no type or template parameter, no ?TODO
+def fd.mu.ok1(it: T.BItem) -> Bool:
+  match it:
+    case T.BiDef{n, +ps, r, +b, d}:
+      Bool.and(Nat.is_eq(fd.fu.lead(ps), 0n), Bool.and(Bool.not(fd.mu.anytpl(ps)), List.is_empty(&2, List<&2, U32>, T.tba.todos(b, Nil{}))))
+    case _:
+      False{}
+
+def fd.mu.ok(ds: List<&2, T.BItem>) -> Bool:
+  match ds:
+    case Nil{}:
+      True{}
+    case h <> t:
+      Bool.and(fd.mu.ok1(h), fd.mu.ok(t))
+
+def fd.mu.ret(it: T.BItem) -> T.Bt:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      r
+    case _:
+      fd.todo("fold:mutual")
+
+def fd.mu.rtext(+it: T.BItem) -> List<&2, U32>:
+  P.tpr.t(fd.mu.ret(it), P.TpLoose{}, 0n, Nil{})
+
+# whether the members share their answer's type
+def fd.mu.same(ds: List<&2, T.BItem>, +r0: List<&2, U32>) -> Bool:
+  match ds:
+    case Nil{}:
+      True{}
+    case +h <> t:
+      Bool.and(S.eq(fd.mu.rtext(h), r0), fd.mu.same(t, r0))
+
+def fd.mu.fields(ps: List<&2, T.BParam>) -> List<&2, T.BField>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, ty} <> t:
+      T.BField{x, ty} <> fd.mu.fields(t)
+
+def fd.mu.inctors(ds: List<&2, T.BItem>, +g: List<&2, U32>, +i: Nat) -> List<&2, T.BCtor>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BCtor{fd.mu.inc(g, i), fd.mu.fields(ps)} <> fd.mu.inctors(t, g, 1n+i)
+    case h <> t:
+      fd.mu.inctors(t, g, 1n+i)
+
+def fd.mu.oc(+g: List<&2, U32>, +i: Nat) -> List<&2, U32>:
+  fd.cat(g, fd.cat(S.b(".Out.O"), fd.nshow(i)))
+
+def fd.mu.outctors(ds: List<&2, T.BItem>, +g: List<&2, U32>, +i: Nat) -> List<&2, T.BCtor>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      T.BCtor{fd.mu.oc(g, i), [T.BField{S.b("value"), fd.mu.ret(h)}]} <> fd.mu.outctors(t, g, 1n+i)
+
+# a body's answers as c of them
+def fd.mu.wrap(b: T.Bt, +c: List<&2, U32>) -> T.Bt:
+  match b:
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.mu.wrap(cs, c)}
+    case T.BtCase{p, e, rest}:
+      T.BtCase{p, fd.mu.wrap(e, c), fd.mu.wrap(rest, c)}
+    case T.BtLet{x, v, e}:
+      T.BtLet{x, v, fd.mu.wrap(e, c)}
+    case T.BtRw{e, p, e2}:
+      T.BtRw{e, p, fd.mu.wrap(e2, c)}
+    case T.BtExpr{e}:
+      T.BtExpr{T.BtCon{c, T.tba.args([e])}}
+    case T.BtCEnd{}:
+      T.BtCEnd{}
+    case e:
+      T.BtCon{c, T.tba.args([e])}
+
+def fd.mu.pvs(ps: List<&2, T.BParam>, +b: T.Bt) -> List<&2, T.Bt>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, +x, ty} <> t:
+      T.BtPv{fd.mode(fd.uses(b, x)), x} <> fd.mu.pvs(t, b)
+
+def fd.mu.wrap.if(same: Bool, b: T.Bt, +c: List<&2, U32>) -> T.Bt:
+  match same:
+    case True{}:
+      b
+    case False{}:
+      fd.mu.wrap(b, c)
+
+# g's cases: member i's constructor, its body (calls of members made calls
+# of g), its answer as g.Out's when the members do not share theirs
+def fd.mu.cases(ds: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +g: List<&2, U32>, +same: Bool, +i: Nat) -> T.Bt:
+  match ds:
+    case Nil{}:
+      T.BtCEnd{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      +b2 = fd.mu.wrap.if(same, fd.fu.rw(b, ns, True{}, g, 0n, T.BtVar{S.b("fuel_p")}, same), fd.mu.oc(g, i))
+      T.BtCase{T.tba.args([T.BtCon{fd.mu.inc(g, i), T.tba.args(fd.mu.pvs(ps, b2))}]), b2, fd.mu.cases(t, ns, g, same, 1n+i)}
+    case h <> t:
+      fd.mu.cases(t, ns, g, same, 1n+i)
+
+def fd.mu.doc(+ns: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  fd.cat(S.b("generated: fuel: the mutual recursion of "), S.join(ns, 32))
+
+def fd.mu.wrap.call(same: Bool, call: T.Bt, +o: List<&2, U32>) -> T.Bt:
+  match same:
+    case True{}:
+      call
+    case False{}:
+      T.BtApp{T.BtVar{o}, T.tba.args([call])}
+
+# the members, each a call of g at its constructor
+def fd.mu.wrappers(ds: List<&2, T.BItem>, +g: List<&2, U32>, +same: Bool, +i: Nat) -> List<&2, T.BItem>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      +call = {T.BtApp{T.BtVar{g}, T.tba.args([fd.fu.max(), T.BtCon{fd.mu.inc(g, i), fd.fu.pargs(ps)}])} : T.Bt}
+      T.BiDef{n, ps, r, T.BtExpr{fd.mu.wrap.call(same, call, fd.mu.outp(g, i))}, [S.b("fuel: a call of the group's def, from 2^32 - 1")]} <> fd.mu.wrappers(t, g, same, 1n+i)
+    case h <> t:
+      fd.mu.wrappers(t, g, same, 1n+i)
+
+# g.outK: member K's answer out of g.Out
+def fd.mu.outs(ds: List<&2, T.BItem>, +g: List<&2, U32>, +tys: List<&2, T.BItem>, +i: Nat) -> List<&2, T.BItem>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      +r = fd.mu.ret(h)
+      T.BiDef{fd.mu.outp(g, i), [T.BParam{T.BmLive{}, S.b("o"), T.BtVar{fd.cat(g, S.b(".Out"))}}], r, T.BtMatch{T.tba.args([T.BtVar{S.b("o")}]), T.BtCase{T.tba.args([T.BtCon{fd.mu.oc(g, i), T.tba.args([T.BtPv{T.BmLive{}, S.b("v")}])}]), T.BtExpr{T.BtVar{S.b("v")}}, T.BtCase{T.tba.args([T.BtWild{}]), T.BtExpr{fd.dv(r, tys)}, T.BtCEnd{}}}}, [S.b("generated: fuel: a member's answer")]} <> fd.mu.outs(t, g, tys, 1n+i)
+
+def fd.mu.head(ns: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match ns:
+    case h <> t:
+      h
+    case Nil{}:
+      Nil{}
+
+def fd.mu.first(ds: List<&2, T.BItem>) -> List<&2, U32>:
+  match ds:
+    case h <> t:
+      fd.mu.rtext(h)
+    case Nil{}:
+      Nil{}
+
+def fd.mu.r0(ds: List<&2, T.BItem>) -> T.Bt:
+  match ds:
+    case h <> t:
+      fd.mu.ret(h)
+    case Nil{}:
+      fd.todo("fold:mutual")
+
+# the group's items: g.In, g.Out and g.outK (when the answers differ), g,
+# the members
+def fd.mu.items(+ds: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +g = fd.cat(fd.mu.head(ns), S.b(".mu"))
+  +same = fd.mu.same(ds, fd.mu.first(ds))
+  +tin = {T.BiType{fd.cat(g, S.b(".In")), Nil{}, fd.v("Data"), fd.mu.inctors(ds, g, 0n), [S.b("generated: fuel: the group's arguments")]} : T.BItem}
+  +tout = {T.BiType{fd.cat(g, S.b(".Out")), Nil{}, fd.v("Data"), fd.mu.outctors(ds, g, 0n), [S.b("generated: fuel: the group's answers")]} : T.BItem}
+  +tys = {tout <> List.append(&2, T.BItem, its, dt) : List<&2, T.BItem>}
+  +r = Bool.pick(T.Bt, same, fd.mu.r0(ds), T.BtVar{fd.cat(g, S.b(".Out"))})
+  +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(T.BmCopy{})]), T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), fd.mu.cases(ds, ns, g, same, 0n)}, T.BtCEnd{}}}} : T.Bt}
+  +gdef = {T.BiDef{g, [T.BParam{T.BmLive{}, S.b("fuel_"), fd.ty0("Nat")}, T.BParam{T.BmLive{}, S.b("in_"), T.BtVar{fd.cat(g, S.b(".In"))}}], r, body, [fd.mu.doc(ns)]} : T.BItem}
+  List.concat(&2, T.BItem, [[tin], Bool.pick(List<&2, T.BItem>, same, Nil{}, tout <> fd.mu.outs(ds, g, tys, 0n)), [gdef], fd.mu.wrappers(ds, g, same, 0n)])
+
+def fd.mu.dput(b: Bool, h: T.BItem, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match b:
+    case True{}:
+      rest
+    case False{}:
+      h <> rest
+
+# its with a group merged, when it can be: its members replaced
+def fd.mu.drop(its: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      fd.mu.dput(Bool.and(fd.mu.isdef(h), S.mem(fd.item.name(h), ns)), h, fd.mu.drop(t, ns))
+
+def fd.mu.one(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ds = fd.mu.gets(ns, its)
+  +new = fd.mu.items(ds, ns, its, dt)
+  Bool.pick(List<&2, T.BItem>, Bool.and(fd.mu.ok(ds), List.is_empty(&2, List<&2, U32>, fd.todos.all(new, Nil{}))), List.append(&2, T.BItem, fd.mu.drop(its, ns), new), its)
+
+def fd.mu.each(gs: List<&2, List<&2, List<&2, U32>>>, its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match gs:
+    case Nil{}:
+      its
+    case g <> t:
+      fd.mu.each(t, fd.mu.one(g, its, dt), dt)
+
+# the module's items with each mergeable group merged
+def fd.mu.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ns = fd.mu.names(its)
+  +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
+  +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
+  fd.mu.each(fd.mu.groups(ns, ns, rs, Nil{}), its, dt)
+
 # one round's verdict: done when Bend accepts the file
-def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>) -> Gs:
+def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
   match g:
     case Gs{its, o, True{}}:
       Gs{its, o, True{}}
     case Gs{+its, +o, False{}}:
       +ls = S.split(out, 10)
-      Bool.pick(Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), Gs{its, o, True{}}, fd.gate.drop(fd.gate.who2(fd.tpl.loc(ls), ls, fd.render(file, m, ims, its), its), its, o, fd.cat(S.b("check:"), fd.errwhy(ls))))
+      +who = fd.gate.who2(fd.tpl.loc(ls), ls, fd.render(file, m, ims, its), its)
+      +why = fd.errwhy(ls)
+      Bool.pick(Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), Gs{its, o, True{}}, fd.gate.fix(fd.fu.can(who, why, its, dt), who, its, o, fd.cat(S.b("check:"), why), dt))
 
 # one round's check: write the file and run bend on it (nothing once done)
 def fd.gate.io(g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>) -> IO(S.Out):
@@ -5904,7 +6751,7 @@ def fd.gate.io(g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: Li
 
 # the gate: check, drop the item the error is in (and what uses it), and
 # check again, until Bend accepts the file or nothing is left
-def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>) -> IO(Gs):
+def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +dt: List<&2, T.BItem>) -> IO(Gs):
   match fuel:
     case 0n:
       IO.pure(Gs, g)
@@ -5912,7 +6759,7 @@ def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>
       +g1 = g
       do IO<Gs>:
         o : S.Out <- fd.gate.io(g1, bend, path, file, m, ims)
-        fd.gate(p, fd.gate.step(g1, file, m, ims, S.Out.text(o)), bend, path, file, m, ims)
+        fd.gate(p, fd.gate.step(g1, file, m, ims, S.Out.text(o), dt), bend, path, file, m, ims, dt)
 
 # The module -------------------------------------------------------------------------
 
@@ -5938,7 +6785,7 @@ def fd.ledger.ok(+file: List<&2, U32>, its: List<&2, T.BItem>) -> List<&2, U32>:
     case T.BiDef{n, ps, r, b, d} <> t:
       fd.cat(S.join([file, n, fd.bpick(fd.isgen(d), S.b("ok-gen"), S.b("ok")), Nil{}], 9), 10 <> fd.ledger.ok(file, t))
     case T.BiType{n, ps, k, cs, d} <> t:
-      fd.cat(S.join([file, n, S.b("ok-type"), Nil{}], 9), 10 <> fd.ledger.ok(file, t))
+      fd.cat(S.join([file, n, fd.bpick(fd.isgen(d), S.b("ok-gen"), S.b("ok-type")), Nil{}], 9), 10 <> fd.ledger.ok(file, t))
     case _ <> t:
       fd.ledger.ok(file, t)
     case Nil{}:
@@ -6508,17 +7355,68 @@ def fd.iface.fzs(zs: List<&2, Fz>, +alias: List<&2, U32>, +kept: List<&2, List<&
       Nil{}
 
 # the package after the module m (alias: its file's base name) kept the items kept
-def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>) -> Px:
+def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>, dt: List<&2, T.BItem>) -> Px:
   match p:
-    case Px{h, f, i, s, t}:
-      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t)}
+    case Px{h, f, i, s, t, z}:
+      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t), List.append(&2, T.BItem, dt, z)}
+
+# A kept data type as a later module names it: Alias.T, its constructors
+# Alias.T.C, the types of the module in its fields Alias.U
+def fd.dt.q(t: T.Bt, +tn: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> T.Bt:
+  match t:
+    case T.BtTyApp{+n, args}:
+      T.BtTyApp{fd.bpick(S.mem(n, tn), fd.akey(a, n), n), fd.dt.q(args, tn, a)}
+    case T.BtVar{+n}:
+      T.BtVar{fd.bpick(S.mem(n, tn), fd.akey(a, n), n)}
+    case T.BtArgs{h, r}:
+      T.BtArgs{fd.dt.q(h, tn, a), fd.dt.q(r, tn, a)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.dt.q(b, tn, a)}
+    case T.BtPi{m, x, d, a2, b}:
+      T.BtPi{m, x, d, fd.dt.q(a2, tn, a), fd.dt.q(b, tn, a)}
+    case T.BtApp{f, a2}:
+      T.BtApp{fd.dt.q(f, tn, a), fd.dt.q(a2, tn, a)}
+    case u:
+      u
+
+def fd.dt.fields(fs: List<&2, T.BField>, +tn: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> List<&2, T.BField>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case T.BField{x, ty} <> t:
+      T.BField{x, fd.dt.q(ty, tn, a)} <> fd.dt.fields(t, tn, a)
+
+def fd.dt.ctors(cs: List<&2, T.BCtor>, +tn: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> List<&2, T.BCtor>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case T.BCtor{c, fs} <> t:
+      T.BCtor{fd.akey(a, c), fd.dt.fields(fs, tn, a)} <> fd.dt.ctors(t, tn, a)
+
+def fd.dt.tnames(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiType{n, ps, k, cs, d} <> t:
+      n <> fd.dt.tnames(t)
+    case h <> t:
+      fd.dt.tnames(t)
+
+def fd.dt.export(its: List<&2, T.BItem>, +a: List<&2, U32>, +tn: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiType{n, ps, k, cs, d} <> t:
+      T.BiType{fd.akey(a, n), ps, k, fd.dt.ctors(cs, tn, a), d} <> fd.dt.export(t, a, tn)
+    case h <> t:
+      fd.dt.export(t, a, tn)
 
 # in package mode, the package after the module; a module alone gives nothing
 def fd.px.next(pkg: Bool, +p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, +xs: List<&2, X.Sx>, +gs: List<&2, Got>, +tfs: List<&2, Tf>, +cs: List<&2, Ctr>, +ds: List<&2, Df>, +kept: List<&2, T.BItem>) -> Px:
   match pkg:
     case True{}:
       +names = fd.its.names(kept)
-      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names))
+      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), fd.dt.export(kept, alias, fd.dt.tnames(kept)))
     case False{}:
       p
 
@@ -6544,13 +7442,13 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +env = fd.syns(Nat.add(fd.nsyn(xs), List.length(&2, Sy, fd.px.sy(px))), xs, fd.env0(m, cs, ds, px))
   +g2 = fd.tpl.settle(fd.allgots(xs, tbs, env), fd.px.tfs(px))
   +gs = fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), fd.px.tfs(px)))
-  +its = fd.got.items(gs)
+  +its = fd.mu.all(fd.got.items(gs), fd.px.dt(px))
   +ims = fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
   do IO<Px>:
     fd.hsprelude.write(out)
-    +g : Gs <- fd.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), 1n+List.length(&2, T.BItem, its), rounds), fd.predrop(its, fd.got.outs(gs)), bend, try, file, m, ims)
+    +g : Gs <- fd.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), Nat.mul(3n, 1n+List.length(&2, T.BItem, its)), rounds), fd.predrop(its, fd.got.outs(gs)), bend, try, file, m, ims, fd.px.dt(px))
     fd.module.fin(out, file, m, ims, path, pkg, g)
     return fd.px.next(pkg, px, m, base, xs, gs, fd.tfs(g2), cs, ds, fd.gs.its(g))
 

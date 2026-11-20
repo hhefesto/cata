@@ -1265,10 +1265,15 @@ def lw.gs.out(+g: F.Gs) -> List<&2, F.Dr>:
       o
 
 # a law the gate refuses takes out its def
+# a def the fuel wrote (Fold.bend: NAME.fu, a group's NAME.mu and its
+# types and projections): its own item, not a law or a lifted def
+def lw.fuelname(+n: List<&2, U32>) -> Bool:
+  Bool.or(S.infix(n, S.b(".mu")), S.suffix(n, S.b(".fu")))
+
 def lw.who(m: Maybe<&2, List<&2, U32>>) -> Maybe<&2, List<&2, U32>>:
   match m:
     case Some{+n}:
-      Some{F.fd.bpick(lw.tydef(n), n, lw.undot(n))}
+      Some{F.fd.bpick(Bool.or(lw.tydef(n), lw.fuelname(n)), n, lw.undot(n))}
     case None{}:
       None{}
 
@@ -1307,16 +1312,26 @@ def lw.pruned(g: F.Gs) -> F.Gs:
     case F.Gs{k, o, d}:
       F.Gs{lw.prune(k), o, d}
 
-def lw.gate.step(g: F.Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>) -> F.Gs:
+# the gate's repair: fuel for a self-call Bend refuses (Fold.bend's
+# fd.gate.fix), else the drop
+def lw.gate.fix(can: Bool, +who: Maybe<&2, List<&2, U32>>, +its: List<&2, T.BItem>, o: List<&2, F.Dr>, +why: List<&2, U32>, +dt: List<&2, T.BItem>) -> F.Gs:
+  match can:
+    case True{}:
+      F.Gs{F.fd.fu.swap(its, F.fd.fu.name(who), List.append(&2, T.BItem, its, dt)), o, False{}}
+    case False{}:
+      lw.pruned(F.fd.gate.drop(lw.who(who), its, o, lw.cat(lw.whykind(who), why)))
+
+def lw.gate.step(g: F.Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> F.Gs:
   match g:
     case F.Gs{its, o, True{}}:
       F.Gs{its, o, True{}}
     case F.Gs{+its, +o, False{}}:
       +ls = S.split(out, 10)
       +who = F.fd.gate.who(F.fd.errline(ls), F.fd.render(file, m, ims, its))
-      Bool.pick(F.Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), F.Gs{its, o, True{}}, lw.pruned(F.fd.gate.drop(lw.who(who), its, o, lw.cat(lw.whykind(who), F.fd.errwhy(ls)))))
+      +why = F.fd.errwhy(ls)
+      Bool.pick(F.Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), F.Gs{its, o, True{}}, lw.gate.fix(F.fd.fu.can(who, why, its, dt), who, its, o, why, dt))
 
-def lw.gate(fuel: Nat, g: F.Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>) -> IO(F.Gs):
+def lw.gate(fuel: Nat, g: F.Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +dt: List<&2, T.BItem>) -> IO(F.Gs):
   match fuel:
     case 0n:
       IO.pure(F.Gs, g)
@@ -1324,7 +1339,7 @@ def lw.gate(fuel: Nat, g: F.Gs, +bend: String, +path: String, +file: List<&2, U3
       +g1 = g
       do IO<F.Gs>:
         o : S.Out <- F.fd.gate.io(g1, bend, path, file, m, ims)
-        lw.gate(p, lw.gate.step(g1, file, m, ims, S.Out.text(o)), bend, path, file, m, ims)
+        lw.gate(p, lw.gate.step(g1, file, m, ims, S.Out.text(o), dt), bend, path, file, m, ims, dt)
 
 def lw.drop1(g: F.Gs, +n: List<&2, U32>, w: List<&2, U32>) -> F.Gs:
   match g:
@@ -1386,8 +1401,8 @@ def lw.ledger.ok(its: List<&2, T.BItem>, +all: List<&2, T.BItem>, +file: List<&2
   match its:
     case T.BiDef{+n, xs, r, b, d} <> t:
       lw.cat(lw.ledger.def(lw.dotted(n), lw.nlaws(all, n), file, n, lw.first(fb, lw.nowhy(ps, n))), lw.ledger.ok(t, all, file, ps, fb))
-    case T.BiType{n, xs, k, cs, d} <> t:
-      lw.cat(lw.line(file, n, "ok-type", Nil{}), lw.ledger.ok(t, all, file, ps, fb))
+    case T.BiType{+n, xs, k, cs, d} <> t:
+      lw.cat(F.fd.bpick(lw.fuelname(n), Nil{}, lw.line(file, n, "ok-type", Nil{})), lw.ledger.ok(t, all, file, ps, fb))
     case _ <> t:
       lw.ledger.ok(t, all, file, ps, fb)
     case Nil{}:
@@ -1483,11 +1498,11 @@ def lw.start(g: F.Gs, laws: List<&2, T.BItem>, +bad: List<&2, F.Dr>) -> F.Gs:
 def lw.lost(+laws: Bool, +g0: F.Gs, +g2: F.Gs) -> Bool:
   Bool.and(laws, Bool.and(F.fd.hasdef(lw.gs.its(g0)), Bool.not(F.fd.hasdef(lw.gs.its(g2)))))
 
-def lw.after(lost: Bool, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>) -> IO(List<&2, T.BItem>):
+def lw.after(lost: Bool, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>, +dt: List<&2, T.BItem>) -> IO(List<&2, T.BItem>):
   match lost:
     case True{}:
       do IO<List<&2, T.BItem>>:
-        g1 : F.Gs <- F.fd.gate(1n+List.length(&2, T.BItem, lw.gs.its(g0)), g0, bend, try, file, m, ims)
+        g1 : F.Gs <- F.fd.gate(Nat.mul(3n, 1n+List.length(&2, T.BItem, lw.gs.its(g0))), g0, bend, try, file, m, ims, dt)
         lw.fin(out, file, m, ims, pkg, path, True{}, g1, ps)
     case False{}:
       lw.fin(out, file, m, ims, pkg, path, False{}, g2, ps)
@@ -1496,22 +1511,22 @@ def lw.after(lost: Bool, +bend: String, +out: String, +file: List<&2, U32>, +m: 
 # answers give, together.  A def Bend refuses goes with its laws and what
 # uses it; a law Bend refuses takes its def out (law:).  So a module whose
 # defs and laws all hold costs one check.
-def lw.laws2(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +ps: List<&2, Pl>, +laws: List<&2, T.BItem>) -> IO(List<&2, T.BItem>):
+def lw.laws2(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +ps: List<&2, Pl>, +laws: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> IO(List<&2, T.BItem>):
   +good = lw.good(laws)
   +g1 = lw.start(g0, good, lw.bad(laws))
   +n = List.length(&2, T.BItem, lw.gs.its(g1))
   do IO<List<&2, T.BItem>>:
-    +g2 : F.Gs <- lw.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), 1n+n, rounds), lw.done.if(Nat.is_eq(n, 0n), g1), bend, try, file, m, ims)
-    lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), bend, out, file, m, ims, pkg, path, try, g0, g2, ps)
+    +g2 : F.Gs <- lw.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), Nat.mul(3n, 1n+n), rounds), lw.done.if(Nat.is_eq(n, 0n), g1), bend, try, file, m, ims, dt)
+    lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), bend, out, file, m, ims, pkg, path, try, g0, g2, ps, dt)
 
 # GHC's answers for the fold's defs (g0, before any check), then the gate
-def lw.laws(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +xs: List<&2, X.Sx>, tbs: List<&2, F.Tb>, +path: String, +try: String, +g0: F.Gs) -> IO(List<&2, T.BItem>):
+def lw.laws(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +xs: List<&2, X.Sx>, tbs: List<&2, F.Tb>, +path: String, +try: String, +g0: F.Gs, +dt: List<&2, T.BItem>) -> IO(List<&2, T.BItem>):
   +le = {Le{m, lw.syns(xs), Nil{}} : Le}
   +dds = lw.dds(xs)
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<List<&2, T.BItem>>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))))
+    lw.laws2(rounds, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt)
 
 # a module: fold it as Fold.bend does, ask GHC for its defs' laws, and gate
 # the defs and laws together (px: what its package's modules before it
@@ -1525,13 +1540,13 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
   +env = F.fd.syns(Nat.add(F.fd.nsyn(xs), List.length(&2, F.Sy, F.fd.px.sy(px))), xs, F.fd.env0(m, cs, ds, px))
   +g2 = F.fd.tpl.settle(F.fd.allgots(xs, tbs, env), F.fd.px.tfs(px))
   +gs = F.fd.tpl.fin(g2, List.append(&2, F.Tf, F.fd.tfs(g2), F.fd.px.tfs(px)))
-  +its = F.fd.got.items(gs)
+  +its = F.fd.mu.all(F.fd.got.items(gs), F.fd.px.dt(px))
   +ims = F.fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
   do IO<F.Px>:
     F.fd.hsprelude.write(out)
-    +kept : List<&2, T.BItem> <- lw.laws(rounds, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, F.fd.predrop(its, F.fd.got.outs(gs)))
+    +kept : List<&2, T.BItem> <- lw.laws(rounds, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, F.fd.predrop(its, F.fd.got.outs(gs)), F.fd.px.dt(px))
     return F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, kept)
 
 def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px) -> IO(Unit):

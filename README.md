@@ -69,6 +69,37 @@ at `Cofree G w`, as nested matches through the fields (a Maybe, a pair, or
 another, flat functor of the package such as `StuckExprB (BasicExprF f)`),
 which Bend sees shrink.
 
+## Recursion Bend refuses: fuel
+
+Bend takes a recursive call only when an argument shrinks, and no mutual
+recursion; telomare's bend branch writes every other recursion with a Nat
+fuel (Desugar.bend's `go(+fuel, scope, n: ON) -> OV`, `fuel()` 2^32 - 1),
+and so does cata, never with `@unsafe`:
+
+- A def whose self-call Bend refuses ("a decreasing self-call", read by
+  the gate) becomes `f.fu`, a `Nat` after its type and template parameters,
+  one less at each self-call, and `f` calls it from
+  `U32.to_nat(4294967295)`, a depth no run reaches. At 0 it answers a
+  default of its type: Base's (`0n`, `False{}`, `[]`, `None{}`, ...),
+  HsPrelude's (HsInt 0, the empty Map and Set), a pair's, an Either's,
+  Fix's and Cofree's from their parts', and a data type's, of the module or
+  of one before it in the package: a constructor with no fields first, then
+  one whose fields do not name the type, then any, its fields' defaults in
+  turn. A type with none to hand (a type variable) leaves the def out.
+- Defs that call each other are one def, `HEAD.mu(fuel_, in_)`, as the
+  bend branch's mutual walks are: `HEAD.mu.In` has a constructor for each
+  member holding its arguments, and the answer is theirs when they share
+  it, else `HEAD.mu.Out`'s constructor for the member (`HEAD.mu.outK`
+  takes it out). Each member is a call of `HEAD.mu` at its constructor. A
+  group whose members take type or template parameters, or do not fold
+  whole, is left as it was.
+
+The survey no longer puts a def out for either. Still out (`rec-value`):
+recursion through a function value (`map f xs` inside `f`), as Bend's
+templates take only closed arguments and the fuel is not one. The
+specialiser writes `f $ x` as `f x` and `(f . g) x` as `f (g x)`, so a
+call through them is a call.
+
 ## Monads
 
 GHC hands a do block over as its `>>=` and `>>`, and cata writes those at

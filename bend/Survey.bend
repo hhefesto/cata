@@ -830,7 +830,7 @@ def sv.rec.shrink(ok: Bool, +name: List<&2, U32>, r: Rs) -> Rs:
     case True{}:
       sv.info(r, S.b("structural"))
     case False{}:
-      sv.why(r, sv.cat(S.b("nonstructural:"), name))
+      sv.info(r, sv.cat(S.b("nonstructural:"), name))
 
 def sv.rec.verdict(c: Cl, +name: List<&2, U32>, r: Rs) -> Rs:
   match c:
@@ -1275,7 +1275,7 @@ def sv.ok.fix(fuel: Nat, done: Bool, +fs: List<&2, Fn>, +ok: List<&2, List<&2, U
 def sv.mutual.if(mut: Bool, r: Rs) -> Rs:
   match mut:
     case True{}:
-      sv.why(r, S.b("mutual"))
+      sv.info(r, S.b("mutual"))
     case False{}:
       r
 

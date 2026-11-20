@@ -1483,6 +1483,32 @@ def sp.zf(y: X.Sx) -> X.Sx:
     case z:
       z
 
+# f $ x as f x, and (f . g) x as f (g x): one call, as the survey and the
+# fold read calls (f passed to $ or . was a use of f as a value: a
+# recursive f was out, rec-value)
+def sp.dl.go(d: Bool, c: Bool, +y: X.Sx) -> X.Sx:
+  match d c:
+    case True{} _:
+      sp.zf.ap(sp.at(sp.at(y, 1n), 2n), sp.at(y, 2n))
+    case False{} True{}:
+      sp.zf.ap(sp.at(sp.at(sp.at(y, 1n), 1n), 2n), sp.zf.ap(sp.at(sp.at(y, 1n), 2n), sp.at(y, 2n)))
+    case False{} False{}:
+      y
+
+def sp.dl(+y: X.Sx) -> X.Sx:
+  +f1 = sp.at(y, 1n)
+  +ap2 = Bool.and(sp.head.is(y, "app"), sp.head.is(f1, "app"))
+  +d = Bool.and(ap2, sp.is(sp.zf.key(sp.at(f1, 1n)), "GHC.Internal.Base.$"))
+  +c = Bool.and(Bool.and(ap2, sp.head.is(sp.at(f1, 1n), "app")), sp.is(sp.zf.key(sp.at(sp.at(f1, 1n), 1n)), "GHC.Internal.Base.."))
+  sp.dl.go(d, c, y)
+
+def sp.p6(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      sp.dl(X.SxCons{sp.p6(h), sp.p6(t)})
+    case y:
+      y
+
 # top: x is no spine's function (so a spine is judged whole)
 def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
   match x:
@@ -1502,7 +1528,7 @@ def sp.p5s(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
     case Nil{}:
       Nil{}
     case x <> t:
-      sp.p5(x, True{}) <> sp.p5s(t)
+      sp.p5(sp.p6(x), True{}) <> sp.p5s(t)
 
 
 # The program ------------------------------------------------------------------------
