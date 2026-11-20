@@ -86,6 +86,22 @@ function becomes a call of its def with those locals first. The ledger
 says `ok-gen` for a lifted def; a lifted def that calls the def it came
 from makes the two mutually recursive, which Bend refuses (both out).
 
+## Equality
+
+Haskell's `==` and `/=` at a type Base has no `==` for: at lists, Maybe,
+Either, pairs, `()` and Ordering the prelude's `hs.eq.*` (templates given
+`==` at the parts, written into a module that uses one); at a type of the
+module whose Eq instance GHC derived, `T.eq` (`ok-gen`): the same
+constructor and `==` at each field, as GHC derives it, and a template
+`T.eq(~A.., ~eq_A.., a, b)` when T has parameters. `elem` at such a type is
+`List.contains` given that `==`. Out, each with its reason: a type whose Eq
+instance is written by hand (`fold:eq-instance`); a type inside a list or a
+Maybe of its own (`fold:eq-nested`: the call of T.eq sits in a template
+argument, where Bend sees no decreasing call) or two types calling each
+other's (`fold:eq-mutual`); a type of an earlier module whose T.eq is out
+(`fold:eq-imported:NAME`); `==` at a type variable (`fold:eq-at-tyvar`) and
+`<`, `compare`, `max`... at any of these types (`fold:ord-at-type`).
+
 ## Build
 
     nix build .#hs-export .#survey .#fold .#law .#ghc

@@ -95,6 +95,18 @@ def lw.afterdot(xs: List<&2, U32>) -> List<&2, U32>:
 def lw.islaw(+k: List<&2, U32>) -> Bool:
   S.prefix(lw.afterdot(k), S.b("ex"))
 
+# whether a dotted name is a def a type of the module has (T.eq, T.cata:
+# its first letter a capital), not a law or a def lifted out of a function
+def lw.upper(xs: List<&2, U32>) -> Bool:
+  match xs:
+    case +h <> t:
+      Bool.and(U32.is_ge(h, 65), U32.is_le(h, 90))
+    case Nil{}:
+      False{}
+
+def lw.tydef(+n: List<&2, U32>) -> Bool:
+  Bool.and(lw.dotted(n), lw.upper(n))
+
 # the name before the first dot
 def lw.undot(xs: List<&2, U32>) -> List<&2, U32>:
   S.until(xs, 46)
@@ -1197,15 +1209,15 @@ def lw.gs.out(+g: F.Gs) -> List<&2, F.Dr>:
 # a law the gate refuses takes out its def
 def lw.who(m: Maybe<&2, List<&2, U32>>) -> Maybe<&2, List<&2, U32>>:
   match m:
-    case Some{n}:
-      Some{lw.undot(n)}
+    case Some{+n}:
+      Some{F.fd.bpick(lw.tydef(n), n, lw.undot(n))}
     case None{}:
       None{}
 
 def lw.whykind(m: Maybe<&2, List<&2, U32>>) -> List<&2, U32>:
   match m:
-    case Some{n}:
-      F.fd.bpick(lw.dotted(n), S.b("law:"), S.b("check:"))
+    case Some{+n}:
+      F.fd.bpick(Bool.and(lw.dotted(n), Bool.not(lw.tydef(n))), S.b("law:"), S.b("check:"))
     case None{}:
       S.b("check:")
 
@@ -1215,7 +1227,7 @@ def lw.defnames(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
     case +h <> t:
       +n = F.fd.item.name(h)
       +r = lw.defnames(t)
-      F.fd.bpicks(lw.dotted(n), r, n <> r)
+      F.fd.bpicks(Bool.and(lw.dotted(n), Bool.not(lw.tydef(n))), r, n <> r)
     case Nil{}:
       Nil{}
 

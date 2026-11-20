@@ -168,6 +168,31 @@ def fd.con0(s: String) -> T.Bt:
 def fd.tpl0(t: T.Bt) -> T.Bt:
   T.BtTplArg{t}
 
+def fd.tpls(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match xs:
+    case h <> t:
+      fd.tpl0(h) <> fd.tpls(t)
+    case Nil{}:
+      Nil{}
+
+# ~A: Data for each
+def fd.tvtpls(tvs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  match tvs:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      T.BParam{T.BmTpl{}, h, fd.v("Data")} <> fd.tvtpls(t)
+
+def fd.bpicks(c: Bool, a: List<&2, List<&2, U32>>, b: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  Bool.pick(List<&2, List<&2, U32>>, c, a, b)
+
+def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
+  match its:
+    case +h <> t:
+      Bool.or(S.mem(n, T.tba.item.fold(~T.tba.refs, h, Nil{})), fd.uses.name(t, n))
+    case Nil{}:
+      False{}
+
 # List<&2, A>
 def fd.list(a: T.Bt) -> T.Bt:
   T.BtTyApp{S.b("List"), T.tba.args([fd.v("&2"), a])}
@@ -1052,7 +1077,223 @@ def fd.cmp.char(+op: List<&2, U32>, +a: T.Bt, +b: T.Bt) -> T.Bt:
 def fd.cmp.bool(+op: List<&2, U32>, +a: T.Bt, +b: T.Bt) -> T.Bt:
   Bool.pick(T.Bt, fd.is(op, "is_eq"), fd.callS("Bool.not", [fd.callS("Bool.xor", [a, b])]), Bool.pick(T.Bt, fd.is(op, "is_ne"), fd.callS("Bool.xor", [a, b]), fd.todo("fold:bool-order")))
 
-def fd.cmp(q: Tq, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
+# Equality ---------------------------------------------------------------------
+#
+# Haskell's == at a type Base has no == for: at a list, Maybe, Either, a
+# pair, Unit and Ordering the prelude's hs.eq.* (templates given == at the
+# parts), at a type of the module T.eq, the def a derived Eq instance gives
+# (the same constructor and == at each field, as GHC derives it).  A type
+# of the module whose Eq instance is written by hand has no T.eq yet, and
+# what uses == at it is out (fold:eq-instance).  A type variable's == is
+# the def's dictionary eq_A when it takes one, else out (fold:eq-at-tyvar).
+
+# a type's arguments as == sees them: quantities out, a Sigma's second
+# component its body
+def fd.eq.targs(ts: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match ts:
+    case Nil{}:
+      Nil{}
+    case T.BtVar{+x} <> +t:
+      Bool.pick(List<&2, T.Bt>, S.prefix(x, S.b("&")), fd.eq.targs(t), T.BtVar{x} <> fd.eq.targs(t))
+    case T.BtLam{m, x, b} <> t:
+      b <> fd.eq.targs(t)
+    case h <> t:
+      h <> fd.eq.targs(t)
+
+# the dictionary of the type variable v: == at v
+def fd.eq.dict(+v: List<&2, U32>) -> List<&2, U32>:
+  fd.cat(S.b("eq_"), v)
+
+# the def == is at a type of this name, given == at its arguments
+def fd.eq.name(+n: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, fd.is(n, "List"), S.b("hs.eq.list"), Bool.pick(List<&2, U32>, fd.is(n, "Maybe"), S.b("hs.eq.maybe"), Bool.pick(List<&2, U32>, fd.is(n, "Either"), S.b("hs.eq.either"), Bool.pick(List<&2, U32>, fd.is(n, "Sigma"), S.b("hs.eq.pair"), Bool.pick(List<&2, U32>, fd.is(n, "Unit"), S.b("hs.eq.unit"), Bool.pick(List<&2, U32>, fd.is(n, "Cmp"), S.b("hs.eq.cmp"), fd.cat(n, S.b(".eq"))))))))
+
+# whether Base has n.is_eq
+def fd.eq.prim(+n: List<&2, U32>) -> Bool:
+  Bool.or(fd.is(n, "Nat"), Bool.or(fd.is(n, "Char"), fd.is(n, "F32")))
+
+# whether == at a type of this name is out: HsPrelude's types and the
+# types Bend has no == at
+def fd.eq.bad(+n: List<&2, U32>) -> Bool:
+  Bool.or(S.prefix(n, S.b("HsPrelude.")), Bool.or(fd.is(n, "String"), Bool.or(fd.is(n, "IO"), Bool.or(fd.is(n, "Type"), fd.is(n, "Data")))))
+
+# what fd.eqk makes of a type: a == b at it, == at it as a function, or
+# (at an argument spine) == at each argument as == sees them
+type Eqk is Data:
+  EkCall{a: T.Bt, b: T.Bt}
+  EkFn{}
+  EkFns{}
+
+# == at a type variable: the def's dictionary, or out
+def fd.eq.var(+v: List<&2, U32>, +vs: List<&2, List<&2, U32>>) -> T.Bt:
+  Bool.pick(T.Bt, S.mem(v, vs), T.BtVar{fd.eq.dict(v)}, fd.todo("fold:eq-at-tyvar"))
+
+# a == b at a type named n, its arguments ts, == at them fs
+def fd.eqcall.app(+n: List<&2, U32>, +ts: List<&2, T.Bt>, +fs: List<&2, T.Bt>, +a: T.Bt, +b: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.eq.prim(n), T.tba.call(T.BtVar{fd.cat(n, S.b(".is_eq"))}, [a, b]), Bool.pick(T.Bt, fd.is(n, "Bool"), fd.callS("Bool.not", [fd.callS("Bool.xor", [a, b])]), Bool.pick(T.Bt, fd.eq.bad(n), fd.todo("fold:eq-at-type"), T.tba.call(T.BtVar{fd.eq.name(n)}, List.append(&2, T.Bt, fd.tpls(ts), List.append(&2, T.Bt, fd.tpls(fs), [a, b]))))))
+
+# == at a type named n without arguments, as a function: a def's name (so
+# a recursive T.eq passes its own template arguments on), at Bool a lambda
+def fd.eq.fn0(+n: List<&2, U32>) -> T.Bt:
+  Bool.pick(T.Bt, fd.eq.prim(n), T.BtVar{fd.cat(n, S.b(".is_eq"))}, Bool.pick(T.Bt, fd.is(n, "Bool"), T.BtLam{T.BmLive{}, S.b("p_"), T.BtLam{T.BmLive{}, S.b("q_"), fd.callS("Bool.not", [fd.callS("Bool.xor", [fd.v("p_"), fd.v("q_")])])}}, Bool.pick(T.Bt, fd.eq.bad(n), fd.todo("fold:eq-at-type"), T.BtVar{fd.eq.name(n)})))
+
+# an argument that is a variable: a quantity (&2) is no type and goes
+def fd.eq.fns.var(+x: List<&2, U32>, +vs: List<&2, List<&2, U32>>, +rest: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, S.prefix(x, S.b("&")), rest, T.BtArgs{fd.eq.var(x, vs), rest})
+
+# one recursion over the type (Bend takes no mutual recursion here)
+def fd.eqk(t: T.Bt, k: Eqk, +vs: List<&2, List<&2, U32>>) -> T.Bt:
+  match t k:
+    case T.BtTyApp{+n, +args} EkCall{+a, +b}:
+      fd.eqcall.app(n, fd.eq.targs(fd.spine(args)), fd.spine(fd.eqk(args, EkFns{}, vs)), a, b)
+    case T.BtVar{+v} EkCall{+a, +b}:
+      Bool.pick(T.Bt, S.mem(v, vs), T.tba.call(T.BtVar{fd.eq.dict(v)}, [a, b]), fd.todo("fold:eq-at-tyvar"))
+    case T.BtVar{+v} EkFn{}:
+      fd.eq.var(v, vs)
+    case T.BtTyApp{+n, T.BtANil{}} EkFn{}:
+      fd.eq.fn0(n)
+    case T.BtTyApp{+n, +args} EkFn{}:
+      T.BtLam{T.BmLive{}, S.b("p_"), T.BtLam{T.BmLive{}, S.b("q_"), fd.eqcall.app(n, fd.eq.targs(fd.spine(args)), fd.spine(fd.eqk(args, EkFns{}, vs)), fd.v("p_"), fd.v("q_"))}}
+    case T.BtANil{} EkFns{}:
+      T.BtANil{}
+    case T.BtArgs{T.BtLam{m, x, b}, rest} EkFns{}:
+      T.BtArgs{fd.eqk(b, EkFn{}, vs), fd.eqk(rest, EkFns{}, vs)}
+    case T.BtArgs{T.BtVar{+x}, rest} EkFns{}:
+      fd.eq.fns.var(x, vs, fd.eqk(rest, EkFns{}, vs))
+    case T.BtArgs{h, rest} EkFns{}:
+      T.BtArgs{fd.eqk(h, EkFn{}, vs), fd.eqk(rest, EkFns{}, vs)}
+    case _ _:
+      fd.todo("fold:eq-at-type")
+
+# a == b at the type t; vs: the type variables whose == the def takes
+def fd.eqcall(t: T.Bt, +vs: List<&2, List<&2, U32>>, a: T.Bt, b: T.Bt) -> T.Bt:
+  fd.eqk(t, EkCall{a, b}, vs)
+
+# == at t as a function, for a template argument
+def fd.eqfn(t: T.Bt, +vs: List<&2, List<&2, U32>>) -> T.Bt:
+  fd.eqk(t, EkFn{}, vs)
+
+# the type of a dictionary: A -> A -> Bool
+def fd.eq.dty(+a: T.Bt) -> T.Bt:
+  T.BtPi{T.BmLive{}, S.b("_"), False{}, a, T.BtPi{T.BmLive{}, S.b("_"), False{}, a, fd.ty0("Bool")}}
+
+def fd.eq.dps(vs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  match vs:
+    case +v <> t:
+      T.BParam{T.BmTpl{}, fd.eq.dict(v), fd.eq.dty(T.BtVar{v})} <> fd.eq.dps(t)
+    case Nil{}:
+      Nil{}
+
+# T.eq's template parameters: ~A: Data for each type parameter, then
+# ~eq_A: A -> A -> Bool for each
+def fd.eq.tps(+vs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  List.append(&2, T.BParam, fd.tvtpls(vs), fd.eq.dps(vs))
+
+def fd.eq.pnames(ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      x <> fd.eq.pnames(t)
+    case Nil{}:
+      Nil{}
+
+def fd.eq.vars(vs: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
+  match vs:
+    case v <> t:
+      T.BtVar{v} <> fd.eq.vars(t)
+    case Nil{}:
+      Nil{}
+
+# the field variables p0, p1, ... of a constructor's pattern
+def fd.eq.pv(+p: List<&2, U32>, i: Nat) -> List<&2, U32>:
+  fd.cat(p, fd.nshow(i))
+
+def fd.eq.pvs(fs: List<&2, T.BField>, +p: List<&2, U32>, +i: Nat) -> List<&2, T.Bt>:
+  match fs:
+    case f <> t:
+      T.BtPv{T.BmLive{}, fd.eq.pv(p, i)} <> fd.eq.pvs(t, p, 1n+i)
+    case Nil{}:
+      Nil{}
+
+# == at each field, and-ed
+def fd.eq.fields(fs: List<&2, T.BField>, +vs: List<&2, List<&2, U32>>, +i: Nat) -> T.Bt:
+  match fs:
+    case Nil{}:
+      fd.con0("True")
+    case T.BField{x, ty} <> +t:
+      +e = fd.eqcall(ty, vs, T.BtVar{fd.eq.pv(S.b("a"), i)}, T.BtVar{fd.eq.pv(S.b("b"), i)})
+      Bool.pick(T.Bt, List.is_empty(&2, T.BField, t), e, fd.callS("Bool.and", [e, fd.eq.fields(t, vs, 1n+i)]))
+
+def fd.eq.cases(cs: List<&2, T.BCtor>, +vs: List<&2, List<&2, U32>>, +many: Bool) -> T.Bt:
+  match cs:
+    case T.BCtor{+c, +fs} <> t:
+      T.BtCase{T.tba.args([T.BtCon{c, T.tba.args(fd.eq.pvs(fs, S.b("a"), 0n))}, T.BtCon{c, T.tba.args(fd.eq.pvs(fs, S.b("b"), 0n))}]), T.BtExpr{fd.eq.fields(fs, vs, 0n)}, fd.eq.cases(t, vs, many)}
+    case Nil{}:
+      Bool.pick(T.Bt, many, T.BtCase{T.tba.args([T.BtWild{}, T.BtWild{}]), T.BtExpr{fd.con0("False")}, T.BtCEnd{}}, T.BtCEnd{})
+
+def fd.eq.iname(+it: T.BItem) -> List<&2, U32>:
+  match it:
+    case T.BiType{n, ps, k, cs, d}:
+      fd.cat(n, S.b(".eq"))
+    case _:
+      S.b("?.eq")
+
+# T.eq, from the type's item: a match on both arguments
+def fd.eq.def(it: T.BItem) -> T.BItem:
+  match it:
+    case T.BiType{+n, ps, k, +cs, d}:
+      +vs = fd.eq.pnames(ps)
+      +ty = {T.BtTyApp{n, T.tba.args(fd.eq.vars(vs))} : T.Bt}
+      T.BiDef{fd.cat(n, S.b(".eq")), List.append(&2, T.BParam, fd.eq.tps(vs), [T.BParam{T.BmLive{}, S.b("a"), ty}, T.BParam{T.BmLive{}, S.b("b"), ty}]), fd.ty0("Bool"), T.BtMatch{T.tba.args([fd.v("a"), fd.v("b")]), fd.eq.cases(cs, vs, Nat.is_gt(List.length(&2, T.BCtor, cs), 1n))}, [fd.cat3(S.b("generated: Eq's == at "), n, S.b(", as GHC derives it"))]}
+    case T.BiDef{n, ps, r, b, d}:
+      T.BiDef{n, ps, r, b, d}
+    case T.BiComment{d}:
+      T.BiComment{d}
+
+# a type under its foralls and contexts
+def fd.eq.strip(t: X.Sx) -> X.Sx:
+  match t:
+    case X.SxCons{X.SxAtom{+h}, X.SxCons{+a, X.SxCons{+b, X.SxNil{}}}}:
+      Bool.pick(X.Sx, Bool.or(fd.is(h, "tforall"), fd.is(h, "tctx")), fd.eq.strip(b), X.SxCons{X.SxAtom{h}, X.SxCons{a, X.SxCons{b, X.SxNil{}}}})
+    case u:
+      u
+
+# the first type of a binder's type, under foralls and contexts
+def fd.eq.arg1(t: X.Sx) -> X.Sx:
+  V.sv.at(fd.eq.strip(t), 1n)
+
+# (top (abs TVS EVS ((export (l "$c==" N) TYPE)) EVB BINDS SPAN)) whose
+# binds GHC generated: the type ==  is at
+def fd.eq.drv.of(+x: X.Sx) -> List<&2, List<&2, U32>>:
+  +b = V.sv.at(x, 1n)
+  +e = V.sv.at(V.sv.at(b, 3n), 0n)
+  +ok = Bool.and(V.sv.is(V.sv.hd(x), "top"), Bool.and(V.sv.is(V.sv.hd(b), "abs"), Bool.and(V.sv.is(V.sv.str(V.sv.at(e, 1n), 1n), "$c=="), V.sv.has(b, S.b("generated")))))
+  fd.bpicks(ok, [V.sv.str(fd.eq.arg1(V.sv.at(e, 2n)), 2n)], Nil{})
+
+def fd.eq.drv(xs: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case +h <> t:
+      List.append(&2, List<&2, U32>, fd.eq.drv.of(h), fd.eq.drv(t))
+    case Nil{}:
+      Nil{}
+
+# (instance "GHC.Classes" "Eq" ((tc MOD T ...)) DFUN SPAN): T
+def fd.eq.ins.of(+x: X.Sx) -> List<&2, List<&2, U32>>:
+  +ok = Bool.and(V.sv.is(V.sv.hd(x), "instance"), Bool.and(V.sv.is(V.sv.str(x, 1n), "GHC.Classes"), V.sv.is(V.sv.str(x, 2n), "Eq")))
+  fd.bpicks(ok, [V.sv.str(V.sv.at(V.sv.at(x, 3n), 0n), 2n)], Nil{})
+
+def fd.eq.ins(xs: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case +h <> t:
+      List.append(&2, List<&2, U32>, fd.eq.ins.of(h), fd.eq.ins(t))
+    case Nil{}:
+      Nil{}
+
+# == and /= at a type of the module, a list, Maybe, ... (see Equality); an
+# order there is out
+def fd.cmp.other(+op: List<&2, U32>, +t: T.Bt, +a: T.Bt, +b: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.is(op, "is_eq"), fd.eqcall(t, Nil{}, a, b), Bool.pick(T.Bt, fd.is(op, "is_ne"), fd.callS("Bool.not", [fd.eqcall(t, Nil{}, a, b)]), fd.todo("fold:ord-at-type")))
+
+def fd.cmp(q: Tq, t: T.Bt, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
     case TqF32{}:
       fd.callS("F32." ++ op, [a, b])
@@ -1063,7 +1304,7 @@ def fd.cmp(q: Tq, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
     case TqBool{}:
       fd.cmp.bool(S.b(op), a, b)
     case TqOther{}:
-      fd.todo("fold:eq-at-type")
+      fd.cmp.other(S.b(op), t, a, b)
 
 def fd.num(q: Tq, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
@@ -1081,7 +1322,7 @@ def fd.elem(q: Tq, +t: T.Bt, x: T.Bt, xs: T.Bt) -> T.Bt:
     case TqChar{}:
       fd.callS("List.contains", [fd.tpl0(t), fd.tpl0(fd.v("Char.is_eq")), xs, x])
     case _:
-      fd.todo("fold:elem-at-type")
+      fd.callS("List.contains", [fd.tpl0(t), fd.tpl0(fd.eqfn(t, Nil{})), xs, x])
 
 def fd.sum(q: Tq, f: T.Bt, z: T.Bt, xs: T.Bt) -> T.Bt:
   match q:
@@ -1252,13 +1493,6 @@ def fd.embed(t: T.Bt, x: T.Bt) -> T.Bt:
     case _:
       fd.todo("fold:embed-at-type")
 
-def fd.tpls(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
-  match xs:
-    case h <> t:
-      fd.tpl0(h) <> fd.tpls(t)
-    case Nil{}:
-      Nil{}
-
 # G.cata(~A.., ~R, ~alg, x) at Fix<(r_ => G<A.., r_>)>, and
 # G.cata.cofree(~A.., ~W, ~R, ~alg, x) at Cofree<(r_ => G<A.., r_>), W>
 def fd.cata.call(+n: List<&2, U32>, +s: String, args: T.Bt, more: List<&2, T.Bt>) -> T.Bt:
@@ -1293,8 +1527,8 @@ def fd.mul2() -> T.Bt:
 # a saturated call of one of base's functions, as Base writes it
 def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<&2, U32>>) -> T.Bt:
   match f tys xs:
-    case BfCmp{op} t <> _ a <> b <> _:
-      fd.cmp(fd.tq(t), op, a, b)
+    case BfCmp{op} +t <> _ a <> b <> _:
+      fd.cmp(fd.tq(t), t, op, a, b)
     case BfNum{op} t <> _ a <> b <> _:
       fd.num(fd.tq(t), op, a, b)
     case BfAnd{} _ a <> b <> _:
@@ -3443,19 +3677,94 @@ def fd.sels(+x: X.Sx, +env: Env) -> List<&2, Got>:
 
 # the module's data types; one with a field type the fold cannot write is
 # out, with that type as the reason, like a def
-def fd.datas.if(d: Bool, +x: X.Sx, +env: Env, acc: List<&2, Got>) -> List<&2, Got>:
+# the type's ==: T.eq when its Eq instance is derived, out when written
+# by hand (pruned when nothing uses it), none when it has no Eq instance
+def fd.eq.got(drv: Bool, ins: Bool, +it: T.BItem) -> List<&2, Got>:
+  match drv ins:
+    case True{} _:
+      [fd.got.def(fd.eq.iname(it), fd.eq.def(it))]
+    case False{} True{}:
+      [GotOut{fd.eq.iname(it), S.b("fold:eq-instance")}]
+    case False{} False{}:
+      Nil{}
+
+# an eq out (fold:eq-...) that nothing uses goes
+# the names the template arguments in t use
+def fd.tas(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtTplArg{a}:
+      T.tba.frees(a, acc)
+    case T.BtRw{e, p, b}:
+      fd.tas(e, fd.tas(p, fd.tas(b, acc)))
+    case T.BtLet{x, v, b}:
+      fd.tas(v, fd.tas(b, acc))
+    case T.BtDead{a}:
+      fd.tas(a, acc)
+    case T.BtApp{f, a}:
+      fd.tas(f, fd.tas(a, acc))
+    case T.BtLam{m, x, b}:
+      fd.tas(b, acc)
+    case T.BtPi{m, x, d, a, b}:
+      fd.tas(a, fd.tas(b, acc))
+    case T.BtCon{c, a}:
+      fd.tas(a, acc)
+    case T.BtTyApp{n, a}:
+      fd.tas(a, acc)
+    case T.BtEq{ty, a, b}:
+      fd.tas(ty, fd.tas(a, fd.tas(b, acc)))
+    case T.BtSucc{a}:
+      fd.tas(a, acc)
+    case T.BtAnn{a, ty}:
+      fd.tas(a, fd.tas(ty, acc))
+    case T.BtMatch{xs, cs}:
+      fd.tas(xs, fd.tas(cs, acc))
+    case T.BtExpr{e}:
+      fd.tas(e, acc)
+    case T.BtCase{p, b, rest}:
+      fd.tas(b, fd.tas(rest, acc))
+    case T.BtArgs{a, rest}:
+      fd.tas(a, fd.tas(rest, acc))
+    case _:
+      acc
+
+def fd.got.items(gs: List<&2, Got>) -> List<&2, T.BItem>:
+  match gs:
+    case GotDef{n, it} <> t:
+      it <> fd.got.items(t)
+    case _ <> t:
+      fd.got.items(t)
+    case Nil{}:
+      Nil{}
+
+def fd.eq.prune(gs: List<&2, Got>, +its: List<&2, T.BItem>) -> List<&2, Got>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case GotOut{+n, +w} <> t:
+      +rest = fd.eq.prune(t, its)
+      Bool.pick(List<&2, Got>, Bool.and(S.suffix(n, S.b(".eq")), Bool.and(S.prefix(w, S.b("fold:eq-")), Bool.not(fd.uses.name(its, n)))), rest, GotOut{n, w} <> rest)
+    case g <> t:
+      g <> fd.eq.prune(t, its)
+
+def fd.datas.if(d: Bool, +x: X.Sx, +drv: List<&2, List<&2, U32>>, +ins: List<&2, List<&2, U32>>, +env: Env, acc: List<&2, Got>) -> List<&2, Got>:
   match d:
     case True{}:
-      fd.got.def(V.sv.str(x, 1n), fd.data(x, env)) <> List.append(&2, Got, fd.sels(x, env), acc)
+      +n = V.sv.str(x, 1n)
+      +ty = fd.data(x, env)
+      fd.got.def(n, ty) <> List.append(&2, Got, fd.sels(x, env), List.append(&2, Got, fd.eq.got(S.mem(n, drv), S.mem(n, ins), ty), acc))
     case False{}:
       acc
 
-def fd.datas(xs: List<&2, X.Sx>, +env: Env) -> List<&2, Got>:
+def fd.datas.go(xs: List<&2, X.Sx>, +drv: List<&2, List<&2, U32>>, +ins: List<&2, List<&2, U32>>, +env: Env) -> List<&2, Got>:
   match xs:
     case +h <> t:
-      fd.datas.if(fd.isdata(h), h, env, fd.datas(t, env))
+      fd.datas.if(fd.isdata(h), h, drv, ins, env, fd.datas.go(t, drv, ins, env))
     case Nil{}:
       Nil{}
+
+# the module's types, their selectors and their ==
+def fd.datas(+xs: List<&2, X.Sx>, +env: Env) -> List<&2, Got>:
+  fd.datas.go(xs, fd.eq.drv(xs), fd.eq.ins(xs), env)
 
 def fd.lift.iname(it: T.BItem) -> List<&2, U32>:
   match it:
@@ -3924,14 +4233,6 @@ def fd.fz.ok(cs: List<&2, Fc>, +own: List<&2, U32>, +fz: List<&2, Fz>) -> Bool:
     case Nil{}:
       True{}
 
-# ~A: Data for each
-def fd.tvtpls(tvs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
-  match tvs:
-    case Nil{}:
-      Nil{}
-    case h <> t:
-      T.BParam{T.BmTpl{}, h, fd.v("Data")} <> fd.tvtpls(t)
-
 def fd.cata.doc(cof: Bool, +b: List<&2, U32>) -> List<&2, List<&2, U32>>:
   match cof:
     case True{}:
@@ -3993,9 +4294,102 @@ def fd.catas(+xs: List<&2, X.Sx>, +env: Env) -> List<&2, Got>:
   fd.catas.go(own, List.append(&2, Fz, own, fd.ix.fzs(fd.env.ix(env))))
 
 # the data types (and their selectors), then the bindings
+# a generated T.eq Bend refuses: one that calls itself inside a template
+# argument (T nested in a list or a Maybe of its own: Bend sees no
+# decreasing call), or one that calls a U.eq calling it back (Bend takes
+# no mutual recursion)
+def fd.eq.isgen(it: T.BItem) -> Bool:
+  match it:
+    case T.BiDef{n, ps, r, b, d <> t}:
+      S.prefix(d, S.b("generated: Eq's == at "))
+    case _:
+      False{}
+
+def fd.eq.body(it: T.BItem) -> T.Bt:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      b
+    case _:
+      T.BtWild{}
+
+def fd.eq.find(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, T.BItem>:
+  match its:
+    case +h <> t:
+      Bool.pick(List<&2, T.BItem>, S.eq(fd.lift.iname(h), n), [h], fd.eq.find(t, n))
+    case Nil{}:
+      Nil{}
+
+# whether one of the defs ms (not n itself) calls n
+def fd.eq.back(ms: List<&2, List<&2, U32>>, +n: List<&2, U32>, +its: List<&2, T.BItem>) -> Bool:
+  match ms:
+    case +m <> t:
+      Bool.or(Bool.and(Bool.not(S.eq(m, n)), Bool.and(S.suffix(m, S.b(".eq")), fd.uses.name(fd.eq.find(its, m), n))), fd.eq.back(t, n, its))
+    case Nil{}:
+      False{}
+
+def fd.eq.why(+n: List<&2, U32>, +it: T.BItem, +its: List<&2, T.BItem>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, S.mem(n, fd.tas(fd.eq.body(it), Nil{})), S.b("fold:eq-nested"), Bool.pick(List<&2, U32>, fd.eq.back(T.tba.item.fold(~T.tba.refs, it, Nil{}), n, its), S.b("fold:eq-mutual"), Nil{}))
+
+def fd.eq.check(gen: Bool, +n: List<&2, U32>, +it: T.BItem, +its: List<&2, T.BItem>) -> Got:
+  match gen:
+    case True{}:
+      +w = fd.eq.why(n, it, its)
+      Bool.pick(Got, List.is_empty(&2, U32, w), GotDef{n, it}, GotOut{n, w})
+    case False{}:
+      GotDef{n, it}
+
+def fd.eq.fix(gs: List<&2, Got>, +its: List<&2, T.BItem>) -> List<&2, Got>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case GotDef{+n, +it} <> t:
+      fd.eq.check(fd.eq.isgen(it), n, it, its) <> fd.eq.fix(t, its)
+    case g <> t:
+      g <> fd.eq.fix(t, its)
+
+# the Bend names of an earlier module's defs the package has
+def fd.ix.defs(xs: List<&2, Ix>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case IxDef{k, b, a} <> t:
+      b <> fd.ix.defs(t)
+    case _ <> t:
+      fd.ix.defs(t)
+    case Nil{}:
+      Nil{}
+
+# an == (some T.eq) the item calls that is neither the module's nor an
+# earlier module's (that module's T.eq is out): its name, or none
+def fd.eq.missing(rs: List<&2, List<&2, U32>>, +have: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match rs:
+    case +r <> t:
+      +miss = Bool.and(S.suffix(r, S.b(".eq")), Bool.and(Bool.not(S.prefix(r, S.b("hs.eq."))), Bool.not(S.mem(r, have))))
+      fd.bpicks(miss, [r], fd.eq.missing(t, have))
+    case Nil{}:
+      Nil{}
+
+def fd.eq.imp.check(miss: List<&2, List<&2, U32>>, +n: List<&2, U32>, +it: T.BItem) -> Got:
+  match miss:
+    case Nil{}:
+      GotDef{n, it}
+    case m <> t:
+      GotOut{n, fd.cat(S.b("fold:eq-imported:"), m)}
+
+# what calls an earlier module's T.eq that module has not is out
+def fd.eq.imp(gs: List<&2, Got>, +have: List<&2, List<&2, U32>>) -> List<&2, Got>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case GotDef{+n, +it} <> t:
+      fd.eq.imp.check(fd.eq.missing(T.tba.item.fold(~T.tba.refs, it, Nil{}), have), n, it) <> fd.eq.imp(t, have)
+    case g <> t:
+      g <> fd.eq.imp(t, have)
+
 def fd.allgots(+xs: List<&2, X.Sx>, +tbs: List<&2, Tb>, +env: Env) -> List<&2, Got>:
   +ds = List.append(&2, Got, fd.datas(xs, env), fd.catas(xs, env))
-  List.append(&2, Got, ds, fd.gots.less(fd.gots(tbs, fd.ok(xs, fd.px.imp(fd.env.px(env))), env), fd.got.defnames(ds)))
+  +gs = List.append(&2, Got, ds, fd.gots.less(fd.gots(tbs, fd.ok(xs, fd.px.imp(fd.env.px(env))), env), fd.got.defnames(ds)))
+  +g2 = fd.eq.fix(gs, fd.got.items(gs))
+  +g3 = fd.eq.imp(g2, List.append(&2, List<&2, U32>, fd.got.defnames(g2), fd.ix.defs(fd.px.ix(fd.env.px(env)))))
+  fd.eq.prune(g3, fd.got.items(g3))
 
 # The prelude ---------------------------------------------------------------------
 
@@ -4020,13 +4414,6 @@ def fd.hsprelude.write(+out: String) -> IO(Unit):
 def fd.ims(+px: Px) -> List<&2, List<&2, U32>>:
   S.b("HsPrelude") <> fd.px.files(px)
 
-def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
-  match its:
-    case +h <> t:
-      Bool.or(S.mem(n, T.tba.item.fold(~T.tba.refs, h, Nil{})), fd.uses.name(t, n))
-    case Nil{}:
-      False{}
-
 # Maybe's and Either's monad and functions Base lacks (Base has Maybe.bind,
 # Maybe.map and Maybe.default)
 def fd.pre.either.bind() -> String:
@@ -4044,6 +4431,24 @@ def fd.pre.either() -> String:
 def fd.pre.state() -> String:
   "# State s a (Control.Monad.Trans.State): S -> A & S, a function of the\n# state to a result and the next state; mtl's MonadState methods at it\ndef hs.state.bind.go(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, A, _ => S>, f: A -> S -> Sigma<&1, &1, B, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (a, s) = p\n  f(a)(s)\n\ndef hs.state.bind(-S: Data, -A: Type, -B: Type, m: S -> Sigma<&1, &1, A, _ => S>, f: A -> S -> Sigma<&1, &1, B, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.bind.go(S, A, B, m(s), f)\n\ndef hs.state.pure(-S: Data, -A: Type, a: A) -> S -> Sigma<&1, &1, A, _ => S>:\n  s => (a, s)\n\ndef hs.state.map.go(-S: Data, -A: Type, -B: Type, f: A -> B, p: Sigma<&1, &1, A, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (a, s) = p\n  (f(a), s)\n\ndef hs.state.map(-S: Data, -A: Type, -B: Type, f: A -> B, m: S -> Sigma<&1, &1, A, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.map.go(S, A, B, f, m(s))\n\ndef hs.state.ap.go(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, (A -> B), _ => S>, m: S -> Sigma<&1, &1, A, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (f, s) = p\n  hs.state.map.go(S, A, B, f, m(s))\n\ndef hs.state.ap(-S: Data, -A: Type, -B: Type, mf: S -> Sigma<&1, &1, (A -> B), _ => S>, m: S -> Sigma<&1, &1, A, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.ap.go(S, A, B, mf(s), m)\n\ndef hs.state.dup(-S: Data, +s: S) -> Sigma<&1, &1, S, _ => S>:\n  (s, s)\n\ndef hs.state.get(-S: Data) -> S -> Sigma<&1, &1, S, _ => S>:\n  s => hs.state.dup(S, s)\n\ndef hs.state.put(-S: Data, s: S) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  _ => (Unit{}, s)\n\ndef hs.state.modify(-S: Data, f: S -> S) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  s => (Unit{}, f(s))\n\ndef hs.state.gets.go(-S: Data, -A: Type, f: S -> A, +s: S) -> Sigma<&1, &1, A, _ => S>:\n  (f(s), s)\n\ndef hs.state.gets(-S: Data, -A: Type, f: S -> A) -> S -> Sigma<&1, &1, A, _ => S>:\n  s => hs.state.gets.go(S, A, f, s)\n\ndef hs.state.fst(-S: Data, -A: Type, p: Sigma<&1, &1, A, _ => S>) -> A:\n  (a, s) = p\n  a\n\ndef hs.state.snd(-S: Data, -A: Type, p: Sigma<&1, &1, A, _ => S>) -> S:\n  (a, s) = p\n  s\n\ndef hs.state.re(-S: Data, -A: Data, p: Sigma<&1, &1, A, _ => S>) -> Sigma<&2, &2, A, _ => S>:\n  (a, s) = p\n  (a, s)\n\ndef hs.state.eval(-S: Data, -A: Type, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> A:\n  hs.state.fst(S, A, m(s))\n\ndef hs.state.exec(-S: Data, -A: Type, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> S:\n  hs.state.snd(S, A, m(s))\n\ndef hs.state.run(-S: Data, -A: Data, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> Sigma<&2, &2, A, _ => S>:\n  hs.state.re(S, A, m(s))\n\n"
 
+def fd.pre.eq.list() -> String:
+  "# Haskell's == at lists, given == at the elements\ndef hs.eq.list(~A: Data, ~eq: A -> A -> Bool, xs: List<&2, A>, ys: List<&2, A>) -> Bool:\n  match xs ys:\n    case Nil{} Nil{}:\n      True{}\n    case x <> xt y <> yt:\n      Bool.and(eq(x, y), hs.eq.list(~A, ~eq, xt, yt))\n    case _ _:\n      False{}\n\n"
+
+def fd.pre.eq.maybe() -> String:
+  "# Haskell's == at Maybe\ndef hs.eq.maybe(~A: Data, ~eq: A -> A -> Bool, a: Maybe<&2, A>, b: Maybe<&2, A>) -> Bool:\n  match a b:\n    case None{} None{}:\n      True{}\n    case Some{x} Some{y}:\n      eq(x, y)\n    case _ _:\n      False{}\n\n"
+
+def fd.pre.eq.either() -> String:
+  "# Haskell's == at Either\ndef hs.eq.either(~A: Data, ~B: Data, ~ea: A -> A -> Bool, ~eb: B -> B -> Bool, a: Either<&2, &2, A, B>, b: Either<&2, &2, A, B>) -> Bool:\n  match a b:\n    case Inl{x} Inl{y}:\n      ea(x, y)\n    case Inr{x} Inr{y}:\n      eb(x, y)\n    case _ _:\n      False{}\n\n"
+
+def fd.pre.eq.pair() -> String:
+  "# Haskell's == at pairs\ndef hs.eq.pair(~A: Data, ~B: Data, ~ea: A -> A -> Bool, ~eb: B -> B -> Bool, p: Sigma<&2, &2, A, _ => B>, q: Sigma<&2, &2, A, _ => B>) -> Bool:\n  (a, b) = p\n  (c, d) = q\n  Bool.and(ea(a, c), eb(b, d))\n\n"
+
+def fd.pre.eq.unit() -> String:
+  "# Haskell's == at ()\ndef hs.eq.unit(a: Unit, b: Unit) -> Bool:\n  match a b:\n    case Unit{} Unit{}:\n      True{}\n\n"
+
+def fd.pre.eq.cmp() -> String:
+  "# Haskell's == at Ordering\ndef hs.eq.cmp(a: Cmp, b: Cmp) -> Bool:\n  match a b:\n    case LT{} LT{}:\n      True{}\n    case EQ{} EQ{}:\n      True{}\n    case GT{} GT{}:\n      True{}\n    case _ _:\n      False{}\n\n"
+
 # whether the items name any of ns
 def fd.uses.any(+its: List<&2, T.BItem>, ns: List<String>) -> Bool:
   match ns:
@@ -4056,7 +4461,7 @@ def fd.pre.one(+its: List<&2, T.BItem>, n: String, text: String) -> List<&2, U32
   fd.bpick(fd.uses.name(its, S.b(n)), S.b(text), Nil{})
 
 def fd.prelude(+its: List<&2, T.BItem>) -> List<&2, U32>:
-  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run"]), S.b(fd.pre.state()), Nil{})])
+  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.pre.one(its, "hs.eq.list", fd.pre.eq.list()), fd.pre.one(its, "hs.eq.maybe", fd.pre.eq.maybe()), fd.pre.one(its, "hs.eq.either", fd.pre.eq.either()), fd.pre.one(its, "hs.eq.pair", fd.pre.eq.pair()), fd.pre.one(its, "hs.eq.unit", fd.pre.eq.unit()), fd.pre.one(its, "hs.eq.cmp", fd.pre.eq.cmp()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run"]), S.b(fd.pre.state()), Nil{})])
 
 # The file -------------------------------------------------------------------------
 
@@ -4342,9 +4747,6 @@ def fd.without(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, T.BItem>:
     case Nil{}:
       Nil{}
 
-def fd.bpicks(c: Bool, a: List<&2, List<&2, U32>>, b: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  Bool.pick(List<&2, List<&2, U32>>, c, a, b)
-
 def fd.ctor.names(cs: List<&2, T.BCtor>) -> List<&2, List<&2, U32>>:
   match cs:
     case T.BCtor{c, fs} <> t:
@@ -4455,15 +4857,6 @@ def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>
         fd.gate(p, fd.gate.step(g1, file, m, ims, S.Out.text(o)), bend, path, file, m, ims)
 
 # The module -------------------------------------------------------------------------
-
-def fd.got.items(gs: List<&2, Got>) -> List<&2, T.BItem>:
-  match gs:
-    case GotDef{n, it} <> t:
-      it <> fd.got.items(t)
-    case _ <> t:
-      fd.got.items(t)
-    case Nil{}:
-      Nil{}
 
 def fd.got.outs(gs: List<&2, Got>) -> List<&2, Dr>:
   match gs:
@@ -4584,44 +4977,6 @@ def fd.nsyn(xs: List<&2, X.Sx>) -> Nat:
 # settle by rounds, at most as many as there are items. A template argument
 # that names a pattern's, a lambda's or a let's variable is a closure, and
 # its def is out (fold:closure-argument).
-
-# the names the template arguments in t use
-def fd.tas(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match t:
-    case T.BtTplArg{a}:
-      T.tba.frees(a, acc)
-    case T.BtRw{e, p, b}:
-      fd.tas(e, fd.tas(p, fd.tas(b, acc)))
-    case T.BtLet{x, v, b}:
-      fd.tas(v, fd.tas(b, acc))
-    case T.BtDead{a}:
-      fd.tas(a, acc)
-    case T.BtApp{f, a}:
-      fd.tas(f, fd.tas(a, acc))
-    case T.BtLam{m, x, b}:
-      fd.tas(b, acc)
-    case T.BtPi{m, x, d, a, b}:
-      fd.tas(a, fd.tas(b, acc))
-    case T.BtCon{c, a}:
-      fd.tas(a, acc)
-    case T.BtTyApp{n, a}:
-      fd.tas(a, acc)
-    case T.BtEq{ty, a, b}:
-      fd.tas(ty, fd.tas(a, fd.tas(b, acc)))
-    case T.BtSucc{a}:
-      fd.tas(a, acc)
-    case T.BtAnn{a, ty}:
-      fd.tas(a, fd.tas(ty, acc))
-    case T.BtMatch{xs, cs}:
-      fd.tas(xs, fd.tas(cs, acc))
-    case T.BtExpr{e}:
-      fd.tas(e, acc)
-    case T.BtCase{p, b, rest}:
-      fd.tas(b, fd.tas(rest, acc))
-    case T.BtArgs{a, rest}:
-      fd.tas(a, fd.tas(rest, acc))
-    case _:
-      acc
 
 # a let's name without the + fd.mark gave it
 def fd.unplus(x: List<&2, U32>) -> List<&2, U32>:

@@ -465,3 +465,48 @@ toUpper 12, fst 12, dropWhile 11). Telomare's six: `step` and `built`
 function) and `localDef` (a case after a let, with laws). Its remaining
 out are still mostly the survey's (547: classes over the base functors,
 Data.Map, ExceptT, pattern synonyms).
+
+## hs1003's rule: `==` at the module's own types (2026-11-19)
+
+The first reason left after rule 3 was `fold:eq-at-type` (94 defs): `==`,
+`/=`, `<`, `compare`... at a type Base has none for. Of the 94, 21 were
+`==` at a type of the module, 21 at a list (a String, a list of the
+module's type), 52 at a type variable (an `Eq a =>` or `Ord a =>` def), and
+38 of all of them an order, not `==`.
+
+**`==`.** At a list, Maybe, Either, a pair, `()` and Ordering, the
+prelude's `hs.eq.*`, templates given `==` at the parts (`hs.eq.list(~A, ~eq,
+xs, ys)`); `==` at the parts is a def's name when there is one (`Nat.is_eq`,
+`Char.is_eq`, `T.eq`), else a closed lambda. At a type of the module whose
+Eq instance GHC derived (the instance's `$c==` binding is `generated`),
+`T.eq`, written from the type's item: a match on both arguments, the same
+constructor and `==` at each field, `False` for two constructors; with
+parameters, a template taking `~A` and `~eq_A: A -> A -> Bool` for each,
+which a recursive field calls with its own arguments (so the template's
+copies stay finite). `elem` at such a type is `List.contains`. Out: a
+hand-written instance (`fold:eq-instance`: its `==` is not translated yet), a
+type nested in a list or a Maybe of its own (`fold:eq-nested`: Bend sees
+no decreasing call through a template argument), two types calling each
+other's (`fold:eq-mutual`), an earlier module's type whose T.eq is out
+(`fold:eq-imported:NAME`, telomare's `LocTag`, nested in its own Maybe).
+A T.eq out that nothing calls leaves no row.
+
+**Law** took every dotted name for a law or a def lifted out of a
+function: a refused `T.eq` took its type out with it (law:), and its def
+was pruned as a law whose def is gone. A dotted name whose first letter is
+a capital is now the type's own def.
+
+| | functions out | ok-law | ok-check |
+|---|---|---|---|
+| hs1003 before (law12) | 3129 | 1403 | 220 |
+| hs1003 now (law15) | 3107 | 1424 | 221 |
+| telomare before (law-pk7) | 721 | 61 | 40 |
+| telomare now (law-pk9, 53 s) | 721 | 61 | 40 |
+
+No def lost its verdict or a law on either; every row of law12 is in
+law15. hs1003's 22: `==` at lists and Strings (palindromes), at the
+module's enumerations and records, `elem` at them. Telomare's `==` are in
+code the survey still refuses or at its `LocTag`. Left of the 94: an
+order (`fold:ord-at-type`, 38) and `==` at a type variable
+(`fold:eq-at-tyvar`, 31): the dictionaries, next (an `Eq a`/`Ord a` def
+takes `~eq_A`/`~cmp_A`, its callers pass `==`/`compare` at their type).
