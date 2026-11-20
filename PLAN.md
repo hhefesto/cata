@@ -1081,3 +1081,73 @@ does not run the specialiser).
 Next: megaparsec at `Parsec Void String` in Bend (HsPrelude), whose
 combinators (`many`, `sepBy`, `between`, `choice`) take parsers as
 function arguments: this rule's copies.
+
+## Telomare's rules, 16: megaparsec (2026-11-20)
+
+The user's goal: "have cata be able to get a working version of
+telomare's master". The closure (what compileModules needs) waited first
+on the parser, megaparsec 9.7.0 at `Parsec Void String` (TelomareParser
+56 and ParsecT 55 of its 281 out).
+
+- **HsPc** (`prelude/HsPc.bend`, written into HsPrelude.bend): a parser is
+  `HsPcSt -> HsPcRep<A>`, the reply megaparsec's four continuations as one
+  value; the class methods, `try`, `label`, `hidden`, `lookAhead`,
+  `notFollowedBy`, `eof`, tokens, `takeWhileP`/`takeWhile1P`, the Lexer's
+  one-shot functions, `charLiteral` (GHC's `readLitChar`), `runParser` and
+  `errorBundlePretty`, ported from megaparsec's source. Checked against
+  megaparsec on 28 parsers and inputs (`tests/pc/`): every answer and
+  every error text the same.
+- **The model** (`prelude/Cata/Parsec.hs`, exported with the package):
+  what runs a parser again or hands one to a function (`many`, `some`,
+  `sepBy`, `sepBy1`, `manyTill`, `skipMany`, `skipSome`, the Lexer's
+  `space`, `lineFold`, `indentGuard`, `skipBlockCommentNested`), as
+  parser-combinators and megaparsec define them, at `Parsec Void String`.
+  Against megaparsec on 4,004 inputs of `tests/hs/Pc.hs`'s grammar: the
+  same answers, error texts included. Bend refuses a template that calls
+  back its caller, so these are package code instead: rule 15 copies them
+  at their known parsers, and the copies join the grammar's group.
+- **Spec**: a call of one of those as the model's def (`sp.pc`); `choice`
+  at a literal list as `<|>` to `empty`; `uncurry g p` at the model's g
+  as `g (fst p) (snd p)`; a parser parameter is a function parameter (the
+  index, rule 15); `(\x -> e) a` as `e` with `a` (`sp.beta`: a copy of
+  `lineFold` applies its action); a local binding generalised over a type
+  and used at one type as the binding at it (`sp.pl`: identifierRaw's
+  `where check x = .. fail ..` over its monad); `Parsec e s`, `Token` and
+  `Tokens` at String normal; `f $ x` and `(f . g) x` read through
+  `(expanded ..)` wrappers, a chain `f . g . h $ x` as `f (g (h x))`.
+- **Survey**: ParsecT's types, methods and the functions above; a pattern
+  synonym's builder `$bX` is a binding (other modules call it).
+- **Fold**: the types (`hs.Pc` the monad's marker, applied by a synonym
+  of fewer variables); `MkPc` for `>>=`, `pure`, `fmap`, `<*>` (Apv's
+  chains), `<|>`, `empty`, `<*`, `<$`, `fail`; HsPc's table; a def whose
+  answer is a parser takes the state last and answers the reply (`fd.eta`:
+  a grammar's parsers are a `.mu` of Data answers, no closure run twice);
+  a local value that names itself lifted as a def of no parameters (the
+  gate fuels it); string literal patterns; `maxBound`/`minBound` and
+  `fromInteger` at Int; Data.Char's predicates from GHC's tables
+  (`prelude/HsChar.bend`, `tools/char-table/CharTable.hs`); HsPcRep's
+  default; a bare `dep` names what it depends on.
+- **hs-export**: `run/gcroot-hsx` was a stale build that writes no type
+  family instances; telomare is exported again with the current one
+  (`run/gcroot-hsx2`, `nix build .#hs-export`), the same files as before
+  but for the model's module.
+
+**Test** (`tests/hs/Pc.hs`): a grammar of telomare's shapes (a lexer from
+the Lexer, `try`, `<?>`, `choice` over `try`, `sepBy` through brackets,
+parsers that call each other, a `lineFold`, `manyTill` at a local
+indentation, `let` blocks): `parseE`, `parseOk`, `column`, `mkApp` and
+`ex1`..`ex7` ok-law (49 laws against GHC, three of them error messages),
+every parser and copy ok-check. The other tests: no change.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 15 (spec14, law23x) | 501 | 95 | 198 | 110 |
+| telomare after rule 16 (spec23, law30, 399 s) | 507 | 97 | 239 | 110 |
+
+No def lost its verdict; 41 out -> ok-check, 2 out -> ok-law. The out
+count grows by the 37 builders now listed (most need a class of the
+package) and the model's 13 defs (those not copied are out: they run a
+closure twice). Telomare.Parse: 68 ok-check (the lexer, `identifierRaw`,
+`parseSameLvl`, the copies of `many`, `some`, `manyTill`, `space`, the
+SourcePos functions), 1 ok-law (`rws`). Its grammar (parseLongExpr and
+the 50 parsers around it) is one group that still goes as a whole.

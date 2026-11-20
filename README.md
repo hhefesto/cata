@@ -142,8 +142,67 @@ State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
 `mapM`/`forM`/`traverse` (at a list) and `foldM` are the prelude's (the
 function a template, so a closed one), and at any of these monads `when`,
 `unless`, `void`, `=<<` and `*>` are written with their `>>=`, `pure` and
-`fmap`. Other monads (`ExceptT` over anything else, `ParsecT`, `IO`, a
-type variable) and `<*>` at ExceptT are out.
+`fmap`. At `ParsecT`, see "Parsers". Other monads (`ExceptT` over
+anything else, `IO`, a type variable) and `<*>` at ExceptT are out.
+
+## Parsers (megaparsec)
+
+Telomare's parser is megaparsec 9.7.0 at `Parsec Void String`. A
+`ParsecT e s Identity a` is HsPrelude's parser, a function of the state
+to a reply, `HsPcSt -> HsPcRep<A>` (`prelude/HsPc.bend`): the state is the
+input left, its offset, line, column and source name; the reply is
+megaparsec's four continuations as one value (consumed or not; a result
+with its hints, or an error). Errors are megaparsec's (TrivialError's
+unexpected and expected items as sets, FancyError's `fail` and incorrect
+indentation), merged and hinted as `Text.Megaparsec.Internal` does, and
+`errorBundlePretty` prints them as megaparsec does (tab width 8; a wide
+character counts one column here, two there). `Pos` is a Nat,
+`SourcePos` HsPcPos, `ParseErrorBundle` HsPcBundle.
+
+- What runs a parser once is HsPc's: `>>=`, `>>`, `*>`, `<*`, `<$`, `<$>`,
+  `pure`, `<*>`, `<|>`, `empty`, `fail`, `try`, `<?>`/`label`, `hidden`,
+  `lookAhead`, `notFollowedBy`, `eof`, `satisfy`, `char`, `single`,
+  `string`, `anySingle`, `space1`, `getOffset`, `getSourcePos`,
+  `between`, `optional`, `option`, the Lexer's `lexeme`, `symbol`,
+  `skipLineComment`, `indentLevel`, `incorrectIndent`, `decimal`,
+  `charLiteral` (GHC's `readLitChar`), `runParser`, `errorBundlePretty`,
+  `unPos` and SourcePos's fields.
+- What runs a parser again, or hands one to a function (`many`, `some`,
+  `sepBy`, `sepBy1`, `manyTill`, `skipMany`, `skipSome`, the Lexer's
+  `space`, `lineFold`, `indentGuard`, `skipBlockCommentNested`), is cata's
+  model, `prelude/Cata/Parsec.hs`: those packages' definitions in Haskell
+  at `Parsec Void String`, exported with the package (its file first among
+  ARGS' modules, `-iprelude` among the flags). The specialiser writes a
+  call of one as a call of the model's def (`sp.pc`), so it is the
+  package's own code: rule 15 copies it at its known parser arguments,
+  and the parsers that call back into it are one group with them.
+- `choice` at a literal list (or at `f <$> [..]`) is `<|>` down the list
+  to `empty`; `uncurry g p` with g the model's is `g (fst p) (snd p)`.
+- A parameter of a parser type is a function parameter (rule 15 copies at
+  it); a lambda applied to an argument (a copy of `lineFold` applies its
+  action) is its body with the argument (`sp.beta`); a local binding
+  generalised over a type (Haskell 2010's `where check x = .. fail ..`)
+  used at one type is the binding at that type (`sp.pl`).
+- A def whose answer is a parser takes the state as its last parameter,
+  `pc_s0`, and answers the reply (the fold's `fd.eta`); each other use of
+  it is the lambda `pc_s => X(.., pc_s)`. So a grammar's parsers, which
+  call each other, are a group like any other (`.mu`, with fuel), whose
+  answers are Data, and no closure is run twice. A local value that names
+  itself (`go = do .. go ..`) is lifted as a def of no parameters, which
+  the gate fuels.
+- Data.Char's `isAlpha`/`isLetter`, `isAlphaNum`, `isUpper`, `isLower`,
+  `isSpace` and `isDigit` are HsChar's (`prelude/HsChar.bend`: GHC's
+  answers as ranges of code points, written by
+  `tools/char-table/CharTable.hs`); `maxBound` and `minBound` at Int are
+  2^63 - 1 and -2^63.
+
+`prelude/*.bend` are written into HsPrelude.bend by the fold, from
+`bend/Prelude.bend`, which `tools/prelude-text.sh` writes from them.
+Tests: `tests/hs/Pc.hs` (a grammar of telomare's shapes: a lexer, `try`,
+`choice`, `sepBy` through brackets, a `lineFold`, `manyTill` at a local
+indentation, mutually recursive parsers, error messages);
+`tests/pc/run.sh` checks the model against megaparsec on 4,004 inputs and
+HsPc against megaparsec on 28 parsers.
 
 ## Containers
 

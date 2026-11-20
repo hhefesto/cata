@@ -1,0 +1,70 @@
+def T.s(+s: String) -> List<&2, Char>:
+  String.to_list(s)
+
+def T.pos(p: HsPcPos) -> List<&2, Char>:
+  match p:
+    case HsPcPos{n, l, c}:
+      List.concat(&2, Char, [T.s("SourcePos {sourceName = "), HsShow.str(n, Nil{}), T.s(", sourceLine = Pos "), HsPc.pp.nat(l), T.s(", sourceColumn = Pos "), HsPc.pp.nat(c), T.s("}")])
+
+def T.fin(-A: Data, sh: A -> List<&2, Char>, e: Either<&2, &2, HsPcBundle, A>) -> List<&2, Char>:
+  match e:
+    case Inl{b}:
+      List.append(&2, Char, HsPc.errorBundlePretty(b), T.s("\n=====\n"))
+    case Inr{x}:
+      List.append(&2, Char, sh(x), T.s("\n=====\n"))
+
+def T.r(-A: Data, sh: A -> List<&2, Char>, p: HsPcSt -> HsPcRep<A>, +inp: String) -> List<&2, Char>:
+  T.fin(A, sh, HsPc.runParser(A, p, T.s("f.tel"), String.to_list(inp)))
+
+def T.ch(+c: Char) -> List<&2, Char>:
+  HsShow.charq(c, Nil{})
+
+def T.u(u: Unit) -> List<&2, Char>:
+  T.s("()")
+
+def T.str(s: List<&2, Char>) -> List<&2, Char>:
+  HsShow.str(s, Nil{})
+
+type T.P2 is Data:
+  T.P2{a: HsPcPos, b: HsPcPos}
+
+def T.p2(p: T.P2) -> List<&2, Char>:
+  match p:
+    case T.P2{a, b}:
+      List.concat(&2, Char, [T.s("("), T.pos(a), T.s(","), T.pos(b), T.s(")")])
+
+def T.cs() -> List<&2, Char>:
+  List.concat(&2, Char, [
+    T.r(List<&2, Char>, T.str, HsPc.left(List<&2, Char>, Unit, HsPc.string(T.s("let")), HsPc.eof()), "lex"),
+    T.r(Char, x => T.ch(x), HsPc.alt(Char, HsPc.char('a'), HsPc.char('b')), "c"),
+    T.r(Char, x => T.ch(x), HsPc.label(Char, T.s("thing"), HsPc.char('x')), "y"),
+    T.r(List<&2, Char>, T.str, HsPc.alt(List<&2, Char>, HsPc.try(List<&2, Char>, HsPc.string(T.s("ab"))), HsPc.string(T.s("ac"))), "ad"),
+    T.r(List<&2, Char>, T.str, HsPc.takeWhile1P(~(c => HsChar.isDigit(c)), Some{T.s("digit")}), "x"),
+    T.r(Unit, T.u, HsPc.notFollowedBy(Char, HsPc.char('a')), "a"),
+    T.r(Unit, T.u, HsPc.eof(), "z"),
+    T.r(HsInt, x => HsPc.pp.nat(HsInt.mag(x)), HsPc.left(HsInt, Unit, HsPc.decimal(), HsPc.eof()), "12x"),
+    T.r(Char, x => T.ch(x), HsPc.left(Char, Unit, HsPc.charLiteral(), HsPc.eof()), "\\n"),
+    T.r(Char, x => T.ch(x), HsPc.left(Char, Unit, HsPc.charLiteral(), HsPc.eof()), "\\q"),
+    T.r(Char, x => T.ch(x), HsPc.charLiteral(), ""),
+    T.r(Char, x => T.ch(x), HsPc.left(Char, Unit, HsPc.charLiteral(), HsPc.eof()), "\\SOH"),
+    T.r(Char, x => T.ch(x), HsPc.left(Char, Char, HsPc.charLiteral(), HsPc.char('x')), "\\65x"),
+    T.r(Char, x => T.ch(x), HsPc.then(Char, Char, HsPc.char('\t'), HsPc.then(Char, Char, HsPc.char('\t'), HsPc.char('a'))), "\t\tz"),
+    T.r(List<&2, Char>, T.str, HsPc.then(Char, List<&2, Char>, HsPc.char('x'), HsPc.then(Char, List<&2, Char>, HsPc.char('\n'), HsPc.string(T.s("ac")))), "x\nab"),
+    T.r(Unit, T.u, HsPc.then(Char, Unit, HsPc.char('\n'), HsPc.eof()), "\n\n"),
+    T.r(Nat, x => HsPc.pp.nat(x), HsPc.then(Unit, Nat, HsPc.space(), HsPc.bind(Nat, Nat, HsPc.indentLevel(), a => HsPc.incorrectIndent(Nat, GT{}, 3n, a))), "  a"),
+    T.r(Unit, T.u, HsPc.fail(Unit, T.s("boom")), "q"),
+    T.r(Unit, T.u, HsPc.then(Unit, Unit, HsPc.space1(), HsPc.then(List<&2, Char>, Unit, HsPc.string(T.s("if")), HsPc.eof())), "  \t if then"),
+    T.r(List<&2, Char>, T.str, HsPc.string(T.s("abc")), "ab"),
+    T.r(Char, x => T.ch(x), HsPc.then(Char, Char, HsPc.char('a'), HsPc.charLiteral()), "a\\^Ab"),
+    T.r(List<&2, Char>, T.str, HsPc.string(['\r', '\n']), "x"),
+    T.r(Char, x => T.ch(x), HsPc.char(' '), "\u{0}"),
+    T.r(T.P2, T.p2, HsPc.bind(HsPcPos, T.P2, HsPc.getSourcePos(), p1 => HsPc.then(List<&2, Char>, T.P2, HsPc.string(T.s("ab\n\tc")), HsPc.map(HsPcPos, T.P2, p2 => T.P2{p1, p2}, HsPc.getSourcePos()))), "ab\n\tcd"),
+    T.r(Unit, T.u, HsPc.then(Maybe<&2, Char>, Unit, HsPc.optional(Char, HsPc.char('a')), HsPc.void(Char, HsPc.char('b'))), "c"),
+    T.r(List<&2, Char>, T.str, HsPc.then(List<&2, Char>, List<&2, Char>, HsPc.lookAhead(List<&2, Char>, HsPc.string(T.s("ab"))), HsPc.string(T.s("ax"))), "ab"),
+    T.r(Char, x => T.ch(x), HsPc.alt(Char, HsPc.hidden(Char, HsPc.char('a')), HsPc.char('b')), "c"),
+    T.r(Unit, T.u, HsPc.then(Unit, Unit, HsPc.skipLineComment(T.s("--")), HsPc.eof()), "-- hi\nx")
+  ])
+
+def main() -> String:
+  String.from_list(T.cs())
+

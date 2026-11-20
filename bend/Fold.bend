@@ -5,6 +5,7 @@ import ./a2b/ToBend/Ast.bend as T
 import ./a2b/ToBend/Print.bend as P
 import ./a2b/ToBend/Order.bend as O
 import ./Survey.bend as V
+import ./Prelude.bend as PR
 
 # Fold: cata hs, step 2 (PLAN.md, "Step 2: the fold").  It folds the
 # bindings of an hs-export module (tools/hs-export/FORMAT.md) that the
@@ -274,13 +275,20 @@ type Tk is Data:
   TkSet{}
   TkIntMap{}
   TkIntSet{}
+  TkParsecT{}
+  TkParsec{}
+  TkPeb{}
+  TkSPos{}
+  TkPos{}
+  TkToken{}
+  TkTokens{}
   TkNone{}
 
 type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.Show.ShowS", TkShowS{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}, TkE{"HsPrelude.HsInt", TkHsInt{}}, TkE{"HsPrelude.HsInteger", TkHsInt{}}, TkE{"HsPrelude.HsDigest", TkDigest{}}, TkE{"GHC.Internal.Word.Word8", TkU32{}}, TkE{"Data.Sequence.Internal.Seq", TkList{}}, TkE{"Data.Sequence.Internal.ViewL", TkList{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.Show.ShowS", TkShowS{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}, TkE{"HsPrelude.HsInt", TkHsInt{}}, TkE{"HsPrelude.HsInteger", TkHsInt{}}, TkE{"HsPrelude.HsDigest", TkDigest{}}, TkE{"GHC.Internal.Word.Word8", TkU32{}}, TkE{"Data.Sequence.Internal.Seq", TkList{}}, TkE{"Data.Sequence.Internal.ViewL", TkList{}}, TkE{"Text.Megaparsec.Internal.ParsecT", TkParsecT{}}, TkE{"Text.Megaparsec.Parsec", TkParsec{}}, TkE{"Text.Megaparsec.Error.ParseErrorBundle", TkPeb{}}, TkE{"Text.Megaparsec.Pos.SourcePos", TkSPos{}}, TkE{"Text.Megaparsec.Pos.Pos", TkPos{}}, TkE{"Text.Megaparsec.Stream.Token", TkToken{}}, TkE{"Text.Megaparsec.Stream.Tokens", TkTokens{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -586,6 +594,37 @@ def fd.ty.exs(args: List<&2, T.Bt>) -> T.Bt:
     case _:
       fd.todo("fold:exceptt-type")
 
+# megaparsec's ParsecT e s Identity a (Parsec e s a) is HsPrelude's parser,
+# a function of the state to a reply, HsPcSt -> HsPcRep<A> (see HsPc in
+# the prelude); ParsecT e s Identity alone, a monad argument, the marker
+# hs.Pc. ParseErrorBundle is HsPcBundle, SourcePos HsPcPos, Pos a Nat, and
+# the Stream's Token and Tokens (at String) Char and String.
+def fd.ty.pc(a: T.Bt) -> T.Bt:
+  T.BtPi{T.BmLive{}, S.b("_"), False{}, fd.ty0("HsPrelude.HsPcSt"), T.BtTyApp{S.b("HsPrelude.HsPcRep"), T.tba.args([a])}}
+
+def fd.ty.parsect.if(id: Bool, args: List<&2, T.Bt>) -> T.Bt:
+  match id args:
+    case True{} a <> Nil{}:
+      fd.ty.pc(a)
+    case True{} Nil{}:
+      fd.ty0("hs.Pc")
+    case _ _:
+      fd.todo("fold:parsect-type")
+
+def fd.ty.parsect(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case e <> s <> m <> t:
+      fd.ty.parsect.if(fd.isid(m), t)
+    case _:
+      fd.todo("fold:parsect-type")
+
+def fd.ty.parsec(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case e <> s <> t:
+      fd.ty.parsect.if(True{}, t)
+    case _:
+      fd.todo("fold:parsect-type")
+
 def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
   match k:
     case TkNat{}:
@@ -646,6 +685,20 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
       fd.ty.intmap(args)
     case TkIntSet{}:
       fd.ty.intset(args)
+    case TkParsecT{}:
+      fd.ty.parsect(args)
+    case TkParsec{}:
+      fd.ty.parsec(args)
+    case TkPeb{}:
+      fd.ty0("HsPrelude.HsPcBundle")
+    case TkSPos{}:
+      fd.ty0("HsPrelude.HsPcPos")
+    case TkPos{}:
+      fd.ty0("Nat")
+    case TkToken{}:
+      fd.ty0("Char")
+    case TkTokens{}:
+      fd.list(fd.ty0("Char"))
     case TkNone{}:
       fd.todo("fold:type")
 
@@ -1175,6 +1228,13 @@ type Bf is Data:
   BfMempty{}
   BfShowsPrec{}
   BfShows{}
+  BfAlt{}
+  BfEmpty{}
+  BfLeft{}
+  BfConstL{}
+  BfFail{}
+  BfPc{f: String, d: Nat, n: Nat}
+  BfBound{hi: Bool}
   BfNone{}
 
 type BfE is Data:
@@ -1267,8 +1327,17 @@ def fd.bftab2.show() -> List<&2, BfE>:
 def fd.bftab2() -> List<&2, BfE>:
   List.concat(&2, BfE, [fd.bftab2.show(), fd.bftab2.seq(), fd.bftab2.a(), fd.bftab2.b(), fd.bftab2.c(), fd.bftab2.d(), fd.bftab2.e(), fd.bftab2.f(), fd.bftab2.g()])
 
+# megaparsec's and parser-combinators' functions that run a parser once,
+# HsPrelude's HsPc (prelude/HsPc.bend): its def, the leading type arguments
+# dropped (e, s and m, or m), the arguments taken (the model's,
+# prelude/Cata/Parsec.hs, run one again)
+def fd.bftab.pc() -> List<&2, BfE>:
+  +c = {"Text.Megaparsec.Class." : String}
+  +l = {"Text.Megaparsec.Char.Lexer." : String}
+  [BfE{"GHC.Internal.Base.<|>", BfAlt{}}, BfE{"GHC.Internal.Base.empty", BfEmpty{}}, BfE{"GHC.Internal.Base.<*", BfLeft{}}, BfE{"GHC.Internal.Base.<$", BfConstL{}}, BfE{"GHC.Internal.Control.Monad.Fail.fail", BfFail{}}, BfE{c ++ "try", BfPc{"HsPc.try", 3n, 1n}}, BfE{c ++ "eof", BfPc{"HsPc.eof", 3n, 0n}}, BfE{c ++ "notFollowedBy", BfPc{"HsPc.notFollowedBy", 3n, 1n}}, BfE{c ++ "lookAhead", BfPc{"HsPc.lookAhead", 3n, 1n}}, BfE{c ++ "hidden", BfPc{"HsPc.hidden", 3n, 1n}}, BfE{c ++ "label", BfPc{"HsPc.label", 3n, 2n}}, BfE{"Text.Megaparsec.<?>", BfPc{"HsPc.labelf", 3n, 2n}}, BfE{"Text.Megaparsec.satisfy", BfPc{"HsPc.satisfy", 3n, 1n}}, BfE{"Text.Megaparsec.anySingle", BfPc{"HsPc.anySingle", 3n, 0n}}, BfE{"Text.Megaparsec.single", BfPc{"HsPc.char", 3n, 1n}}, BfE{"Text.Megaparsec.getOffset", BfPc{"HsPc.getOffset", 3n, 0n}}, BfE{"Text.Megaparsec.getSourcePos", BfPc{"HsPc.getSourcePos", 3n, 0n}}, BfE{"Text.Megaparsec.runParser", BfPc{"HsPc.runParser", 2n, 3n}}, BfE{"Text.Megaparsec.Error.errorBundlePretty", BfPc{"HsPc.errorBundlePretty", 2n, 1n}}, BfE{"Text.Megaparsec.Pos.unPos", BfPc{"HsPc.unPos", 0n, 1n}}, BfE{"Text.Megaparsec.Pos.sourceLine", BfPc{"HsPc.pos.line", 0n, 1n}}, BfE{"Text.Megaparsec.Pos.sourceColumn", BfPc{"HsPc.pos.col", 0n, 1n}}, BfE{"Text.Megaparsec.Pos.sourceName", BfPc{"HsPc.pos.name", 0n, 1n}}, BfE{"Text.Megaparsec.Char.char", BfPc{"HsPc.char", 3n, 1n}}, BfE{"Text.Megaparsec.Common.string", BfPc{"HsPc.string", 3n, 1n}}, BfE{"Text.Megaparsec.Char.space1", BfPc{"HsPc.space1", 3n, 0n}}, BfE{"Text.Megaparsec.Char.space", BfPc{"HsPc.space", 3n, 0n}}, BfE{l ++ "skipLineComment", BfPc{"HsPc.skipLineComment", 3n, 1n}}, BfE{l ++ "indentLevel", BfPc{"HsPc.indentLevel", 3n, 0n}}, BfE{l ++ "incorrectIndent", BfPc{"HsPc.incorrectIndent", 3n, 3n}}, BfE{l ++ "decimal", BfPc{"HsPc.decimal", 4n, 0n}}, BfE{l ++ "charLiteral", BfPc{"HsPc.charLiteral", 3n, 0n}}, BfE{"Text.Megaparsec.Lexer.lexeme", BfPc{"HsPc.lexeme", 3n, 2n}}, BfE{"Text.Megaparsec.Lexer.symbol", BfPc{"HsPc.symbol", 3n, 2n}}, BfE{"Control.Applicative.Combinators.between", BfPc{"HsPc.between", 1n, 3n}}, BfE{"Control.Applicative.optional", BfPc{"HsPc.optional", 1n, 1n}}, BfE{"Control.Applicative.Combinators.option", BfPc{"HsPc.option", 1n, 2n}}, BfE{"Control.Monad.Combinators.option", BfPc{"HsPc.option", 1n, 2n}}, BfE{"GHC.Internal.Unicode.isAlpha", BfPc{"HsChar.isAlpha", 0n, 1n}}, BfE{"GHC.Internal.Unicode.isLetter", BfPc{"HsChar.isAlpha", 0n, 1n}}, BfE{"Data.Char.isLetter", BfPc{"HsChar.isAlpha", 0n, 1n}}, BfE{"GHC.Internal.Unicode.isAlphaNum", BfPc{"HsChar.isAlphaNum", 0n, 1n}}, BfE{"GHC.Internal.Unicode.isUpper", BfPc{"HsChar.isUpper", 0n, 1n}}, BfE{"GHC.Internal.Unicode.isLower", BfPc{"HsChar.isLower", 0n, 1n}}, BfE{"GHC.Internal.Unicode.isSpace", BfPc{"HsChar.isSpace", 0n, 1n}}, BfE{"GHC.Internal.Unicode.isDigit", BfPc{"HsChar.isDigit", 0n, 1n}}, BfE{"GHC.Internal.Enum.maxBound", BfBound{True{}}}, BfE{"GHC.Internal.Enum.minBound", BfBound{False{}}}, BfE{"GHC.Internal.Num.fromInteger", BfIdAt{}}]
+
 def fd.bftab() -> List<&2, BfE>:
-  List.concat(&2, BfE, [fd.bftab0(), fd.bftab1(), fd.bftab2(), fd.dm.tab.map(fd.dm.specs.maps()), fd.dm.tab.set(fd.dm.specs.sets()), [BfE{"Data.Set.Internal.map", BfDm{"HsSet.map", "LK", "KLd", 1n, 2n}}]])
+  List.concat(&2, BfE, [fd.bftab0(), fd.bftab1(), fd.bftab2(), fd.bftab.pc(), fd.dm.tab.map(fd.dm.specs.maps()), fd.dm.tab.set(fd.dm.specs.sets()), [BfE{"Data.Set.Internal.map", BfDm{"HsSet.map", "LK", "KLd", 1n, 2n}}]])
 
 def fd.bf.find(xs: List<&2, BfE>, +k: List<&2, U32>) -> Bf:
   match xs:
@@ -1371,6 +1440,14 @@ def fd.bf.n(f: Bf) -> Nat:
       3n
     case BfFoldl{}:
       3n
+    case BfEmpty{}:
+      0n
+    case BfFail{}:
+      1n
+    case BfPc{f, d, n}:
+      n
+    case BfBound{hi}:
+      0n
     case _:
       2n
 
@@ -1826,6 +1903,7 @@ type Mk is Data:
   MkState{s: T.Bt}
   MkExS{e: T.Bt, s: T.Bt}
   MkIdentity{}
+  MkPc{}
   MkOther{}
 
 def fd.mk.one(+n: List<&2, U32>, a: T.Bt) -> Mk:
@@ -1852,7 +1930,7 @@ def fd.mk.var(list: Bool) -> Mk:
 def fd.mk(m: T.Bt) -> Mk:
   match m:
     case T.BtTyApp{+n, T.BtANil{}}:
-      Bool.pick(Mk, fd.is(n, "hs.Identity"), MkIdentity{}, MkOther{})
+      Bool.pick(Mk, fd.is(n, "hs.Identity"), MkIdentity{}, Bool.pick(Mk, fd.is(n, "hs.Pc"), MkPc{}, MkOther{}))
     case T.BtTyApp{+n, T.BtArgs{a, T.BtANil{}}}:
       fd.mk.one(n, a)
     case T.BtTyApp{+n, T.BtArgs{e, T.BtArgs{s, T.BtANil{}}}}:
@@ -1876,6 +1954,8 @@ def fd.bind(k: Mk, a: T.Bt, b: T.Bt, x: T.Bt, f: T.Bt) -> T.Bt:
       fd.callS("hs.exs.bind", [e, s, a, b, x, f])
     case MkIdentity{}:
       T.tba.call(f, [x])
+    case MkPc{}:
+      fd.callS("HsPrelude.HsPc.bind", [a, b, x, f])
     case _:
       fd.todo("fold:monad-at-type")
 
@@ -1893,6 +1973,8 @@ def fd.pure(k: Mk, a: T.Bt, x: T.Bt) -> T.Bt:
       fd.callS("hs.exs.pure", [e, s, a, x])
     case MkIdentity{}:
       x
+    case MkPc{}:
+      fd.callS("HsPrelude.HsPc.pure", [a, x])
     case _:
       fd.todo("fold:monad-at-type")
 
@@ -1917,6 +1999,8 @@ def fd.fmap(k: Mk, a: T.Bt, b: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
       T.tba.call(fd.untpl(g), [x])
     case MkList{}:
       fd.callS("hs.map", [fd.tpl0(a), fd.tpl0(b), g, x])
+    case MkPc{}:
+      fd.callS("HsPrelude.HsPc.map", [a, b, fd.untpl(g), x])
     case _:
       fd.todo("fold:fmap-at-type")
 
@@ -1951,6 +2035,8 @@ def fd.ap.pre(k: Mk) -> Nat:
   match k:
     case MkExS{e, s}:
       2n
+    case MkPc{}:
+      0n
     case _:
       1n
 
@@ -1964,6 +2050,8 @@ def fd.ap.name(k: Mk, +w: Nat) -> String:
       Bool.pick(String, Nat.is_eq(w, 0n), "hs.state.map", Bool.pick(String, Nat.is_eq(w, 1n), "hs.state.bind", "hs.state.pure"))
     case MkExS{e, s}:
       Bool.pick(String, Nat.is_eq(w, 0n), "hs.exs.map", Bool.pick(String, Nat.is_eq(w, 1n), "hs.exs.bind", "hs.exs.pure"))
+    case MkPc{}:
+      Bool.pick(String, Nat.is_eq(w, 0n), "HsPrelude.HsPc.map", Bool.pick(String, Nat.is_eq(w, 1n), "HsPrelude.HsPc.bind", "HsPrelude.HsPc.pure"))
     case _:
       ""
 
@@ -2050,6 +2138,8 @@ def fd.mty(k: Mk, a: T.Bt) -> T.Bt:
       fd.ty.st(s, fd.either(e, a))
     case MkIdentity{}:
       a
+    case MkPc{}:
+      fd.ty.pc(a)
     case MkOther{}:
       fd.todo("fold:monad-at-type")
 
@@ -2353,6 +2443,35 @@ def fd.cata(t: T.Bt, r: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
     case _:
       fd.todo("fold:cata-at-type")
 
+# maxBound and minBound at Int: 2^63 - 1 and -2^63 (HsInt; a Nat literal
+# is at most 2^32 - 1, so as (2^32 - 1) 2^31 + 2^31 - 1 and its successor)
+def fd.bound.big() -> T.Bt:
+  fd.callS("Nat.mul", [T.BtNat{S.b("4294967295")}, T.BtNat{S.b("2147483648")}])
+
+def fd.bound(q: Tq, hi: Bool) -> T.Bt:
+  match q hi:
+    case TqInt{} True{}:
+      T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([fd.callS("Nat.add", [fd.bound.big(), T.BtNat{S.b("2147483647")}])])}
+    case TqInt{} False{}:
+      T.BtCon{S.b("HsPrelude.HsInt.Neg"), T.tba.args([fd.callS("Nat.add", [fd.bound.big(), T.BtNat{S.b("2147483648")}])])}
+    case _ _:
+      fd.todo("fold:bounded-at-type")
+
+# <|>, empty, <*, <$ and fail at a parser (HsPc's)
+def fd.pc.op(k: Mk, +f: String, xs: List<&2, T.Bt>) -> T.Bt:
+  match k:
+    case MkPc{}:
+      fd.callS("HsPrelude.HsPc." ++ f, xs)
+    case _:
+      fd.todo("fold:alternative-at-type")
+
+def fd.pc.drop(n: Nat, xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match n xs:
+    case 1n+k h <> t:
+      fd.pc.drop(k, t)
+    case _ ys:
+      ys
+
 # a saturated call of one of base's functions, as Base writes it
 def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<&2, U32>>) -> T.Bt:
   match f tys xs:
@@ -2512,6 +2631,20 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.sp(t, d, x, r)
     case BfShows{} t <> _ x <> r <> _:
       fd.sp(t, fd.sp.zero(), x, r)
+    case BfAlt{} m <> a <> _ x <> y <> _:
+      fd.pc.op(fd.mk(m), "alt", [a, x, y])
+    case BfEmpty{} m <> a <> _ _:
+      fd.pc.op(fd.mk(m), "empty", [a])
+    case BfLeft{} m <> a <> b <> _ x <> y <> _:
+      fd.pc.op(fd.mk(m), "left", [a, b, x, y])
+    case BfConstL{} m <> a <> b <> _ x <> y <> _:
+      fd.pc.op(fd.mk(m), "const", [a, b, x, y])
+    case BfFail{} m <> a <> _ x <> _:
+      fd.pc.op(fd.mk(m), "fail", [a, x])
+    case BfPc{f, d, n} tys xs:
+      fd.callS("HsPrelude." ++ f, List.append(&2, T.Bt, fd.pc.drop(d, tys), xs))
+    case BfBound{hi} t <> _ _:
+      fd.bound(fd.tq(t), hi)
     case _ _ _:
       fd.todo("fold:base-call")
 
@@ -3928,12 +4061,31 @@ def fd.lets.go(bs: List<&2, R>, b: T.Bt, +env: Env, some: Bool) -> T.Bt:
 def fd.lets(bs: List<&2, R>, b: T.Bt, +env: Env) -> T.Bt:
   fd.lets.go(bs, b, env, False{})
 
-# a local binding: a value (a fun with no arguments) is a let, lifted when
-# its body is a statement; a local function is lifted (RLf)
-def fd.lbind(+x: List<&2, U32>, r: R, +env: Env) -> R:
+# whether the local t occurs in x (a recursive local value: its body names
+# it)
+def fd.occurs(x: X.Sx, +t: X.Sx) -> Bool:
+  match x:
+    case X.SxCons{+h, +tl}:
+      Bool.or(V.sv.sxeq(X.SxCons{h, tl}, t), Bool.or(fd.occurs(h, t), fd.occurs(tl, t)))
+    case y:
+      V.sv.sxeq(y, t)
+
+# a local value: a let, lifted when its body is a statement; one that names
+# itself (go = do .. go ..) is a local function of no parameters, lifted
+# (its def recurs: the gate's fuel)
+def fd.lbind.val(rec: Bool, +x: List<&2, U32>, +res: T.Bt, +cls: List<&2, R>, +env: Env) -> R:
+  match rec:
+    case True{}:
+      RLf{x, Nil{}, res, cls}
+    case False{}:
+      RB{x, T.BtAnn{fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env), res}}
+
+# a local binding: a value (a fun with no arguments) is a let (see
+# fd.lbind.val); a local function is lifted (RLf)
+def fd.lbind(+x: List<&2, U32>, r: R, +env: Env, rec: Bool) -> R:
   match r:
     case RMs{Nil{}, +res, +cls}:
-      RB{x, T.BtAnn{fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env), res}}
+      fd.lbind.val(rec, x, res, cls, env)
     case RMs{tys, res, cls}:
       RLf{x, tys, res, cls}
     case _:
@@ -3994,6 +4146,14 @@ def fd.syn.mark(tvs: List<&2, List<&2, U32>>, body: T.Bt) -> T.Bt:
     case Nil{}:
       body
 
+# the marker hs.Pc (a parser's monad) applied to its result: a parser
+def fd.ty.app.pc(pc: Bool, +n: List<&2, U32>, a: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
+  match pc args:
+    case True{} r <> Nil{}:
+      fd.ty.pc(r)
+    case _ xs:
+      T.BtTyApp{n, T.tba.args(List.append(&2, T.Bt, fd.spine(a), xs))}
+
 # a type applied to more arguments (a synonym of fewer variables than its
 # use has arguments: type M = State Meter, used as M ())
 def fd.ty.app.ex(ex: Bool, +n: List<&2, U32>, a: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
@@ -4001,7 +4161,7 @@ def fd.ty.app.ex(ex: Bool, +n: List<&2, U32>, a: T.Bt, args: List<&2, T.Bt>) -> 
     case True{}:
       fd.ty.exs(List.append(&2, T.Bt, fd.spine(a), args))
     case False{}:
-      T.BtTyApp{n, T.tba.args(List.append(&2, T.Bt, fd.spine(a), args))}
+      fd.ty.app.pc(fd.is(n, "hs.Pc"), n, a, args)
 
 def fd.ty.app.if(st: Bool, +n: List<&2, U32>, a: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
   match st:
@@ -4103,8 +4263,18 @@ def fd.pnlit.at(q: Tq, +neg: Bool, +v: X.Sx) -> T.Bt:
 def fd.pnlit(+v: X.Sx, +sg: X.Sx, t: R) -> R:
   RT{fd.pnlit.at(fd.tq(fd.rt(t)), V.sv.is(X.tsx.atom.of(sg), "neg"), v)}
 
+# a string literal as a pattern: its characters' list (printable ASCII
+# characters but ' and \, which a Bend pattern writes as themselves)
+def fd.plit.str(bs: List<&2, U32>) -> T.Bt:
+  match bs:
+    case Nil{}:
+      T.BtCon{S.b("Nil"), T.BtANil{}}
+    case +c <> t:
+      +ok = Bool.and(Bool.and(U32.is_ge(c, 32), U32.is_le(c, 126)), Bool.and(U32.is_ne(c, 39), U32.is_ne(c, 92)))
+      Bool.pick(T.Bt, ok, T.BtCon{S.b("Con"), T.tba.args([fd.char(U32.to_nat(c)), fd.plit.str(t)])}, fd.todo("fold:literal-pattern"))
+
 def fd.plit(+v: X.Sx) -> R:
-  RT{Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "char"), fd.char(X.tsx.nat(V.sv.at(v, 1n))), fd.todo("fold:literal-pattern"))}
+  RT{Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "char"), fd.char(X.tsx.nat(V.sv.at(v, 1n))), Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "string"), fd.plit.str(X.tsx.str.of(V.sv.at(v, 1n))), fd.todo("fold:literal-pattern")))}
 
 def fd.selfname(+v: X.Sx) -> List<&2, U32>:
   fd.bpick(V.sv.is(V.sv.hd(v), "g"), V.sv.str(v, 2n), V.sv.str(v, 1n))
@@ -4403,8 +4573,8 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.go(b, fd.k.bind(b), env)
     case _ KAbs1{}:
       fd.bad(S.b("fold:local-group"))
-    case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{ms, _}}}}} KBfun{}:
-      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)), env)
+    case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{+ms, _}}}}} KBfun{}:
+      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)), env, fd.occurs(ms, fd.unself(v)))
     # binders' types (see Lifting)
     case X.SxCons{_, X.SxCons{+v, X.SxCons{+t, _}}} KLbv{}:
       fd.lt1(fd.vname(V.sv.str(v, 1n)), fd.go(t, fd.k(RoTy{}, t), env))
@@ -4834,9 +5004,10 @@ def fd.tb.name(tb: Tb) -> List<&2, U32>:
     case TbSkip{}:
       S.b("?")
 
-# whether the binding is one a user wrote (not GHC's $-names)
+# whether the binding is one a user wrote (not GHC's $-names; a pattern
+# synonym's builder $bX is kept: a def other modules call)
 def fd.tb.user(+tb: Tb) -> Bool:
-  Bool.not(V.sv.dollar(fd.tb.name(tb)))
+  Bool.not(V.sv.dollar.out(fd.tb.name(tb)))
 
 def fd.gots.if(user: Bool, +ok: List<&2, List<&2, U32>>, +tb: Tb, +env: Env, acc: List<&2, Got>) -> List<&2, Got>:
   match user:
@@ -5495,7 +5666,7 @@ def fd.hsprelude.lists() -> String:
   fd.hsprelude.l1() ++ fd.hsprelude.l2() ++ fd.hsprelude.l3() ++ fd.hsprelude.l4() ++ fd.hsprelude.l5() ++ fd.hsprelude.l6() ++ fd.hsprelude.l7() ++ fd.hsprelude.l8() ++ fd.hsprelude.l9()
 
 def fd.hsprelude.write(+out: String) -> IO(Unit):
-  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists()))
+  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc()))
 
 # the files a module's text may name: HsPrelude's and the package's
 # earlier modules'
@@ -5618,6 +5789,164 @@ def fd.splice(text: List<&2, U32>, pre: List<&2, U32>) -> List<&2, U32>:
 
 def fd.render(+file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>) -> List<&2, U32>:
   fd.splice(fd.text(file, m, ims, its), fd.prelude(its))
+
+# Parsers, eta-expanded --------------------------------------------------------
+
+# A def whose answer is a parser (HsPcSt -> HsPcRep<A>, see Types) takes the
+# state as a last parameter, pc_s0, and answers the reply: its body applied
+# to it at each end (a case's, after a let), a call of another such def
+# there given it as its last argument. Each other call of one, with all its
+# arguments but the state, is the lambda pc_s => X(.., pc_s). So a parser's
+# def answers Data and its uses are calls, and the parsers that call each
+# other (a grammar's) are a group like any other (the fold's .mu): no
+# closure is made until a parser is run, and none is run twice.
+type Etn is Data:
+  Etn{n: List<&2, U32>, k: Nat}
+
+def fd.eta.isst(a: T.Bt) -> Bool:
+  match a:
+    case T.BtTyApp{+n, T.BtANil{}}:
+      fd.is(n, "HsPrelude.HsPcSt")
+    case T.BtVar{+n}:
+      fd.is(n, "HsPrelude.HsPcSt")
+    case _:
+      False{}
+
+def fd.eta.isp(r: T.Bt) -> Bool:
+  match r:
+    case T.BtPi{m, x, d, a, b}:
+      fd.eta.isst(a)
+    case _:
+      False{}
+
+def fd.eta.cod(r: T.Bt) -> T.Bt:
+  match r:
+    case T.BtPi{m, x, d, a, b}:
+      b
+    case u:
+      u
+
+def fd.eta.names(its: List<&2, T.BItem>) -> List<&2, Etn>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, +r, b, d} <> t:
+      +rest = fd.eta.names(t)
+      Bool.pick(List<&2, Etn>, fd.eta.isp(r), Etn{n, List.length(&2, T.BParam, ps)} <> rest, rest)
+    case h <> t:
+      fd.eta.names(t)
+
+# x's arity, if it is one of es
+def fd.eta.find(es: List<&2, Etn>, +x: List<&2, U32>) -> Maybe<&2, Nat>:
+  match es:
+    case Nil{}:
+      None{}
+    case Etn{+n, k} <> t:
+      Bool.pick(Maybe<&2, Nat>, S.eq(n, x), Some{k}, fd.eta.find(t, x))
+
+def fd.eta.full(m: Maybe<&2, Nat>, +a: T.Bt) -> Bool:
+  match m:
+    case Some{k}:
+      Nat.is_eq(T.tba.args.len(a), k)
+    case None{}:
+      False{}
+
+def fd.eta.st(+s: String) -> T.Bt:
+  T.BtVar{S.b(s)}
+
+# a call of x with its arguments a (rewritten): the lambda when it lacks the
+# state
+def fd.eta.call(full: Bool, +x: List<&2, U32>, a: T.Bt) -> T.Bt:
+  match full:
+    case True{}:
+      T.BtLam{T.BmLive{}, S.b("pc_s"), T.BtApp{T.BtVar{x}, T.tba.args(List.append(&2, T.Bt, fd.spine(a), [fd.eta.st("pc_s")]))}}
+    case False{}:
+      T.BtApp{T.BtVar{x}, a}
+
+def fd.eta.rw(t: T.Bt, +es: List<&2, Etn>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      fd.eta.call(fd.eta.full(fd.eta.find(es, x), a), x, fd.eta.rw(a, es))
+    case T.BtApp{h, a}:
+      T.BtApp{fd.eta.rw(h, es), fd.eta.rw(a, es)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.eta.rw(a, es)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.eta.rw(b, es)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.eta.rw(a, es)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.eta.rw(a, es), fd.eta.rw(b, es)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.eta.rw(a, es)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.eta.rw(a, es), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.eta.rw(cs, es)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.eta.rw(e, es)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.eta.rw(e, es), p, fd.eta.rw(b, es)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.eta.rw(v, es), fd.eta.rw(b, es)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.eta.rw(b, es), fd.eta.rw(rest, es)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.eta.rw(a, es), fd.eta.rw(rest, es)}
+    case u:
+      u
+
+# e applied to the state pc_s0: a call of such a def given it last
+def fd.eta.app.if(full: Bool, +x: List<&2, U32>, a: T.Bt) -> T.Bt:
+  match full:
+    case True{}:
+      T.BtApp{T.BtVar{x}, T.tba.args(List.append(&2, T.Bt, fd.spine(a), [fd.eta.st("pc_s0")]))}
+    case False{}:
+      T.tba.call(T.BtApp{T.BtVar{x}, a}, [fd.eta.st("pc_s0")])
+
+def fd.eta.app(e: T.Bt, +es: List<&2, Etn>) -> T.Bt:
+  match e:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      fd.eta.app.if(fd.eta.full(fd.eta.find(es, x), a), x, a)
+    case u:
+      T.tba.call(u, [fd.eta.st("pc_s0")])
+
+# a body applied to the state at each of its ends
+def fd.eta.tail(b: T.Bt, +es: List<&2, Etn>) -> T.Bt:
+  match b:
+    case T.BtExpr{e}:
+      T.BtExpr{fd.eta.app(e, es)}
+    case T.BtLet{x, v, r}:
+      T.BtLet{x, v, fd.eta.tail(r, es)}
+    case T.BtRw{e, p, r}:
+      T.BtRw{e, p, fd.eta.tail(r, es)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.eta.tail(cs, es)}
+    case T.BtCase{p, r, rest}:
+      T.BtCase{p, fd.eta.tail(r, es), fd.eta.tail(rest, es)}
+    case T.BtCEnd{}:
+      T.BtCEnd{}
+    case u:
+      fd.eta.app(u, es)
+
+def fd.eta.def(isp: Bool, +n: List<&2, U32>, ps: List<&2, T.BParam>, +r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Etn>) -> T.BItem:
+  match isp:
+    case True{}:
+      T.BiDef{n, List.append(&2, T.BParam, ps, [T.BParam{T.BmLive{}, S.b("pc_s0"), fd.ty0("HsPrelude.HsPcSt")}]), fd.eta.cod(r), fd.eta.rw(fd.eta.tail(b, es), es), d}
+    case False{}:
+      T.BiDef{n, ps, r, fd.eta.rw(b, es), d}
+
+def fd.eta.items(its: List<&2, T.BItem>, +es: List<&2, Etn>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, ps, +r, b, d} <> t:
+      fd.eta.def(fd.eta.isp(r), n, ps, r, b, d, es) <> fd.eta.items(t, es)
+    case h <> t:
+      h <> fd.eta.items(t, es)
+
+def fd.eta.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.eta.items(its, fd.eta.names(its))
 
 # The gate ---------------------------------------------------------------------------
 
@@ -5785,6 +6114,14 @@ def fd.hits(+it: T.BItem, gone: List<&2, List<&2, U32>>) -> Bool:
     case Nil{}:
       False{}
 
+# the first gone name the item uses (none: empty)
+def fd.hit.name(+it: T.BItem, gone: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match gone:
+    case +g <> t:
+      fd.bpick(T.tba.item.uses(it, g), g, fd.hit.name(it, t))
+    case Nil{}:
+      Nil{}
+
 # A drop: the item's name and why.
 type Dr is Data:
   Dr{n: List<&2, U32>, why: List<&2, U32>}
@@ -5792,19 +6129,20 @@ type Dr is Data:
 type Split is Data:
   Split{keep: List<&2, T.BItem>, out: List<&2, Dr>}
 
-def fd.split.if(hit: Bool, +it: T.BItem, +why: List<&2, U32>, s: Split) -> Split:
+def fd.split.if(hit: Bool, +it: T.BItem, +why: List<&2, U32>, +gone: List<&2, List<&2, U32>>, s: Split) -> Split:
   match hit s:
     case True{} Split{k, o}:
-      Split{k, Dr{fd.item.name(it), why} <> o}
+      +n = fd.hit.name(it, gone)
+      Split{k, Dr{fd.item.name(it), fd.bpick(Bool.or(List.is_empty(&2, U32, n), Bool.not(fd.is(why, "dep"))), why, fd.cat(why, 58 <> n))} <> o}
     case False{} Split{k, o}:
       Split{it <> k, o}
 
 # the items that mention a name gone go too, and the defs lifted out of one
-# (see Lifting)
+# (see Lifting); a bare dep names the first gone name an item uses
 def fd.split(its: List<&2, T.BItem>, +gone: List<&2, List<&2, U32>>, +why: List<&2, U32>) -> Split:
   match its:
     case +h <> t:
-      fd.split.if(Bool.or(fd.hits(h, gone), S.mem(fd.liftof(h), gone)), h, why, fd.split(t, gone, why))
+      fd.split.if(Bool.or(fd.hits(h, gone), S.mem(fd.liftof(h), gone)), h, why, gone, fd.split(t, gone, why))
     case Nil{}:
       Split{Nil{}, Nil{}}
 
@@ -6028,7 +6366,7 @@ type Dk is Data:
   DkOwn{}
 
 def fd.dv.bases() -> List<&2, DfB>:
-  [DfB{"Nat", "0n"}, DfB{"U32", "0"}, DfB{"Char", "' '"}, DfB{"Bool", "False{}"}, DfB{"Unit", "Unit{}"}, DfB{"F32", "0.0"}, DfB{"Cmp", "EQ{}"}, DfB{"List", "[]"}, DfB{"Maybe", "None{}"}, DfB{"HsPrelude.HsInt", "HsPrelude.HsInt.Pos{0n}"}, DfB{"HsPrelude.HsMap", "HsPrelude.HsMap.Tip{}"}, DfB{"HsPrelude.HsSet", "HsPrelude.HsSet.Tip{}"}]
+  [DfB{"Nat", "0n"}, DfB{"U32", "0"}, DfB{"Char", "' '"}, DfB{"Bool", "False{}"}, DfB{"Unit", "Unit{}"}, DfB{"F32", "0.0"}, DfB{"Cmp", "EQ{}"}, DfB{"List", "[]"}, DfB{"Maybe", "None{}"}, DfB{"HsPrelude.HsInt", "HsPrelude.HsInt.Pos{0n}"}, DfB{"HsPrelude.HsMap", "HsPrelude.HsMap.Tip{}"}, DfB{"HsPrelude.HsSet", "HsPrelude.HsSet.Tip{}"}, DfB{"HsPrelude.HsPcRep", "HsPrelude.HsPcRep{False{}, HsPrelude.HsPcRes.Bad{HsPrelude.HsPcError.Fancy{0n, []}, HsPrelude.HsPcSt{[], 0n, 1n, 1n, []}}}"}, DfB{"HsPrelude.HsPcPos", "HsPrelude.HsPcPos{[], 1n, 1n}"}]
 
 def fd.dv.base(xs: List<&2, DfB>, +n: List<&2, U32>) -> Maybe<&2, T.Bt>:
   match xs:
@@ -6838,7 +7176,8 @@ def fd.gate.io(g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: Li
         S.run(".", Nil{}, 300, bend, [path, "--check-only"], Nil{})
 
 # the gate: check, drop the item the error is in (and what uses it), and
-# check again, until Bend accepts the file or nothing is left
+# check again, until Bend accepts the file or nothing is left (each round's
+# answer from bend, its first lines, is appended to PATH.log)
 def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +dt: List<&2, T.BItem>) -> IO(Gs):
   match fuel:
     case 0n:
@@ -6846,7 +7185,8 @@ def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>
     case 1n+p:
       +g1 = g
       do IO<Gs>:
-        o : S.Out <- fd.gate.io(g1, bend, path, file, m, ims)
+        +o : S.Out <- fd.gate.io(g1, bend, path, file, m, ims)
+        S.add(path ++ ".log", S.append(S.lines.take(S.Out.text(o), 12n), [10, 10]))
         fd.gate(p, fd.gate.step(g1, file, m, ims, S.Out.text(o), dt), bend, path, file, m, ims, dt)
 
 # The module -------------------------------------------------------------------------
@@ -7530,7 +7870,7 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +env = fd.syns(Nat.add(fd.nsyn(xs), List.length(&2, Sy, fd.px.sy(px))), xs, fd.env0(m, cs, ds, px))
   +g2 = fd.tpl.settle(fd.allgots(xs, tbs, env), fd.px.tfs(px))
   +gs = fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), fd.px.tfs(px)))
-  +its = fd.mu.all(fd.got.items(gs), fd.px.dt(px))
+  +its = fd.mu.all(fd.eta.all(fd.got.items(gs)), fd.px.dt(px))
   +ims = fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"

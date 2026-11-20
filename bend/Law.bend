@@ -1338,7 +1338,8 @@ def lw.gate(fuel: Nat, g: F.Gs, +bend: String, +path: String, +file: List<&2, U3
     case 1n+p:
       +g1 = g
       do IO<F.Gs>:
-        o : S.Out <- F.fd.gate.io(g1, bend, path, file, m, ims)
+        +o : S.Out <- F.fd.gate.io(g1, bend, path, file, m, ims)
+        S.add(path ++ ".log", S.append(S.lines.take(S.Out.text(o), 12n), [10, 10]))
         lw.gate(p, lw.gate.step(g1, file, m, ims, S.Out.text(o), dt), bend, path, file, m, ims, dt)
 
 def lw.drop1(g: F.Gs, +n: List<&2, U32>, w: List<&2, U32>) -> F.Gs:
@@ -1540,7 +1541,7 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
   +env = F.fd.syns(Nat.add(F.fd.nsyn(xs), List.length(&2, F.Sy, F.fd.px.sy(px))), xs, F.fd.env0(m, cs, ds, px))
   +g2 = F.fd.tpl.settle(F.fd.allgots(xs, tbs, env), F.fd.px.tfs(px))
   +gs = F.fd.tpl.fin(g2, List.append(&2, F.Tf, F.fd.tfs(g2), F.fd.px.tfs(px)))
-  +its = F.fd.mu.all(F.fd.got.items(gs), F.fd.px.dt(px))
+  +its = F.fd.mu.all(F.fd.eta.all(F.fd.got.items(gs)), F.fd.px.dt(px))
   +ims = F.fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
