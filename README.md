@@ -153,6 +153,17 @@ them, and `fmap` at a Map its `map`. Data.Sequence's `Seq a` is a list
 (front first) and `ViewL a` too (`EmptyL` the empty list, `x :< s` a
 cons): `empty`, `|>`, `<|`, `viewl`, `fromList`.
 
+Show at base's types is HsPrelude's `HsShow`, GHC.Show's text: `showsPrec`,
+`show` and `shows` at Int (HsInt; a negative number in parentheses above
+precedence 6), Char and String (GHC's escapes: `\n`, `\DEL`, `\SOH`,
+`\1234\&5`, `\SO\&H`), Bool, (), lists and Maybe; `showString`, `showChar`,
+`showParen`, `showSpace`, `showCommaSpace`, `showList__`. A derived Show
+instance of the package's own types (GHC's generated `showsPrec`, its
+literals bare Ints the specialiser makes HsInt) is copied at its type like
+a hand-written one, and base's default `show` and `showList` given it are
+HsPrelude.Z's `showVia` and `showListVia`. Show at a list or a Maybe of the
+package's own type, at Fix (through Show1), at Map and Set: out.
+
 GHC.Prim's `coerce` (a newtype's derived instance, GeneralizedNewtypeDeriving,
 is coerce of its field type's, and the specialiser copies it as it copies
 a hand-written one) is the term at one type, a newtype's constructor to

@@ -1154,7 +1154,7 @@ def sp.ask.impl(+impl: X.Sx, +m: List<&2, U32>, +sbs: List<&2, Sb>, +ntv: Nat, +
       +i = X.tsx.atom.of(sp.at(h, 2n))
       +top = sp.lc.find(lcs, m, i)
       +tt = Maybe.default(&2, X.Sx, top, X.SxNil{})
-      +derived = Bool.and(sp.has(tt, S.b("generated")), Bool.not(sp.has.str(tt, S.b("coerce"))))
+      +derived = Bool.and(sp.has(tt, S.b("generated")), Bool.not(Bool.or(sp.has.str(tt, S.b("coerce")), S.prefix(sp.sat(h, 1n), S.b("$cshow")))))
       Bool.pick(Maybe<&2, Rw>, Bool.and(sp.head.is(h, "l"), Bool.and(Maybe.is_some(&2, X.Sx, top), Bool.not(derived))), sp.ask(cur, sp.name(sp.sat(h, 1n), tys), LoL{m, i}, itys), Bool.pick(Maybe<&2, Rw>, sp.head.is(h, "g"), sp.ask.def(cur, h, itys, Ix{dfs, lcs, pss, ins, cls, sys, fms}), None{}))
 
 # Traversable's default sequence, sequenceA (t (f a) -> f (t a)) and mapM
@@ -1166,6 +1166,16 @@ def sp.wrap.id(r: Maybe<&2, Rw>, +ma: X.Sx) -> Maybe<&2, Rw>:
     case None{}:
       None{}
 
+# Show's default show and showList (base's $dmshow, $dmshowList) at a type:
+# HsPrelude.Z's showVia and showListVia given the instance's showsPrec (its
+# first method)
+def sp.wrap.via(r: Maybe<&2, Rw>, +n: List<&2, U32>, +t: X.Sx) -> Maybe<&2, Rw>:
+  match r:
+    case Some{Rw{x, q}}:
+      Some{Rw{sp.l([sp.a("app"), sp.l([sp.a("tyapp"), sp.g(S.b("HsPrelude.Z"), n, "var"), t]), x]), q}}
+    case None{}:
+      None{}
+
 def sp.ask.meth(mi: Maybe<&2, Mi>, +cur: List<&2, U32>, +tys: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, Rw>:
   match mi:
     case Some{Mi{+impl, +m, +sbs, +ntv, +first}}:
@@ -1173,11 +1183,13 @@ def sp.ask.meth(mi: Maybe<&2, Mi>, +cur: List<&2, U32>, +tys: List<&2, X.Sx>, +i
       +k = Bool.pick(List<&2, U32>, sp.is(sp.hd(sp.vhead(impl)), "l"), sp.gkey(sp.vhead(sp.or(sp.impl.body(Some{Mi{impl, m, sbs, ntv, first}}, tys, ix), X.SxNil{}))), k0)
       +seq = Bool.or(sp.is(k, "GHC.Internal.Data.Traversable.$dmsequence"), sp.is(k, "GHC.Internal.Data.Traversable.$dmsequenceA"))
       +mapm = sp.is(k, "GHC.Internal.Data.Traversable.$dmmapM")
+      +shw = sp.is(k, "GHC.Internal.Show.$dmshow")
+      +shl = sp.is(k, "GHC.Internal.Show.$dmshowList")
       +t0 = Maybe.default(&2, X.Sx, sp.nth(tys, 0n), X.SxNil{})
       +f1 = Maybe.default(&2, X.Sx, sp.nth(tys, 1n), X.SxNil{})
       +a2 = Maybe.default(&2, X.Sx, sp.nth(tys, 2n), X.SxNil{})
       +fa = sp.norm(sp.l([sp.a("tapp"), f1, a2]), ix)
-      Bool.pick(Maybe<&2, Rw>, seq, sp.wrap.id(sp.ask.impl(first, m, sbs, ntv, cur, [t0, f1, fa, a2], ix), fa), Bool.pick(Maybe<&2, Rw>, mapm, sp.ask.impl(first, m, sbs, ntv, cur, tys, ix), sp.ask.impl(impl, m, sbs, ntv, cur, tys, ix)))
+      Bool.pick(Maybe<&2, Rw>, Bool.or(shw, shl), sp.wrap.via(sp.ask.impl(first, m, sbs, ntv, cur, tys, ix), Bool.pick(List<&2, U32>, shw, S.b("showVia"), S.b("showListVia")), t0),       Bool.pick(Maybe<&2, Rw>, seq, sp.wrap.id(sp.ask.impl(first, m, sbs, ntv, cur, [t0, f1, fa, a2], ix), fa), Bool.pick(Maybe<&2, Rw>, mapm, sp.ask.impl(first, m, sbs, ntv, cur, tys, ix), sp.ask.impl(impl, m, sbs, ntv, cur, tys, ix))))
     case None{}:
       None{}
 
@@ -1431,6 +1443,12 @@ def sp.zf.ap(f: X.Sx, x: X.Sx) -> X.Sx:
 def sp.zf.n(+x: X.Sx) -> X.Sx:
   sp.at(sp.at(x, 2n), 1n)
 
+# a bare literal (int N) as an argument (GHC's derived code writes them so,
+# at Int): an olit at HsInt
+def sp.int.arg(+y: X.Sx) -> X.Sx:
+  +x = sp.at(y, 2n)
+  Bool.pick(X.Sx, sp.head.is(x, "int"), sp.zf.ap(sp.at(y, 1n), sp.l([sp.a("olit"), x, sp.tc(S.b("HsPrelude"), S.b("HsInt"), Nil{}), x])), y)
+
 def sp.zf.go(r1: Bool, r2: Bool, r3: Bool, r4: Bool, +f: X.Sx, +x: X.Sx, +y: X.Sx) -> X.Sx:
   match r1 r2 r3 r4:
     case True{} _ _ _:
@@ -1442,7 +1460,7 @@ def sp.zf.go(r1: Bool, r2: Bool, r3: Bool, r4: Bool, +f: X.Sx, +x: X.Sx, +y: X.S
     case False{} False{} False{} True{}:
       sp.zf.ap(sp.zf.ap(sp.zf.ap(sp.zf.ren(sp.at(sp.at(f, 1n), 1n), S.b("zipWithR")), sp.at(sp.at(f, 1n), 2n)), sp.at(f, 2n)), sp.zf.n(x))
     case False{} False{} False{} False{}:
-      y
+      sp.int.arg(y)
 
 def sp.zf.app(+f: X.Sx, +x: X.Sx, +y: X.Sx) -> X.Sx:
   +fr = sp.zf.from(x)

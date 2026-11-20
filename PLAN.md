@@ -818,3 +818,34 @@ What still blocks telomare's own functions, by the survey: recursion Bend
 does not take (mutual 96, non-structural, `error` and `!!`), megaparsec
 (the parser), Data.Binary's Get and Put, `show` at its types (and at Fix
 through Show1), `Rational`, `Int64`, `iterate`.
+
+## Telomare's rules, 10: Show at base's types (2026-11-20)
+
+`show`, `shows` and `showsPrec` at Int, Char, String, Bool, (), lists and
+Maybe are HsPrelude's `HsShow`, GHC.Show's text (a negative Int in
+parentheses above precedence 6; Char and String with GHC's escapes, `\&`
+where a digit or `H` follows a numeric or `\SO` escape). `ShowS` is a
+type (String -> String). GHC's derived `showsPrec` of the package's own
+types is copied at its type like a hand-written instance: its bare Int
+literals (`showParen (a >= 11)`, `showsPrec 11 b1`) the specialiser makes
+HsInt literals, and base's default `show` and `showList` given it are
+HsPrelude.Z's `showVia` and `showListVia`.
+
+The index: a type and its constructor may share a key (`data T = T ..`);
+a value's lookup skips the types and a type's takes only them
+(`fd.ix.findv`).
+
+**Tests**: `tests/hs/Shows.hs`: 13 with laws (GHC agrees), 5 derived
+`showsPrec` check (a ShowS answer, which the laws do not read), `shapes`
+(show at a list of the file's own type) out, `fold:show-at-type`.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 10 (spec8, law13, 95 s) | 538 | 85 | 171 | 110 |
+| hs1003 after rule 10 (law22) | 3023 | 1515 | 245 | 561 |
+
+No def lost its verdict on either. Telomare's copies: 595 check (537).
+Show still blocks most of telomare's: its types' Show instances call the
+imported ones (SourceSpan, UnsizedRecursionToken), Show at Fix is
+through Show1 (mutual), and its pretty printer (PrettyPrintable) is
+mutual.

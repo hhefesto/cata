@@ -246,6 +246,7 @@ def fd.expr(t: T.Bt) -> T.Bt:
 
 type Tk is Data:
   TkNat{}
+  TkShowS{}
   TkBool{}
   TkChar{}
   TkF32{}
@@ -279,7 +280,7 @@ type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}, TkE{"HsPrelude.HsInt", TkHsInt{}}, TkE{"HsPrelude.HsInteger", TkHsInt{}}, TkE{"HsPrelude.HsDigest", TkDigest{}}, TkE{"GHC.Internal.Word.Word8", TkU32{}}, TkE{"Data.Sequence.Internal.Seq", TkList{}}, TkE{"Data.Sequence.Internal.ViewL", TkList{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.Show.ShowS", TkShowS{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}, TkE{"HsPrelude.HsInt", TkHsInt{}}, TkE{"HsPrelude.HsInteger", TkHsInt{}}, TkE{"HsPrelude.HsDigest", TkDigest{}}, TkE{"GHC.Internal.Word.Word8", TkU32{}}, TkE{"Data.Sequence.Internal.Seq", TkList{}}, TkE{"Data.Sequence.Internal.ViewL", TkList{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -597,6 +598,8 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
       fd.ty0("F32")
     case TkStr{}:
       fd.list(fd.ty0("Char"))
+    case TkShowS{}:
+      T.BtPi{T.BmLive{}, S.b("_"), False{}, fd.list(fd.ty0("Char")), fd.list(fd.ty0("Char"))}
     case TkUnit{}:
       fd.ty0("Unit")
     case TkCmp{}:
@@ -888,6 +891,34 @@ def fd.ix.go(xs: List<&2, Ix>, +k: List<&2, U32>, hit: Bool) -> Maybe<&2, Ix>:
 def fd.ix.find(+xs: List<&2, Ix>, +k: List<&2, U32>) -> Maybe<&2, Ix>:
   fd.ix.go(xs, k, fd.ix.hit(xs, k))
 
+# a type and its constructor may share a key (data T = T ..): a value's
+# lookup (ty False) skips the types, a type's (ty True) takes only them
+def fd.ix.isty(h: Ix) -> Bool:
+  match h:
+    case IxTy{k, b}:
+      True{}
+    case _:
+      False{}
+
+def fd.ix.hitv(+xs: List<&2, Ix>, +k: List<&2, U32>, +ty: Bool) -> Bool:
+  match xs:
+    case +h <> t:
+      Bool.and(S.eq(fd.ix.key(h), k), Bool.not(Bool.xor(fd.ix.isty(h), ty)))
+    case Nil{}:
+      False{}
+
+def fd.ix.gov(xs: List<&2, Ix>, +k: List<&2, U32>, +ty: Bool, hit: Bool) -> Maybe<&2, Ix>:
+  match xs hit:
+    case h <> t True{}:
+      Some{h}
+    case h <> +t False{}:
+      fd.ix.gov(t, k, ty, fd.ix.hitv(t, k, ty))
+    case _ _:
+      None{}
+
+def fd.ix.findv(+xs: List<&2, Ix>, +k: List<&2, U32>, +ty: Bool) -> Maybe<&2, Ix>:
+  fd.ix.gov(xs, k, ty, fd.ix.hitv(xs, k, ty))
+
 def fd.ix.keys(xs: List<&2, Ix>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   match xs:
     case h <> t:
@@ -1135,6 +1166,8 @@ type Bf is Data:
   BfFlip{}
   BfTrace{}
   BfMempty{}
+  BfShowsPrec{}
+  BfShows{}
   BfNone{}
 
 type BfE is Data:
@@ -1219,8 +1252,13 @@ def fd.bftab2.g() -> List<&2, BfE>:
 def fd.bftab2.seq() -> List<&2, BfE>:
   [BfE{"Data.Sequence.Internal.empty", BfDm{"HsList.nil", "A", "A", 0n, 0n}}, BfE{"Data.Sequence.Internal.|>", BfDm{"HsList.snoc", "A", "A", 0n, 2n}}, BfE{"Data.Sequence.Internal.<|", BfDm{"HsList.cons", "A", "A", 0n, 2n}}, BfE{"Data.Sequence.Internal.viewl", BfDm{"HsList.toList", "A", "A", 0n, 1n}}, BfE{"Data.Sequence.Internal.fromList", BfDm{"HsList.toList", "A", "A", 0n, 1n}}]
 
+# GHC.Show's functions (HsPrelude's HsShow), showsPrec and shows at base's
+# types, the specialiser's showVia and showListVia
+def fd.bftab2.show() -> List<&2, BfE>:
+  [BfE{"GHC.Internal.Show.showString", BfDm{"HsShow.string", "", "", 0n, 2n}}, BfE{"GHC.Internal.Show.showChar", BfDm{"HsShow.char", "", "", 0n, 2n}}, BfE{"GHC.Internal.Show.showParen", BfDm{"HsShow.paren", "", "", 0n, 3n}}, BfE{"GHC.Internal.Show.showSpace", BfDm{"HsShow.space", "", "", 0n, 1n}}, BfE{"GHC.Internal.Show.showCommaSpace", BfDm{"HsShow.commaSpace", "", "", 0n, 1n}}, BfE{"GHC.Internal.Show.showList__", BfDm{"HsShow.list", "A", "A", 1n, 3n}}, BfE{"HsPrelude.Z.showVia", BfDm{"HsShow.via", "A", "A", 1n, 2n}}, BfE{"HsPrelude.Z.showListVia", BfDm{"HsShow.listVia", "A", "A", 1n, 3n}}, BfE{"GHC.Internal.Show.showsPrec", BfShowsPrec{}}, BfE{"GHC.Internal.Show.shows", BfShows{}}]
+
 def fd.bftab2() -> List<&2, BfE>:
-  List.concat(&2, BfE, [fd.bftab2.seq(), fd.bftab2.a(), fd.bftab2.b(), fd.bftab2.c(), fd.bftab2.d(), fd.bftab2.e(), fd.bftab2.f(), fd.bftab2.g()])
+  List.concat(&2, BfE, [fd.bftab2.show(), fd.bftab2.seq(), fd.bftab2.a(), fd.bftab2.b(), fd.bftab2.c(), fd.bftab2.d(), fd.bftab2.e(), fd.bftab2.f(), fd.bftab2.g()])
 
 def fd.bftab() -> List<&2, BfE>:
   List.concat(&2, BfE, [fd.bftab0(), fd.bftab1(), fd.bftab2(), fd.dm.tab.map(fd.dm.specs.maps()), fd.dm.tab.set(fd.dm.specs.sets()), [BfE{"Data.Set.Internal.map", BfDm{"HsSet.map", "LK", "KLd", 1n, 2n}}]])
@@ -1312,6 +1350,10 @@ def fd.bf.n(f: Bf) -> Nat:
       2n
     case BfMempty{}:
       0n
+    case BfShowsPrec{}:
+      3n
+    case BfShows{}:
+      2n
     case BfZ{op}:
       fd.z.n(S.b(op))
     case BfMaybe{}:
@@ -1700,6 +1742,56 @@ def fd.show(q: Tq, x: T.Bt) -> T.Bt:
       fd.callS("String.to_list", [fd.callS("Nat.show", [x])])
     case _:
       fd.todo("fold:show-at-type")
+
+# showsPrec d x r at base's types (GHC.Show's instances): HsPrelude's
+# HsShow at Int, Char, Bool, (), String, lists and Maybe (the precedence an
+# HsInt: a package through the specialiser); else out (fold:show-at-type)
+def fd.sp.zero() -> T.Bt:
+  T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{S.b("0")}])}
+
+def fd.sp.ischar(t: T.Bt) -> Bool:
+  match t:
+    case T.BtTyApp{n, a}:
+      fd.is(n, "Char")
+    case _:
+      False{}
+
+def fd.sp.prim(q: Tq, +n: List<&2, U32>, +d: T.Bt, +x: T.Bt, +r: T.Bt) -> T.Bt:
+  match q:
+    case TqInt{}:
+      fd.callS("HsPrelude.HsShow.int", [d, x, r])
+    case TqNat{}:
+      fd.callS("HsPrelude.HsShow.nat", [d, x, r])
+    case TqChar{}:
+      fd.callS("HsPrelude.HsShow.charq", [x, r])
+    case TqBool{}:
+      fd.callS("HsPrelude.HsShow.bool", [x, r])
+    case TqDigest{}:
+      fd.callS("HsPrelude.HsShow.string", [fd.callS("HsPrelude.HsDigest.hexs", [x]), r])
+    case _:
+      Bool.pick(T.Bt, fd.is(n, "Unit"), fd.callS("HsPrelude.HsShow.unit", [x, r]), fd.todo("fold:show-at-type"))
+
+def fd.sp(t: T.Bt, +d: T.Bt, +x: T.Bt, +r: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTyApp{+n, T.BtANil{}}:
+      fd.sp.prim(fd.tq.of(n), n, d, x, r)
+    case T.BtTyApp{+n, T.BtArgs{q, T.BtArgs{+a, T.BtANil{}}}}:
+      +ch = Bool.and(fd.is(n, "List"), fd.sp.ischar(a))
+      Bool.pick(T.Bt, ch, fd.callS("HsPrelude.HsShow.str", [x, r]), Bool.pick(T.Bt, fd.is(n, "List"), fd.callS("HsPrelude.HsShow.list", [fd.tpl0(a), fd.tpl0(T.BtLam{T.BmLive{}, S.b("sy_"), T.BtLam{T.BmLive{}, S.b("ss_"), fd.sp(a, fd.sp.zero(), fd.v("sy_"), fd.v("ss_"))}}), x, r]), Bool.pick(T.Bt, fd.is(n, "Maybe"), fd.callS("HsPrelude.HsShow.maybe", [fd.tpl0(a), fd.tpl0(T.BtLam{T.BmLive{}, S.b("sd_"), T.BtLam{T.BmLive{}, S.b("sy_"), T.BtLam{T.BmLive{}, S.b("ss_"), fd.sp(a, fd.v("sd_"), fd.v("sy_"), fd.v("ss_"))}}}), d, x, r]), fd.todo("fold:show-at-type"))))
+    case _:
+      fd.todo("fold:show-at-type")
+
+# show x at a type fd.show has no rule for: showsPrec 0 x ""
+def fd.show.at(q: Tq, t: T.Bt, x: T.Bt) -> T.Bt:
+  match q:
+    case TqDigest{}:
+      fd.show(TqDigest{}, x)
+    case TqInt{}:
+      fd.show(TqInt{}, x)
+    case TqNat{}:
+      fd.show(TqNat{}, x)
+    case _:
+      fd.sp(t, fd.sp.zero(), x, fd.con0("Nil"))
 
 def fd.succ(q: Tq, x: T.Bt) -> T.Bt:
   match q:
@@ -2222,7 +2314,7 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
     case BfConcatMap{} +c <> +a <> +b <> _ g <> l <> _:
       fd.foldable(c, fd.callS("List.concat", [fd.v("&2"), b, fd.callS("hs.map", [fd.tpl0(a), fd.tpl0(fd.list(b)), fd.tpl(ls, g), fd.fl(c, a, l)])]))
     case BfShow{} +t <> _ x <> _:
-      fd.show(fd.tq(t), x)
+      fd.show.at(fd.tq(t), t, x)
     case BfId{} _ x <> _:
       x
     case BfConst{} _ a <> b <> _:
@@ -2321,6 +2413,10 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       b
     case BfMempty{} t <> _ _:
       fd.mempty(t)
+    case BfShowsPrec{} t <> _ d <> x <> r <> _:
+      fd.sp(t, d, x, r)
+    case BfShows{} t <> _ x <> r <> _:
+      fd.sp(t, fd.sp.zero(), x, r)
     case _ _ _:
       fd.todo("fold:base-call")
 
@@ -2558,7 +2654,7 @@ def fd.imp.g(found: Maybe<&2, Ix>, +key: List<&2, U32>, +tys: List<&2, T.Bt>, +a
 def fd.hglobal(home: Bool, +key: List<&2, U32>, +k: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match home:
     case True{}:
-      fd.imp.g(fd.ix.find(fd.env.ix(env), key), key, tys, all)
+      fd.imp.g(fd.ix.findv(fd.env.ix(env), key, False{}), key, tys, all)
     case False{}:
       fd.bglobal(fd.is(k, "con"), key, tys, all, env)
 
@@ -2722,7 +2818,7 @@ def fd.pcon.imp(found: Maybe<&2, Ix>, +key: List<&2, U32>, ps: List<&2, T.Bt>) -
 def fd.pcon.other(home: Bool, +key: List<&2, U32>, ps: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match home:
     case True{}:
-      fd.pcon.imp(fd.ix.find(fd.env.ix(env), key), key, ps)
+      fd.pcon.imp(fd.ix.findv(fd.env.ix(env), key, False{}), key, ps)
     case False{}:
       fd.pcon.base(fd.cb.find(fd.cbtab(), key), key, ps)
 
@@ -2815,7 +2911,7 @@ def fd.pconf.at(own: Bool, home: Bool, +g: X.Sx, +xs: List<&2, R>, +env: Env) ->
     case True{} _:
       fd.pconf.of(True{}, fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), xs)
     case False{} True{}:
-      fd.pconf.imp(fd.ix.find(fd.env.ix(env), fd.gkey(g)), xs)
+      fd.pconf.imp(fd.ix.findv(fd.env.ix(env), fd.gkey(g), False{}), xs)
     case False{} False{}:
       fd.todo("fold:record-pattern-base")
 
@@ -2870,7 +2966,7 @@ def fd.reccon.at(own: Bool, home: Bool, +g: X.Sx, +xs: List<&2, R>, +env: Env) -
     case True{} _:
       fd.reccon.of(True{}, fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), xs, env)
     case False{} True{}:
-      fd.reccon.imp(fd.ix.find(fd.env.ix(env), fd.gkey(g)), xs, env)
+      fd.reccon.imp(fd.ix.findv(fd.env.ix(env), fd.gkey(g), False{}), xs, env)
     case False{} False{}:
       fd.todo("fold:record-base")
 
@@ -3872,7 +3968,7 @@ def fd.tc.name(own: Bool, home: Bool, +n: List<&2, U32>, +key: List<&2, U32>, +e
     case True{} _:
       Some{fd.tyname(n)}
     case False{} True{}:
-      fd.tc.imp(fd.ix.find(fd.env.ix(env), key))
+      fd.tc.imp(fd.ix.findv(fd.env.ix(env), key, True{}))
     case False{} False{}:
       None{}
 
@@ -5292,10 +5388,16 @@ def fd.hsprelude.l6() -> String:
   "def HsList.partitionEithers.put(~A: Data, ~B: Data, e: Either<&2, &2, A, B>, p: Sigma<&2, &2, List<&2, A>, _ => List<&2, B>>) -> Sigma<&2, &2, List<&2, A>, _ => List<&2, B>>:\n  match e p:\n    case Inl{a} Tuple{l, r}:\n      Tuple{a <> l, r}\n    case Inr{b} Tuple{l, r}:\n      Tuple{l, b <> r}\n\ndef HsList.partitionEithers(~A: Data, ~B: Data, xs: List<&2, Either<&2, &2, A, B>>) -> Sigma<&2, &2, List<&2, A>, _ => List<&2, B>>:\n  match xs:\n    case Nil{}:\n      Tuple{Nil{}, Nil{}}\n    case e <> t:\n      HsList.partitionEithers.put(~A, ~B, e, HsList.partitionEithers(~A, ~B, t))\n\ndef HsList.isLeft(~A: Data, ~B: Data, e: Either<&2, &2, A, B>) -> Bool:\n  match e:\n    case Inl{a}:\n      True{}\n    case Inr{b}:\n      False{}\n\ndef HsList.isRight(~A: Data, ~B: Data, e: Either<&2, &2, A, B>) -> Bool:\n  match e:\n    case Inl{a}:\n      False{}\n    case Inr{b}:\n      True{}\n\ndef HsList.fromLeft(~A: Data, ~B: Data, d: A, e: Either<&2, &2, A, B>) -> A:\n  match e:\n    case Inl{a}:\n      a\n    case Inr{b}:\n      d\n\ndef HsList.fromRight(~A: Data, ~B: Data, d: B, e: Either<&2, &2, A, B>) -> B:\n  match e:\n    case Inl{a}:\n      d\n    case Inr{b}:\n      b\n\ndef HsList.first.either(~A: Data, ~B: Data, ~C: Data, ~f: A -> B, e: Either<&2, &2, A, C>) -> Either<&2, &2, B, C>:\n  match e:\n    case Inl{a}:\n      Inl{f(a)}\n    case Inr{c}:\n      Inr{c}\n\ndef HsList.second.either(~B: Data, ~C: Data, ~A: Data, ~f: B -> C, e: Either<&2, &2, A, B>) -> Either<&2, &2, A, C>:\n  match e:\n    case Inl{a}:\n      Inl{a}\n    case Inr{b}:\n      Inr{f(b)}\n\ndef HsList.bimap.either(~A: Data, ~B: Data, ~C: Data, ~D: Data, ~f: A -> B, ~g: C -> D, e: Either<&2, &2, A, C>) -> Either<&2, &2, B, D>:\n  match e:\n    case Inl{a}:\n      Inl{f(a)}\n    case Inr{c}:\n      Inr{g(c)}\n\ndef HsList.first.pair(~A: Data, ~B: Data, ~C: Data, ~f: A -> B, p: Sigma<&2, &2, A, _ => C>) -> Sigma<&2, &2, B, _ => C>:\n  match p:\n    case Tuple{a, c}:\n      Tuple{f(a), c}\n\ndef HsList.second.pair(~B: Data, ~C: Data, ~A: Data, ~f: B -> C, p: Sigma<&2, &2, A, _ => B>) -> Sigma<&2, &2, A, _ => C>:\n  match p:\n    case Tuple{a, b}:\n      Tuple{a, f(b)}\n\ndef HsList.bimap.pair(~A: Data, ~B: Data, ~C: Data, ~D: Data, ~f: A -> B, ~g: C -> D, p: Sigma<&2, &2, A, _ => C>) -> Sigma<&2, &2, B, _ => D>:\n  match p:\n    case Tuple{a, c}:\n      Tuple{f(a), g(c)}\n\n# Data.Foldable's toList at a list (the fold gives a Set's or a Map's as one)\n\ndef HsList.toList(~A: Data, xs: List<&2, A>) -> List<&2, A>:\n  xs\n\n# Data.Sequence's Seq a is a list here (front first), ViewL a too (EmptyL\n# Nil, x :< s a cons): empty, |>, <| and viewl\ndef HsList.nil(~A: Data) -> List<&2, A>:\n  Nil{}\n\ndef HsList.snoc(~A: Data, xs: List<&2, A>, x: A) -> List<&2, A>:\n  List.append(&2, A, xs, [x])\n\ndef HsList.cons(~A: Data, x: A, xs: List<&2, A>) -> List<&2, A>:\n  x <> xs\n\n"
 
 def fd.hsprelude.l7() -> String:
-  "# foldr and foldl at a list, an element the function may copy (Base's take\n# it once)\ndef HsList.foldr(~A: Data, ~B: Type, ~f: A -> B -> B, xs: List<&2, A>, z: B) -> B:\n  match xs:\n    case Nil{}:\n      z\n    case +h <> t:\n      f(h, HsList.foldr(~A, ~B, ~f, t, z))\n\ndef HsList.foldl(~A: Data, ~B: Type, ~f: B -> A -> B, xs: List<&2, A>, acc: B) -> B:\n  match xs:\n    case Nil{}:\n      acc\n    case +h <> t:\n      HsList.foldl(~A, ~B, ~f, t, f(acc, h))\n\n\n"
+  "# foldr and foldl at a list, an element the function may copy (Base's take\n# it once)\ndef HsList.foldr(~A: Data, ~B: Type, ~f: A -> B -> B, xs: List<&2, A>, z: B) -> B:\n  match xs:\n    case Nil{}:\n      z\n    case +h <> t:\n      f(h, HsList.foldr(~A, ~B, ~f, t, z))\n\ndef HsList.foldl(~A: Data, ~B: Type, ~f: B -> A -> B, xs: List<&2, A>, acc: B) -> B:\n  match xs:\n    case Nil{}:\n      acc\n    case +h <> t:\n      HsList.foldl(~A, ~B, ~f, t, f(acc, h))\n\n# Haskell's Show at base's types (GHC.Show), ShowS a String -> String:\n# showString, showChar, showParen, showSpace, showCommaSpace, showsPrec at\n# Int (HsInt), Char, String, Bool, (), lists and Maybe, with GHC's escapes\n\n# showsPrec at Int: a negative number in parentheses above precedence 6\n\n# GHC's asciiTab: the names of the control characters\n\n# protectEsc: \\& before what would read as part of the escape\n\n# GHC's showLitChar c, s the text after it\n\n# showLitString: a string's characters, \" escaped\n\n# showList__: [x, y] given showsPrec 0 at the element\n\n# Maybe's showsPrec, given showsPrec at the element\n\ndef HsShow.string(s: List<&2, Char>, r: List<&2, Char>) -> List<&2, Char>:\n  List.append(&2, Char, s, r)\n\ndef HsShow.char(c: Char, r: List<&2, Char>) -> List<&2, Char>:\n  c <> r\n\ndef HsShow.paren(b: Bool, p: List<&2, Char> -> List<&2, Char>, r: List<&2, Char>) -> List<&2, Char>:\n  match b:\n    case True{}:\n      '(' <> p(')' <> r)\n    case False{}:\n      p(r)\n\ndef HsShow.space(r: List<&2, Char>) -> List<&2, Char>:\n  ' ' <> r\n\ndef HsShow.commaSpace(r: List<&2, Char>) -> List<&2, Char>:\n  ',' <> ' ' <> r\n\ndef HsShow.digits(n: Nat) -> List<&2, Char>:\n  String.to_list(Nat.show(n))\n\ndef HsShow.int(d: HsInt, n: HsInt, r: List<&2, Char>) -> List<&2, Char>:\n  match n:\n    case HsInt.Pos{k}:\n      List.append(&2, Char, HsShow.digits(k), r)\n    case HsInt.Neg{k}:\n      HsShow.paren(HsInt.is_gt(d, HsInt.Pos{6n}), s => '-' <> List.append(&2, Char, HsShow.digits(k), s), r)\n\ndef HsShow.nat(d: Nat, n: Nat, r: List<&2, Char>) -> List<&2, Char>:\n  List.append(&2, Char, HsShow.digits(n), r)\n\ndef HsShow.bool(b: Bool, r: List<&2, Char>) -> List<&2, Char>:\n  match b:\n    case True{}:\n      List.append(&2, Char, String.to_list(\"True\"), r)\n    case False{}:\n      List.append(&2, Char, String.to_list(\"False\"), r)\n\ndef HsShow.unit(u: Unit, r: List<&2, Char>) -> List<&2, Char>:\n  '(' <> ')' <> r\n\n"
+
+def fd.hsprelude.l8() -> String:
+  "def HsShow.asciiTab() -> List<&2, List<&2, Char>>:\n  [String.to_list(\"NUL\"), String.to_list(\"SOH\"), String.to_list(\"STX\"), String.to_list(\"ETX\"), String.to_list(\"EOT\"), String.to_list(\"ENQ\"), String.to_list(\"ACK\"), String.to_list(\"BEL\"), String.to_list(\"BS\"), String.to_list(\"HT\"), String.to_list(\"LF\"), String.to_list(\"VT\"), String.to_list(\"FF\"), String.to_list(\"CR\"), String.to_list(\"SO\"), String.to_list(\"SI\"), String.to_list(\"DLE\"), String.to_list(\"DC1\"), String.to_list(\"DC2\"), String.to_list(\"DC3\"), String.to_list(\"DC4\"), String.to_list(\"NAK\"), String.to_list(\"SYN\"), String.to_list(\"ETB\"), String.to_list(\"CAN\"), String.to_list(\"EM\"), String.to_list(\"SUB\"), String.to_list(\"ESC\"), String.to_list(\"FS\"), String.to_list(\"GS\"), String.to_list(\"RS\"), String.to_list(\"US\")]\n\ndef HsShow.protect(digit: Bool, s: List<&2, Char>) -> List<&2, Char>:\n  match s:\n    case Nil{}:\n      Nil{}\n    case +c <> +t:\n      HsBool.if(List<&2, Char>, Bool.pick(Bool, digit, Char.is_digit(c), Char.is_eq(c, 'H')), _ => '\\\\' <> '&' <> c <> t, _ => c <> t)\n\ndef HsShow.esc(+e: List<&2, Char>, s: List<&2, Char>) -> List<&2, Char>:\n  '\\\\' <> List.append(&2, Char, e, s)\n\ndef HsShow.litCtl(+n: Nat, +s: List<&2, Char>) -> List<&2, Char>:\n  HsBool.if(List<&2, Char>, Nat.is_eq(n, 7n), _ => HsShow.esc(['a'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 8n), _ => HsShow.esc(['b'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 12n), _ => HsShow.esc(['f'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 10n), _ => HsShow.esc(['n'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 13n), _ => HsShow.esc(['r'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 9n), _ => HsShow.esc(['t'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 11n), _ => HsShow.esc(['v'], s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 14n), _ => HsShow.esc(String.to_list(\"SO\"), HsShow.protect(False{}, s)), _ => HsShow.esc(Maybe.default(&2, List<&2, Char>, List.get(&2, List<&2, Char>, HsShow.asciiTab(), n), Nil{}), s)))))))))\n\ndef HsShow.litChar(+c: Char, +s: List<&2, Char>) -> List<&2, Char>:\n  +n = U32.to_nat(Char.to_u32(c))\n  HsBool.if(List<&2, Char>, Nat.is_gt(n, 127n), _ => '\\\\' <> List.append(&2, Char, HsShow.digits(n), HsShow.protect(True{}, s)), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 127n), _ => HsShow.esc(String.to_list(\"DEL\"), s), _ => HsBool.if(List<&2, Char>, Nat.is_eq(n, 92n), _ => '\\\\' <> '\\\\' <> s, _ => HsBool.if(List<&2, Char>, Nat.is_ge(n, 32n), _ => c <> s, _ => HsShow.litCtl(n, s)))))\n\ndef HsShow.litString(cs: List<&2, Char>, +r: List<&2, Char>) -> List<&2, Char>:\n  match cs:\n    case Nil{}:\n      r\n    case +c <> +t:\n      HsBool.if(List<&2, Char>, Char.is_eq(c, '\"'), _ => '\\\\' <> '\"' <> HsShow.litString(t, r), _ => HsShow.litChar(c, HsShow.litString(t, r)))\n\ndef HsShow.str(cs: List<&2, Char>, r: List<&2, Char>) -> List<&2, Char>:\n  '\"' <> HsShow.litString(cs, '\"' <> r)\n\n"
+
+def fd.hsprelude.l9() -> String:
+  "def HsShow.charq(+c: Char, +r: List<&2, Char>) -> List<&2, Char>:\n  HsBool.if(List<&2, Char>, Char.is_eq(c, '\\''), _ => List.append(&2, Char, ['\\'', '\\\\', '\\'', '\\''], r), _ => '\\'' <> HsShow.litChar(c, '\\'' <> r))\n\ndef HsShow.list.rest(~A: Data, ~sh: A -> List<&2, Char> -> List<&2, Char>, xs: List<&2, A>, r: List<&2, Char>) -> List<&2, Char>:\n  match xs:\n    case Nil{}:\n      ']' <> r\n    case x <> t:\n      ',' <> sh(x)(HsShow.list.rest(~A, ~sh, t, r))\n\ndef HsShow.list(~A: Data, ~sh: A -> List<&2, Char> -> List<&2, Char>, xs: List<&2, A>, r: List<&2, Char>) -> List<&2, Char>:\n  match xs:\n    case Nil{}:\n      '[' <> ']' <> r\n    case x <> t:\n      '[' <> sh(x)(HsShow.list.rest(~A, ~sh, t, r))\n\ndef HsShow.maybe(~A: Data, ~sh: HsInt -> A -> List<&2, Char> -> List<&2, Char>, d: HsInt, m: Maybe<&2, A>, r: List<&2, Char>) -> List<&2, Char>:\n  match m:\n    case None{}:\n      List.append(&2, Char, String.to_list(\"Nothing\"), r)\n    case Some{x}:\n      HsShow.paren(HsInt.is_ge(d, HsInt.Pos{11n}), s => List.append(&2, Char, String.to_list(\"Just \"), sh(HsInt.Pos{11n})(x)(s)), r)\n\n# base's default show and showList, given the instance's showsPrec\ndef HsShow.via(~A: Data, ~sp: HsInt -> A -> List<&2, Char> -> List<&2, Char>, x: A) -> List<&2, Char>:\n  sp(HsInt.Pos{0n})(x)(Nil{})\n\ndef HsShow.listVia(~A: Data, ~sp: HsInt -> A -> List<&2, Char> -> List<&2, Char>, xs: List<&2, A>, r: List<&2, Char>) -> List<&2, Char>:\n  HsShow.list(~A, ~(y => s => sp(HsInt.Pos{0n})(y)(s)), xs, r)\n\n\n"
 
 def fd.hsprelude.lists() -> String:
-  fd.hsprelude.l1() ++ fd.hsprelude.l2() ++ fd.hsprelude.l3() ++ fd.hsprelude.l4() ++ fd.hsprelude.l5() ++ fd.hsprelude.l6() ++ fd.hsprelude.l7()
+  fd.hsprelude.l1() ++ fd.hsprelude.l2() ++ fd.hsprelude.l3() ++ fd.hsprelude.l4() ++ fd.hsprelude.l5() ++ fd.hsprelude.l6() ++ fd.hsprelude.l7() ++ fd.hsprelude.l8() ++ fd.hsprelude.l9()
 
 def fd.hsprelude.write(+out: String) -> IO(Unit):
   S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists()))
