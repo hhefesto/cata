@@ -85,6 +85,32 @@
           # each original Haskell function on the inputs cata lists.  The same
           # GHC hs-export is built with.
           ghc = pkgs.haskellPackages.ghc;
+          # The same GHC with telomare master's library dependencies
+          # (telomare.cabal's build-depends): its package db is the
+          # -package-db for hs-export --package, and its ghc law's GHC, when
+          # telomare goes through cata as a package.
+          ghc-telomare = pkgs.haskellPackages.ghcWithPackages (
+            p: with p; [
+              binary
+              bytestring
+              containers
+              data-fix
+              deepseq
+              dlist
+              filepath
+              megaparsec
+              memory
+              mtl
+              recursion-schemes
+              transformers
+              lens
+              cryptonite
+              utf8-string
+              validity
+              genvalidity
+              free
+            ]
+          );
           default = self.packages.${system}.hs-export;
         }
       );

@@ -12,6 +12,7 @@ module Main (main) where
 
 import Control.Exception (SomeException, displayException, evaluate, try)
 import Control.Monad (forM)
+import qualified Control.Monad.Catch as MC
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (State, evalState, get, gets, modify', put)
 import qualified Data.ByteString as BS
@@ -52,6 +53,8 @@ import GHC.Driver.Backend (noBackend)
 import GHC.Utils.Outputable (showPprUnsafe)
 import GHC.Utils.Logger (pushLogHook)
 import GHC.Driver.Monad (modifyLogger)
+import GHC.Data.Graph.Directed (flattenSCCs)
+import GHC.Unit.Module.Graph (ModuleGraphNode (..))
 
 import HsExport.Sexp (Sexp (A, I, S), list, render, tagged)
 
@@ -59,10 +62,68 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
+    ["--package", outDir, flagFile] -> do
+      ls <- lines <$> readFile flagFile
+      let (flags, files) = break (== "--") (filter (not . null) ls)
+      exportPackage outDir flags (drop 1 files)
     [out, file] -> exportFile out file
     _ -> do
-      hPutStrLn stderr "usage: hs-export OUT.sexp FILE.hs"
+      hPutStrLn stderr "usage: hs-export OUT.sexp FILE.hs\n       hs-export --package OUTDIR ARGS  (ARGS: GHC flags, a line `--`, then the modules' files, one per line)"
       exitFailure
+
+-- | A package's modules at once: GHC loads them all (no code), then each is
+--   type-checked again in the loaded session and written to
+--   OUTDIR/MODULE.sexp (each . of MODULE as _); OUTDIR/modules.txt lists them in dependency order
+--   (a module after every home module it imports), one file per line.  A
+--   module GHC rejects, or one that imports a rejected one, is its header
+--   and one (error ...) line.  The flags are GHC's (-i, -X, -package-db).
+exportPackage :: FilePath -> [String] -> [FilePath] -> IO ()
+exportPackage outDir flags files = do
+  r <- try (runGhc (Just libdir) (packageGhc outDir flags files))
+  case r of
+    Left (e :: SomeException) -> hPutStrLn stderr (displayException e) >> exitFailure
+    Right outs -> writeFile (outDir ++ "/modules.txt") (unlines outs)
+
+-- | Load the package, then write each module, in dependency order, from
+--   inside the loaded session (its imports come from the home package).
+packageGhc :: FilePath -> [String] -> [FilePath] -> Ghc [FilePath]
+packageGhc outDir flags files = do
+  df0 <- getSessionDynFlags
+  logger <- getLogger
+  (df1, _, _) <- parseDynamicFlags logger df0 {language = Just GHC2021} (map noLoc ("-w" : flags))
+  _ <- setSessionDynFlags df1 {backend = noBackend, ghcLink = NoLink, verbosity = 0}
+  modifyLogger (pushLogHook (const (\_ _ _ _ -> pure ())))
+  ts <- mapM (\f -> guessTarget f Nothing Nothing) files
+  setTargets ts
+  _ <- load LoadAllTargets
+  mg <- getModuleGraph
+  let mss = flattenSCCs (topSortModuleGraph False mg Nothing)
+  forM [ms | ModuleNode _ ms <- mss] $ \ms -> do
+    let name = moduleNameString (ms_mod_name ms)
+        file = maybe name id (ml_hs_file (ms_location ms))
+        -- a Bend module path is plain names: M.N is written M_N
+        out = outDir ++ "/" ++ map (\c -> if c == '.' then '_' else c) name ++ ".sexp"
+    r <- MC.try (summaryGhc file ms)
+    let xs = case r of
+          Right ys -> ys
+          Left (e :: SomeException) -> [header file, tagged "error" [S (displayException e)]]
+    liftIO $ withFile out WriteMode $ \h -> do
+      hSetBinaryMode h True
+      mapM_ (\s -> B.hPutBuilder h (render s <> B.char7 '\n')) xs
+    pure out
+
+-- | One module of the loaded session, as exportGhc writes it.
+summaryGhc :: FilePath -> ModSummary -> Ghc [Sexp]
+summaryGhc file ms = do
+  p <- parseModule ms
+  tcm <- typecheckModule p
+  let env = fst (tm_internals_ tcm)
+      modName = moduleNameString (ms_mod_name ms)
+      imps = [ tagged "import" [S (moduleNameString (unLoc (ideclName d))), A (if isImportDeclQualified (ideclQualified d) then "qualified" else "open")]
+             | L _ d <- hsmodImports (unLoc (pm_parsed_source p)) ]
+      body = evalState (moduleS env) st0
+  _ <- liftIO (evaluate (length body))
+  pure (header file : tagged "module" [S modName, list imps] : body)
 
 -- | Type-check FILE and write its export (or one (error ...) line) to OUT.
 exportFile :: FilePath -> FilePath -> IO ()

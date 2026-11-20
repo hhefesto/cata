@@ -270,36 +270,60 @@ def fd.ty.t3(args: List<&2, T.Bt>) -> T.Bt:
     case _:
       fd.todo("fold:tuple-type")
 
-def fd.tc.of(k: Tk, own: Bool, +n: List<&2, U32>, +key: List<&2, U32>, args: List<&2, T.Bt>) -> T.Bt:
-  match k own:
-    case TkNat{} _:
-      fd.ty0("Nat")
-    case TkBool{} _:
-      fd.ty0("Bool")
-    case TkChar{} _:
-      fd.ty0("Char")
-    case TkF32{} _:
-      fd.ty0("F32")
-    case TkStr{} _:
-      fd.list(fd.ty0("Char"))
-    case TkUnit{} _:
-      fd.ty0("Unit")
-    case TkCmp{} _:
-      fd.ty0("Cmp")
-    case TkList{} _:
-      fd.ty.list(args)
-    case TkMaybe{} _:
-      T.BtTyApp{S.b("Maybe"), T.tba.args(fd.v("&2") <> args)}
-    case TkEither{} _:
-      T.BtTyApp{S.b("Either"), T.tba.args(fd.v("&2") <> fd.v("&2") <> args)}
-    case TkT2{} _:
-      fd.ty.t2(args)
-    case TkT3{} _:
-      fd.ty.t3(args)
-    case TkNone{} True{}:
-      T.BtTyApp{fd.tyname(n), T.tba.args(args)}
-    case TkNone{} False{}:
+# a type that is not Base's: the module's own or an earlier module's of its
+# package, by its Bend name (None: neither)
+def fd.tc.none(tn: Maybe<&2, List<&2, U32>>, +key: List<&2, U32>, args: List<&2, T.Bt>) -> T.Bt:
+  match tn:
+    case Some{b}:
+      T.BtTyApp{b, T.tba.args(args)}
+    case None{}:
       T.BtTodo{fd.cat(S.b("type:"), key)}
+
+def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
+  match k:
+    case TkNat{}:
+      fd.ty0("Nat")
+    case TkBool{}:
+      fd.ty0("Bool")
+    case TkChar{}:
+      fd.ty0("Char")
+    case TkF32{}:
+      fd.ty0("F32")
+    case TkStr{}:
+      fd.list(fd.ty0("Char"))
+    case TkUnit{}:
+      fd.ty0("Unit")
+    case TkCmp{}:
+      fd.ty0("Cmp")
+    case TkList{}:
+      fd.ty.list(args)
+    case TkMaybe{}:
+      T.BtTyApp{S.b("Maybe"), T.tba.args(fd.v("&2") <> args)}
+    case TkEither{}:
+      T.BtTyApp{S.b("Either"), T.tba.args(fd.v("&2") <> fd.v("&2") <> args)}
+    case TkT2{}:
+      fd.ty.t2(args)
+    case TkT3{}:
+      fd.ty.t3(args)
+    case TkNone{}:
+      fd.todo("fold:type")
+
+def fd.tk.none(k: Tk) -> Bool:
+  match k:
+    case TkNone{}:
+      True{}
+    case _:
+      False{}
+
+def fd.tc.of.if(none: Bool, k: Tk, tn: Maybe<&2, List<&2, U32>>, +key: List<&2, U32>, args: List<&2, T.Bt>) -> T.Bt:
+  match none:
+    case True{}:
+      fd.tc.none(tn, key, args)
+    case False{}:
+      fd.tc.base(k, args)
+
+def fd.tc.of(+k: Tk, tn: Maybe<&2, List<&2, U32>>, +key: List<&2, U32>, args: List<&2, T.Bt>) -> T.Bt:
+  fd.tc.of.if(fd.tk.none(k), k, tn, key, args)
 
 # Base's constructors ----------------------------------------------------------
 
@@ -386,9 +410,10 @@ def fd.cb.mk(c: Cb, xs: List<&2, T.Bt>) -> T.Bt:
 
 # The module's own names ----------------------------------------------------
 
-# a constructor of the module: its name, its type's, its arity
+# a constructor of the module: its name, its type's, its arity, and its
+# field names (none when it is not a record)
 type Ctr is Data:
-  Ctr{c: List<&2, U32>, t: List<&2, U32>, n: Nat}
+  Ctr{c: List<&2, U32>, t: List<&2, U32>, n: Nat, fs: List<&2, List<&2, U32>>}
 
 # a def of the module (its Haskell name) and its arity
 type Df is Data:
@@ -398,8 +423,8 @@ def fd.ctr.find(xs: List<&2, Ctr>, +c: List<&2, U32>) -> Maybe<&2, Ctr>:
   match xs:
     case Nil{}:
       None{}
-    case Ctr{+k, t, n} <> rest:
-      Bool.pick(Maybe<&2, Ctr>, S.eq(k, c), Some{Ctr{k, t, n}}, fd.ctr.find(rest, c))
+    case Ctr{+k, t, n, fs} <> rest:
+      Bool.pick(Maybe<&2, Ctr>, S.eq(k, c), Some{Ctr{k, t, n, fs}}, fd.ctr.find(rest, c))
 
 def fd.df.find(xs: List<&2, Df>, +n: List<&2, U32>) -> Maybe<&2, Nat>:
   match xs:
@@ -407,6 +432,105 @@ def fd.df.find(xs: List<&2, Df>, +n: List<&2, U32>) -> Maybe<&2, Nat>:
       None{}
     case Df{k, a} <> rest:
       Bool.pick(Maybe<&2, Nat>, S.eq(k, n), Some{a}, fd.df.find(rest, n))
+
+# What the modules of a package before this one have in (package mode).
+# Each is known by its key M.NAME and written with the alias of M's file,
+# M with each . as _: a def (its Bend name and arity), a constructor (its
+# Bend name, arity and fields), a type (its Bend name).
+type Ix is Data:
+  IxDef{k: List<&2, U32>, b: List<&2, U32>, a: Nat}
+  IxCon{k: List<&2, U32>, b: List<&2, U32>, n: Nat, fs: List<&2, List<&2, U32>>}
+  IxTy{k: List<&2, U32>, b: List<&2, U32>}
+
+# a synonym of an earlier module: its key and its (synonym ...), folded
+# again in each module that uses it (its types are that module's imports)
+type Sy is Data:
+  Sy{k: List<&2, U32>, x: X.Sx}
+
+# a def's template flags (see Templates), by its Bend name
+type Tf is Data:
+  Tf{n: List<&2, U32>, fl: List<&2, Bool>}
+
+# A package so far: its modules, the aliases of those that wrote a file,
+# what they have in, their synonyms, and their defs' template flags.  A
+# module alone has fd.px0().
+type Px is Data:
+  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>}
+
+def fd.px0() -> Px:
+  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
+
+def fd.px.home(p: Px) -> List<&2, List<&2, U32>>:
+  match p:
+    case Px{h, f, i, s, t}:
+      h
+
+def fd.px.files(p: Px) -> List<&2, List<&2, U32>>:
+  match p:
+    case Px{h, f, i, s, t}:
+      f
+
+def fd.px.ix(p: Px) -> List<&2, Ix>:
+  match p:
+    case Px{h, f, i, s, t}:
+      i
+
+def fd.px.sy(p: Px) -> List<&2, Sy>:
+  match p:
+    case Px{h, f, i, s, t}:
+      s
+
+def fd.px.tfs(p: Px) -> List<&2, Tf>:
+  match p:
+    case Px{h, f, i, s, t}:
+      t
+
+def fd.ix.key(i: Ix) -> List<&2, U32>:
+  match i:
+    case IxDef{k, b, a}:
+      k
+    case IxCon{k, b, n, fs}:
+      k
+    case IxTy{k, b}:
+      k
+
+def fd.ix.hit(+xs: List<&2, Ix>, +k: List<&2, U32>) -> Bool:
+  match xs:
+    case h <> t:
+      S.eq(fd.ix.key(h), k)
+    case Nil{}:
+      False{}
+
+def fd.ix.go(xs: List<&2, Ix>, +k: List<&2, U32>, hit: Bool) -> Maybe<&2, Ix>:
+  match xs hit:
+    case h <> t True{}:
+      Some{h}
+    case h <> +t False{}:
+      fd.ix.go(t, k, fd.ix.hit(t, k))
+    case _ _:
+      None{}
+
+# what an earlier module of the package has in under the key k
+def fd.ix.find(+xs: List<&2, Ix>, +k: List<&2, U32>) -> Maybe<&2, Ix>:
+  fd.ix.go(xs, k, fd.ix.hit(xs, k))
+
+def fd.ix.keys(xs: List<&2, Ix>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case h <> t:
+      fd.ix.keys(t, fd.ix.key(h) <> acc)
+    case Nil{}:
+      acc
+
+def fd.sy.keys(xs: List<&2, Sy>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Sy{k, x} <> t:
+      fd.sy.keys(t, k <> acc)
+    case Nil{}:
+      acc
+
+# the survey's view of the package: its modules, and every key it has in
+def fd.px.imp(+p: Px) -> V.Imp:
+  V.Imp{fd.px.home(p), fd.ix.keys(fd.px.ix(p), fd.sy.keys(fd.px.sy(p), Nil{}))}
 
 # What the fold knows where it is: the module's name, constructors and
 # defs, the type of the right-hand side it is in (None in an argument),
@@ -419,67 +543,79 @@ type Syn is Data:
   Syn{n: List<&2, U32>, tvs: List<&2, List<&2, U32>>, body: T.Bt}
 
 type Env is Data:
-  Env{m: List<&2, U32>, cons: List<&2, Ctr>, defs: List<&2, Df>, res: Maybe<&2, T.Bt>, self: List<&2, T.Bt>, ls: List<&2, List<&2, U32>>, syn: List<&2, Syn>}
+  Env{m: List<&2, U32>, cons: List<&2, Ctr>, defs: List<&2, Df>, res: Maybe<&2, T.Bt>, self: List<&2, T.Bt>, ls: List<&2, List<&2, U32>>, syn: List<&2, Syn>, px: Px}
 
 def fd.env.m(e: Env) -> List<&2, U32>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       m
 
 def fd.env.cons(e: Env) -> List<&2, Ctr>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       c
 
 def fd.env.defs(e: Env) -> List<&2, Df>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       d
 
 def fd.env.res(e: Env) -> Maybe<&2, T.Bt>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       r
 
 def fd.env.self(e: Env) -> List<&2, T.Bt>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       s
 
 def fd.env.ls(e: Env) -> List<&2, List<&2, U32>>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       l
 
 def fd.env.syn(e: Env) -> List<&2, Syn>:
   match e:
-    case Env{m, c, d, r, s, l, y}:
+    case Env{m, c, d, r, s, l, y, p}:
       y
+
+def fd.env.px(e: Env) -> Px:
+  match e:
+    case Env{m, c, d, r, s, l, y, p}:
+      p
+
+# the package's modules before this one (none for a module alone)
+def fd.env.home(e: Env) -> List<&2, List<&2, U32>>:
+  fd.px.home(fd.env.px(e))
+
+def fd.env.ix(e: Env) -> List<&2, Ix>:
+  fd.px.ix(fd.env.px(e))
 
 def fd.withsyn(e: Env, ys: List<&2, Syn>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y}:
-      Env{m, c, d, r, s, l, ys}
+    case Env{m, c, d, r, s, l, y, p}:
+      Env{m, c, d, r, s, l, ys, p}
 
 def fd.withres(e: Env, t: T.Bt) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y}:
-      Env{m, c, d, Some{t}, s, l, y}
+    case Env{m, c, d, r, s, l, y, p}:
+      Env{m, c, d, Some{t}, s, l, y, p}
 
 def fd.notail(e: Env) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y}:
-      Env{m, c, d, None{}, s, l, y}
+    case Env{m, c, d, r, s, l, y, p}:
+      Env{m, c, d, None{}, s, l, y, p}
 
 def fd.addls(e: Env, xs: List<&2, List<&2, U32>>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y}:
-      Env{m, c, d, r, s, List.append(&2, List<&2, U32>, xs, l), y}
+    case Env{m, c, d, r, s, l, y, p}:
+      Env{m, c, d, r, s, List.append(&2, List<&2, U32>, xs, l), y, p}
 
 def fd.withself(e: Env, ts: List<&2, T.Bt>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y}:
-      Env{m, c, d, r, ts, l, y}
+    case Env{m, c, d, r, s, l, y, p}:
+      Env{m, c, d, r, ts, l, y, p}
 
 # Calls ---------------------------------------------------------------------
 
@@ -831,7 +967,7 @@ def fd.etyapp(f: E, t: T.Bt) -> E:
 # a constructor of the module
 def fd.ucon(m: Maybe<&2, Ctr>, +all: List<&2, T.Bt>) -> T.Bt:
   match m:
-    case Some{Ctr{+c, +t, +n}}:
+    case Some{Ctr{+c, +t, +n, fs}}:
       fd.sat(n, all, xs => T.BtCon{fd.cname(t, c), T.tba.args(xs)})
     case None{}:
       fd.todo("fold:unknown-constructor")
@@ -844,6 +980,15 @@ def fd.own(a: Maybe<&2, Nat>, +name: List<&2, U32>, +tys: List<&2, T.Bt>, +all: 
     case Some{+k}:
       fd.sat(k, all, xs => T.tba.call(T.BtVar{name}, List.append(&2, T.Bt, tys, xs)))
 
+# a field's selector: the module's def of that name (see Selectors), one
+# argument after the type's
+def fd.own.sel(sel: Bool, +n: List<&2, U32>, +k: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>) -> T.Bt:
+  match sel:
+    case True{}:
+      fd.own(Some{1n}, fd.vname(n), tys, all)
+    case False{}:
+      T.BtTodo{fd.cat(S.b("fold:"), k)}
+
 def fd.own.g(var: Bool, con: Bool, +n: List<&2, U32>, +k: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match var con:
     case True{} _:
@@ -851,7 +996,7 @@ def fd.own.g(var: Bool, con: Bool, +n: List<&2, U32>, +k: List<&2, U32>, +tys: L
     case False{} True{}:
       fd.ucon(fd.ctr.find(fd.env.cons(env), n), all)
     case False{} False{}:
-      T.BtTodo{fd.cat(S.b("fold:"), k)}
+      fd.own.sel(fd.is(k, "sel"), n, k, tys, all)
 
 def fd.bcon(c: Cb, +key: List<&2, U32>, +all: List<&2, T.Bt>) -> T.Bt:
   match c:
@@ -874,13 +1019,30 @@ def fd.bglobal(con: Bool, +key: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<
     case False{}:
       fd.bfun(fd.bf.find(fd.bftab(), key), key, tys, all, fd.env.ls(env))
 
+# a def, selector or constructor of an earlier module of the package
+def fd.imp.g(found: Maybe<&2, Ix>, +key: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>) -> T.Bt:
+  match found:
+    case Some{IxDef{k, +b, +a}}:
+      fd.own(Some{a}, b, tys, all)
+    case Some{IxCon{k, +b, +n, fs}}:
+      fd.sat(n, all, xs => T.BtCon{b, T.tba.args(xs)})
+    case _:
+      T.BtTodo{fd.cat(S.b("import:"), key)}
+
+def fd.hglobal(home: Bool, +key: List<&2, U32>, +k: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>, +env: Env) -> T.Bt:
+  match home:
+    case True{}:
+      fd.imp.g(fd.ix.find(fd.env.ix(env), key), key, tys, all)
+    case False{}:
+      fd.bglobal(fd.is(k, "con"), key, tys, all, env)
+
 def fd.global(own: Bool, +m: List<&2, U32>, +n: List<&2, U32>, +k: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match own:
     case True{}:
       fd.own.g(fd.is(k, "var"), fd.is(k, "con"), n, k, tys, all, env)
     case False{}:
       +key = fd.cat3(m, S.b("."), n)
-      fd.bglobal(fd.is(k, "con"), key, tys, all, env)
+      fd.hglobal(S.mem(m, fd.env.home(env)), key, k, tys, all, env)
 
 # a head applied to its type arguments and arguments
 def fd.head(h: Hd, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>, +env: Env) -> T.Bt:
@@ -1010,7 +1172,7 @@ def fd.tuple(xs: List<&2, T.Bt>) -> T.Bt:
 # a constructor pattern: Base's or the module's
 def fd.pcon.own(m: Maybe<&2, Ctr>, ps: List<&2, T.Bt>) -> T.Bt:
   match m:
-    case Some{Ctr{+c, +t, n}}:
+    case Some{Ctr{+c, +t, n, fs}}:
       T.BtCon{fd.cname(t, c), T.tba.args(ps)}
     case None{}:
       fd.todo("fold:unknown-constructor")
@@ -1022,16 +1184,172 @@ def fd.pcon.base(c: Cb, +key: List<&2, U32>, ps: List<&2, T.Bt>) -> T.Bt:
     case c1:
       fd.cb.mk(c1, ps)
 
+# a constructor of an earlier module of the package
+def fd.pcon.imp(found: Maybe<&2, Ix>, +key: List<&2, U32>, ps: List<&2, T.Bt>) -> T.Bt:
+  match found:
+    case Some{IxCon{k, b, n, fs}}:
+      T.BtCon{b, T.tba.args(ps)}
+    case _:
+      T.BtTodo{fd.cat(S.b("import:"), key)}
+
+def fd.pcon.other(home: Bool, +key: List<&2, U32>, ps: List<&2, T.Bt>, +env: Env) -> T.Bt:
+  match home:
+    case True{}:
+      fd.pcon.imp(fd.ix.find(fd.env.ix(env), key), key, ps)
+    case False{}:
+      fd.pcon.base(fd.cb.find(fd.cbtab(), key), key, ps)
+
+# MOD.NAME of (g MOD NAME KIND)
+def fd.gkey(+g: X.Sx) -> List<&2, U32>:
+  fd.cat3(V.sv.str(g, 1n), S.b("."), V.sv.str(g, 2n))
+
 def fd.pcon.of(own: Bool, +g: X.Sx, ps: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match own:
     case True{}:
       fd.pcon.own(fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), ps)
     case False{}:
-      fd.pcon.base(fd.cb.find(fd.cbtab(), fd.cat3(V.sv.str(g, 1n), S.b("."), V.sv.str(g, 2n))), fd.cat3(V.sv.str(g, 1n), S.b("."), V.sv.str(g, 2n)), ps)
+      fd.pcon.other(S.mem(V.sv.str(g, 1n), fd.env.home(env)), fd.gkey(g), ps, env)
 
 # (pcon CON (ARGTYPE...) (args P...)): CON is (g MOD NAME con)
 def fd.pcon(+g: X.Sx, ps: R, +env: Env) -> R:
   RT{fd.pcon.of(S.eq(V.sv.str(g, 1n), fd.env.m(env)), g, fd.bts(fd.items(ps)), env)}
+
+# Records ---------------------------------------------------------------------
+
+# a constructor's field names: (con NAME (FIELD...) ...), a FIELD a string
+# or (g MOD NAME sel)
+def fd.fnames(fs: X.Sx) -> List<&2, List<&2, U32>>:
+  match fs:
+    case X.SxCons{X.SxStr{f}, t}:
+      f <> fd.fnames(t)
+    case X.SxCons{+f, t}:
+      V.sv.str(f, 2n) <> fd.fnames(t)
+    case _:
+      Nil{}
+
+# where the field f is among a constructor's fields
+def fd.fpos(fs: List<&2, List<&2, U32>>, +f: List<&2, U32>, +i: Nat) -> Maybe<&2, Nat>:
+  match fs:
+    case Nil{}:
+      None{}
+    case h <> t:
+      Bool.pick(Maybe<&2, Nat>, S.eq(h, f), Some{i}, fd.fpos(t, f, 1n+i))
+
+# A record's fields as the fold gives them, in the order they are written:
+# each an RL of the field's name (an RT of its BtVar) and what it is set
+# to or matched with.
+def fd.field(+sel: X.Sx, r: R) -> R:
+  RL{[RT{T.BtVar{fd.bpick(V.sv.is(V.sv.hd(sel), "g"), V.sv.str(sel, 2n), V.sv.str(sel, 1n))}}, r]}
+
+# the one named f
+def fd.field.find(xs: List<&2, R>, +f: List<&2, U32>) -> Maybe<&2, R>:
+  match xs:
+    case Nil{}:
+      None{}
+    case RL{RT{T.BtVar{n}} <> r <> Nil{}} <> t:
+      Bool.pick(Maybe<&2, R>, S.eq(n, f), Some{r}, fd.field.find(t, f))
+    case _ <> t:
+      fd.field.find(t, f)
+
+# a record pattern's patterns in the constructor's order; _ for a field it
+# leaves out
+def fd.pfield(m: Maybe<&2, R>) -> T.Bt:
+  match m:
+    case Some{r}:
+      fd.rt(r)
+    case None{}:
+      T.BtWild{}
+
+def fd.pfields(fs: List<&2, List<&2, U32>>, +xs: List<&2, R>) -> List<&2, T.Bt>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case +f <> t:
+      fd.pfield(fd.field.find(xs, f)) <> fd.pfields(t, xs)
+
+def fd.pconf.of(own: Bool, m: Maybe<&2, Ctr>, +xs: List<&2, R>) -> T.Bt:
+  match own m:
+    case True{} Some{Ctr{+c, +t, n, fs}}:
+      T.BtCon{fd.cname(t, c), T.tba.args(fd.pfields(fs, xs))}
+    case True{} None{}:
+      fd.todo("fold:unknown-constructor")
+    case False{} _:
+      fd.todo("fold:record-pattern-base")
+
+def fd.pconf.imp(found: Maybe<&2, Ix>, +xs: List<&2, R>) -> T.Bt:
+  match found:
+    case Some{IxCon{k, b, n, fs}}:
+      T.BtCon{b, T.tba.args(fd.pfields(fs, xs))}
+    case _:
+      fd.todo("fold:unknown-constructor")
+
+def fd.pconf.at(own: Bool, home: Bool, +g: X.Sx, +xs: List<&2, R>, +env: Env) -> T.Bt:
+  match own home:
+    case True{} _:
+      fd.pconf.of(True{}, fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), xs)
+    case False{} True{}:
+      fd.pconf.imp(fd.ix.find(fd.env.ix(env), fd.gkey(g)), xs)
+    case False{} False{}:
+      fd.todo("fold:record-pattern-base")
+
+# (pcon CON (ARGTYPE...) (fields (pfield SEL P)...))
+def fd.pconf(+g: X.Sx, r: R, +env: Env) -> R:
+  RT{fd.pconf.at(S.eq(V.sv.str(g, 1n), fd.env.m(env)), S.mem(V.sv.str(g, 1n), fd.env.home(env)), g, fd.items(r), env)}
+
+# a record built: every field the constructor has, in its order (GHC has
+# already filled in a `..`); one left out is undefined in Haskell, so out
+def fd.efields.of(m: Maybe<&2, R>, rest: Maybe<&2, List<&2, T.Bt>>, +env: Env) -> Maybe<&2, List<&2, T.Bt>>:
+  match m rest:
+    case Some{r} Some{t}:
+      Some{fd.ex(r, env) <> t}
+    case _ _:
+      None{}
+
+def fd.efields(fs: List<&2, List<&2, U32>>, +xs: List<&2, R>, +env: Env) -> Maybe<&2, List<&2, T.Bt>>:
+  match fs:
+    case Nil{}:
+      Some{Nil{}}
+    case +f <> t:
+      fd.efields.of(fd.field.find(xs, f), fd.efields(t, xs, env), env)
+
+def fd.reccon.mkb(+b: List<&2, U32>, m: Maybe<&2, List<&2, T.Bt>>) -> T.Bt:
+  match m:
+    case Some{xs}:
+      T.BtCon{b, T.tba.args(xs)}
+    case None{}:
+      fd.todo("fold:record-missing-field")
+
+def fd.reccon.mk(+c: List<&2, U32>, +t: List<&2, U32>, m: Maybe<&2, List<&2, T.Bt>>) -> T.Bt:
+  fd.reccon.mkb(fd.cname(t, c), m)
+
+def fd.reccon.of(own: Bool, m: Maybe<&2, Ctr>, +xs: List<&2, R>, +env: Env) -> T.Bt:
+  match own m:
+    case True{} Some{Ctr{+c, +t, n, fs}}:
+      fd.reccon.mk(c, t, fd.efields(fs, xs, env))
+    case True{} None{}:
+      fd.todo("fold:unknown-constructor")
+    case False{} _:
+      fd.todo("fold:record-base")
+
+def fd.reccon.imp(found: Maybe<&2, Ix>, +xs: List<&2, R>, +env: Env) -> T.Bt:
+  match found:
+    case Some{IxCon{k, +b, n, fs}}:
+      fd.reccon.mkb(b, fd.efields(fs, xs, env))
+    case _:
+      fd.todo("fold:unknown-constructor")
+
+def fd.reccon.at(own: Bool, home: Bool, +g: X.Sx, +xs: List<&2, R>, +env: Env) -> T.Bt:
+  match own home:
+    case True{} _:
+      fd.reccon.of(True{}, fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), xs, env)
+    case False{} True{}:
+      fd.reccon.imp(fd.ix.find(fd.env.ix(env), fd.gkey(g)), xs, env)
+    case False{} False{}:
+      fd.todo("fold:record-base")
+
+# (reccon CON ((field SEL E)...) nodots|dotdot)
+def fd.reccon(+g: X.Sx, r: R, +env: Env) -> R:
+  RE{fd.et(fd.reccon.at(S.eq(V.sv.str(g, 1n), fd.env.m(env)), S.mem(V.sv.str(g, 1n), fd.env.home(env)), g, fd.items(r), env))}
 
 # a literal: an Int's (int N) at Nat, a character
 def fd.char(+n: Nat) -> T.Bt:
@@ -1478,17 +1796,37 @@ def fd.syn.own(own: Bool, ss: List<&2, Syn>) -> List<&2, Syn>:
     case False{}:
       Nil{}
 
-def fd.tc.syn(found: Maybe<&2, Syn>, k: Tk, own: Bool, +n: List<&2, U32>, +key: List<&2, U32>, +args: List<&2, T.Bt>) -> T.Bt:
+def fd.tc.syn(found: Maybe<&2, Syn>, +k: Tk, tn: Maybe<&2, List<&2, U32>>, +key: List<&2, U32>, +args: List<&2, T.Bt>) -> T.Bt:
   match found:
     case Some{Syn{sn, +tvs, body}}:
       fd.syn.fill(tvs, fd.syn.mark(tvs, body), args)
     case None{}:
-      fd.tc.of(k, own, n, key, args)
+      fd.tc.of(k, tn, key, args)
 
+def fd.tc.imp(found: Maybe<&2, Ix>) -> Maybe<&2, List<&2, U32>>:
+  match found:
+    case Some{IxTy{k, b}}:
+      Some{b}
+    case _:
+      None{}
+
+# a type's Bend name: the module's own, or an earlier module's of the package
+def fd.tc.name(own: Bool, home: Bool, +n: List<&2, U32>, +key: List<&2, U32>, +env: Env) -> Maybe<&2, List<&2, U32>>:
+  match own home:
+    case True{} _:
+      Some{fd.tyname(n)}
+    case False{} True{}:
+      fd.tc.imp(fd.ix.find(fd.env.ix(env), key))
+    case False{} False{}:
+      None{}
+
+# (tc MOD NAME ARG...): a synonym of the module (by its name) or of an
+# earlier module of the package (by its key) is expanded
 def fd.tc(+m: List<&2, U32>, +n: List<&2, U32>, args: R, +env: Env) -> R:
   +key = fd.cat3(m, S.b("."), n)
   +own = S.eq(m, fd.env.m(env))
-  RT{fd.tc.syn(fd.syn.find(fd.syn.own(own, fd.env.syn(env)), n), fd.tk.find(fd.tktab(), key), own, n, key, fd.bts(fd.items(args)))}
+  +home = S.mem(m, fd.env.home(env))
+  RT{fd.tc.syn(fd.syn.find(fd.syn.own(Bool.or(own, home), fd.env.syn(env)), fd.bpick(own, n, key)), fd.tk.find(fd.tktab(), key), fd.tc.name(own, home, n, key, env), key, fd.bts(fd.items(args)))}
 
 def fd.tfun(a: R, b: R) -> R:
   RT{T.BtPi{T.BmLive{}, S.b("_"), False{}, fd.rt(a), fd.rt(b)}}
@@ -1548,6 +1886,9 @@ type K is Data:
   KPlist{}
   KPtuple{}
   KPcon{}
+  KPconF{}
+  KPfs{}
+  KPf{}
   KPlit{}
   KPnlit{}
   KPs{}
@@ -1569,6 +1910,9 @@ type K is Data:
   KEmultiif{}
   KElet{}
   KElist{}
+  KEreccon{}
+  KRfs{}
+  KRf{}
   KEs{}
   KMatches{}
   KMs{}
@@ -1603,7 +1947,7 @@ def fd.k.pats() -> List<&2, Kt>:
   [Kt{"pwild", KPwild{}}, Kt{"pvar", KPvar{}}, Kt{"pbang", KPbang{}}, Kt{"plist", KPlist{}}, Kt{"ptuple", KPtuple{}}, Kt{"pcon", KPcon{}}, Kt{"plit", KPlit{}}, Kt{"pnlit", KPnlit{}}]
 
 def fd.k.exs() -> List<&2, Kt>:
-  [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}]
+  [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}, Kt{"reccon", KEreccon{}}]
 
 def fd.k.bad(s: String, +h: List<&2, U32>) -> K:
   KBad{fd.cat(S.b(s), h)}
@@ -1613,7 +1957,7 @@ def fd.k.bad(s: String, +h: List<&2, U32>) -> K:
 def fd.k.pat(k: K, +x: X.Sx) -> K:
   match k:
     case KPcon{}:
-      Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 3n)), "args"), KPcon{}, KBad{S.b("fold:record-pattern")})
+      Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 3n)), "args"), KPcon{}, KPconF{})
     case KPnlit{}:
       Bool.pick(K, V.sv.is(X.tsx.atom.of(V.sv.at(x, 2n)), "pos"), KPnlit{}, KBad{S.b("int-sub")})
     case k1:
@@ -1680,6 +2024,14 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.ptuple(fd.go(ps, KPs{}, env))
     case X.SxCons{_, X.SxCons{+g, X.SxCons{_, X.SxCons{X.SxCons{_, ps}, _}}}} KPcon{}:
       fd.pcon(g, fd.go(ps, KPs{}, env), env)
+    case X.SxCons{_, X.SxCons{+g, X.SxCons{_, X.SxCons{X.SxCons{_, fps}, _}}}} KPconF{}:
+      fd.pconf(g, fd.go(fps, KPfs{}, env), env)
+    case X.SxCons{+h, t} KPfs{}:
+      fd.cons(fd.go(h, KPf{}, env), fd.go(t, KPfs{}, env))
+    case _ KPfs{}:
+      fd.nil()
+    case X.SxCons{_, X.SxCons{+sel, X.SxCons{+p, _}}} KPf{}:
+      fd.field(sel, fd.go(p, fd.k(RoPat{}, p), env))
     case X.SxCons{_, X.SxCons{+v, _}} KPlit{}:
       fd.plit(v)
     case X.SxCons{_, X.SxCons{X.SxCons{_, X.SxCons{+v, _}}, _}} KPnlit{}:
@@ -1727,6 +2079,14 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.elet(rb, fd.go(e, fd.k(RoEx{}, e), fd.addls(env, fd.bnames(fd.items(rb)))), env)
     case X.SxCons{_, X.SxCons{_, X.SxCons{es, _}}} KElist{}:
       fd.elist(fd.go(es, KEs{}, fd.notail(env)), env)
+    case X.SxCons{_, X.SxCons{+g, X.SxCons{fs, _}}} KEreccon{}:
+      fd.reccon(g, fd.go(fs, KRfs{}, fd.notail(env)), env)
+    case X.SxCons{+h, t} KRfs{}:
+      fd.cons(fd.go(h, KRf{}, env), fd.go(t, KRfs{}, env))
+    case _ KRfs{}:
+      fd.nil()
+    case X.SxCons{_, X.SxCons{+sel, X.SxCons{+e, _}}} KRf{}:
+      fd.field(sel, fd.go(e, fd.k(RoEx{}, e), env))
     case X.SxCons{+h, t} KEs{}:
       fd.cons(fd.go(h, fd.k(RoEx{}, h), env), fd.go(t, KEs{}, env))
     case _ KEs{}:
@@ -1832,7 +2192,7 @@ def fd.data(+x: X.Sx, +env: Env) -> T.BItem:
 def fd.ctrs.of(+ty: List<&2, U32>, cs: X.Sx, acc: List<&2, Ctr>) -> List<&2, Ctr>:
   match cs:
     case X.SxCons{+c, t}:
-      fd.ctrs.of(ty, t, Ctr{V.sv.str(c, 1n), ty, X.tsx.len(V.sv.at(c, 3n))} <> acc)
+      fd.ctrs.of(ty, t, Ctr{V.sv.str(c, 1n), ty, X.tsx.len(V.sv.at(c, 3n)), fd.fnames(V.sv.at(c, 2n))} <> acc)
     case _:
       acc
 
@@ -1948,12 +2308,100 @@ def fd.got.todos(+n: List<&2, U32>, +it: T.BItem, todos: List<&2, List<&2, U32>>
 def fd.got.def(+n: List<&2, U32>, +it: T.BItem) -> Got:
   fd.got.todos(n, it, List.reverse(&2, List<&2, U32>, T.tba.item.fold(~T.tba.todos, it, Nil{})))
 
+# Selectors: a record's field names are functions in Haskell; each is a def
+# here, a match on the type's constructors.  A field some constructor lacks
+# is a partial function in Haskell and has no def.
+
+# the field names of all the constructors, each once, in order
+def fd.addnew(xs: List<&2, List<&2, U32>>, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      acc
+    case +h <> t:
+      fd.addnew(t, Bool.pick(List<&2, List<&2, U32>>, S.mem(h, acc), acc, List.append(&2, List<&2, U32>, acc, h <> Nil{})))
+
+def fd.allf(cs: X.Sx, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match cs:
+    case X.SxCons{+c, t}:
+      fd.allf(t, fd.addnew(fd.fnames(V.sv.at(c, 2n)), acc))
+    case _:
+      acc
+
+# the patterns of a constructor of n fields: the i-th bound to v
+def fd.selpats(n: Nat, +i: Nat, +j: Nat) -> List<&2, T.Bt>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      Bool.pick(T.Bt, Nat.is_eq(i, j), T.BtPv{T.BmLive{}, S.b("v")}, T.BtWild{}) <> fd.selpats(p, i, 1n+j)
+
+def fd.selpat.of(+ty: List<&2, U32>, +c: X.Sx, m: Maybe<&2, Nat>) -> Maybe<&2, T.Bt>:
+  match m:
+    case Some{i}:
+      Some{T.BtCon{fd.cname(ty, V.sv.str(c, 1n)), T.tba.args(fd.selpats(X.tsx.len(V.sv.at(c, 3n)), i, 0n))}}
+    case None{}:
+      None{}
+
+# (con NAME (FIELD...) (ARGTYPE...) ..)
+def fd.selpat(+ty: List<&2, U32>, +c: X.Sx, +f: List<&2, U32>) -> Maybe<&2, T.Bt>:
+  fd.selpat.of(ty, c, fd.fpos(fd.fnames(V.sv.at(c, 2n)), f, 0n))
+
+def fd.selcases.of(p: Maybe<&2, T.Bt>, r: Maybe<&2, T.Bt>) -> Maybe<&2, T.Bt>:
+  match p r:
+    case Some{q} Some{rest}:
+      Some{T.BtCase{T.tba.args([q]), T.BtExpr{T.BtVar{S.b("v")}}, rest}}
+    case _ _:
+      None{}
+
+def fd.selcases(+ty: List<&2, U32>, cs: X.Sx, +f: List<&2, U32>) -> Maybe<&2, T.Bt>:
+  match cs:
+    case X.SxCons{+c, t}:
+      fd.selcases.of(fd.selpat(ty, c, f), fd.selcases(ty, t, f))
+    case _:
+      Some{T.BtCEnd{}}
+
+# the field's type, at the first constructor that has it
+def fd.selty.of(m: Maybe<&2, Nat>, +c: X.Sx, rest: Maybe<&2, T.Bt>, +env: Env) -> Maybe<&2, T.Bt>:
+  match m:
+    case Some{i}:
+      List.get(&2, T.Bt, fd.bts(fd.items(fd.go(V.sv.at(c, 3n), KTys{}, env))), i)
+    case None{}:
+      rest
+
+def fd.selty(cs: X.Sx, +f: List<&2, U32>, +env: Env) -> Maybe<&2, T.Bt>:
+  match cs:
+    case X.SxCons{+c, t}:
+      fd.selty.of(fd.fpos(fd.fnames(V.sv.at(c, 2n)), f, 0n), c, fd.selty(t, f, env), env)
+    case _:
+      None{}
+
+def fd.sel.item(+ty: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, +f: List<&2, U32>, cs: Maybe<&2, T.Bt>, rt: Maybe<&2, T.Bt>) -> List<&2, Got>:
+  match cs rt:
+    case Some{c} Some{r}:
+      +x = S.b("x")
+      +p = {T.BParam{T.BmLive{}, x, T.BtTyApp{fd.tyname(ty), T.tba.args(fd.tvbts(tvs))}} : T.BParam}
+      fd.got.def(f, T.BiDef{fd.vname(f), List.append(&2, T.BParam, fd.tvparams(tvs), p <> Nil{}), r, T.BtMatch{T.tba.args([T.BtVar{x}]), c}, Nil{}}) <> Nil{}
+    case _ _:
+      Nil{}
+
+def fd.sels.go(+ty: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, +cs: X.Sx, fs: List<&2, List<&2, U32>>, +env: Env) -> List<&2, Got>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case +f <> t:
+      List.append(&2, Got, fd.sel.item(ty, tvs, f, fd.selcases(ty, cs, f), fd.selty(cs, f, env)), fd.sels.go(ty, tvs, cs, t, env))
+
+# (data NAME (TV...) (CON...) SPAN)
+def fd.sels(+x: X.Sx, +env: Env) -> List<&2, Got>:
+  +cs = V.sv.at(x, 3n)
+  fd.sels.go(V.sv.str(x, 1n), fd.tvs(V.sv.at(x, 2n)), cs, fd.allf(cs, Nil{}), env)
+
 # the module's data types; one with a field type the fold cannot write is
 # out, with that type as the reason, like a def
 def fd.datas.if(d: Bool, +x: X.Sx, +env: Env, acc: List<&2, Got>) -> List<&2, Got>:
   match d:
     case True{}:
-      fd.got.def(V.sv.str(x, 1n), fd.data(x, env)) <> acc
+      fd.got.def(V.sv.str(x, 1n), fd.data(x, env)) <> List.append(&2, Got, fd.sels(x, env), acc)
     case False{}:
       acc
 
@@ -2004,16 +2452,54 @@ def fd.gots(tbs: List<&2, Tb>, +ok: List<&2, List<&2, U32>>, +env: Env) -> List<
     case Nil{}:
       Nil{}
 
+# the names of the items, written or out (a type's, a selector's)
+def fd.got.defnames(gs: List<&2, Got>) -> List<&2, List<&2, U32>>:
+  match gs:
+    case GotDef{n, it} <> t:
+      n <> fd.got.defnames(t)
+    case GotOut{n, w} <> t:
+      n <> fd.got.defnames(t)
+    case Nil{}:
+      Nil{}
+
+def fd.got.n(+g: Got) -> List<&2, U32>:
+  match g:
+    case GotDef{n, it}:
+      n
+    case GotOut{n, w}:
+      n
+
+# the bindings, less those the data types already wrote: GHC exports a
+# record's selectors as bindings of their own, which the survey refuses
+def fd.gots.less.if(dup: Bool, h: Got, rest: List<&2, Got>) -> List<&2, Got>:
+  match dup:
+    case True{}:
+      rest
+    case False{}:
+      h <> rest
+
+def fd.gots.less(gs: List<&2, Got>, +names: List<&2, List<&2, U32>>) -> List<&2, Got>:
+  match gs:
+    case +h <> t:
+      fd.gots.less.if(S.mem(fd.got.n(h), names), h, fd.gots.less(t, names))
+    case Nil{}:
+      Nil{}
+
 # The survey's verdict --------------------------------------------------------------
 
 # the names the survey puts in the first version (Survey.bend's sv.module.ok)
-def fd.ok(+xs: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+def fd.ok(+xs: List<&2, X.Sx>, +imp: V.Imp) -> List<&2, List<&2, U32>>:
   +tb = V.sv.tb()
   +m = V.sv.modname(xs)
-  +bad = V.sv.tys(xs, V.Env{m, tb, Nil{}}, Nil{})
-  +fs0 = V.sv.tops(xs, V.Env{m, tb, bad}, Nil{})
+  +bad = V.sv.tys(xs, V.Env{m, tb, Nil{}, imp}, Nil{})
+  +fs0 = V.sv.tops(xs, V.Env{m, tb, bad, imp}, Nil{})
   +all = V.sv.names(fs0)
-  V.sv.ok.fix(1n+List.length(&2, V.Fn, fs0), fs0, all, all)
+  V.sv.ok.fix(1n+List.length(&2, V.Fn, fs0), False{}, fs0, all, all)
+
+# the data types (and their selectors), then the bindings
+def fd.allgots(+xs: List<&2, X.Sx>, +tbs: List<&2, Tb>, +env: Env) -> List<&2, Got>:
+  +ds = fd.datas(xs, env)
+  List.append(&2, Got, ds, fd.gots.less(fd.gots(tbs, fd.ok(xs, fd.px.imp(fd.env.px(env))), env), fd.got.defnames(ds)))
 
 # The prelude ---------------------------------------------------------------------
 
@@ -2040,8 +2526,33 @@ def fd.header(+file: List<&2, U32>, +m: List<&2, U32>) -> List<&2, List<&2, U32>
   [fd.cat(S.b("Haskell module "), m), fd.cat(S.b("from "), file), S.b("Written by cata (fixed rules, no model); every def checks with bend --check-only.")]
 
 # the file's text: header, import Base, the prelude, the items in order
-def fd.text(+file: List<&2, U32>, +m: List<&2, U32>, +its: List<&2, T.BItem>) -> List<&2, U32>:
-  P.tpr.file(T.BFile{fd.header(file, m), Nil{}, O.tor.order(its)})
+def fd.import.if(use: Bool, +a: List<&2, U32>, acc: List<&2, T.BImport>) -> List<&2, T.BImport>:
+  match use:
+    case True{}:
+      T.BImport{fd.cat3(S.b("./"), a, S.b(".bend")), a} <> acc
+    case False{}:
+      acc
+
+# the package's files (by alias) that the text names, ALIAS.x, as imports
+def fd.imports(ims: List<&2, List<&2, U32>>, +text: List<&2, U32>) -> List<&2, T.BImport>:
+  match ims:
+    case +a <> t:
+      fd.import.if(S.infix(text, fd.cat(a, S.b("."))), a, fd.imports(t, text))
+    case Nil{}:
+      Nil{}
+
+def fd.text.ims(ims: List<&2, List<&2, U32>>, +ord: List<&2, T.BItem>) -> List<&2, T.BImport>:
+  match ims:
+    case Nil{}:
+      Nil{}
+    case +a <> t:
+      fd.imports(a <> t, P.tpr.file(T.BFile{Nil{}, Nil{}, ord}))
+
+# the file: its header, the earlier modules of its package it names (ims:
+# their aliases), its items in order
+def fd.text(+file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>) -> List<&2, U32>:
+  +ord = O.tor.order(its)
+  P.tpr.file(T.BFile{fd.header(file, m), fd.text.ims(ims, ord), ord})
 
 def fd.splice.at(hit: Bool, h: List<&2, U32>, t: List<&2, List<&2, U32>>, pre: List<&2, U32>) -> List<&2, List<&2, U32>>:
   match hit:
@@ -2050,10 +2561,18 @@ def fd.splice.at(hit: Bool, h: List<&2, U32>, t: List<&2, List<&2, U32>>, pre: L
     case False{}:
       h <> t
 
+def fd.next.import(ls: List<&2, List<&2, U32>>) -> Bool:
+  match ls:
+    case h <> t:
+      S.prefix(h, S.b("import "))
+    case Nil{}:
+      False{}
+
+# the prelude goes after the last import
 def fd.splice.go(ls: List<&2, List<&2, U32>>, +pre: List<&2, U32>) -> List<&2, List<&2, U32>>:
   match ls:
-    case +h <> t:
-      fd.splice.at(fd.is(h, "import Base"), h, fd.splice.go(t, pre), pre)
+    case +h <> +t:
+      fd.splice.at(Bool.and(S.prefix(h, S.b("import ")), Bool.not(fd.next.import(t))), h, fd.splice.go(t, pre), pre)
     case Nil{}:
       Nil{}
 
@@ -2061,8 +2580,8 @@ def fd.splice.go(ls: List<&2, List<&2, U32>>, +pre: List<&2, U32>) -> List<&2, L
 def fd.splice(text: List<&2, U32>, pre: List<&2, U32>) -> List<&2, U32>:
   S.join(fd.splice.go(S.split(text, 10), pre), 10)
 
-def fd.render(+file: List<&2, U32>, +m: List<&2, U32>, +its: List<&2, T.BItem>) -> List<&2, U32>:
-  fd.splice(fd.text(file, m, its), fd.prelude(its))
+def fd.render(+file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>) -> List<&2, U32>:
+  fd.splice(fd.text(file, m, ims, its), fd.prelude(its))
 
 # The gate ---------------------------------------------------------------------------
 
@@ -2272,11 +2791,31 @@ def fd.without(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, T.BItem>:
 def fd.bpicks(c: Bool, a: List<&2, List<&2, U32>>, b: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   Bool.pick(List<&2, List<&2, U32>>, c, a, b)
 
+def fd.ctor.names(cs: List<&2, T.BCtor>) -> List<&2, List<&2, U32>>:
+  match cs:
+    case T.BCtor{c, fs} <> t:
+      c <> fd.ctor.names(t)
+    case Nil{}:
+      Nil{}
+
+# what an item defines, for what uses it: a def's name, a type's and its
+# constructors' (not their binders: T.tba.item.names gives a def's
+# parameters and a type's fields, so a def named like one of those was
+# taken for a user)
+def fd.item.defs(it: T.BItem) -> List<&2, List<&2, U32>>:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      n <> Nil{}
+    case T.BiType{n, ps, k, cs, d}:
+      n <> fd.ctor.names(cs)
+    case T.BiComment{d}:
+      Nil{}
+
 # the names of the item named n: its own, and its constructors if a type
 def fd.namesof(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
   match its:
     case +h <> t:
-      fd.bpicks(S.eq(fd.item.name(h), n), fd.item.names(h), fd.namesof(t, n))
+      fd.bpicks(S.eq(fd.item.name(h), n), fd.item.defs(h), fd.namesof(t, n))
     case Nil{}:
       n <> Nil{}
 
@@ -2319,35 +2858,35 @@ def fd.gate.who(l: Maybe<&2, Nat>, text: List<&2, U32>) -> Maybe<&2, List<&2, U3
       None{}
 
 # one round's verdict: done when Bend accepts the file
-def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +out: List<&2, U32>) -> Gs:
+def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>) -> Gs:
   match g:
     case Gs{its, o, True{}}:
       Gs{its, o, True{}}
     case Gs{+its, +o, False{}}:
       +ls = S.split(out, 10)
-      Bool.pick(Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), Gs{its, o, True{}}, fd.gate.drop(fd.gate.who(fd.errline(ls), fd.render(file, m, its)), its, o, fd.cat(S.b("check:"), fd.errwhy(ls))))
+      Bool.pick(Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), Gs{its, o, True{}}, fd.gate.drop(fd.gate.who(fd.errline(ls), fd.render(file, m, ims, its)), its, o, fd.cat(S.b("check:"), fd.errwhy(ls))))
 
 # one round's check: write the file and run bend on it (nothing once done)
-def fd.gate.io(g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>) -> IO(S.Out):
+def fd.gate.io(g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>) -> IO(S.Out):
   match g:
     case Gs{its, o, True{}}:
       IO.pure(S.Out, S.Out{0, S.b("ALL PROOFS CHECK")})
     case Gs{its, o, False{}}:
       do IO<S.Out>:
-        S.write(path, fd.render(file, m, its))
+        S.write(path, fd.render(file, m, ims, its))
         S.run(".", Nil{}, 300, bend, [path, "--check-only"], Nil{})
 
 # the gate: check, drop the item the error is in (and what uses it), and
 # check again, until Bend accepts the file or nothing is left
-def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>) -> IO(Gs):
+def fd.gate(fuel: Nat, g: Gs, +bend: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>) -> IO(Gs):
   match fuel:
     case 0n:
       IO.pure(Gs, g)
     case 1n+p:
       +g1 = g
       do IO<Gs>:
-        o : S.Out <- fd.gate.io(g1, bend, path, file, m)
-        fd.gate(p, fd.gate.step(g1, file, m, S.Out.text(o)), bend, path, file, m)
+        o : S.Out <- fd.gate.io(g1, bend, path, file, m, ims)
+        fd.gate(p, fd.gate.step(g1, file, m, ims, S.Out.text(o)), bend, path, file, m, ims)
 
 # The module -------------------------------------------------------------------------
 
@@ -2406,15 +2945,20 @@ def fd.module.write(has: Bool, +path: String, text: List<&2, U32>) -> IO(Unit):
     case False{}:
       IO.pure(Unit, Unit{})
 
-def fd.module.fin(+out: String, +file: List<&2, U32>, +m: List<&2, U32>, +path: String, g: Gs) -> IO(Unit):
+# whether the module's file is written: it has a def, or (in a package,
+# where later modules may import its types) any item
+def fd.wrote(+pkg: Bool, +its: List<&2, T.BItem>) -> Bool:
+  Bool.or(fd.hasdef(its), Bool.and(pkg, Bool.not(List.is_empty(&2, T.BItem, its))))
+
+def fd.module.fin(+out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +path: String, +pkg: Bool, g: Gs) -> IO(Unit):
   match g:
     case Gs{+k, o, d}:
       do IO<Unit>:
-        fd.module.write(fd.hasdef(k), path, fd.render(file, m, k))
+        fd.module.write(fd.wrote(pkg, k), path, fd.render(file, m, ims, k))
         S.add(out ++ "/ledger.tsv", fd.ledger(file, k, o))
 
-def fd.env0(m: List<&2, U32>, cs: List<&2, Ctr>, ds: List<&2, Df>) -> Env:
-  Env{m, cs, ds, None{}, Nil{}, Nil{}, Nil{}}
+def fd.env0(m: List<&2, U32>, cs: List<&2, Ctr>, ds: List<&2, Df>, px: Px) -> Env:
+  Env{m, cs, ds, None{}, Nil{}, Nil{}, Nil{}, px}
 
 # (synonym NAME (TV...) TYPE SPAN), folded with the synonyms of the round
 # before; as many rounds as there are synonyms, so one that names another
@@ -2433,12 +2977,21 @@ def fd.syns.round(xs: List<&2, X.Sx>, +env: Env) -> List<&2, Syn>:
     case Nil{}:
       Nil{}
 
+# the synonyms of the package's earlier modules, by key, folded here (their
+# types are this module's imports)
+def fd.isyns(ys: List<&2, Sy>, +env: Env) -> List<&2, Syn>:
+  match ys:
+    case Sy{+k, +x} <> t:
+      Syn{k, fd.tvs(V.sv.at(x, 2n)), fd.rt(fd.go(V.sv.at(x, 3n), fd.k(RoTy{}, V.sv.at(x, 3n)), env))} <> fd.isyns(t, env)
+    case Nil{}:
+      Nil{}
+
 def fd.syns(fuel: Nat, +xs: List<&2, X.Sx>, +env: Env) -> Env:
   match fuel:
     case 0n:
       env
     case 1n+p:
-      fd.syns(p, xs, fd.withsyn(env, fd.syns.round(xs, env)))
+      fd.syns(p, xs, fd.withsyn(env, List.append(&2, Syn, fd.syns.round(xs, env), fd.isyns(fd.px.sy(fd.env.px(env)), env))))
 
 def fd.nsyn(xs: List<&2, X.Sx>) -> Nat:
   match xs:
@@ -2609,9 +3162,6 @@ def fd.setp(ps: List<&2, T.BParam>, fl: List<&2, Bool>) -> List<&2, T.BParam>:
     case qs _:
       qs
 
-type Tf is Data:
-  Tf{n: List<&2, U32>, fl: List<&2, Bool>}
-
 def fd.tf.find(ts: List<&2, Tf>, +n: List<&2, U32>) -> Maybe<&2, List<&2, Bool>>:
   match ts:
     case Tf{+k, fl} <> t:
@@ -2734,15 +3284,15 @@ def fd.tpl.round(gs: List<&2, Got>, +tfs: List<&2, Tf>) -> List<&2, Got>:
     case Nil{}:
       Nil{}
 
-def fd.tpl.rounds(fuel: Nat, done: Bool, +gs: List<&2, Got>) -> List<&2, Got>:
+def fd.tpl.rounds(fuel: Nat, done: Bool, +gs: List<&2, Got>, +itfs: List<&2, Tf>) -> List<&2, Got>:
   match fuel done:
     case 0n _:
       gs
     case 1n+p True{}:
       gs
     case 1n+p False{}:
-      +g2 = fd.tpl.round(gs, fd.tfs(gs))
-      fd.tpl.rounds(p, S.eq(fd.tfs.key(fd.tfs(gs)), fd.tfs.key(fd.tfs(g2))), g2)
+      +g2 = fd.tpl.round(gs, List.append(&2, Tf, fd.tfs(gs), itfs))
+      fd.tpl.rounds(p, S.eq(fd.tfs.key(fd.tfs(gs)), fd.tfs.key(fd.tfs(g2))), g2, itfs)
 
 # a def whose template argument is a closure is out
 def fd.tpl.check(it: T.BItem) -> T.BItem:
@@ -2848,9 +3398,124 @@ def fd.tpl.fin(gs: List<&2, Got>, +tfs: List<&2, Tf>) -> List<&2, Got>:
     case Nil{}:
       Nil{}
 
-def fd.templates(+gs: List<&2, Got>) -> List<&2, Got>:
-  +g2 = fd.tpl.rounds(1n+List.length(&2, Got, gs), False{}, gs)
-  fd.tpl.fin(g2, fd.tfs(g2))
+# the flags settled (itfs: the package's defs', which are fixed)
+def fd.tpl.settle(+gs: List<&2, Got>, +itfs: List<&2, Tf>) -> List<&2, Got>:
+  fd.tpl.rounds(1n+List.length(&2, Got, gs), False{}, gs, itfs)
+
+def fd.templates(+gs: List<&2, Got>, +itfs: List<&2, Tf>) -> List<&2, Got>:
+  +g2 = fd.tpl.settle(gs, itfs)
+  fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), itfs))
+
+# Package mode: what a module gives the modules after it ----------------------
+
+def fd.akey(+alias: List<&2, U32>, +b: List<&2, U32>) -> List<&2, U32>:
+  fd.cat3(alias, S.b("."), b)
+
+def fd.iface.con(same: Bool, +c: List<&2, U32>, +t: List<&2, U32>, n: Nat, fs: List<&2, List<&2, U32>>, +m: List<&2, U32>, +alias: List<&2, U32>, acc: List<&2, Ix>) -> List<&2, Ix>:
+  match same:
+    case True{}:
+      IxCon{V.sv.key(m, c), fd.akey(alias, fd.cname(t, c)), n, fs} <> acc
+    case False{}:
+      acc
+
+# the constructors of the type t
+def fd.iface.cons(cs: List<&2, Ctr>, +t: List<&2, U32>, +m: List<&2, U32>, +alias: List<&2, U32>, acc: List<&2, Ix>) -> List<&2, Ix>:
+  match cs:
+    case Ctr{+c, +t2, n, fs} <> rest:
+      fd.iface.cons(rest, t, m, alias, fd.iface.con(S.eq(t, t2), c, t2, n, fs, m, alias, acc))
+    case Nil{}:
+      acc
+
+def fd.iface.def(in: Bool, +m: List<&2, U32>, +alias: List<&2, U32>, +n: List<&2, U32>, +bn: List<&2, U32>, +ds: List<&2, Df>, acc: List<&2, Ix>) -> List<&2, Ix>:
+  match in:
+    case True{}:
+      IxDef{V.sv.key(m, n), fd.akey(alias, bn), Maybe.default(&2, Nat, fd.df.find(ds, n), 1n)} <> acc
+    case False{}:
+      acc
+
+def fd.iface.ty(in: Bool, +m: List<&2, U32>, +alias: List<&2, U32>, +n: List<&2, U32>, +bn: List<&2, U32>, +cs: List<&2, Ctr>, acc: List<&2, Ix>) -> List<&2, Ix>:
+  match in:
+    case True{}:
+      IxTy{V.sv.key(m, n), fd.akey(alias, bn)} <> fd.iface.cons(cs, n, m, alias, acc)
+    case False{}:
+      acc
+
+# the defs (selectors among them) and types the gate kept, and the kept
+# types' constructors, by key
+def fd.iface(gs: List<&2, Got>, +m: List<&2, U32>, +alias: List<&2, U32>, +kept: List<&2, List<&2, U32>>, +cs: List<&2, Ctr>, +ds: List<&2, Df>) -> List<&2, Ix>:
+  match gs:
+    case GotDef{+n, T.BiDef{+bn, ps, r, b, d}} <> t:
+      fd.iface.def(S.mem(bn, kept), m, alias, n, bn, ds, fd.iface(t, m, alias, kept, cs, ds))
+    case GotDef{+n, T.BiType{+bn, ps, k, cs2, d}} <> t:
+      fd.iface.ty(S.mem(bn, kept), m, alias, n, bn, cs, fd.iface(t, m, alias, kept, cs, ds))
+    case _ <> t:
+      fd.iface(t, m, alias, kept, cs, ds)
+    case Nil{}:
+      Nil{}
+
+def fd.iface.syn(isyn: Bool, +x: X.Sx, +m: List<&2, U32>, acc: List<&2, Sy>) -> List<&2, Sy>:
+  match isyn:
+    case True{}:
+      Sy{V.sv.key(m, V.sv.str(x, 1n)), x} <> acc
+    case False{}:
+      acc
+
+# the module's synonyms, by key
+def fd.iface.syns(xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List<&2, Sy>:
+  match xs:
+    case +h <> t:
+      fd.iface.syn(V.sv.is(V.sv.hd(h), "synonym"), h, m, fd.iface.syns(t, m))
+    case Nil{}:
+      Nil{}
+
+def fd.iface.tf(in: Bool, +alias: List<&2, U32>, +n: List<&2, U32>, fl: List<&2, Bool>, acc: List<&2, Tf>) -> List<&2, Tf>:
+  match in:
+    case True{}:
+      Tf{fd.akey(alias, n), fl} <> acc
+    case False{}:
+      acc
+
+# the kept defs' template flags, by their names as the package writes them
+def fd.iface.tfs(ts: List<&2, Tf>, +alias: List<&2, U32>, +kept: List<&2, List<&2, U32>>) -> List<&2, Tf>:
+  match ts:
+    case Tf{+n, fl} <> t:
+      fd.iface.tf(S.mem(n, kept), alias, n, fl, fd.iface.tfs(t, alias, kept))
+    case Nil{}:
+      Nil{}
+
+def fd.its.names(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case h <> t:
+      fd.item.name(h) <> fd.its.names(t)
+    case Nil{}:
+      Nil{}
+
+def fd.files.if(wrote: Bool, +a: List<&2, U32>, fs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match wrote:
+    case True{}:
+      a <> fs
+    case False{}:
+      fs
+
+# the package after the module m (alias: its file's base name) kept the items kept
+def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>) -> Px:
+  match p:
+    case Px{h, f, i, s, t}:
+      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t)}
+
+# in package mode, the package after the module; a module alone gives nothing
+def fd.px.next(pkg: Bool, +p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, +xs: List<&2, X.Sx>, +gs: List<&2, Got>, +tfs: List<&2, Tf>, +cs: List<&2, Ctr>, +ds: List<&2, Df>, +kept: List<&2, T.BItem>) -> Px:
+  match pkg:
+    case True{}:
+      +names = fd.its.names(kept)
+      fd.px.add(p, m, alias, fd.wrote(True{}, kept), fd.iface(gs, m, alias, names, cs, ds), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names))
+    case False{}:
+      p
+
+def fd.gs.its(g: Gs) -> List<&2, T.BItem>:
+  match g:
+    case Gs{k, o, d}:
+      k
 
 # the items that use a binding that is out go too, before the first check
 def fd.predrop(+its: List<&2, T.BItem>, +outs: List<&2, Dr>) -> Gs:
@@ -2858,18 +3523,25 @@ def fd.predrop(+its: List<&2, T.BItem>, +outs: List<&2, Dr>) -> Gs:
   Gs{Split.keep(s), Split.out(s), List.is_empty(&2, T.BItem, Split.keep(s))}
 
 # a module: fold its bindings, gate them, write OUT/BASE.bend and the ledger
-def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>) -> IO(Unit):
+# a module of a package (px: what the modules before it gave, fd.px0() for
+# a module alone); the package after it
+def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: Px) -> IO(Px):
   +xs = X.tsx.read(bytes)
   +m = V.sv.modname(xs)
   +tbs = fd.tbs(xs)
-  +env = fd.syns(fd.nsyn(xs), xs, fd.env0(m, fd.ctrs(xs), fd.dfs(tbs)))
-  +gs = fd.templates(List.append(&2, Got, fd.datas(xs, env), fd.gots(tbs, fd.ok(xs), env)))
+  +cs = fd.ctrs(xs)
+  +ds = fd.dfs(tbs)
+  +env = fd.syns(Nat.add(fd.nsyn(xs), List.length(&2, Sy, fd.px.sy(px))), xs, fd.env0(m, cs, ds, px))
+  +g2 = fd.tpl.settle(fd.allgots(xs, tbs, env), fd.px.tfs(px))
+  +gs = fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), fd.px.tfs(px)))
   +its = fd.got.items(gs)
+  +ims = fd.px.files(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
-  do IO<Unit>:
-    g : Gs <- fd.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), 1n+List.length(&2, T.BItem, its), rounds), fd.predrop(its, fd.got.outs(gs)), bend, try, file, m)
-    fd.module.fin(out, file, m, path, g)
+  do IO<Px>:
+    +g : Gs <- fd.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), 1n+List.length(&2, T.BItem, its), rounds), fd.predrop(its, fd.got.outs(gs)), bend, try, file, m, ims)
+    fd.module.fin(out, file, m, ims, path, pkg, g)
+    return fd.px.next(pkg, px, m, base, xs, gs, fd.tfs(g2), cs, ds, fd.gs.its(g))
 
 def fd.base.strip(r: List<&2, U32>) -> List<&2, U32>:
   match r:
@@ -2882,22 +3554,40 @@ def fd.base.strip(r: List<&2, U32>) -> List<&2, U32>:
 def fd.base(+f: List<&2, U32>) -> List<&2, U32>:
   fd.base.strip(List.reverse(&2, U32, Maybe.default(&2, List<&2, U32>, List.last(&2, List<&2, U32>, S.split(f, 47)), f)))
 
-def fd.run(xs: List<String>, +rounds: Nat, +bend: String, +out: String) -> IO(Unit):
+def fd.run(xs: List<String>, +rounds: Nat, +bend: String, +out: String, +pkg: Bool, +px: Px) -> IO(Unit):
   match xs:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        fd.module(rounds, bend, out, S.b(f), fd.base(S.b(f)), bytes)
-        fd.run(t, rounds, bend, out)
+        +p2 : Px <- fd.module(rounds, bend, out, S.b(f), fd.base(S.b(f)), bytes, pkg, px)
+        fd.run(t, rounds, bend, out, pkg, p2)
 
-def fd.main(args: List<String>, +rounds: Nat, +bend: String) -> IO(Unit):
+def fd.main.go(pkg: Bool, args: List<String>, +rounds: Nat, +bend: String) -> IO(Unit):
   match args:
     case out <> files:
-      fd.run(files, rounds, bend, out)
+      fd.run(files, rounds, bend, out, pkg, fd.px0())
     case Nil{}:
-      IO.print("usage: fold OUT FILE.sexp...  (BEND: the bend to check with)")
+      IO.print("usage: fold [--package] OUT FILE.sexp...  (BEND: the bend to check with)")
+
+def fd.main.pkg(pkg: Bool, a: String, rest: List<String>, +rounds: Nat, +bend: String) -> IO(Unit):
+  match pkg:
+    case True{}:
+      fd.main.go(True{}, rest, rounds, bend)
+    case False{}:
+      fd.main.go(False{}, a <> rest, rounds, bend)
+
+# `fold OUT FILE...` folds each module alone; `fold --package OUT FILE...`
+# folds one package's modules in dependency order (hs-export --package's
+# modules.txt): each may use what the ones before it kept, and imports
+# their files
+def fd.main(args: List<String>, +rounds: Nat, +bend: String) -> IO(Unit):
+  match args:
+    case +a <> rest:
+      fd.main.pkg(S.eq(S.b(a), S.b("--package")), a, rest, rounds, bend)
+    case Nil{}:
+      fd.main.go(False{}, Nil{}, rounds, bend)
 
 def main() -> IO(Unit):
   do IO<Unit>:

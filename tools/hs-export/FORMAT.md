@@ -8,10 +8,18 @@ names whatever it does not export as `(unsupported "Constructor")`, so the
 Bend side can ledger it. This file is the contract between the two programs.
 
     hs-export OUT.sexp FILE.hs
+    hs-export --package OUTDIR ARGS
 
-The module may import only GHC's own packages (`base` and the other boot
-packages). A module GHC rejects is written as its header and one
-`(error "GHC's message")`.
+The first form type-checks one module, which may import only GHC's own
+packages (`base` and the other boot packages). The second type-checks a
+package's modules together: ARGS is a file of GHC flags, one per line (a
+package's `-i`, `-X` and `-package-db`), a line `--`, then the modules'
+files, one per line. GHC loads them all (no code), then each is exported
+as the first form exports one, to `OUTDIR/M_N.sexp` for module `M.N` (a
+Bend module path is plain names), and `OUTDIR/modules.txt` lists those
+files in dependency order, each after every module of the package it
+imports. A module GHC rejects, or one that imports a rejected one, is
+written as its header and one `(error "GHC's message")`.
 
 ## Lexical syntax
 

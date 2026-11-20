@@ -226,3 +226,111 @@ What the laws do not cover yet: functions taking functions (128; a
 fixed set of small closed functions as inputs is the next rule), Float
 (no inputs; F32 answers are not compared), and more than one shape of
 input for the module's recursive types (two constructors deep).
+
+### Records, and one gate (2026-11-19, later)
+
+Records are built and taken apart (`reccon`, record patterns, each field's
+selector a def of the type's module), and a law whose answer has a run of
+5 or more digits is left out (Bend's checker overflows past about 10000n).
+Then the gate runs once per module: GHC's answers come first, for every
+def the fold wrote, and the defs and their laws are checked together; a
+def Bend refuses goes with its laws and with what uses it, a law Bend
+refuses takes its def out (`law:`). Only when that one gate keeps no def
+while there were laws (Bend died, so no item was to blame) are the defs
+gated again alone, with `nolaw:law-gate-failed`.
+
+The gate's closure had a bug: what a dropped item "defines" was its
+binders (`T.tba.item.names`: a def's parameters, a type's fields), not
+its name and constructors. So dropping `runReader(x)` dropped every item
+naming an `x` (00297's `x.ex1`), and kept the items calling `runReader`,
+which Bend then refused one round at a time. Now `fd.item.defs`.
+
+hs1003, all 643 modules (run/law7, 6 processes, 53 s; run/law4, the two
+gates, took 72 s):
+
+| | defs |
+|---|---|
+| check, and every example law holds (`ok-law`) | 1,360 (4,781 laws) |
+| check, no law (`ok-check`): a function argument | 128 |
+| ... a Float argument or result | 44 |
+| ... GHC gave no answer in 2 s | 16 |
+| ... no input | 13 |
+| ... the one gate lost every def | 1 |
+| types | 558 |
+| out | 3,224 |
+
+The same verdicts as the two gates (run/law4), row for row; 135 reasons
+now say `dep:NAME` where they said Bend's `check:` error on the name the
+closure had missed. `bend --check-only` runs 510 times (950 before; 0.13 s
+of each is Base), GHC 340.
+
+## Packages: telomare master (2026-11-19)
+
+The user: "try passing telomare (master) through cata. Since we already
+have a bend version of telomare's master, you can compare and improve
+cata. Also improve cata's speed."
+
+`hs-export --package` loads the library's 28 modules (telomare master
+0058cf46, `src/`, Haskell2010, the flake's `.#ghc-telomare` package db)
+in 4 s and writes each module and `modules.txt` in dependency order.
+`survey`, `fold` and `law --package` then read the modules in that order:
+a name, constructor, selector, type or synonym of an earlier module of
+the package is in when that module kept it (`import:M.NAME` when not),
+and is written with that module's file as alias, `Telomare_IR_Loc.x`,
+the file imported (`import ./Telomare_IR_Loc.bend as Telomare_IR_Loc`)
+when the text names it. A module's file is written in a package when it
+keeps any item, types alone too. Its synonyms are folded again in each
+module that uses them; its defs' template flags are fixed for callers.
+
+| telomare library (607 bindings) | functions | types | out |
+|---|---|---|---|
+| each module alone | 65 (54 with laws) | 41 | 798 |
+| as a package (run/telomare/law-pk2, 41 s) | 82 (55 with laws) | 67 | 755 |
+
+What it keeps is the leaves: record selectors, constants, small
+functions on Loc and Error's records (Loc: `SourcePosition`, `SourceSpan`,
+`LocTag`, `LocatedName` and their selectors check, laws from GHC). The
+survey puts 562 of the 607 out, and 525 of those for more than one kind
+of reason, so no single rule frees many:
+
+| kind of reason (a binding counts once per kind) | bindings |
+|---|---|
+| calls or imports one that is out | 451 |
+| a type outside v1 (EALError's Digest, IR.Base's Fix-built ones, ...) | 363 |
+| a monad: ExceptT 232, ParsecT 110, Either 64, StateT 46, Maybe 27, do 146 | 353 |
+| a Base function v1 lacks | 207 |
+| recursion schemes: Fix, Cofree, Base, `~`, Recursive/Corecursive | 200 |
+| Data.Map, Set, IntMap | 137 |
+| pattern synonyms (BasicEE, PairB, ... over Fix) | 131 |
+| user classes (BasicBase, StuckBase, PrettyPrintable, ...) | 108 |
+
+The names most out-of-package users wait on: EALError (70: a Digest
+field), StuckBase and BasicBase (55 each: classes over the base functors),
+CompiledExpr (50), ExpandedSurfaceTerm (48), PrettyPrintable (42),
+BasicExpr (41: `Fix BasicExprF`).
+
+The bend branch's port (`bend/`, 62k lines, written by hand and by
+agents, so never inside cata: rule 1) does what these rules would have to:
+Fix and its base functor fused into one recursive type (`type V is Data:
+VZero{} VPair{a, b} ...`), state passed and returned explicitly, Int as
+U32, String as Bend's String, records with named fields. What cata
+writes where both have the def (Loc's records, selectors, constants) is
+the same shape with Nat for Int and `List<&2, Char>` for String.
+
+The rules telomare needs, in the order that would free the most: (1) Fix
+fused with a base functor of the package into one recursive type, with
+`cata`/`embed`/`project` as generated defs, and pattern synonyms that
+only build or match constructors inlined; (2) monads: Maybe and Either by
+`match` (or Base's `Maybe.bind` on a computed value), State as a state
+passed in and returned; (3) class-polymorphic functions monomorphised at
+the package's instances; (4) Data.Map with String keys as Base's Map.
+
+Speed, measured with the `bend` and `ghc` calls timed (hs1003): of 331 s
+of CPU, `bend --check-only` was 199 s and GHC 132 s; Survey's two
+fixpoints (`sv.reach`, `sv.ok.fix`) ran their full fuel (number of
+bindings) every time and now stop when a step changes nothing (survey of
+telomare 18.3 s to 12.3 s, EAL alone 4.0 s to 1.2 s, the same output).
+What is left of cata's own time is mostly reading the exports (about
+0.9 s per MB with ToBend/Sexp.bend). In a package, GHC's
+`-fobject-code -outputdir DIR` compiles the imports once and `*SRC` keeps
+the module interpreted (EAL's laws: 3.1 s, then 1.7 s with the cache).

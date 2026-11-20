@@ -260,25 +260,49 @@ def sv.info.if(b: Bool, r: Rs, +w: List<&2, U32>) -> Rs:
     case False{}:
       r
 
-# The module being read: its name, the tables, and its own types and
-# classes the first version cannot take (bad).
+# What the modules of a package before this one gave (package mode): the
+# package's modules so far, and the key M.NAME of each binding,
+# constructor, type and synonym of theirs that is in.  Outside a package
+# both are empty: a module stands alone.
+type Imp is Data:
+  Imp{home: List<&2, List<&2, U32>>, ok: List<&2, List<&2, U32>>}
+
+def sv.imp0() -> Imp:
+  Imp{Nil{}, Nil{}}
+
+# The module being read: its name, the tables, its own types and classes
+# the first version cannot take (bad), and what its package gave before it.
 type Env is Data:
-  Env{mod: List<&2, U32>, tb: Tb, bad: List<&2, List<&2, U32>>}
+  Env{mod: List<&2, U32>, tb: Tb, bad: List<&2, List<&2, U32>>, imp: Imp}
 
 def sv.mod(+e: Env) -> List<&2, U32>:
   match e:
-    case Env{m, t, b}:
+    case Env{m, t, b, i}:
       m
 
 def sv.tbl(+e: Env) -> Tb:
   match e:
-    case Env{m, t, b}:
+    case Env{m, t, b, i}:
       t
 
 def sv.bad(+e: Env) -> List<&2, List<&2, U32>>:
   match e:
-    case Env{m, t, b}:
+    case Env{m, t, b, i}:
       b
+
+def sv.home(+e: Env) -> List<&2, List<&2, U32>>:
+  match e:
+    case Env{m, t, b, Imp{h, o}}:
+      h
+
+def sv.imp.ok(+e: Env) -> List<&2, List<&2, U32>>:
+  match e:
+    case Env{m, t, b, Imp{h, o}}:
+      o
+
+# M.NAME
+def sv.key(+m: List<&2, U32>, +n: List<&2, U32>) -> List<&2, U32>:
+  sv.cat3(m, S.b("."), n)
 
 # Names --------------------------------------------------------------------
 
@@ -339,16 +363,39 @@ def sv.other.k(+k: List<&2, U32>, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
 def sv.other(+kind: X.Sx, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
   sv.other.k(X.tsx.atom.of(kind), n, e, r)
 
-def sv.global.if(own: Bool, +kind: X.Sx, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
-  match own:
+def sv.imported.if(ok: Bool, +key: List<&2, U32>, r: Rs) -> Rs:
+  match ok:
     case True{}:
-      sv.own(kind, n, r)
+      r
     case False{}:
+      sv.why(r, sv.cat(S.b("import:"), key))
+
+def sv.imported.k(named: Bool, +kind: X.Sx, +m: List<&2, U32>, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
+  match named:
+    case True{}:
+      sv.imported.if(S.mem(sv.key(m, n), sv.imp.ok(e)), sv.key(m, n), r)
+    case False{}:
+      sv.other(kind, n, e, r)
+
+# a binding, constructor or selector of an earlier module of the package:
+# in when that module kept it
+def sv.imported(+kind: X.Sx, +m: List<&2, U32>, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
+  +k = X.tsx.atom.of(kind)
+  sv.imported.k(Bool.or(sv.is(k, "var"), Bool.or(sv.is(k, "con"), sv.is(k, "sel"))), kind, m, n, e, r)
+
+def sv.global.if(own: Bool, home: Bool, +kind: X.Sx, +m: List<&2, U32>, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
+  match own home:
+    case True{} _:
+      sv.own(kind, n, r)
+    case False{} True{}:
+      sv.imported(kind, m, n, e, r)
+    case False{} False{}:
       sv.other(kind, n, e, r)
 
 # (g MOD NAME KIND)
 def sv.global(+x: X.Sx, +e: Env, r: Rs) -> Rs:
-  sv.global.if(S.eq(sv.str(x, 1n), sv.mod(e)), sv.at(x, 3n), sv.str(x, 2n), e, r)
+  +m = sv.str(x, 1n)
+  sv.global.if(S.eq(m, sv.mod(e)), S.mem(m, sv.home(e)), sv.at(x, 3n), m, sv.str(x, 2n), e, r)
 
 # Types --------------------------------------------------------------------
 
@@ -440,16 +487,19 @@ def sv.tycon.why.io(io: Bool, +n: List<&2, U32>) -> List<&2, U32>:
     case False{}:
       sv.cat(S.b("type:"), n)
 
-def sv.tycon.if(own: Bool, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
-  match own:
-    case True{}:
+def sv.tycon.if(own: Bool, home: Bool, +m: List<&2, U32>, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
+  match own home:
+    case True{} _:
       sv.why.if(S.mem(n, sv.bad(e)), r, sv.cat(S.b("type:"), n))
-    case False{}:
+    case False{} True{}:
+      sv.why.if(Bool.not(S.mem(sv.key(m, n), sv.imp.ok(e))), r, sv.cat(S.b("import:"), sv.key(m, n)))
+    case False{} False{}:
       sv.why.if(Bool.not(Bool.or(S.mem(n, sv.okt(sv.tbl(e))), S.mem(n, sv.cls(sv.tbl(e))))), r, sv.tycon.why.io(sv.is(n, "IO"), n))
 
 # (tc MOD NAME ARG...)
 def sv.tycon(+x: X.Sx, +e: Env, r: Rs) -> Rs:
-  sv.tycon.if(S.eq(sv.str(x, 1n), sv.mod(e)), sv.str(x, 2n), e, r)
+  +m = sv.str(x, 1n)
+  sv.tycon.if(S.eq(m, sv.mod(e)), S.mem(m, sv.home(e)), m, sv.str(x, 2n), e, r)
 
 def sv.ctx.if(eqord: Bool, +n: List<&2, U32>, r: Rs) -> Rs:
   match eqord:
@@ -1164,13 +1214,17 @@ def sv.step(ns: List<&2, List<&2, U32>>, +fs: List<&2, Fn>) -> List<&2, List<&2,
     case Nil{}:
       Nil{}
 
-# every name reachable from ns in at most fuel steps
-def sv.reach(fuel: Nat, +ns: List<&2, List<&2, U32>>, +fs: List<&2, Fn>) -> List<&2, List<&2, U32>>:
-  match fuel:
-    case 0n:
+# every name reachable from ns in at most fuel steps (done once a step
+# reaches nothing new)
+def sv.reach(fuel: Nat, done: Bool, +ns: List<&2, List<&2, U32>>, +fs: List<&2, Fn>) -> List<&2, List<&2, U32>>:
+  match fuel done:
+    case 0n _:
       ns
-    case 1n+p:
-      sv.reach(p, sv.union(sv.step(ns, fs), ns), fs)
+    case 1n+p True{}:
+      ns
+    case 1n+p False{}:
+      +n2 = sv.union(sv.step(ns, fs), ns)
+      sv.reach(p, Nat.is_eq(List.length(&2, List<&2, U32>, n2), List.length(&2, List<&2, U32>, ns)), n2, fs)
 
 def sv.missing.if(miss: Bool, +h: List<&2, U32>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   match miss:
@@ -1210,12 +1264,16 @@ def sv.ok.step(fs: List<&2, Fn>, +ok: List<&2, List<&2, U32>>, +all: List<&2, Li
     case Nil{}:
       Nil{}
 
-def sv.ok.fix(fuel: Nat, +fs: List<&2, Fn>, +ok: List<&2, List<&2, U32>>, +all: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match fuel:
-    case 0n:
+# the fixpoint of sv.ok.step from ok (done once a step takes nothing out)
+def sv.ok.fix(fuel: Nat, done: Bool, +fs: List<&2, Fn>, +ok: List<&2, List<&2, U32>>, +all: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match fuel done:
+    case 0n _:
       ok
-    case 1n+p:
-      sv.ok.fix(p, fs, sv.ok.step(fs, ok, all), all)
+    case 1n+p True{}:
+      ok
+    case 1n+p False{}:
+      +o2 = sv.ok.step(fs, ok, all)
+      sv.ok.fix(p, Nat.is_eq(List.length(&2, List<&2, U32>, o2), List.length(&2, List<&2, U32>, ok)), fs, o2, all)
 
 def sv.mutual.if(mut: Bool, r: Rs) -> Rs:
   match mut:
@@ -1228,7 +1286,7 @@ def sv.mutual.if(mut: Bool, r: Rs) -> Rs:
 def sv.mutuals(xs: List<&2, Fn>, +fs: List<&2, Fn>) -> List<&2, Fn>:
   match xs:
     case Fn{+n, k, Rs{w, i, c}} <> t:
-      Fn{n, k, sv.mutual.if(S.mem(n, sv.reach(List.length(&2, Fn, fs), sv.fns.calls(fs, n), fs)), Rs{w, i, c})} <> sv.mutuals(t, fs)
+      Fn{n, k, sv.mutual.if(S.mem(n, sv.reach(List.length(&2, Fn, fs), False{}, sv.fns.calls(fs, n), fs)), Rs{w, i, c})} <> sv.mutuals(t, fs)
     case Nil{}:
       Nil{}
 
@@ -1302,43 +1360,149 @@ def sv.modname.go(xs: List<&2, X.Sx>, hit: Bool) -> List<&2, U32>:
 def sv.modname(+xs: List<&2, X.Sx>) -> List<&2, U32>:
   sv.modname.go(xs, sv.modname.hit(xs))
 
-def sv.module.ok(+file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb) -> List<&2, U32>:
+# Package mode ---------------------------------------------------------------
+
+# M.N for each N of ns, onto acc
+def sv.keys(+m: List<&2, U32>, ns: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case h <> t:
+      sv.keys(m, t, sv.key(m, h) <> acc)
+    case Nil{}:
+      acc
+
+# the names of a constructor's fields: (FIELD...), each a string
+def sv.field.names(fs: X.Sx, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match fs:
+    case X.SxCons{X.SxStr{f}, t}:
+      sv.field.names(t, f <> acc)
+    case X.SxCons{f, t}:
+      sv.field.names(t, acc)
+    case _:
+      acc
+
+# the names of constructors and their fields: ((con NAME (FIELD...) ...)...)
+def sv.con.names(cs: X.Sx, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match cs:
+    case X.SxCons{+c, t}:
+      sv.con.names(t, sv.str(c, 1n) <> sv.field.names(sv.at(c, 2n), acc))
+    case _:
+      acc
+
+def sv.ty.names.in(out: Bool, isdata: Bool, +x: X.Sx, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match out isdata:
+    case True{} _:
+      acc
+    case False{} True{}:
+      sv.str(x, 1n) <> sv.con.names(sv.at(x, 3n), acc)
+    case False{} False{}:
+      sv.str(x, 1n) <> acc
+
+def sv.ty.names.if(isty: Bool, isdata: Bool, +x: X.Sx, +bad: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match isty:
+    case True{}:
+      sv.ty.names.in(S.mem(sv.str(x, 1n), bad), isdata, x, acc)
+    case False{}:
+      acc
+
+# the module's types, synonyms, constructors and fields that are in (a
+# type not in bad), onto acc
+def sv.ty.names(xs: List<&2, X.Sx>, +bad: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case +h <> t:
+      +hd = sv.hd(h)
+      +dat = Bool.or(sv.is(hd, "data"), sv.is(hd, "newtype"))
+      sv.ty.names(t, bad, sv.ty.names.if(Bool.or(dat, sv.is(hd, "synonym")), dat, h, bad, acc))
+    case Nil{}:
+      acc
+
+# a module's names, as keys, added to what the package gave
+def sv.imp.add(i: Imp, +m: List<&2, U32>, ns: List<&2, List<&2, U32>>) -> Imp:
+  match i:
+    case Imp{h, o}:
+      Imp{m <> h, sv.keys(m, ns, o)}
+
+# A module's lines, and what the package has after it
+type Sv is Data:
+  Sv{lines: List<&2, U32>, imp: Imp}
+
+def sv.sv.lines(s: Sv) -> List<&2, U32>:
+  match s:
+    case Sv{l, i}:
+      l
+
+def sv.sv.imp(s: Sv) -> Imp:
+  match s:
+    case Sv{l, i}:
+      i
+
+def sv.module.both(+file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb, +imp: Imp) -> Sv:
   +m = sv.modname(xs)
-  +bad = sv.tys(xs, Env{m, tb, Nil{}}, Nil{})
-  +fs0 = sv.tops(xs, Env{m, tb, bad}, Nil{})
+  +bad = sv.tys(xs, Env{m, tb, Nil{}, imp}, Nil{})
+  +fs0 = sv.tops(xs, Env{m, tb, bad, imp}, Nil{})
   fs = sv.mutuals(List.reverse(&2, Fn, fs0), fs0)
   +all = sv.names(fs0)
-  ok = sv.ok.fix(1n+List.length(&2, Fn, fs0), fs0, all, all)
-  sv.lines(fs, file, ok, all)
+  +ok = sv.ok.fix(1n+List.length(&2, Fn, fs0), False{}, fs0, all, all)
+  Sv{sv.lines(fs, file, ok, all), sv.imp.add(imp, m, List.append(&2, List<&2, U32>, ok, sv.ty.names(xs, bad, Nil{})))}
 
-def sv.module.if(err: Bool, +file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb) -> List<&2, U32>:
+def sv.module.ok(+file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb) -> List<&2, U32>:
+  sv.sv.lines(sv.module.both(file, xs, tb, sv.imp0()))
+
+def sv.module.if(err: Bool, +file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb, +imp: Imp) -> Sv:
   match err:
     case True{}:
-      List.append(&2, U32, S.join(file <> S.b("*module*") <> S.b("module") <> S.b("no") <> S.b("ghc-error") <> Nil{} <> Nil{}, 9), 9 <> 10 <> Nil{})
+      Sv{List.append(&2, U32, S.join(file <> S.b("*module*") <> S.b("module") <> S.b("no") <> S.b("ghc-error") <> Nil{} <> Nil{}, 9), 9 <> 10 <> Nil{}), sv.imp.add(imp, sv.modname(xs), Nil{})}
     case False{}:
-      sv.module.ok(file, xs, tb)
+      sv.module.both(file, xs, tb, imp)
 
-# a module's lines, from its export's bytes
-def sv.module(+file: List<&2, U32>, bytes: List<&2, U32>, +tb: Tb) -> List<&2, U32>:
+# a module's lines, from its export's bytes, and what its package has after
+# it (imp: what the package had before; sv.imp0() for a module alone)
+def sv.module(+file: List<&2, U32>, bytes: List<&2, U32>, +tb: Tb, +imp: Imp) -> Sv:
   +xs = X.tsx.read(bytes)
-  sv.module.if(sv.err(xs), file, xs, tb)
+  sv.module.if(sv.err(xs), file, xs, tb, imp)
 
-def sv.run(xs: List<String>, +out: String, +tb: Tb) -> IO(Unit):
+# a module's package: what the modules before it gave, in package mode
+def sv.next(pkg: Bool, +s: Sv) -> Imp:
+  match pkg:
+    case True{}:
+      sv.sv.imp(s)
+    case False{}:
+      sv.imp0()
+
+def sv.run(xs: List<String>, +out: String, +tb: Tb, +pkg: Bool, +imp: Imp) -> IO(Unit):
   match xs:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        S.add(out, sv.module(S.b(f), bytes, tb))
-        sv.run(t, out, tb)
+        +s : Sv <- IO.pure(Sv, sv.module(S.b(f), bytes, tb, imp))
+        S.add(out, sv.sv.lines(s))
+        sv.run(t, out, tb, pkg, sv.next(pkg, s))
+
+# `survey OUT FILE...` judges each module alone; `survey --package OUT
+# FILE...` reads the files as one package's modules in dependency order
+# (hs-export --package's modules.txt), each seeing what the ones before it
+# have in
+def sv.main.go(pkg: Bool, args: List<String>) -> IO(Unit):
+  match args:
+    case out <> files:
+      sv.run(files, out, sv.tb(), pkg, sv.imp0())
+    case Nil{}:
+      IO.print("usage: survey [--package] OUT FILE.sexp...")
+
+def sv.main.pkg(pkg: Bool, a: String, rest: List<String>) -> IO(Unit):
+  match pkg:
+    case True{}:
+      sv.main.go(True{}, rest)
+    case False{}:
+      sv.main.go(False{}, a <> rest)
 
 def sv.main(args: List<String>) -> IO(Unit):
   match args:
-    case out <> files:
-      sv.run(files, out, sv.tb())
+    case +a <> rest:
+      sv.main.pkg(S.eq(S.b(a), S.b("--package")), a, rest)
     case Nil{}:
-      IO.print("usage: survey OUT FILE.sexp...")
+      sv.main.go(False{}, Nil{})
 
 def main() -> IO(Unit):
   do IO<Unit>:
