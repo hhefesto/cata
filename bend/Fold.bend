@@ -266,6 +266,7 @@ type Tk is Data:
   TkIdentity{}
   TkExceptT{}
   TkMap{}
+  TkEmpty{}
   TkSet{}
   TkIntMap{}
   TkIntSet{}
@@ -275,7 +276,7 @@ type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -615,6 +616,8 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
       fd.ty.exceptt(args)
     case TkMap{}:
       fd.ty.map(args)
+    case TkEmpty{}:
+      fd.ty0("Empty")
     case TkSet{}:
       fd.ty.set(args)
     case TkIntMap{}:
@@ -1099,6 +1102,7 @@ type Bf is Data:
   BfMapM{}
   BfFoldM{}
   BfDm{d: String, r: String, p: String, nt: Nat, n: Nat}
+  BfAbsurd{}
   BfNone{}
 
 type BfE is Data:
@@ -1151,7 +1155,7 @@ def fd.dm.tab.set(xs: List<&2, DmS>) -> List<&2, BfE>:
 
 
 def fd.bftab0() -> List<&2, BfE>:
-  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}, BfE{"GHC.Internal.Base.<*>", BfAp{}}, BfE{"Control.Monad.State.Class.get", BfGet{}}, BfE{"Control.Monad.State.Class.put", BfPut{}}, BfE{"Control.Monad.State.Class.modify", BfModify{}}, BfE{"Control.Monad.State.Class.modify'", BfModify{}}, BfE{"Control.Monad.State.Class.gets", BfGets{}}, BfE{"Control.Monad.Trans.State.Lazy.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Strict.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Lazy.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Strict.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Lazy.runState", BfRun{}}, BfE{"Control.Monad.Trans.State.Strict.runState", BfRun{}}, BfE{"Control.Monad.Error.Class.throwError", BfThrow{}}, BfE{"Control.Monad.Trans.Except.runExceptT", BfRunExc{}}, BfE{"GHC.Internal.Base.when", BfWhen{}}, BfE{"GHC.Internal.Control.Monad.unless", BfUnless{}}, BfE{"GHC.Internal.Data.Functor.void", BfVoid{}}, BfE{"GHC.Internal.Base.=<<", BfBindR{}}, BfE{"GHC.Internal.Base.*>", BfThen{}}, BfE{"GHC.Internal.Data.Foldable.forM_", BfForM_{}}, BfE{"GHC.Internal.Data.Foldable.mapM_", BfMapM_{}}, BfE{"GHC.Internal.Data.Traversable.forM", BfForM{}}, BfE{"GHC.Internal.Data.Traversable.mapM", BfMapM{}}, BfE{"GHC.Internal.Data.Traversable.traverse", BfMapM{}}, BfE{"GHC.Internal.Control.Monad.foldM", BfFoldM{}}]
+  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}, BfE{"GHC.Internal.Base.<*>", BfAp{}}, BfE{"Control.Monad.State.Class.get", BfGet{}}, BfE{"Control.Monad.State.Class.put", BfPut{}}, BfE{"Control.Monad.State.Class.modify", BfModify{}}, BfE{"Control.Monad.State.Class.modify'", BfModify{}}, BfE{"Control.Monad.State.Class.gets", BfGets{}}, BfE{"Control.Monad.Trans.State.Lazy.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Strict.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Lazy.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Strict.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Lazy.runState", BfRun{}}, BfE{"Control.Monad.Trans.State.Strict.runState", BfRun{}}, BfE{"Control.Monad.Error.Class.throwError", BfThrow{}}, BfE{"Control.Monad.Trans.Except.runExceptT", BfRunExc{}}, BfE{"GHC.Internal.Base.when", BfWhen{}}, BfE{"GHC.Internal.Control.Monad.unless", BfUnless{}}, BfE{"GHC.Internal.Data.Functor.void", BfVoid{}}, BfE{"GHC.Internal.Base.=<<", BfBindR{}}, BfE{"GHC.Internal.Base.*>", BfThen{}}, BfE{"GHC.Internal.Data.Foldable.forM_", BfForM_{}}, BfE{"GHC.Internal.Data.Foldable.mapM_", BfMapM_{}}, BfE{"GHC.Internal.Data.Traversable.forM", BfForM{}}, BfE{"GHC.Internal.Data.Traversable.mapM", BfMapM{}}, BfE{"GHC.Internal.Data.Traversable.traverse", BfMapM{}}, BfE{"GHC.Internal.Control.Monad.foldM", BfFoldM{}}, BfE{"GHC.Internal.Base.absurd", BfAbsurd{}}]
 
 def fd.bftab() -> List<&2, BfE>:
   List.concat(&2, BfE, [fd.bftab0(), fd.dm.tab.map(fd.dm.specs.maps()), fd.dm.tab.set(fd.dm.specs.sets()), [BfE{"Data.Set.Internal.map", BfDm{"HsSet.map", "LK", "KLd", 1n, 2n}}]])
@@ -1218,6 +1222,8 @@ def fd.bf.n(f: Bf) -> Nat:
       3n
     case BfDm{d, r, p, nt, n}:
       n
+    case BfAbsurd{}:
+      1n
     case BfMaybe{}:
       3n
     case BfEither{}:
@@ -1314,12 +1320,12 @@ def fd.eq.var(+v: List<&2, U32>, +vs: List<&2, List<&2, U32>>) -> T.Bt:
 
 # a == b at a type named n, its arguments ts, == at them fs
 def fd.eqcall.app(+n: List<&2, U32>, +ts: List<&2, T.Bt>, +fs: List<&2, T.Bt>, +a: T.Bt, +b: T.Bt) -> T.Bt:
-  Bool.pick(T.Bt, fd.eq.prim(n), T.tba.call(T.BtVar{fd.cat(n, S.b(".is_eq"))}, [a, b]), Bool.pick(T.Bt, fd.is(n, "Bool"), fd.callS("Bool.not", [fd.callS("Bool.xor", [a, b])]), Bool.pick(T.Bt, fd.eq.bad(n), fd.todo("fold:eq-at-type"), T.tba.call(T.BtVar{fd.eq.name(n)}, List.append(&2, T.Bt, fd.tpls(ts), List.append(&2, T.Bt, fd.tpls(fs), [a, b]))))))
+  Bool.pick(T.Bt, fd.is(n, "Empty"), fd.con0("True"), Bool.pick(T.Bt, fd.eq.prim(n), T.tba.call(T.BtVar{fd.cat(n, S.b(".is_eq"))}, [a, b]), Bool.pick(T.Bt, fd.is(n, "Bool"), fd.callS("Bool.not", [fd.callS("Bool.xor", [a, b])]), Bool.pick(T.Bt, fd.eq.bad(n), fd.todo("fold:eq-at-type"), T.tba.call(T.BtVar{fd.eq.name(n)}, List.append(&2, T.Bt, fd.tpls(ts), List.append(&2, T.Bt, fd.tpls(fs), [a, b])))))))
 
 # == at a type named n without arguments, as a function: a def's name (so
 # a recursive T.eq passes its own template arguments on), at Bool a lambda
 def fd.eq.fn0(+n: List<&2, U32>) -> T.Bt:
-  Bool.pick(T.Bt, fd.eq.prim(n), T.BtVar{fd.cat(n, S.b(".is_eq"))}, Bool.pick(T.Bt, fd.is(n, "Bool"), T.BtLam{T.BmLive{}, S.b("p_"), T.BtLam{T.BmLive{}, S.b("q_"), fd.callS("Bool.not", [fd.callS("Bool.xor", [fd.v("p_"), fd.v("q_")])])}}, Bool.pick(T.Bt, fd.eq.bad(n), fd.todo("fold:eq-at-type"), T.BtVar{fd.eq.name(n)})))
+  Bool.pick(T.Bt, fd.is(n, "Empty"), T.BtLam{T.BmLive{}, S.b("p_"), T.BtLam{T.BmLive{}, S.b("q_"), fd.con0("True")}}, Bool.pick(T.Bt, fd.eq.prim(n), T.BtVar{fd.cat(n, S.b(".is_eq"))}, Bool.pick(T.Bt, fd.is(n, "Bool"), T.BtLam{T.BmLive{}, S.b("p_"), T.BtLam{T.BmLive{}, S.b("q_"), fd.callS("Bool.not", [fd.callS("Bool.xor", [fd.v("p_"), fd.v("q_")])])}}, Bool.pick(T.Bt, fd.eq.bad(n), fd.todo("fold:eq-at-type"), T.BtVar{fd.eq.name(n)}))))
 
 # an argument that is a variable: a quantity (&2) is no type and goes
 def fd.eq.fns.var(+x: List<&2, U32>, +vs: List<&2, List<&2, U32>>, +rest: T.Bt) -> T.Bt:
@@ -1994,6 +2000,8 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.foldable(c, fd.mapm.at(fd.mk(m), "foldm", a, b, [fd.tpl(ls, f), l, z]))
     case BfDm{d, r, p, nt, n} tys xs:
       fd.dm(d, S.b(r), S.b(p), nt, tys, xs, ls)
+    case BfAbsurd{} a <> _ x <> _:
+      fd.callS("Empty.absurd", [a, x])
     case _ _ _:
       fd.todo("fold:base-call")
 

@@ -100,6 +100,8 @@ at Int, HsPrelude's `HsCmp.char`, `HsCmp.bool`, `HsCmp.unit`, and
 String key is a list of Char). A key of any other type (the module's own,
 whose `compare` is not written yet) is out, `fold:ord-at-type`.
 
+Data.Void's `Void` is Base's `Empty`, `absurd` `Empty.absurd`, `==` at it `True`.
+
 ## Lifting
 
 Bend matches only parameters and pattern fields, not a local or a computed
