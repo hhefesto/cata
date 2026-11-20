@@ -267,6 +267,9 @@ type Tk is Data:
   TkExceptT{}
   TkMap{}
   TkEmpty{}
+  TkHsInt{}
+  TkDigest{}
+  TkU32{}
   TkSet{}
   TkIntMap{}
   TkIntSet{}
@@ -276,7 +279,7 @@ type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}, TkE{"HsPrelude.HsInt", TkHsInt{}}, TkE{"HsPrelude.HsInteger", TkHsInt{}}, TkE{"HsPrelude.HsDigest", TkDigest{}}, TkE{"GHC.Internal.Word.Word8", TkU32{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -471,6 +474,8 @@ def fd.ty.identity(args: List<&2, T.Bt>) -> T.Bt:
   match args:
     case Nil{}:
       fd.ty0("hs.Identity")
+    case a <> Nil{}:
+      a
     case _:
       fd.todo("fold:identity-type")
 
@@ -618,6 +623,12 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
       fd.ty.map(args)
     case TkEmpty{}:
       fd.ty0("Empty")
+    case TkHsInt{}:
+      fd.ty0("HsPrelude.HsInt")
+    case TkDigest{}:
+      fd.ty0("HsPrelude.HsDigest")
+    case TkU32{}:
+      fd.ty0("U32")
     case TkSet{}:
       fd.ty.set(args)
     case TkIntMap{}:
@@ -1103,6 +1114,14 @@ type Bf is Data:
   BfFoldM{}
   BfDm{d: String, r: String, p: String, nt: Nat, n: Nat}
   BfAbsurd{}
+  BfNeg{op: String}
+  BfConv{}
+  BfIdAt{}
+  BfSubtract{}
+  BfLift2{}
+  BfZ{op: String}
+  BfRange{}
+  BfOne{f: String}
   BfNone{}
 
 type BfE is Data:
@@ -1155,10 +1174,14 @@ def fd.dm.tab.set(xs: List<&2, DmS>) -> List<&2, BfE>:
 
 
 def fd.bftab0() -> List<&2, BfE>:
-  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}, BfE{"GHC.Internal.Base.<*>", BfAp{}}, BfE{"Control.Monad.State.Class.get", BfGet{}}, BfE{"Control.Monad.State.Class.put", BfPut{}}, BfE{"Control.Monad.State.Class.modify", BfModify{}}, BfE{"Control.Monad.State.Class.modify'", BfModify{}}, BfE{"Control.Monad.State.Class.gets", BfGets{}}, BfE{"Control.Monad.Trans.State.Lazy.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Strict.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Lazy.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Strict.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Lazy.runState", BfRun{}}, BfE{"Control.Monad.Trans.State.Strict.runState", BfRun{}}, BfE{"Control.Monad.Error.Class.throwError", BfThrow{}}, BfE{"Control.Monad.Trans.Except.runExceptT", BfRunExc{}}, BfE{"GHC.Internal.Base.when", BfWhen{}}, BfE{"GHC.Internal.Control.Monad.unless", BfUnless{}}, BfE{"GHC.Internal.Data.Functor.void", BfVoid{}}, BfE{"GHC.Internal.Base.=<<", BfBindR{}}, BfE{"GHC.Internal.Base.*>", BfThen{}}, BfE{"GHC.Internal.Data.Foldable.forM_", BfForM_{}}, BfE{"GHC.Internal.Data.Foldable.mapM_", BfMapM_{}}, BfE{"GHC.Internal.Data.Traversable.forM", BfForM{}}, BfE{"GHC.Internal.Data.Traversable.mapM", BfMapM{}}, BfE{"GHC.Internal.Data.Traversable.traverse", BfMapM{}}, BfE{"GHC.Internal.Control.Monad.foldM", BfFoldM{}}, BfE{"GHC.Internal.Base.absurd", BfAbsurd{}}]
+  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"quot"}}, BfE{"GHC.Internal.Real.rem", BfNum{"rem"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}, BfE{"GHC.Internal.Base.<*>", BfAp{}}, BfE{"Control.Monad.State.Class.get", BfGet{}}, BfE{"Control.Monad.State.Class.put", BfPut{}}, BfE{"Control.Monad.State.Class.modify", BfModify{}}, BfE{"Control.Monad.State.Class.modify'", BfModify{}}, BfE{"Control.Monad.State.Class.gets", BfGets{}}, BfE{"Control.Monad.Trans.State.Lazy.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Strict.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Lazy.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Strict.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Lazy.runState", BfRun{}}, BfE{"Control.Monad.Trans.State.Strict.runState", BfRun{}}, BfE{"Control.Monad.Error.Class.throwError", BfThrow{}}, BfE{"Control.Monad.Trans.Except.runExceptT", BfRunExc{}}, BfE{"GHC.Internal.Base.when", BfWhen{}}, BfE{"GHC.Internal.Control.Monad.unless", BfUnless{}}, BfE{"GHC.Internal.Data.Functor.void", BfVoid{}}, BfE{"GHC.Internal.Base.=<<", BfBindR{}}, BfE{"GHC.Internal.Base.*>", BfThen{}}, BfE{"GHC.Internal.Data.Foldable.forM_", BfForM_{}}, BfE{"GHC.Internal.Data.Foldable.mapM_", BfMapM_{}}, BfE{"GHC.Internal.Data.Traversable.forM", BfForM{}}, BfE{"GHC.Internal.Data.Traversable.mapM", BfMapM{}}, BfE{"GHC.Internal.Data.Traversable.traverse", BfMapM{}}, BfE{"GHC.Internal.Control.Monad.foldM", BfFoldM{}}, BfE{"GHC.Internal.Base.absurd", BfAbsurd{}}]
+
+# Num's and Enum's functions beyond the first table
+def fd.bftab1() -> List<&2, BfE>:
+  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfIdAt{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
 
 def fd.bftab() -> List<&2, BfE>:
-  List.concat(&2, BfE, [fd.bftab0(), fd.dm.tab.map(fd.dm.specs.maps()), fd.dm.tab.set(fd.dm.specs.sets()), [BfE{"Data.Set.Internal.map", BfDm{"HsSet.map", "LK", "KLd", 1n, 2n}}]])
+  List.concat(&2, BfE, [fd.bftab0(), fd.bftab1(), fd.dm.tab.map(fd.dm.specs.maps()), fd.dm.tab.set(fd.dm.specs.sets()), [BfE{"Data.Set.Internal.map", BfDm{"HsSet.map", "LK", "KLd", 1n, 2n}}]])
 
 def fd.bf.find(xs: List<&2, BfE>, +k: List<&2, U32>) -> Bf:
   match xs:
@@ -1166,6 +1189,9 @@ def fd.bf.find(xs: List<&2, BfE>, +k: List<&2, U32>) -> Bf:
       BfNone{}
     case BfE{s, v} <> t:
       Bool.pick(Bf, S.eq(S.b(s), k), v, fd.bf.find(t, k))
+
+def fd.z.n(+op: List<&2, U32>) -> Nat:
+  Bool.pick(Nat, Bool.or(fd.is(op, "length"), Bool.or(fd.is(op, "ord"), fd.is(op, "chr"))), 1n, 2n)
 
 # the number of arguments each takes
 def fd.bf.n(f: Bf) -> Nat:
@@ -1224,6 +1250,18 @@ def fd.bf.n(f: Bf) -> Nat:
       n
     case BfAbsurd{}:
       1n
+    case BfNeg{op}:
+      1n
+    case BfConv{}:
+      1n
+    case BfIdAt{}:
+      1n
+    case BfLift2{}:
+      3n
+    case BfOne{f}:
+      1n
+    case BfZ{op}:
+      fd.z.n(S.b(op))
     case BfMaybe{}:
       3n
     case BfEither{}:
@@ -1238,13 +1276,16 @@ def fd.bf.n(f: Bf) -> Nat:
 # what a type argument is, for the functions that differ by type
 type Tq is Data:
   TqNat{}
+  TqInt{}
+  TqDigest{}
+  TqU32{}
   TqChar{}
   TqBool{}
   TqF32{}
   TqOther{}
 
 def fd.tq.of(+n: List<&2, U32>) -> Tq:
-  Bool.pick(Tq, fd.is(n, "Nat"), TqNat{}, Bool.pick(Tq, fd.is(n, "Char"), TqChar{}, Bool.pick(Tq, fd.is(n, "Bool"), TqBool{}, Bool.pick(Tq, fd.is(n, "F32"), TqF32{}, TqOther{}))))
+  Bool.pick(Tq, fd.is(n, "U32"), TqU32{}, Bool.pick(Tq, fd.is(n, "HsPrelude.HsDigest"), TqDigest{}, Bool.pick(Tq, fd.is(n, "HsPrelude.HsInt"), TqInt{}, Bool.pick(Tq, fd.is(n, "Nat"), TqNat{}, Bool.pick(Tq, fd.is(n, "Char"), TqChar{}, Bool.pick(Tq, fd.is(n, "Bool"), TqBool{}, Bool.pick(Tq, fd.is(n, "F32"), TqF32{}, TqOther{})))))))
 
 def fd.tq(t: T.Bt) -> Tq:
   match t:
@@ -1300,7 +1341,7 @@ def fd.eq.name(+n: List<&2, U32>) -> List<&2, U32>:
 
 # whether Base has n.is_eq
 def fd.eq.prim(+n: List<&2, U32>) -> Bool:
-  Bool.or(fd.is(n, "Nat"), Bool.or(fd.is(n, "Char"), fd.is(n, "F32")))
+  Bool.or(Bool.or(fd.is(n, "HsPrelude.HsDigest"), fd.is(n, "U32")), Bool.or(fd.is(n, "HsPrelude.HsInt"), Bool.or(fd.is(n, "Nat"), Bool.or(fd.is(n, "Char"), fd.is(n, "F32")))))
 
 # whether == at a type of this name is out: HsPrelude's types and the
 # types Bend has no == at
@@ -1372,7 +1413,7 @@ type Ck is Data:
   CkFns{}
 
 def fd.cmp.fn0(+n: List<&2, U32>) -> T.Bt:
-  Bool.pick(T.Bt, fd.is(n, "Nat"), fd.v("Nat.cmp"), Bool.pick(T.Bt, fd.is(n, "Char"), fd.v("HsPrelude.HsCmp.char"), Bool.pick(T.Bt, fd.is(n, "Bool"), fd.v("HsPrelude.HsCmp.bool"), Bool.pick(T.Bt, fd.is(n, "Unit"), fd.v("HsPrelude.HsCmp.unit"), fd.todo("fold:ord-at-type")))))
+  Bool.pick(T.Bt, fd.is(n, "HsPrelude.HsDigest"), fd.v("HsPrelude.HsDigest.cmp"), Bool.pick(T.Bt, fd.is(n, "U32"), fd.v("U32.cmp"), Bool.pick(T.Bt, fd.is(n, "HsPrelude.HsInt"), fd.v("HsPrelude.HsInt.cmp"), Bool.pick(T.Bt, fd.is(n, "Nat"), fd.v("Nat.cmp"), Bool.pick(T.Bt, fd.is(n, "Char"), fd.v("HsPrelude.HsCmp.char"), Bool.pick(T.Bt, fd.is(n, "Bool"), fd.v("HsPrelude.HsCmp.bool"), Bool.pick(T.Bt, fd.is(n, "Unit"), fd.v("HsPrelude.HsCmp.unit"), fd.todo("fold:ord-at-type"))))))))
 
 def fd.cmp.name(+n: List<&2, U32>) -> List<&2, U32>:
   Bool.pick(List<&2, U32>, fd.is(n, "List"), S.b("HsPrelude.HsCmp.list"), Bool.pick(List<&2, U32>, fd.is(n, "Sigma"), S.b("HsPrelude.HsCmp.pair"), S.b("HsPrelude.HsCmp.maybe")))
@@ -1524,8 +1565,19 @@ def fd.eq.ins(xs: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
 def fd.cmp.other(+op: List<&2, U32>, +t: T.Bt, +a: T.Bt, +b: T.Bt) -> T.Bt:
   Bool.pick(T.Bt, fd.is(op, "is_eq"), fd.eqcall(t, Nil{}, a, b), Bool.pick(T.Bt, fd.is(op, "is_ne"), fd.callS("Bool.not", [fd.eqcall(t, Nil{}, a, b)]), fd.todo("fold:ord-at-type")))
 
+# compare and the comparisons at a digest (its bytes' order)
+def fd.cmp.dig(+op: List<&2, U32>, a: T.Bt, b: T.Bt) -> T.Bt:
+  +c = fd.callS("HsPrelude.HsDigest.cmp", [a, b])
+  Bool.pick(T.Bt, fd.is(op, "cmp"), c, Bool.pick(T.Bt, Bool.or(fd.is(op, "max"), fd.is(op, "min")), fd.todo("fold:ord-at-type"), Bool.pick(T.Bt, fd.is(op, "is_ne"), fd.callS("Bool.not", [fd.callS("Cmp.is_eq", [c])]), T.tba.call(T.BtVar{fd.cat(S.b("Cmp."), op)}, [c]))))
+
 def fd.cmp(q: Tq, t: T.Bt, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
+    case TqU32{}:
+      fd.callS("U32." ++ op, [a, b])
+    case TqDigest{}:
+      fd.cmp.dig(S.b(op), a, b)
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt." ++ op, [a, b])
     case TqF32{}:
       fd.callS("F32." ++ op, [a, b])
     case TqNat{}:
@@ -1537,17 +1589,28 @@ def fd.cmp(q: Tq, t: T.Bt, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
     case TqOther{}:
       fd.cmp.other(S.b(op), t, a, b)
 
+# Nat's and F32's names for quot and rem, and Nat has no subtraction
+def fd.num.nat(+op: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, fd.is(op, "quot"), S.b("div"), Bool.pick(List<&2, U32>, fd.is(op, "rem"), S.b("mod"), op))
+
+def fd.num.natf(+pre: String, +op: List<&2, U32>, a: T.Bt, b: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.is(op, "sub"), fd.todo("fold:int-sub"), T.tba.call(T.BtVar{fd.cat(S.b(pre), fd.num.nat(op))}, [a, b]))
+
 def fd.num(q: Tq, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
     case TqNat{}:
-      fd.callS("Nat." ++ op, [a, b])
+      fd.num.natf("Nat.", S.b(op), a, b)
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt." ++ op, [a, b])
     case TqF32{}:
-      fd.callS("F32." ++ op, [a, b])
+      T.tba.call(T.BtVar{fd.cat(S.b("F32."), fd.num.nat(S.b(op)))}, [a, b])
     case _:
       fd.todo("fold:num-at-type")
 
 def fd.elem(q: Tq, +t: T.Bt, x: T.Bt, xs: T.Bt) -> T.Bt:
   match q:
+    case TqInt{}:
+      fd.callS("List.contains", [fd.tpl0(t), fd.tpl0(fd.v("HsPrelude.HsInt.is_eq")), xs, x])
     case TqNat{}:
       fd.callS("List.contains", [fd.tpl0(t), fd.tpl0(fd.v("Nat.is_eq")), xs, x])
     case TqChar{}:
@@ -1564,6 +1627,10 @@ def fd.sum(q: Tq, f: T.Bt, z: T.Bt, xs: T.Bt) -> T.Bt:
 
 def fd.show(q: Tq, x: T.Bt) -> T.Bt:
   match q:
+    case TqDigest{}:
+      fd.callS("HsPrelude.HsDigest.hexs", [x])
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt.show", [x])
     case TqNat{}:
       fd.callS("String.to_list", [fd.callS("Nat.show", [x])])
     case _:
@@ -1571,6 +1638,8 @@ def fd.show(q: Tq, x: T.Bt) -> T.Bt:
 
 def fd.succ(q: Tq, x: T.Bt) -> T.Bt:
   match q:
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt.succ", [x])
     case TqNat{}:
       T.BtSucc{x}
     case _:
@@ -1585,6 +1654,7 @@ type Mk is Data:
   MkList{}
   MkState{s: T.Bt}
   MkExS{e: T.Bt, s: T.Bt}
+  MkIdentity{}
   MkOther{}
 
 def fd.mk.one(+n: List<&2, U32>, a: T.Bt) -> Mk:
@@ -1610,6 +1680,8 @@ def fd.mk.var(list: Bool) -> Mk:
 # what the monad (or functor) argument m, as the fold wrote it, is
 def fd.mk(m: T.Bt) -> Mk:
   match m:
+    case T.BtTyApp{+n, T.BtANil{}}:
+      Bool.pick(Mk, fd.is(n, "hs.Identity"), MkIdentity{}, MkOther{})
     case T.BtTyApp{+n, T.BtArgs{a, T.BtANil{}}}:
       fd.mk.one(n, a)
     case T.BtTyApp{+n, T.BtArgs{e, T.BtArgs{s, T.BtANil{}}}}:
@@ -1631,6 +1703,8 @@ def fd.bind(k: Mk, a: T.Bt, b: T.Bt, x: T.Bt, f: T.Bt) -> T.Bt:
       fd.callS("hs.state.bind", [s, a, b, x, f])
     case MkExS{e, s}:
       fd.callS("hs.exs.bind", [e, s, a, b, x, f])
+    case MkIdentity{}:
+      T.tba.call(f, [x])
     case _:
       fd.todo("fold:monad-at-type")
 
@@ -1646,6 +1720,8 @@ def fd.pure(k: Mk, a: T.Bt, x: T.Bt) -> T.Bt:
       fd.callS("hs.state.pure", [s, a, x])
     case MkExS{e, s}:
       fd.callS("hs.exs.pure", [e, s, a, x])
+    case MkIdentity{}:
+      x
     case _:
       fd.todo("fold:monad-at-type")
 
@@ -1666,6 +1742,8 @@ def fd.fmap(k: Mk, a: T.Bt, b: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
       fd.callS("hs.state.map", [s, a, b, fd.untpl(g), x])
     case MkExS{e, s}:
       fd.callS("hs.exs.map", [e, s, a, b, fd.untpl(g), x])
+    case MkIdentity{}:
+      T.tba.call(fd.untpl(g), [x])
     case MkList{}:
       fd.callS("hs.map", [fd.tpl0(a), fd.tpl0(b), g, x])
     case _:
@@ -1674,6 +1752,8 @@ def fd.fmap(k: Mk, a: T.Bt, b: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
 # <*>, and MonadState's methods (mtl), at State s
 def fd.ap(k: Mk, a: T.Bt, b: T.Bt, f: T.Bt, x: T.Bt) -> T.Bt:
   match k:
+    case MkIdentity{}:
+      T.tba.call(fd.untpl(f), [x])
     case MkState{s}:
       fd.callS("hs.state.ap", [s, a, b, fd.untpl(f), x])
     case _:
@@ -1712,6 +1792,8 @@ def fd.mty(k: Mk, a: T.Bt) -> T.Bt:
       fd.ty.st(s, a)
     case MkExS{e, s}:
       fd.ty.st(s, fd.either(e, a))
+    case MkIdentity{}:
+      a
     case MkOther{}:
       fd.todo("fold:monad-at-type")
 
@@ -1725,6 +1807,14 @@ def fd.when.if(yes: Bool, r: T.Bt, c: T.Bt, m: T.Bt, p: T.Bt) -> T.Bt:
 
 def fd.when(+k: Mk, yes: Bool, c: T.Bt, m: T.Bt) -> T.Bt:
   fd.when.if(yes, fd.mty(k, fd.ty0("Unit")), c, m, fd.pure(k, fd.ty0("Unit"), fd.con0("Unit")))
+
+# liftA2 f x y: at Identity f x y, else x >>= \\la_ -> fmap (f la_) y
+def fd.lift2(+k: Mk, a: T.Bt, +b: T.Bt, +c: T.Bt, f: T.Bt, x: T.Bt, y: T.Bt) -> T.Bt:
+  match k:
+    case MkIdentity{}:
+      T.tba.call(T.tba.call(f, [x]), [y])
+    case _:
+      fd.bind(k, a, c, x, T.BtLam{T.BmLive{}, S.b("la_"), fd.fmap(k, b, c, fd.tpl0(T.tba.call(f, [fd.v("la_")])), y)})
 
 # MonadError's throwError at ExceptT over State, or at Either
 def fd.throw(k: Mk, a: T.Bt, x: T.Bt) -> T.Bt:
@@ -1754,6 +1844,74 @@ def fd.mapm.at(k: Mk, f: String, a: T.Bt, b: T.Bt, xs: List<&2, T.Bt>) -> T.Bt:
       fd.callS("hs.exs." ++ f, List.append(&2, T.Bt, [fd.tpl0(e), fd.tpl0(s), fd.tpl0(a), fd.tpl0(b)], xs))
     case _:
       fd.todo("fold:monad-at-type")
+
+# negate, abs, signum at HsInt (abs at Nat is the number)
+def fd.neg(q: Tq, op: String, x: T.Bt) -> T.Bt:
+  match q:
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt." ++ op, [x])
+    case TqNat{}:
+      Bool.pick(T.Bt, fd.is(S.b(op), "abs"), x, fd.todo("fold:int-sub"))
+    case _:
+      fd.todo("fold:num-at-type")
+
+# fromIntegral and toInteger between the same kinds of number
+def fd.conv(a: Tq, b: Tq, x: T.Bt) -> T.Bt:
+  match a b:
+    case TqInt{} TqInt{}:
+      x
+    case TqNat{} TqNat{}:
+      x
+    case TqNat{} TqInt{}:
+      T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([x])}
+    case TqU32{} TqInt{}:
+      T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([fd.callS("U32.to_nat", [x])])}
+    case TqU32{} TqNat{}:
+      fd.callS("U32.to_nat", [x])
+    case TqU32{} TqU32{}:
+      x
+    case _ _:
+      fd.todo("fold:conversion")
+
+# toEnum and fromEnum at HsInt (Int's Enum: the number itself)
+def fd.idat(q: Tq, x: T.Bt) -> T.Bt:
+  match q:
+    case TqInt{}:
+      x
+    case _:
+      fd.todo("fold:enum-at-type")
+
+# base's functions at Int when Int is HsInt (Spec's HsPrelude.Z.*): a
+# count is a Nat to Base, negative ones as 0 (take, drop and replicate
+# below zero are the empty case, as Haskell's); a length an HsInt
+def fd.hsint.of(x: T.Bt) -> T.Bt:
+  T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([x])}
+
+def fd.hsint.nat(x: T.Bt) -> T.Bt:
+  fd.callS("HsPrelude.HsInt.count", [x])
+
+def fd.z(+op: List<&2, U32>, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>) -> T.Bt:
+  match tys xs:
+    case +c <> +t <> _ +a <> _:
+      Bool.pick(T.Bt, fd.is(op, "length"), fd.foldable(c, fd.hsint.of(fd.callS("List.length", [fd.v("&2"), t, a]))), fd.todo("fold:z"))
+    case +t <> _ +n <> +a <> _:
+      Bool.pick(T.Bt, fd.is(op, "take"), fd.callS("List.take", [fd.v("&2"), t, a, fd.hsint.nat(n)]), Bool.pick(T.Bt, fd.is(op, "drop"), fd.callS("List.drop", [fd.v("&2"), t, a, fd.hsint.nat(n)]), Bool.pick(T.Bt, fd.is(op, "replicate"), fd.callS("List.replicate", [t, fd.hsint.nat(n), a]), fd.todo("fold:z"))))
+    case Nil{} +x <> _:
+      Bool.pick(T.Bt, fd.is(op, "ord"), fd.hsint.of(fd.callS("U32.to_nat", [fd.callS("Char.to_u32", [x])])), Bool.pick(T.Bt, fd.is(op, "chr"), fd.callS("Char.from_u32", [fd.callS("U32.from_nat", [fd.hsint.nat(x)])]), fd.todo("fold:z")))
+    case _ _:
+      fd.todo("fold:z")
+
+# a function of one argument: HsPrelude's f, or the argument itself (f empty)
+def fd.one(+f: List<&2, U32>, +x: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, S.eq(f, Nil{}), x, T.tba.call(T.BtVar{f}, [x]))
+
+# [a .. b] at HsInt
+def fd.range(q: Tq, a: T.Bt, b: T.Bt) -> T.Bt:
+  match q:
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt.range", [a, b])
+    case _:
+      fd.todo("fold:range-at-type")
 
 # Data.Map's, Data.IntMap's, Data.Set's and Data.IntSet's functions: a call
 # of HsPrelude's def d, its templates p (K, V, W, B, L: the type GHC gave
@@ -2002,6 +2160,22 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.dm(d, S.b(r), S.b(p), nt, tys, xs, ls)
     case BfAbsurd{} a <> _ x <> _:
       fd.callS("Empty.absurd", [a, x])
+    case BfNeg{op} t <> _ x <> _:
+      fd.neg(fd.tq(t), op, x)
+    case BfConv{} a <> b <> _ x <> _:
+      fd.conv(fd.tq(a), fd.tq(b), x)
+    case BfIdAt{} t <> _ x <> _:
+      fd.idat(fd.tq(t), x)
+    case BfSubtract{} t <> _ a <> b <> _:
+      fd.num(fd.tq(t), "sub", b, a)
+    case BfLift2{} m <> a <> b <> c <> _ f <> x <> y <> _:
+      fd.lift2(fd.mk(m), a, b, c, fd.untpl(f), x, y)
+    case BfZ{op} tys xs:
+      fd.z(S.b(op), tys, xs)
+    case BfRange{} t <> _ a <> b <> _:
+      fd.range(fd.tq(t), a, b)
+    case BfOne{f} _ x <> _:
+      fd.one(S.b(f), x)
     case _ _ _:
       fd.todo("fold:base-call")
 
@@ -2475,8 +2649,18 @@ def fd.unself(+v: X.Sx) -> X.Sx:
   Bool.pick(X.Sx, V.sv.is(V.sv.hd(v), "self"), V.sv.at(v, 1n), v)
 
 # an olit: (olit (int N) TYPE WITNESS), N at Nat
+# an integer literal as an HsInt: (int N) is Pos{N}, (int (neg N)) Neg{N}
+def fd.hsint(neg: Bool, +n: List<&2, U32>) -> T.Bt:
+  T.BtCon{fd.bpick(neg, S.b("HsPrelude.HsInt.Neg"), S.b("HsPrelude.HsInt.Pos")), T.tba.args([T.BtNat{n}])}
+
+def fd.hsint.lit(+v: X.Sx) -> T.Bt:
+  +a = V.sv.at(v, 1n)
+  Bool.pick(T.Bt, V.sv.is(V.sv.hd(a), "neg"), fd.hsint(True{}, X.tsx.atom.of(V.sv.at(a, 1n))), fd.hsint(False{}, X.tsx.atom.of(a)))
+
 def fd.olit.of(q: Tq, +v: X.Sx) -> T.Bt:
   match q:
+    case TqInt{}:
+      Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "int"), fd.hsint.lit(v), fd.todo("fold:literal"))
     case TqNat{}:
       Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "int"), T.BtNat{X.tsx.atom.of(V.sv.at(v, 1n))}, fd.todo("fold:literal"))
     case TqF32{}:
@@ -3475,8 +3659,15 @@ def fd.ptuple(ps: R) -> R:
 def fd.plist(ps: R) -> R:
   RT{fd.conchain(fd.bts(fd.items(ps)))}
 
-def fd.pnlit(+v: X.Sx) -> R:
-  RT{Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "int"), T.BtNat{X.tsx.atom.of(V.sv.at(v, 1n))}, fd.todo("fold:literal-pattern"))}
+def fd.pnlit.at(q: Tq, +neg: Bool, +v: X.Sx) -> T.Bt:
+  match q:
+    case TqInt{}:
+      Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "int"), fd.hsint(neg, X.tsx.atom.of(V.sv.at(v, 1n))), fd.todo("fold:literal-pattern"))
+    case _:
+      Bool.pick(T.Bt, Bool.and(Bool.not(neg), V.sv.is(V.sv.hd(v), "int")), T.BtNat{X.tsx.atom.of(V.sv.at(v, 1n))}, T.BtTodo{fd.bpick(neg, S.b("int-sub"), S.b("fold:literal-pattern"))})
+
+def fd.pnlit(+v: X.Sx, +sg: X.Sx, t: R) -> R:
+  RT{fd.pnlit.at(fd.tq(fd.rt(t)), V.sv.is(X.tsx.atom.of(sg), "neg"), v)}
 
 def fd.plit(+v: X.Sx) -> R:
   RT{Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "char"), fd.char(X.tsx.nat(V.sv.at(v, 1n))), fd.todo("fold:literal-pattern"))}
@@ -3530,6 +3721,7 @@ type K is Data:
   KEskip1{}
   KEskip2{}
   KEolit{}
+  KEnegapp{}
   KEchar{}
   KEstring{}
   KElam{}
@@ -3581,7 +3773,7 @@ def fd.k.pats() -> List<&2, Kt>:
   [Kt{"pwild", KPwild{}}, Kt{"pvar", KPvar{}}, Kt{"pbang", KPbang{}}, Kt{"plist", KPlist{}}, Kt{"ptuple", KPtuple{}}, Kt{"pcon", KPcon{}}, Kt{"plit", KPlit{}}, Kt{"pnlit", KPnlit{}}]
 
 def fd.k.exs() -> List<&2, Kt>:
-  [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}, Kt{"reccon", KEreccon{}}]
+  [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"negapp", KEnegapp{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}, Kt{"reccon", KEreccon{}}]
 
 def fd.k.bad(s: String, +h: List<&2, U32>) -> K:
   KBad{fd.cat(S.b(s), h)}
@@ -3593,7 +3785,7 @@ def fd.k.pat(k: K, +x: X.Sx) -> K:
     case KPcon{}:
       Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 3n)), "args"), KPcon{}, KPconF{})
     case KPnlit{}:
-      Bool.pick(K, V.sv.is(X.tsx.atom.of(V.sv.at(x, 2n)), "pos"), KPnlit{}, KBad{S.b("int-sub")})
+      KPnlit{}
     case k1:
       k1
 
@@ -3675,8 +3867,8 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.field(sel, fd.go(p, fd.k(RoPat{}, p), env))
     case X.SxCons{_, X.SxCons{+v, _}} KPlit{}:
       fd.plit(v)
-    case X.SxCons{_, X.SxCons{X.SxCons{_, X.SxCons{+v, _}}, _}} KPnlit{}:
-      fd.pnlit(v)
+    case X.SxCons{_, X.SxCons{X.SxCons{_, X.SxCons{+v, _}}, X.SxCons{+sg, X.SxCons{+t, _}}}} KPnlit{}:
+      fd.pnlit(v, sg, fd.go(t, fd.k(RoTy{}, t), env))
     case X.SxCons{+h, t} KPs{}:
       fd.cons(fd.go(h, fd.k(RoPat{}, h), env), fd.go(t, KPs{}, env))
     case _ KPs{}:
@@ -3698,6 +3890,8 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.go(e, fd.k(RoEx{}, e), env)
     case X.SxCons{_, X.SxCons{_, X.SxCons{+e, _}}} KEskip2{}:
       fd.go(e, fd.k(RoEx{}, e), env)
+    case X.SxCons{_, X.SxCons{+e, X.SxCons{+n, _}}} KEnegapp{}:
+      RE{fd.eapp(fd.re(fd.go(n, fd.k(RoEx{}, n), fd.notail(env))), fd.re(fd.go(e, fd.k(RoEx{}, e), fd.notail(env))))}
     case X.SxCons{_, X.SxCons{+v, X.SxCons{+t, _}}} KEolit{}:
       fd.olit(v, fd.go(t, fd.k(RoTy{}, t), env))
     case X.SxCons{_, X.SxCons{+c, _}} KEchar{}:
@@ -4809,8 +5003,33 @@ def fd.hsprelude.m5() -> String:
 def fd.hsprelude.maps() -> String:
   fd.hsprelude.m1() ++ fd.hsprelude.m2() ++ fd.hsprelude.m3() ++ fd.hsprelude.m4() ++ fd.hsprelude.m5()
 
+# HsPrelude part (see Types), in pieces: bend's
+# compiler takes no longer literal
+def fd.hsprelude.i1() -> String:
+  "# Haskell's Int and Integer as an integer: Pos{n} is n, Neg{n} is -n (n at\n# least 1), so each integer is one term.  (Int's 64-bit wrap-around is not\n# modelled: an Int that would overflow is out of this translation's reach.)\ntype HsInt is Data:\n  HsInt.Pos{n: Nat}\n  HsInt.Neg{n: Nat}\n\ndef HsInt.of(n: Nat) -> HsInt:\n  HsInt.Pos{n}\n\n# -n for a Nat n\ndef HsInt.neg.of(n: Nat) -> HsInt:\n  match n:\n    case Zero{}:\n      HsInt.Pos{Zero{}}\n    case Succ{p}:\n      HsInt.Neg{Succ{p}}\n\ndef HsInt.negate(a: HsInt) -> HsInt:\n  match a:\n    case HsInt.Pos{n}:\n      HsInt.neg.of(n)\n    case HsInt.Neg{n}:\n      HsInt.Pos{n}\n\n# a - b for Nats, as an integer\ndef HsInt.nsub(a: Nat, b: Nat) -> HsInt:\n  match a b:\n    case Zero{} m:\n      HsInt.neg.of(m)\n    case n Zero{}:\n      HsInt.Pos{n}\n    case Succ{p} Succ{q}:\n      HsInt.nsub(p, q)\n\ndef HsInt.add(a: HsInt, b: HsInt) -> HsInt:\n  match a b:\n    case HsInt.Pos{m} HsInt.Pos{n}:\n      HsInt.Pos{Nat.add(m, n)}\n    case HsInt.Neg{m} HsInt.Neg{n}:\n      HsInt.Neg{Nat.add(m, n)}\n    case HsInt.Pos{m} HsInt.Neg{n}:\n      HsInt.nsub(m, n)\n    case HsInt.Neg{m} HsInt.Pos{n}:\n      HsInt.nsub(n, m)\n\ndef HsInt.sub(a: HsInt, b: HsInt) -> HsInt:\n  HsInt.add(a, HsInt.negate(b))\n\ndef HsInt.mul.sign(neg: Bool, n: Nat) -> HsInt:\n  match neg:\n    case True{}:\n      HsInt.neg.of(n)\n    case False{}:\n      HsInt.Pos{n}\n\ndef HsInt.mul(a: HsInt, b: HsInt) -> HsInt:\n  match a b:\n    case HsInt.Pos{m} HsInt.Pos{n}:\n      HsInt.Pos{Nat.mul(m, n)}\n    case HsInt.Neg{m} HsInt.Neg{n}:\n      HsInt.Pos{Nat.mul(m, n)}\n    case HsInt.Pos{m} HsInt.Neg{n}:\n      HsInt.neg.of(Nat.mul(m, n))\n    case HsInt.Neg{m} HsInt.Pos{n}:\n      HsInt.neg.of(Nat.mul(m, n))\n\ndef HsInt.abs(a: HsInt) -> HsInt:\n  match a:\n    case HsInt.Pos{n}:\n      HsInt.Pos{n}\n    case HsInt.Neg{n}:\n      HsInt.Pos{n}\n\ndef HsInt.signum(a: HsInt) -> HsInt:\n  match a:\n    case HsInt.Pos{Zero{}}:\n      HsInt.Pos{Zero{}}\n    case HsInt.Pos{Succ{p}}:\n      HsInt.Pos{1n}\n    case HsInt.Neg{n}:\n      HsInt.Neg{1n}\n\ndef HsInt.cmp(a: HsInt, b: HsInt) -> Cmp:\n  match a b:\n    case HsInt.Pos{m} HsInt.Pos{n}:\n      Nat.cmp(m, n)\n    case HsInt.Neg{m} HsInt.Neg{n}:\n      Nat.cmp(n, m)\n    case HsInt.Pos{m} HsInt.Neg{n}:\n      GT{}\n    case HsInt.Neg{m} HsInt.Pos{n}:\n      LT{}\n\ndef HsInt.is_eq(a: HsInt, b: HsInt) -> Bool:\n  Cmp.is_eq(HsInt.cmp(a, b))\n\ndef HsInt.is_ne(a: HsInt, b: HsInt) -> Bool:\n  Bool.not(Cmp.is_eq(HsInt.cmp(a, b)))\n\ndef HsInt.is_lt(a: HsInt, b: HsInt) -> Bool:\n  Cmp.is_lt(HsInt.cmp(a, b))\n\ndef HsInt.is_le(a: HsInt, b: HsInt) -> Bool:\n  Cmp.is_le(HsInt.cmp(a, b))\n\ndef HsInt.is_gt(a: HsInt, b: HsInt) -> Bool:\n  Cmp.is_gt(HsInt.cmp(a, b))\n\ndef HsInt.is_ge(a: HsInt, b: HsInt) -> Bool:\n  Cmp.is_ge(HsInt.cmp(a, b))\n\ndef HsInt.max(+a: HsInt, +b: HsInt) -> HsInt:\n  Bool.pick(HsInt, Cmp.is_ge(HsInt.cmp(a, b)), a, b)\n\ndef HsInt.min(+a: HsInt, +b: HsInt) -> HsInt:\n  Bool.pick(HsInt, Cmp.is_le(HsInt.cmp(a, b)), a, b)\n\n"
+
+def fd.hsprelude.i2() -> String:
+  "def HsInt.mag(a: HsInt) -> Nat:\n  match a:\n    case HsInt.Pos{n}:\n      n\n    case HsInt.Neg{n}:\n      n\n\ndef HsInt.isneg(a: HsInt) -> Bool:\n  match a:\n    case HsInt.Pos{n}:\n      False{}\n    case HsInt.Neg{n}:\n      True{}\n\n# quot and rem truncate toward zero; div and mod round toward minus\n# infinity (Haskell's)\ndef HsInt.quot(+a: HsInt, +b: HsInt) -> HsInt:\n  HsInt.mul.sign(Bool.xor(HsInt.isneg(a), HsInt.isneg(b)), Nat.div(HsInt.mag(a), HsInt.mag(b)))\n\ndef HsInt.rem(+a: HsInt, +b: HsInt) -> HsInt:\n  HsInt.mul.sign(HsInt.isneg(a), Nat.mod(HsInt.mag(a), HsInt.mag(b)))\n\ndef HsInt.div(+a: HsInt, +b: HsInt) -> HsInt:\n  +q = HsInt.quot(a, b)\n  +r = HsInt.rem(a, b)\n  Bool.pick(HsInt, Bool.and(Bool.not(HsInt.is_eq(r, HsInt.Pos{0n})), Bool.xor(HsInt.isneg(a), HsInt.isneg(b))), HsInt.sub(q, HsInt.Pos{1n}), q)\n\ndef HsInt.mod(+a: HsInt, +b: HsInt) -> HsInt:\n  +r = HsInt.rem(a, b)\n  Bool.pick(HsInt, Bool.and(Bool.not(HsInt.is_eq(r, HsInt.Pos{0n})), Bool.xor(HsInt.isneg(r), HsInt.isneg(b))), HsInt.add(r, b), r)\n\ndef HsInt.pow.go(+a: HsInt, n: Nat) -> HsInt:\n  match n:\n    case Zero{}:\n      HsInt.Pos{1n}\n    case Succ{p}:\n      HsInt.mul(a, HsInt.pow.go(a, p))\n\n# a ^ e (e at least 0)\ndef HsInt.pow(+a: HsInt, e: HsInt) -> HsInt:\n  HsInt.pow.go(a, HsInt.mag(e))\n\ndef HsInt.succ(a: HsInt) -> HsInt:\n  HsInt.add(a, HsInt.Pos{1n})\n\ndef HsInt.pred(a: HsInt) -> HsInt:\n  HsInt.sub(a, HsInt.Pos{1n})\n\n# show: the digits, after a minus when negative\ndef HsInt.show(a: HsInt) -> List<&2, Char>:\n  match a:\n    case HsInt.Pos{n}:\n      String.to_list(Nat.show(n))\n    case HsInt.Neg{n}:\n      '-' <> String.to_list(Nat.show(n))\n\ndef HsInt.count(a: HsInt) -> Nat:\n  match a:\n    case HsInt.Pos{n}:\n      n\n    case HsInt.Neg{n}:\n      0n\n\n# [a .. b]\ndef HsInt.range.go(n: Nat, +a: HsInt) -> List<&2, HsInt>:\n  match n:\n    case Zero{}:\n      Nil{}\n    case Succ{p}:\n      a <> HsInt.range.go(p, HsInt.succ(a))\n\ndef HsInt.range(+a: HsInt, +b: HsInt) -> List<&2, HsInt>:\n  HsInt.range.go(HsInt.count(HsInt.sub(HsInt.succ(b), a)), a)\n\n\n"
+
+def fd.hsprelude.ints() -> String:
+  fd.hsprelude.i1() ++ fd.hsprelude.i2()
+
+# HsPrelude part (see Types), in pieces: bend's
+# compiler takes no longer literal
+def fd.hsprelude.d1() -> String:
+  "# crypton's Digest SHA256: its 32 bytes (each a U32 below 256); hash is\n# SHA-256 (FIPS 180-4) of a ByteString, a list of such bytes\ntype HsDigest is Data:\n  HsDigest.D{bytes: List<&2, U32>}\n\ndef HsSha.rotr(+x: U32, +n: Nat) -> U32:\n  U32.or(U32.shrn(x, n), U32.shln(x, Nat.sub(32n, n)))\n\ndef HsSha.ch(+x: U32, y: U32, z: U32) -> U32:\n  U32.xor(U32.and(x, y), U32.and(U32.not(x), z))\n\ndef HsSha.maj(+x: U32, +y: U32, +z: U32) -> U32:\n  U32.xor(U32.xor(U32.and(x, y), U32.and(x, z)), U32.and(y, z))\n\ndef HsSha.bs0(+x: U32) -> U32:\n  U32.xor(U32.xor(HsSha.rotr(x, 2n), HsSha.rotr(x, 13n)), HsSha.rotr(x, 22n))\n\ndef HsSha.bs1(+x: U32) -> U32:\n  U32.xor(U32.xor(HsSha.rotr(x, 6n), HsSha.rotr(x, 11n)), HsSha.rotr(x, 25n))\n\ndef HsSha.ss0(+x: U32) -> U32:\n  U32.xor(U32.xor(HsSha.rotr(x, 7n), HsSha.rotr(x, 18n)), U32.shrn(x, 3n))\n\ndef HsSha.ss1(+x: U32) -> U32:\n  U32.xor(U32.xor(HsSha.rotr(x, 17n), HsSha.rotr(x, 19n)), U32.shrn(x, 10n))\n\ndef HsSha.k() -> List<&2, U32>:\n  [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]\n\ndef HsSha.h0() -> List<&2, U32>:\n  [1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]\n\ndef HsSha.nth(xs: List<&2, U32>, n: Nat) -> U32:\n  match xs n:\n    case x <> t Zero{}:\n      x\n    case x <> t Succ{k}:\n      HsSha.nth(t, k)\n    case Nil{} _:\n      0\n\n# the message padded: 0x80, zeros to 56 mod 64, the length in bits (8 bytes)\ndef HsSha.zeros(n: Nat) -> List<&2, U32>:\n  match n:\n    case Zero{}:\n      Nil{}\n    case Succ{k}:\n      0 <> HsSha.zeros(k)\n\ndef HsSha.be8.go(n: Nat, +v: Nat, acc: List<&2, U32>) -> List<&2, U32>:\n  match n:\n    case Zero{}:\n      acc\n    case Succ{k}:\n      HsSha.be8.go(k, Nat.div(v, 256n), U32.from_nat(Nat.mod(v, 256n)) <> acc)\n\ndef HsSha.pad(+m: List<&2, U32>) -> List<&2, U32>:\n  +l = List.length(&2, U32, m)\n  +r = Nat.mod(l, 64n)\n  +z = Bool.pick(Nat, Nat.is_le(r, 55n), Nat.sub(55n, r), Nat.sub(119n, r))\n  List.append(&2, U32, m, 128 <> List.append(&2, U32, HsSha.zeros(z), HsSha.be8.go(8n, Nat.mul(l, 8n), Nil{})))\n\n# four bytes, big-endian, as a word\ndef HsSha.word(a: U32, b: U32, c: U32, d: U32) -> U32:\n  U32.or(U32.or(U32.shln(a, 24n), U32.shln(b, 16n)), U32.or(U32.shln(c, 8n), d))\n\n"
+
+def fd.hsprelude.d2() -> String:
+  "# a 64-byte block's 16 words, and the bytes after it\ntype ShaBlk is Data:\n  ShaBlk{ws: List<&2, U32>, rest: List<&2, U32>}\n\ndef HsSha.words(n: Nat, bs: List<&2, U32>, acc: List<&2, U32>) -> ShaBlk:\n  match n bs:\n    case Succ{k} a <> b <> c <> d <> t:\n      HsSha.words(k, t, HsSha.word(a, b, c, d) <> acc)\n    case _ t:\n      ShaBlk{List.reverse(&2, U32, acc), t}\n\n# the schedule: w16..w63 from the last sixteen\ndef HsSha.sched(n: Nat, +win: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:\n  match n:\n    case Zero{}:\n      List.reverse(&2, U32, acc)\n    case Succ{k}:\n      +w = U32.add(U32.add(HsSha.ss1(HsSha.nth(win, 14n)), HsSha.nth(win, 9n)), U32.add(HsSha.ss0(HsSha.nth(win, 1n)), HsSha.nth(win, 0n)))\n      HsSha.sched(k, List.append(&2, U32, List.tail(&2, U32, win), [w]), w <> acc)\n\ntype ShaSt is Data:\n  ShaSt{a: U32, b: U32, c: U32, d: U32, e: U32, f: U32, g: U32, h: U32}\n\ndef HsSha.round(s: ShaSt, k: U32, w: U32) -> ShaSt:\n  match s:\n    case ShaSt{+a, +b, +c, d, +e, +f, +g, h}:\n      +t1 = U32.add(U32.add(U32.add(h, HsSha.bs1(e)), U32.add(HsSha.ch(e, f, g), k)), w)\n      +t2 = U32.add(HsSha.bs0(a), HsSha.maj(a, b, c))\n      ShaSt{U32.add(t1, t2), a, b, c, U32.add(d, t1), e, f, g}\n\ndef HsSha.rounds(ks: List<&2, U32>, ws: List<&2, U32>, s: ShaSt) -> ShaSt:\n  match ks ws:\n    case k <> kt w <> wt:\n      HsSha.rounds(kt, wt, HsSha.round(s, k, w))\n    case _ _:\n      s\n\ndef HsSha.st(hs: List<&2, U32>) -> ShaSt:\n  match hs:\n    case a <> b <> c <> d <> e <> f <> g <> h <> _:\n      ShaSt{a, b, c, d, e, f, g, h}\n    case _:\n      ShaSt{0, 0, 0, 0, 0, 0, 0, 0}\n\ndef HsSha.add(hs: List<&2, U32>, s: ShaSt) -> List<&2, U32>:\n  match hs s:\n    case a <> b <> c <> d <> e <> f <> g <> h <> _ ShaSt{a2, b2, c2, d2, e2, f2, g2, h2}:\n      [U32.add(a, a2), U32.add(b, b2), U32.add(c, c2), U32.add(d, d2), U32.add(e, e2), U32.add(f, f2), U32.add(g, g2), U32.add(h, h2)]\n    case _ _:\n      Nil{}\n\ndef HsSha.block(+hs: List<&2, U32>, +ws: List<&2, U32>) -> List<&2, U32>:\n  HsSha.add(hs, HsSha.rounds(HsSha.k(), HsSha.sched(48n, ws, List.reverse(&2, U32, ws)), HsSha.st(hs)))\n\n# the padded message in 64-byte chunks (k of them)\ndef HsSha.chunks(k: Nat, +bs: List<&2, U32>) -> List<&2, List<&2, U32>>:\n  match k:\n    case Zero{}:\n      Nil{}\n    case Succ{p}:\n      List.take(&2, U32, bs, 64n) <> HsSha.chunks(p, List.drop(&2, U32, bs, 64n))\n\ndef HsSha.ws.of(b: ShaBlk) -> List<&2, U32>:\n  match b:\n    case ShaBlk{ws, rest}:\n      ws\n\ndef HsSha.run(cs: List<&2, List<&2, U32>>, hs: List<&2, U32>) -> List<&2, U32>:\n  match cs:\n    case Nil{}:\n      hs\n    case c <> t:\n      HsSha.run(t, HsSha.block(hs, HsSha.ws.of(HsSha.words(16n, c, Nil{}))))\n\n# a word's four bytes, big-endian\ndef HsSha.bytes(ws: List<&2, U32>) -> List<&2, U32>:\n  match ws:\n    case Nil{}:\n      Nil{}\n    case +w <> t:\n      U32.and(U32.shrn(w, 24n), 255) <> U32.and(U32.shrn(w, 16n), 255) <> U32.and(U32.shrn(w, 8n), 255) <> U32.and(w, 255) <> HsSha.bytes(t)\n\n"
+
+def fd.hsprelude.d3() -> String:
+  "def HsDigest.hash(+m: List<&2, U32>) -> HsDigest:\n  +p = HsSha.pad(m)\n  HsDigest.D{HsSha.bytes(HsSha.run(HsSha.chunks(Nat.div(List.length(&2, U32, p), 64n), p), HsSha.h0()))}\n\ndef HsDigest.bytes(d: HsDigest) -> List<&2, U32>:\n  match d:\n    case HsDigest.D{bs}:\n      bs\n\ndef HsSha.hexd(+n: U32) -> Char:\n  Char.from_u32(Bool.pick(U32, U32.is_lt(n, 10), U32.add(n, 48), U32.add(n, 87)))\n\ndef HsSha.hex(bs: List<&2, U32>) -> List<&2, Char>:\n  match bs:\n    case Nil{}:\n      Nil{}\n    case +b <> t:\n      HsSha.hexd(U32.shrn(b, 4n)) <> HsSha.hexd(U32.and(b, 15)) <> HsSha.hex(t)\n\n# show: the hex digits (crypton shows a digest as its base-16 text)\ndef HsDigest.hexs(d: HsDigest) -> List<&2, Char>:\n  HsSha.hex(HsDigest.bytes(d))\n\ndef HsDigest.cmp.go(a: List<&2, U32>, b: List<&2, U32>) -> Cmp:\n  match a b:\n    case Nil{} Nil{}:\n      EQ{}\n    case Nil{} _:\n      LT{}\n    case _ Nil{}:\n      GT{}\n    case +x <> s +y <> t:\n      HsCmp.on(Cmp, U32.cmp(x, y), _ => LT{}, _ => HsDigest.cmp.go(s, t), _ => GT{})\n\n# Ord at a digest: its bytes, lexicographically (crypton's)\ndef HsDigest.cmp(a: HsDigest, b: HsDigest) -> Cmp:\n  HsDigest.cmp.go(HsDigest.bytes(a), HsDigest.bytes(b))\n\ndef HsDigest.is_eq(a: HsDigest, b: HsDigest) -> Bool:\n  Cmp.is_eq(HsDigest.cmp(a, b))\n\n# utf8-string's encode: a String as its UTF-8 bytes\ndef HsUtf8.char(+c: U32) -> List<&2, U32>:\n  +b = U32.and(c, 63)\n  +b6 = U32.and(U32.shrn(c, 6n), 63)\n  +b12 = U32.and(U32.shrn(c, 12n), 63)\n  Bool.pick(List<&2, U32>, U32.is_lt(c, 128), [c], Bool.pick(List<&2, U32>, U32.is_lt(c, 2048), [U32.or(192, U32.shrn(c, 6n)), U32.or(128, b)], Bool.pick(List<&2, U32>, U32.is_lt(c, 65536), [U32.or(224, U32.shrn(c, 12n)), U32.or(128, b6), U32.or(128, b)], [U32.or(240, U32.shrn(c, 18n)), U32.or(128, b12), U32.or(128, b6), U32.or(128, b)])))\n\ndef HsUtf8.encode(s: List<&2, Char>) -> List<&2, U32>:\n  match s:\n    case Nil{}:\n      Nil{}\n    case c <> t:\n      List.append(&2, U32, HsUtf8.char(Char.to_u32(c)), HsUtf8.encode(t))\n\n\n"
+
+def fd.hsprelude.digests() -> String:
+  fd.hsprelude.d1() ++ fd.hsprelude.d2() ++ fd.hsprelude.d3()
+
 def fd.hsprelude.write(+out: String) -> IO(Unit):
-  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps()))
+  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests()))
 
 # the files a module's text may name: HsPrelude's and the package's
 # earlier modules'

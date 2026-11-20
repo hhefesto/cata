@@ -1344,6 +1344,86 @@ def sp.module(+xs: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
   +r = sp.items(xs, cur, ix)
   List.append(&2, X.Sx, sp.els(sp.rw.x(r)), sp.work(4000n, sp.work.rq(r), False{}, Nil{}, Nil{}, cur, ix))
 
+# crypton's Digest SHA256 as HsPrelude's HsDigest (SHA256 itself, the
+# algorithm's tag, as ()) and a ByteString (strict or lazy) as a list of
+# Word8;
+# Int and Integer as HsPrelude's HsInt (an integer: telomare's function
+# indices are negative), IntMap v as Map HsInt v and IntSet as Set HsInt,
+# their functions Data.Map's and Data.Set's at key HsInt (the key the
+# first type argument, or the last where Data.Map's own order has it so:
+# map, filter, foldr, Set's unions)
+def sp.hsint() -> X.Sx:
+  sp.tc(S.b("HsPrelude"), S.b("HsInt"), Nil{})
+
+def sp.p5.tc(+k: List<&2, U32>, +x: X.Sx) -> X.Sx:
+  +integer = sp.is(k, "GHC.Num.Integer.Integer")
+  +int = Bool.or(sp.is(k, "GHC.Types.Int"), Bool.or(False{}, Bool.or(sp.is(k, "Data.IntSet.Internal.Key"), sp.is(k, "Data.IntMap.Internal.Key"))))
+  +im = sp.is(k, "Data.IntMap.Internal.IntMap")
+  +iset = sp.is(k, "Data.IntSet.Internal.IntSet")
+  +dig = sp.is(k, "Crypto.Hash.Types.Digest")
+  +sha = Bool.or(sp.is(k, "Crypto.Hash.SHA256.SHA256"), sp.is(k, "Crypto.Hash.Algorithms.SHA256"))
+  +bs = Bool.or(Bool.or(sp.is(k, "Data.ByteString.Internal.Type.ByteString"), sp.is(k, "Data.ByteString.Internal.Type.StrictByteString")), Bool.or(sp.is(k, "Data.ByteString.Lazy.Internal.ByteString"), sp.is(k, "Data.ByteString.Lazy.Internal.LazyByteString")))
+  Bool.pick(X.Sx, dig, sp.tc(S.b("HsPrelude"), S.b("HsDigest"), Nil{}), Bool.pick(X.Sx, sha, sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), Bool.pick(X.Sx, bs, sp.tc(S.b("GHC.Types"), S.b("List"), [sp.tc(S.b("GHC.Internal.Word"), S.b("Word8"), Nil{})]), Bool.pick(X.Sx, int, sp.hsint(), Bool.pick(X.Sx, integer, sp.tc(S.b("HsPrelude"), S.b("HsInteger"), Nil{}), Bool.pick(X.Sx, im, sp.tc(S.b("Data.Map.Internal"), S.b("Map"), sp.hsint() <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), Bool.pick(X.Sx, iset, sp.tc(S.b("Data.Set.Internal"), S.b("Set"), [sp.hsint()]), x)))))))
+
+# an IntMap or IntSet function's Map or Set name, and where its key goes
+def sp.p5.mod(+m: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, sp.is(m, "Data.IntMap.Internal"), S.b("Data.Map.Internal"), Bool.pick(List<&2, U32>, sp.is(m, "Data.IntMap.Strict.Internal"), S.b("Data.Map.Strict.Internal"), Bool.pick(List<&2, U32>, sp.is(m, "Data.IntSet.Internal"), S.b("Data.Set.Internal"), Nil{})))
+
+def sp.p5.last(+m: List<&2, U32>, +n: List<&2, U32>) -> Bool:
+  Bool.or(Bool.and(Bool.not(sp.is(m, "Data.IntSet.Internal")), Bool.or(sp.is(n, "map"), Bool.or(sp.is(n, "filter"), sp.is(n, "foldr")))), Bool.and(sp.is(m, "Data.IntSet.Internal"), sp.is(n, "unions")))
+
+def sp.mkspine(ts: List<&2, X.Sx>, h: X.Sx) -> X.Sx:
+  match ts:
+    case Nil{}:
+      h
+    case t <> r:
+      sp.mkspine(r, sp.l([sp.a("tyapp"), h, t]))
+
+# a spine (or a bare name) whose head is an IntMap or IntSet function
+def sp.p5.call(+x: X.Sx) -> Maybe<&2, X.Sx>:
+  +h = sp.vhead(x)
+  +m = sp.sat(h, 1n)
+  +n = sp.sat(h, 2n)
+  +nm = sp.p5.mod(m)
+  +tys = sp.spine.tys(x, Nil{})
+  +ks = Bool.pick(List<&2, X.Sx>, sp.p5.last(m, n), List.append(&2, X.Sx, tys, [sp.hsint()]), sp.hsint() <> tys)
+  Bool.pick(Maybe<&2, X.Sx>, Bool.and(sp.head.is(h, "g"), Bool.not(S.eq(nm, Nil{}))), Some{sp.mkspine(ks, sp.g(nm, n, "var"))}, None{})
+
+def sp.p5.isg(+x: X.Sx) -> Bool:
+  Bool.or(sp.isty(x), sp.head.is(x, "g"))
+
+# Identity's constructor and runIdentity are id (the fold erases the
+# newtype), a pattern Identity p is p; base's functions whose Int is HsInt
+# here (length, take, drop, replicate, ord, chr) are HsPrelude.Z's
+def sp.p5.ident(+y: X.Sx) -> X.Sx:
+  +k = sp.gkey(y)
+  +idc = Bool.or(sp.is(k, "GHC.Internal.Data.Functor.Identity.Identity"), sp.is(k, "GHC.Internal.Data.Functor.Identity.runIdentity"))
+  +pid = Bool.and(sp.head.is(y, "pcon"), sp.is(sp.gkey(sp.at(y, 1n)), "GHC.Internal.Data.Functor.Identity.Identity"))
+  +z = Bool.or(Bool.or(sp.is(k, "GHC.Internal.Data.Foldable.length"), sp.is(k, "GHC.Internal.List.take")), Bool.or(Bool.or(sp.is(k, "GHC.Internal.List.drop"), sp.is(k, "GHC.Internal.List.replicate")), Bool.or(sp.is(k, "GHC.Internal.Base.ord"), sp.is(k, "GHC.Internal.Char.chr"))))
+  Bool.pick(X.Sx, idc, sp.g(S.b("GHC.Internal.Base"), S.b("id"), "var"), Bool.pick(X.Sx, pid, sp.at(sp.at(y, 3n), 1n), Bool.pick(X.Sx, z, sp.l([sp.a("g"), X.SxStr{S.b("HsPrelude.Z")}, sp.at(y, 2n), sp.at(y, 3n)]), y)))
+
+# top: x is no spine's function (so a spine is judged whole)
+def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
+  match x:
+    case X.SxCons{+h, X.SxCons{+e, +r}}:
+      +a = X.tsx.atom.of(h)
+      +inner = sp.isty(X.SxCons{h, X.SxCons{e, r}})
+      +y = sp.cons(sp.p5(h, True{}), sp.cons(sp.p5(e, Bool.not(inner)), sp.p5(r, True{})))
+      +c = Bool.pick(Maybe<&2, X.Sx>, Bool.and(top, sp.p5.isg(X.SxCons{h, X.SxCons{e, r}})), sp.p5.call(y), None{})
+      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y), sp.p5.ident(y)))
+    case X.SxCons{+h, X.SxNil{}}:
+      X.SxCons{sp.p5(h, True{}), X.SxNil{}}
+    case y:
+      y
+
+def sp.p5s(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      sp.p5(x, True{}) <> sp.p5s(t)
+
+
 # The program ------------------------------------------------------------------------
 
 def sp.text(xs: List<&2, X.Sx>) -> List<&2, U32>:
@@ -1360,7 +1440,7 @@ def sp.run(fs: List<String>, +out: String, ix: Ix, list: List<&2, U32>) -> IO(Un
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, X.tsx.read(bytes))
+        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(X.tsx.read(bytes)))
         +ix2 : Ix <- IO.pure(Ix, sp.ix.module(xs, ix))
         +p : String <- IO.pure(String, out ++ "/" ++ S.base(f))
         S.write(p, sp.text(sp.module(xs, ix2)))

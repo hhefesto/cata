@@ -118,6 +118,7 @@ def lw.undot(xs: List<&2, U32>) -> List<&2, U32>:
 # user type's arguments and a constructor's fields are an HyArgs spine.
 type Hy is Data:
   HyNat{hs: List<&2, U32>}
+  HyInt{hs: List<&2, U32>}
   HyBool{}
   HyChar{}
   HyUnit{}
@@ -136,6 +137,8 @@ type Hy is Data:
 # Base's types the laws cover
 type Bk is Data:
   BkInt{}
+  BkHsInt{}
+  BkHsInteger{}
   BkInteger{}
   BkNatural{}
   BkBool{}
@@ -154,7 +157,7 @@ type BkE is Data:
   BkE{k: String, v: Bk}
 
 def lw.bktab() -> List<&2, BkE>:
-  [BkE{"GHC.Types.Int", BkInt{}}, BkE{"GHC.Num.Integer.Integer", BkInteger{}}, BkE{"GHC.Num.Natural.Natural", BkNatural{}}, BkE{"GHC.Types.Bool", BkBool{}}, BkE{"GHC.Types.Char", BkChar{}}, BkE{"GHC.Types.List", BkList{}}, BkE{"GHC.Internal.Base.String", BkStr{}}, BkE{"GHC.Internal.IO.FilePath", BkStr{}}, BkE{"GHC.Internal.Maybe.Maybe", BkMaybe{}}, BkE{"GHC.Internal.Data.Either.Either", BkEither{}}, BkE{"GHC.Tuple.Tuple2", BkT2{}}, BkE{"GHC.Tuple.Tuple3", BkT3{}}, BkE{"GHC.Tuple.Unit", BkUnit{}}, BkE{"GHC.Types.Ordering", BkCmp{}}]
+  [BkE{"GHC.Types.Int", BkInt{}}, BkE{"GHC.Num.Integer.Integer", BkInteger{}}, BkE{"GHC.Num.Natural.Natural", BkNatural{}}, BkE{"GHC.Types.Bool", BkBool{}}, BkE{"GHC.Types.Char", BkChar{}}, BkE{"GHC.Types.List", BkList{}}, BkE{"GHC.Internal.Base.String", BkStr{}}, BkE{"GHC.Internal.IO.FilePath", BkStr{}}, BkE{"GHC.Internal.Maybe.Maybe", BkMaybe{}}, BkE{"GHC.Internal.Data.Either.Either", BkEither{}}, BkE{"GHC.Tuple.Tuple2", BkT2{}}, BkE{"GHC.Tuple.Tuple3", BkT3{}}, BkE{"GHC.Tuple.Unit", BkUnit{}}, BkE{"GHC.Types.Ordering", BkCmp{}}, BkE{"HsPrelude.HsInt", BkHsInt{}}, BkE{"HsPrelude.HsInteger", BkHsInteger{}}]
 
 def lw.bk.find(xs: List<&2, BkE>, +k: List<&2, U32>) -> Bk:
   match xs:
@@ -167,6 +170,10 @@ def lw.base(k: Bk, key: List<&2, U32>, args: Hy) -> Hy:
   match k args:
     case BkInt{} _:
       HyNat{S.b("LawP.Int")}
+    case BkHsInt{} _:
+      HyInt{S.b("LawP.Int")}
+    case BkHsInteger{} _:
+      HyInt{S.b("LawP.Integer")}
     case BkInteger{} _:
       HyNat{S.b("LawP.Integer")}
     case BkNatural{} _:
@@ -415,6 +422,8 @@ def lw.hs.ty(h: Hy, +m: List<&2, U32>) -> List<&2, U32>:
   match h:
     case HyNat{s}:
       s
+    case HyInt{s}:
+      s
     case HyBool{}:
       S.b("LawP.Bool")
     case HyChar{}:
@@ -447,6 +456,8 @@ def lw.bty(h: Hy) -> T.Bt:
   match h:
     case HyNat{s}:
       F.fd.ty0("Nat")
+    case HyInt{s}:
+      F.fd.ty0("HsPrelude.HsInt")
     case HyBool{}:
       F.fd.ty0("Bool")
     case HyChar{}:
@@ -570,6 +581,7 @@ def lw.dec(d: Nat) -> Nat:
 # arguments, a list's and a tuple's elements are a VaArgs spine.
 type Va is Data:
   VaNat{n: Nat}
+  VaInt{neg: Bool, n: Nat}
   VaChar{c: Nat}
   VaCon{hs: List<&2, U32>, bend: List<&2, U32>, args: Va}
   VaList{xs: Va}
@@ -592,6 +604,9 @@ def lw.c0(hs: String, b: String) -> Va:
 
 def lw.nats() -> List<&2, Va>:
   [VaNat{0n}, VaNat{1n}, VaNat{2n}, VaNat{3n}]
+
+def lw.ints() -> List<&2, Va>:
+  [VaInt{False{}, 0n}, VaInt{False{}, 1n}, VaInt{True{}, 1n}, VaInt{False{}, 2n}, VaInt{True{}, 3n}]
 
 def lw.bools() -> List<&2, Va>:
   [lw.c0("LawP.False", "False"), lw.c0("LawP.True", "True")]
@@ -690,6 +705,8 @@ def lw.vals(fuel: Nat, +d: Nat, +le: Le, +dds: List<&2, Dd>, q: Q) -> List<&2, V
       Nil{}
     case 1n+p QTy{HyNat{s}}:
       lw.nats()
+    case 1n+p QTy{HyInt{s}}:
+      lw.ints()
     case 1n+p QTy{HyBool{}}:
       lw.bools()
     case 1n+p QTy{HyChar{}}:
@@ -731,10 +748,20 @@ type Vm is Data:
   VmTup{}
 
 # a value as GHCi reads it
+# an integer input as GHCi reads it: -n in parentheses
+def lw.va.int(neg: Bool, n: Nat) -> List<&2, U32>:
+  match neg:
+    case True{}:
+      40 <> 45 <> lw.cat(lw.nshow(n), [41])
+    case False{}:
+      lw.nshow(n)
+
 def lw.va.hs(v: Va, mode: Vm) -> List<&2, U32>:
   match v mode:
     case VaNat{n} _:
       lw.nshow(n)
+    case VaInt{neg, n} _:
+      lw.va.int(neg, n)
     case VaChar{c} _:
       [39, U32.from_nat(c), 39]
     case VaCon{hs, b, VaANil{}} _:
@@ -758,6 +785,8 @@ def lw.va.bt(v: Va, mode: Vm) -> T.Bt:
   match v mode:
     case VaNat{n} _:
       T.BtNat{lw.nshow(n)}
+    case VaInt{+neg, n} _:
+      T.BtCon{F.fd.bpick(neg, S.b("HsPrelude.HsInt.Neg"), S.b("HsPrelude.HsInt.Pos")), T.tba.args([T.BtNat{lw.nshow(n)}])}
     case VaChar{c} _:
       F.fd.char(c)
     case VaCon{hs, b, args} _:
@@ -797,37 +826,48 @@ def lw.okind(+x: X.Sx) -> Ok:
   +h = V.sv.hd(x)
   Bool.pick(Ok, V.sv.is(h, "nat"), OkNat{}, Bool.pick(Ok, V.sv.is(h, "neg"), OkNeg{}, Bool.pick(Ok, V.sv.is(h, "char"), OkChar{}, Bool.pick(Ok, V.sv.is(h, "list"), OkList{}, Bool.pick(Ok, V.sv.is(h, "tuple"), OkTup{}, Bool.pick(Ok, V.sv.is(h, "con"), OkCon{}, OkNo{}))))))
 
+# a number answer: an HsInt where the def's result type has one (Spec's
+# Int), else a Nat (a negative one has none: the fold's Int is Nat)
+def lw.out.num(sg: Bool, neg: Bool, +n: List<&2, U32>) -> T.Bt:
+  match sg neg:
+    case True{} _:
+      T.BtCon{F.fd.bpick(neg, S.b("HsPrelude.HsInt.Neg"), S.b("HsPrelude.HsInt.Pos")), T.tba.args([T.BtNat{n}])}
+    case False{} False{}:
+      T.BtNat{n}
+    case False{} True{}:
+      T.BtTodo{S.b("law:negative-answer")}
+
 # an answer in Bend; a negative number has none (the fold's Int is Nat).
 # It recurses on the tree's own parts (a string's answer is as long as the
 # string)
-def lw.out(x: X.Sx, k: Ok, mode: Vm) -> T.Bt:
+def lw.out(x: X.Sx, k: Ok, mode: Vm, +sg: Bool) -> T.Bt:
   match x k mode:
     case X.SxCons{+h, t} _ VmSp{}:
-      T.BtArgs{lw.out(h, lw.okind(h), VmVal{}), lw.out(t, OkNo{}, VmSp{})}
+      T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, sg), lw.out(t, OkNo{}, VmSp{}, sg)}
     case _ _ VmSp{}:
       T.BtANil{}
     case X.SxCons{+h, t} _ VmList{}:
-      T.BtCon{S.b("Con"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}), T.BtArgs{lw.out(t, OkNo{}, VmList{}), T.BtANil{}}}}
+      T.BtCon{S.b("Con"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, sg), T.BtArgs{lw.out(t, OkNo{}, VmList{}, sg), T.BtANil{}}}}
     case _ _ VmList{}:
       F.fd.con0("Nil")
     case X.SxCons{+h, X.SxNil{}} _ VmTup{}:
-      lw.out(h, lw.okind(h), VmVal{})
+      lw.out(h, lw.okind(h), VmVal{}, sg)
     case X.SxCons{+h, t} _ VmTup{}:
-      T.BtCon{S.b("Tuple"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}), T.BtArgs{lw.out(t, OkNo{}, VmTup{}), T.BtANil{}}}}
+      T.BtCon{S.b("Tuple"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, sg), T.BtArgs{lw.out(t, OkNo{}, VmTup{}, sg), T.BtANil{}}}}
     case _ _ VmTup{}:
       F.fd.con0("Unit")
     case +y OkNat{} _:
-      T.BtNat{X.tsx.atom.of(X.tsx.at(1n, y))}
-    case _ OkNeg{} _:
-      T.BtTodo{S.b("law:negative-answer")}
+      lw.out.num(sg, False{}, X.tsx.atom.of(X.tsx.at(1n, y)))
+    case +y OkNeg{} _:
+      lw.out.num(sg, True{}, X.tsx.atom.of(X.tsx.at(1n, y)))
     case +y OkChar{} _:
       F.fd.char(X.tsx.nat(X.tsx.at(1n, y)))
     case X.SxCons{h, t} OkList{} _:
-      lw.out(t, OkNo{}, VmList{})
+      lw.out(t, OkNo{}, VmList{}, sg)
     case X.SxCons{h, t} OkTup{} _:
-      lw.out(t, OkNo{}, VmTup{})
+      lw.out(t, OkNo{}, VmTup{}, sg)
     case X.SxCons{h, X.SxCons{c, t}} OkCon{} _:
-      T.BtCon{X.tsx.str.of(c), lw.out(t, OkNo{}, VmSp{})}
+      T.BtCon{X.tsx.str.of(c), lw.out(t, OkNo{}, VmSp{}, sg)}
     case _ _ _:
       T.BtTodo{S.b("law:answer")}
 
@@ -1104,12 +1144,30 @@ def lw.script(+m: List<&2, U32>, ds: List<&2, Dd>, ps: List<&2, Pl>) -> List<&2,
 def lw.lawname(+b: List<&2, U32>, k: Nat) -> List<&2, U32>:
   lw.cat3(b, S.b(".ex"), lw.nshow(k))
 
+# whether a module's export names HsInt (the specialiser's Int): its number
+# answers are HsInts
+def lw.has.str.go(x: X.Sx, +s: List<&2, U32>) -> Bool:
+  match x:
+    case X.SxStr{a}:
+      S.eq(a, s)
+    case X.SxCons{h, t}:
+      Bool.or(lw.has.str.go(h, s), lw.has.str.go(t, s))
+    case _:
+      False{}
+
+def lw.has.str(xs: List<&2, X.Sx>, +s: List<&2, U32>) -> Bool:
+  match xs:
+    case Nil{}:
+      False{}
+    case x <> t:
+      Bool.or(lw.has.str.go(x, s), lw.has.str(t, s))
+
 # the law, once GHC's answer reads as a tree
-def lw.law.sx(m: Maybe<&2, X.Sx>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>) -> List<&2, T.BItem>:
+def lw.law.sx(m: Maybe<&2, X.Sx>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>, sg: Bool) -> List<&2, T.BItem>:
   match m:
     case Some{+x}:
       +doc = lw.cat3(S.b("GHC: "), hs, lw.cat(S.b(") = "), v))
-      T.BiDef{lw.lawname(b, k), Nil{}, T.BtEq{ret, call, lw.out(x, lw.okind(x), VmVal{})}, T.BtExpr{T.BtRefl{}}, doc <> Nil{}} <> Nil{}
+      T.BiDef{lw.lawname(b, k), Nil{}, T.BtEq{ret, call, lw.out(x, lw.okind(x), VmVal{}, Bool.and(sg, Bool.not(S.mem(S.b("Nat"), T.tba.refs(ret, Nil{})))))}, T.BtExpr{T.BtRefl{}}, doc <> Nil{}} <> Nil{}
     case None{}:
       Nil{}
 
@@ -1138,33 +1196,33 @@ def lw.bigrun(ds: List<&2, Bool>, run: Nat) -> Bool:
 def lw.bignum(+xs: List<&2, U32>) -> Bool:
   lw.bigrun(lw.digits(xs), 0n)
 
-def lw.law.ok(ok: Bool, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>) -> List<&2, T.BItem>:
+def lw.law.ok(ok: Bool, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>, sg: Bool) -> List<&2, T.BItem>:
   match ok:
     case True{}:
-      lw.law.sx(X.tsx.one(v), b, ret, k, hs, call, v)
+      lw.law.sx(X.tsx.one(v), b, ret, k, hs, call, v, sg)
     case False{}:
       Nil{}
 
-def lw.law(o: Maybe<&2, Ol>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, +hs: List<&2, U32>, call: T.Bt) -> List<&2, T.BItem>:
+def lw.law(o: Maybe<&2, Ol>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, +hs: List<&2, U32>, call: T.Bt, sg: Bool) -> List<&2, T.BItem>:
   match o:
     case Some{Ol{ob, ok, +st, +v}}:
-      lw.law.ok(Bool.and(V.sv.is(st, "ok"), Bool.not(Bool.or(lw.bignum(v), lw.bignum(hs)))), b, ret, k, hs, call, v)
+      lw.law.ok(Bool.and(V.sv.is(st, "ok"), Bool.not(Bool.or(lw.bignum(v), lw.bignum(hs)))), b, ret, k, hs, call, v, sg)
     case None{}:
       Nil{}
 
-def lw.laws.lc(ls: List<&2, Lc>, +b: List<&2, U32>, +ret: T.Bt, +os: List<&2, Ol>) -> List<&2, T.BItem>:
+def lw.laws.lc(ls: List<&2, Lc>, +b: List<&2, U32>, +ret: T.Bt, +os: List<&2, Ol>, +sg: Bool) -> List<&2, T.BItem>:
   match ls:
     case Lc{+k, hs, c} <> t:
-      List.append(&2, T.BItem, lw.law(lw.ol.find(os, b, lw.nshow(k)), b, ret, k, hs, c), lw.laws.lc(t, b, ret, os))
+      List.append(&2, T.BItem, lw.law(lw.ol.find(os, b, lw.nshow(k)), b, ret, k, hs, c, sg), lw.laws.lc(t, b, ret, os, sg))
     case Nil{}:
       Nil{}
 
-def lw.items(ps: List<&2, Pl>, +os: List<&2, Ol>) -> List<&2, T.BItem>:
+def lw.items(ps: List<&2, Pl>, +os: List<&2, Ol>, +sg: Bool) -> List<&2, T.BItem>:
   match ps:
     case Pl{+b, +r, ls} <> t:
-      List.append(&2, T.BItem, lw.laws.lc(ls, b, r, os), lw.items(t, os))
+      List.append(&2, T.BItem, lw.laws.lc(ls, b, r, os, sg), lw.items(t, os, sg))
     case _ <> t:
-      lw.items(t, os)
+      lw.items(t, os, sg)
     case Nil{}:
       Nil{}
 
@@ -1453,7 +1511,7 @@ def lw.laws(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<List<&2, T.BItem>>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10))))
+    lw.laws2(rounds, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))))
 
 # a module: fold it as Fold.bend does, ask GHC for its defs' laws, and gate
 # the defs and laws together (px: what its package's modules before it

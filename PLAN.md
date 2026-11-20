@@ -710,3 +710,68 @@ non-structural recursion (33), Int with negative numbers or subtraction
 Rational (10); the copies on `error` (16), `show` at Fix (12, data-fix's
 instance through Show1), Applicative at Identity, Either and pairs
 (liftA2), and the fold's `\case` inside expressions.
+
+## Telomare's rules, 7: signed Int, Identity, liftA2 (2026-11-20)
+
+The user: "/goal have cata be able to generate a working version of
+telomare's master."
+
+**Int.** Telomare's Ints go below zero (its function indices: `leftGateInd =
+-2`), so Int as Nat, where nothing subtracts, cannot hold it. In the
+specialiser's output `Int` is HsPrelude's `HsInt` and `Integer` its
+`HsInteger` (the same type to the fold; Law tells them apart for GHCi):
+`Pos{n}` is n, `Neg{n}` is -n with n at least 1, so each integer is one
+term and `==` is the structural one. HsPrelude gives `add`, `sub`, `mul`,
+`negate`, `abs`, `signum`, Haskell's `div`/`mod` (toward minus infinity)
+and `quot`/`rem` (toward zero), `^`, `cmp` and the comparisons, `max`,
+`min`, `succ`, `pred`, `show`, `range`; the fold writes literals and
+literal patterns below zero, `(negapp ..)`, `-`, `subtract`, `negate`,
+`abs`, `signum`, `fromIntegral` and `toInteger` between Int and Integer,
+`toEnum`/`fromEnum` at Int, and `compare` at HsInt for a Map's key.
+`IntMap v` is `Map HsInt v`, `IntSet` `Set HsInt`, their functions Data.Map's
+and Data.Set's with HsInt as the key's type argument. Law gives HsInt
+inputs below zero too (0, 1, -1, 2, -3) and reads a number answer as an
+HsInt where the def's result type has one. Not modelled: Int's 64-bit
+wrap-around. A single module (hs1003) keeps Int as Nat.
+
+**Identity** (`Identity a` is `a`: the newtype erased; `Identity` and
+`runIdentity` are `id`) is a monad to the fold; **liftA2** at Identity, Maybe,
+Either, State and ExceptT over State is `x >>= \la_ -> fmap (f la_) y`
+(Identity: `f x y`).
+
+**Test** (`tests/hs/Ints.hs`): 9 of 11 with laws (negative inputs and
+answers among them: `sign (-1) == -10`, `div`/`mod`/`quot`/`rem` below
+zero, IntMap and IntSet at negative keys); out `divs` (a 4-tuple) and
+`countDown` (recursion on n - 1, not structural).
+
+## Telomare's rules, 8: Digest SHA256 (2026-11-20)
+
+EAL's state, its error type and its `Tag` all hold crypton's `Digest
+SHA256` (the hash of a defer body's `encode . show`, a body's identity in
+the DeferMap), so no rule before this one could reach EAL or IC. In the
+specialiser's output a `Digest SHA256` is HsPrelude's `HsDigest`, its 32
+bytes; `hash` is SHA-256 (FIPS 180-4) in Bend, on U32 words (Base's `add`,
+`and`, `xor`, `not`, `shrn`, `shln`); `show` is its hex text (crypton's,
+no quotes); `==` and `compare` its bytes' lexicographic order (crypton's
+Ord); `SHA256` itself, the algorithm's tag, is `()`. A ByteString (strict
+or lazy) is a list of `Word8`, which is Bend's U32 (its wrap-around at 256
+not modelled); `pack`, `unpack`, `toStrict`, `fromStrict` are the list;
+Data.ByteArray's `unpack` at a digest its bytes; utf8-string's `encode`
+UTF-8 (one to four bytes); `fromIntegral` from Word8 to Int or Nat.
+
+Checked against GHC: `tests/hs/Dig.hs`, `show (hash ..)`, `==`, `compare`
+and the first bytes of digests of GHC's inputs, 4 functions with laws
+(the empty string's digest among them, e3b0c442..); and the FIPS vectors
+("abc", "", the 448-bit one) and UTF-8 text of 2, 3 and 4 bytes against
+sha256sum.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare before rule 6 (law-pk11) | 668 | 64 | 76 | 96 |
+| telomare after rules 6-8 (spec, law7, 61 s) | 573 | 80 | 142 | 109 |
+| hs1003 before (law17) | 3107 | 1424 | 221 | 558 |
+| hs1003 now (law19) | 3090 | 1427 | 232 | 561 |
+
+No def lost its verdict or a law on either. Telomare's numbers are its
+own functions; besides them the specialiser's 738 copies (464 check, no
+laws: GHC has no copy to answer for).

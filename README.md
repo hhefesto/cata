@@ -111,6 +111,21 @@ at Int, HsPrelude's `HsCmp.char`, `HsCmp.bool`, `HsCmp.unit`, and
 String key is a list of Char). A key of any other type (the module's own,
 whose `compare` is not written yet) is out, `fold:ord-at-type`.
 
+In the specialiser's output (a package through `spec`) `Int` and `Integer` are
+HsPrelude's `HsInt`, an integer: `Pos{n}` is n, `Neg{n}` is -n (n at least
+1), one term per integer; `-`, `negate`, `abs`, `signum`, `subtract`,
+Haskell's `div`, `mod`, `quot` and `rem`, `^`, comparisons, `show`, `succ`,
+`pred`, `toEnum`, `fromEnum`, `fromIntegral` and `toInteger` between them,
+literals and literal patterns below zero; `IntMap v` is `Map HsInt v` and
+`IntSet` `Set HsInt`. Int's 64-bit wrap-around is not modelled. A single
+module (hs1003) keeps Int as Nat, where nothing subtracts.
+
+crypton's `Digest SHA256` is HsPrelude's `HsDigest` (its 32 bytes): `hash` is
+SHA-256 written in Bend, `show` its hex text, `==` and `compare` its bytes'
+order (crypton's); a ByteString is a list of `Word8` (Bend's U32), `pack`,
+`unpack`, `toStrict` and `fromStrict` the list itself, Data.ByteArray's
+`unpack` at a digest its bytes, utf8-string's `encode` UTF-8.
+
 Data.Void's `Void` is Base's `Empty`, `absurd` `Empty.absurd`, `==` at it `True`.
 
 ## Lifting
