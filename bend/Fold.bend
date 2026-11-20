@@ -853,13 +853,21 @@ type Bf is Data:
   BfProject{}
   BfEmbed{}
   BfCata{}
+  BfBind{}
+  BfThen{}
+  BfPure{}
+  BfFmap{}
+  BfMaybe{}
+  BfFromMaybe{}
+  BfEither{}
+  BfSemi{}
   BfNone{}
 
 type BfE is Data:
   BfE{k: String, v: Bf}
 
 def fd.bftab() -> List<&2, BfE>:
-  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}]
+  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}]
 
 def fd.bf.find(xs: List<&2, BfE>, +k: List<&2, U32>) -> Bf:
   match xs:
@@ -903,6 +911,12 @@ def fd.bf.n(f: Bf) -> Nat:
       1n
     case BfEmbed{}:
       1n
+    case BfPure{}:
+      1n
+    case BfMaybe{}:
+      3n
+    case BfEither{}:
+      3n
     case BfFoldr{}:
       3n
     case BfFoldl{}:
@@ -993,6 +1007,94 @@ def fd.succ(q: Tq, x: T.Bt) -> T.Bt:
       T.BtSucc{x}
     case _:
       fd.todo("fold:succ-at-type")
+
+# Monads and functors at Maybe, Either e and lists: a do block is GHC's
+# >>= and >> (FORMAT: expanded), each a closure Base's Maybe.bind or the
+# prelude's hs.either.bind calls
+type Mk is Data:
+  MkMaybe{}
+  MkEither{e: T.Bt}
+  MkList{}
+  MkOther{}
+
+def fd.mk.one(maybe: Bool) -> Mk:
+  match maybe:
+    case True{}:
+      MkMaybe{}
+    case False{}:
+      MkOther{}
+
+def fd.mk.three(either: Bool, e: T.Bt) -> Mk:
+  match either:
+    case True{}:
+      MkEither{e}
+    case False{}:
+      MkOther{}
+
+def fd.mk.var(list: Bool) -> Mk:
+  match list:
+    case True{}:
+      MkList{}
+    case False{}:
+      MkOther{}
+
+# what the monad (or functor) argument m, as the fold wrote it, is
+def fd.mk(m: T.Bt) -> Mk:
+  match m:
+    case T.BtTyApp{n, T.BtArgs{a, T.BtANil{}}}:
+      fd.mk.one(fd.is(n, "Maybe"))
+    case T.BtTyApp{n, T.BtArgs{a, T.BtArgs{b, T.BtArgs{e, T.BtANil{}}}}}:
+      fd.mk.three(fd.is(n, "Either"), e)
+    case T.BtVar{n}:
+      fd.mk.var(fd.is(n, "List"))
+    case _:
+      MkOther{}
+
+def fd.bind(k: Mk, a: T.Bt, b: T.Bt, x: T.Bt, f: T.Bt) -> T.Bt:
+  match k:
+    case MkMaybe{}:
+      fd.callS("Maybe.bind", [fd.v("&2"), a, b, x, f])
+    case MkEither{e}:
+      fd.callS("hs.either.bind", [e, a, b, x, f])
+    case _:
+      fd.todo("fold:monad-at-type")
+
+def fd.pure(k: Mk, x: T.Bt) -> T.Bt:
+  match k:
+    case MkMaybe{}:
+      T.BtCon{S.b("Some"), T.tba.args([x])}
+    case MkEither{e}:
+      T.BtCon{S.b("Inr"), T.tba.args([x])}
+    case MkList{}:
+      T.BtCon{S.b("Con"), T.tba.args([x, fd.con0("Nil")])}
+    case _:
+      fd.todo("fold:monad-at-type")
+
+def fd.untpl(g: T.Bt) -> T.Bt:
+  match g:
+    case T.BtTplArg{h}:
+      h
+    case h:
+      h
+
+def fd.fmap(k: Mk, a: T.Bt, b: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
+  match k:
+    case MkMaybe{}:
+      fd.callS("Maybe.map", [fd.v("&2"), a, b, fd.untpl(g), x])
+    case MkEither{e}:
+      fd.callS("hs.either.map", [e, a, b, fd.untpl(g), x])
+    case MkList{}:
+      fd.callS("hs.map", [fd.tpl0(a), fd.tpl0(b), g, x])
+    case _:
+      fd.todo("fold:fmap-at-type")
+
+# <> at a list
+def fd.semi(t: T.Bt, x: T.Bt, y: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTyApp{n, T.BtArgs{q, T.BtArgs{a, T.BtANil{}}}}:
+      Bool.pick(T.Bt, fd.is(n, "List"), fd.callS("List.append", [fd.v("&2"), a, x, y]), fd.todo("fold:semigroup-at-type"))
+    case _:
+      fd.todo("fold:semigroup-at-type")
 
 # Recursive's project and cata and Corecursive's embed
 # (Data.Functor.Foldable) at Fix f and Cofree f w: cata is the functor's
@@ -1138,6 +1240,22 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.embed(t, x)
     case BfCata{} t <> r <> _ g <> x <> _:
       fd.cata(t, r, fd.tpl(ls, g), x)
+    case BfBind{} m <> a <> b <> _ x <> f <> _:
+      fd.bind(fd.mk(m), a, b, x, f)
+    case BfThen{} m <> a <> b <> _ x <> y <> _:
+      fd.bind(fd.mk(m), a, b, x, T.BtLam{T.BmLive{}, S.b("_"), y})
+    case BfPure{} m <> a <> _ x <> _:
+      fd.pure(fd.mk(m), x)
+    case BfFmap{} m <> a <> b <> _ g <> x <> _:
+      fd.fmap(fd.mk(m), a, b, fd.tpl(ls, g), x)
+    case BfMaybe{} b <> a <> _ d <> g <> m <> _:
+      fd.callS("hs.maybe", [a, b, d, g, m])
+    case BfFromMaybe{} a <> _ d <> m <> _:
+      fd.callS("Maybe.default", [fd.v("&2"), a, m, d])
+    case BfEither{} a <> c <> b <> _ f <> g <> e <> _:
+      fd.callS("hs.either", [a, b, c, f, g, e])
+    case BfSemi{} t <> _ x <> y <> _:
+      fd.semi(t, x, y)
     case _ _ _:
       fd.todo("fold:base-call")
 
@@ -3191,8 +3309,25 @@ def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
     case Nil{}:
       False{}
 
+# Maybe's and Either's monad and functions Base lacks (Base has Maybe.bind,
+# Maybe.map and Maybe.default)
+def fd.pre.either.bind() -> String:
+  "# Either's >>= (a Left stops the rest)\ndef hs.either.bind(-E: Data, -A: Data, -B: Data, m: Either<&2, &2, E, A>, f: A -> Either<&2, &2, E, B>) -> Either<&2, &2, E, B>:\n  match m:\n    case Inl{e}:\n      Inl{e}\n    case Inr{a}:\n      f(a)\n\n"
+
+def fd.pre.either.map() -> String:
+  "# Either's fmap\ndef hs.either.map(-E: Data, -A: Data, -B: Data, f: A -> B, m: Either<&2, &2, E, A>) -> Either<&2, &2, E, B>:\n  match m:\n    case Inl{e}:\n      Inl{e}\n    case Inr{a}:\n      Inr{f(a)}\n\n"
+
+def fd.pre.maybe() -> String:
+  "# Haskell's maybe\ndef hs.maybe(-A: Data, -B: Data, d: B, f: A -> B, m: Maybe<&2, A>) -> B:\n  match m:\n    case None{}:\n      d\n    case Some{x}:\n      f(x)\n\n"
+
+def fd.pre.either() -> String:
+  "# Haskell's either\ndef hs.either(-A: Data, -B: Data, -C: Data, f: A -> C, g: B -> C, e: Either<&2, &2, A, B>) -> C:\n  match e:\n    case Inl{a}:\n      f(a)\n    case Inr{b}:\n      g(b)\n\n"
+
+def fd.pre.one(+its: List<&2, T.BItem>, n: String, text: String) -> List<&2, U32>:
+  fd.bpick(fd.uses.name(its, S.b(n)), S.b(text), Nil{})
+
 def fd.prelude(+its: List<&2, T.BItem>) -> List<&2, U32>:
-  fd.cat(fd.bpick(fd.uses.name(its, S.b("Bool.if")), S.b(fd.pre.if()), Nil{}), fd.bpick(fd.uses.name(its, S.b("hs.map")), S.b(fd.pre.map()), Nil{}))
+  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.either", fd.pre.either())])
 
 # The file -------------------------------------------------------------------------
 

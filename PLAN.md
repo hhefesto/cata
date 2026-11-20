@@ -376,3 +376,28 @@ a anno -> ..`) needs its variable's kind (Data -> Data), which hs-export
 does not write yet. GHC's example laws have no LawSx for Fix and Cofree
 yet (`nolaw:result-type:Data.Fix.Fix`). A data type with a function field
 (Desugar's `Builtin`) is Type, not Data, in Bend.
+
+## Telomare's rules, 2: Maybe and Either as monads (2026-11-19)
+
+GHC writes a do block as its >>= and >> (FORMAT: `expanded stmt`), so the
+survey now judges a do block by those methods at their monad (it said
+`monad:do` for every one), and the fold writes, at Maybe, Either e and
+lists: `>>=` as Base's `Maybe.bind` or the prelude's `hs.either.bind` with
+the continuation a closure, `>>` the same with `_ =>`, `return`/`pure` as
+`Some`/`Inr`/a one-element list, `fmap`/`<$>` as `Maybe.map`,
+`hs.either.map` or `hs.map`, `maybe`, `either` (prelude) and `fromMaybe`
+(`Maybe.default`), and `<>` at a list as `List.append`. A bind whose
+pattern is a constructor, or a continuation with a let or a case inside,
+is still out (a lambda in Bend is one expression).
+
+| | functions out | ok-law | ok-check |
+|---|---|---|---|
+| hs1003 before (law8) | 3190 | 1360 | 202 |
+| hs1003 now (law9) | 3174 | 1373 | 205 |
+| telomare before (law-pk4) | 732 | 55 | 35 |
+| telomare now (law-pk5) | 727 | 60 | 35 |
+
+No def lost its verdict on either. In telomare the five are all `<>` on
+strings (renderMeter, renderBinding, renderDef, indent, plural); its
+Maybe/Either code is also blocked by other rules (case on a computed
+value, local functions, pattern synonyms).
