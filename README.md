@@ -10,6 +10,17 @@ reason. PLAN.md has the decisions, the steps and what has been measured.
   FILE.hs` type-checks one module and writes its typechecked syntax, every
   binder's type and every instance GHC chose, as S-expressions
   (`tools/hs-export/FORMAT.md`). It decides nothing.
+- `bend/Spec.bend`: `spec OUTDIR FILE.sexp...` (a package's modules, in
+  order) writes them again in the same format with each pattern synonym
+  replaced by the pattern its matcher matches (or its builder), each view
+  pattern whose function is known (a constructor, a projection, a function
+  by cases that is Just at one constructor, Recursive's project and
+  Corecursive's embed at Fix and Cofree, compositions of them, through the
+  package's instances) as the plain pattern it is, and each call of a def
+  that takes dictionaries, or of a method at an instance the package wrote,
+  at types with no variable left, as a call of a copy at those types
+  (`NAME__TYPES`, written into the calling module). Survey, fold and law
+  read its output.
 - `bend/Survey.bend`: `survey OUT FILE.sexp...` judges every binding of
   the exports against cata hs's first version and says why each one out is
   out.

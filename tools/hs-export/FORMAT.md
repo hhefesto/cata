@@ -40,6 +40,7 @@ followed by a newline.
     (module NAME ((import MOD open|qualified) ...))
     TYCON ...          one per type, newtype, synonym and class it defines
     (instance CLSMOD CLS (TYPE ...) DFUN SPAN) ...
+    (faminst FAMMOD FAM (ARG ...) RHS) ...  one per type family instance
     (top BIND) ...     its bindings, in source order
 
 ## Names
@@ -69,6 +70,8 @@ tuples `(tc "GHC.Tuple" "Tuple2" A B)`, unit `(tc "GHC.Tuple" "Unit")`.
     (class NAME (TV...) ((method NAME TYPE)...) (SUPERCLASS...) SPAN)
 
 `ex` counts a constructor's existential variables and its own constraints.
+A type family instance (`faminst`, an associated type's too) gives the
+family, its arguments (their variables free) and its right-hand side.
 SPAN is `(span L1 C1 L2 C2)` or `nospan`.
 
 ## Bindings

@@ -628,3 +628,64 @@ refuses 541, most for the classes over the base functors (`Recursive`,
 `Corecursive`, `~`, BasicBase, StuckBase), `Void`, ParsecT, EALState's
 and EALError's `Digest SHA256`, pattern synonyms, mutual recursion and
 `int-sub`.
+
+## Telomare's rules, 6: the specialiser, bend/Spec.bend (2026-11-20)
+
+The user: "/goal have cata be able to get a working version of telomare's
+master." Telomare's IR is written for any functor with a class (`BasicBase
+f`, `StuckBase f`, ..., with `Recursive g`, `Corecursive g`, `Base g ~ f`)
+and read through pattern synonyms over them (`ZeroB`, `PairB`, `BasicEE`,
+`GFix`, ... down to views `(extractB -> Just x)` and `(project -> x)`), so
+nothing of it was in reach of the fold, which takes no class. Bend has no
+classes either; the specialiser takes them out before the fold, as GHC's
+specialiser would, on hs-export's output (a pass from export to export, so
+survey, fold and law are unchanged):
+
+- **Pattern synonyms.** hs-export exports each synonym's matcher `$mX`
+  (GHC's code: a case on the scrutinee whose first match is the synonym's
+  pattern, its continuation applied to the pattern's variables) and its
+  builder `$bX`. A use as a pattern becomes that pattern, the use's
+  arguments in the variables' places and its types in the synonym's; as an
+  expression, a call of the builder. Repeated until none is left.
+- **Views.** `(f -> p)` becomes a plain pattern when f is the identity, a
+  constructor (`Just`, `pure` at Maybe), a one-clause lambda projecting a
+  field (`\(_ :< x) -> x`), a function by cases that is `Just x` at one
+  constructor and `Nothing` elsewhere (telomare's `extractB = \case
+  CompiledExprB x -> Just x; _ -> Nothing`), Recursive's `project` or
+  Corecursive's `embed` at Fix or Cofree, a composition of these, or a
+  method whose instance (found from the types) defines it as one of these.
+  So `PairB a b` at `Fix CompiledExprF` is `Fix (CompiledExprB (PairSF a
+  b))`.
+- **Dictionaries.** A call of a def that takes dictionaries, at types with
+  no variable left, becomes a call of a copy at those types
+  (`NAME__TYPES`, its foralls and contexts gone, its recursive references
+  the copy's), written into the module that calls it; a method at such
+  types whose instance the package wrote by hand (not GHC's derived ones,
+  left to the fold), a call of a copy of the instance's method. The
+  instance is found from the types, never from the evidence: the
+  package's instance heads matched against them, after the package's
+  synonyms and type family instances (hs-export now exports these:
+  `(faminst ...)`) and recursion-schemes' `Base` at Fix and Cofree are
+  applied. Each copy is specialised in turn; a module asks for each copy
+  once.
+- `f = \case ...` (and `f = \x -> ...`) whose only clause is bare becomes
+  f's clauses, which the survey and the fold read parameters off.
+
+Bend computes a call's arguments first, so a branch of `Bool.pick` is
+never lazy: every recursion branches on a mode its caller computes (the
+first cut took 30 minutes on one module; telomare's 29 now take 26 s).
+
+**Test** (`tests/hs/Cls.hs`: a class, two instances, one at `CofreeF f
+Int` with a context, five pattern synonyms with views, constrained
+functions at `Fix` and `Cofree`, a class at lists with an instance
+context): every copy checks; `sizeFix`, `sizeTagged` (through the Cofree
+instance) and `prettyBools` have laws, GHC's answers.
+
+**Telomare** (the export with faminsts; spec 26 s; fold-v1): 668 copies
+(350 ok, 12 ok-gen, 306 out) in 18 modules; telomare's own functions
+681 out (were 688): `sizingBudget`, `allDataShape`, `describeTau`,
+`getLowerBound`, `isForcedZero`, `expansionErrorLoc`, `truncateV`. The
+copies' blockers next: mutual recursion (44), Traversable's `sequence`
+(39: the instance gives only `traverse`, base's default does the rest),
+`show` (27), Applicative at types the fold has no monad for (34),
+`error` (13), Machine's `debugTrace` (13), `CarryWrap` left unapplied (13).

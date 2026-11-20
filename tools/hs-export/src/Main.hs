@@ -32,6 +32,7 @@ import GHC.Core.Class (classMethods, classSCTheta, classTyVars)
 import GHC.Core.ConLike (ConLike (..))
 import GHC.Core.DataCon (dataConExTyCoVars, dataConFieldLabels, dataConOrigArgTys, dataConTheta)
 import GHC.Core.InstEnv (ClsInst (..))
+import GHC.Core.FamInstEnv (FamInst (..))
 import GHC.Core.TyCo.Rep (Scaled (..), TyLit (..), Type (..))
 import GHC.Core.TyCon (isAlgTyCon, isNewTyCon, synTyConDefn_maybe, tyConClass_maybe, tyConDataCons, tyConTyVars)
 import GHC.Core.Type (filterOutInvisibleTypes)
@@ -260,10 +261,11 @@ moduleS :: TcGblEnv -> M [Sexp]
 moduleS env = do
   tcs <- mapM tyConS (tcg_tcs env)
   insts <- mapM instS (tcg_insts env)
+  let fams = map famInstS (tcg_fam_insts env)
   evs <- mapM evBindS (bagToList (tcg_ev_binds env))
   let binds = sortOn (spanKey . getLocA) (bagToList (tcg_binds env))
   bs <- mapM bindS binds
-  pure (tcs ++ insts ++ [tagged "top-evbinds" evs] ++ map (\b -> tagged "top" [b]) bs)
+  pure (tcs ++ insts ++ fams ++ [tagged "top-evbinds" evs] ++ map (\b -> tagged "top" [b]) bs)
 
 spanKey :: SrcSpan -> (Int, Int)
 spanKey = \case
@@ -298,6 +300,11 @@ tyConS tc
         , list [typeS t | Scaled _ t <- dataConOrigArgTys dc]
         , tagged "ex" [I (toInteger (length (dataConExTyCoVars dc))), I (toInteger (length (dataConTheta dc)))]
         ]
+
+-- (faminst FAMMOD FAM (ARG...) RHS): a type family's instance, its
+-- arguments' variables free (an associated type's too)
+famInstS :: FamInst -> Sexp
+famInstS fi = tagged "faminst" [S (modOf (fi_fam fi)), S (getOccString (fi_fam fi)), list (map typeS (fi_tys fi)), typeS (fi_rhs fi)]
 
 instS :: ClsInst -> M Sexp
 instS ci = do

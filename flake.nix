@@ -76,6 +76,10 @@
           # in cata hs's first version, and why the others do not
           # (bend/Survey.bend)
           survey = bendBinary pkgs "survey" "Survey.bend";
+          # `spec OUT FILE.sexp...`: a package's exports with pattern synonyms
+          # inlined, views made plain and constrained defs specialised at their
+          # callers' types (bend/Spec.bend); survey, fold and law read its output
+          spec = bendBinary pkgs "spec" "Spec.bend";
           # `fold OUT FILE.sexp...`: step 2's fold into checked Bend (bend/Fold.bend)
           fold = bendBinary pkgs "fold" "Fold.bend";
           # `law OUT FILE.sexp...`: the fold with GHC's example laws
