@@ -1478,10 +1478,26 @@ def sp.p8(x: X.Sx, ism: Bool) -> X.Sx:
 # their types X's binder's. The survey and the fold take a call of a def's
 # own name; a value of it is rec-value.
 
+# a recursive group of local bindings: (rec (fun (l V N) TYPE ..) ..)
+def sp.eta.recs(xs: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  match xs:
+    case X.SxCons{+b, t}:
+      +ok = Bool.and(sp.head.is(b, "fun"), sp.head.is(sp.at(b, 1n), "l"))
+      sp.eta.recs(t, Bool.pick(List<&2, Asb>, ok, Asb{sp.at(b, 1n), sp.at(b, 2n)} <> acc, acc))
+    case _:
+      acc
+
+def sp.eta.recs.if(r: Bool, +x: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  match r:
+    case True{}:
+      sp.eta.recs(x, acc)
+    case False{}:
+      acc
+
 # the binders' types of the recursive defs in x: (fun (self V) TYPE ..)
 def sp.eta.fun(+x: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
   +ok = Bool.and(sp.head.is(x, "fun"), sp.head.is(sp.at(x, 1n), "self"))
-  Bool.pick(List<&2, Asb>, ok, Asb{sp.at(sp.at(x, 1n), 1n), sp.at(x, 2n)} <> acc, acc)
+  Bool.pick(List<&2, Asb>, ok, Asb{sp.at(sp.at(x, 1n), 1n), sp.at(x, 2n)} <> acc, sp.eta.recs.if(sp.head.is(x, "rec"), x, acc))
 
 def sp.eta.tys(x: X.Sx, acc: List<&2, Asb>) -> List<&2, Asb>:
   match x:
@@ -1489,6 +1505,14 @@ def sp.eta.tys(x: X.Sx, acc: List<&2, Asb>) -> List<&2, Asb>:
       sp.eta.tys(t, sp.eta.tys(h, sp.eta.fun(X.SxCons{h, t}, acc)))
     case _:
       acc
+
+# a type under its foralls and its context: (tforall V T), (tctx C T)
+def sp.eta.strip(t: X.Sx) -> X.Sx:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+v, X.SxCons{+r, X.SxNil{}}}}:
+      Bool.pick(X.Sx, Bool.or(sp.is(a, "tforall"), sp.is(a, "tctx")), sp.eta.strip(r), X.SxCons{X.SxAtom{a}, X.SxCons{v, X.SxCons{r, X.SxNil{}}}})
+    case y:
+      y
 
 # a function type's parameters' types
 def sp.eta.params(t: X.Sx) -> List<&2, X.Sx>:
@@ -1518,11 +1542,17 @@ def sp.eta.drop(n: Nat, xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
 type Eh is Data:
   Eh{h: X.Sx, k: Nat}
 
+# a type or dictionary application: the head's walk goes through it, the
+# arguments it counts are app's
+def sp.eta.iswrap(+a: List<&2, U32>) -> Bool:
+  Bool.or(sp.is(a, "tyapp"), sp.is(a, "evapp"))
+
 def sp.eta.head(x: X.Sx, +n: Nat) -> Eh:
   match x:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
-      +r = sp.eta.head(f, 1n+n)
-      Bool.pick(Eh, sp.is(a, "app"), r, Eh{X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}}, n})
+      +app = sp.is(a, "app")
+      +r = sp.eta.head(f, Bool.pick(Nat, app, 1n+n, n))
+      Bool.pick(Eh, Bool.or(app, sp.eta.iswrap(a)), r, Eh{X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}}, n})
     case y:
       Eh{y, n}
 
@@ -1538,7 +1568,8 @@ type Ek is Data:
 
 def sp.eta.of(m: Maybe<&2, X.Sx>, +k: Nat, +app: Bool) -> Ek:
   match m:
-    case Some{+t}:
+    case Some{t0}:
+      +t = sp.eta.strip(t0)
       +ps = sp.eta.params(t)
       +n = List.length(&2, X.Sx, ps)
       +ps2 = sp.eta.drop(k, ps)
@@ -1551,16 +1582,17 @@ def sp.eta.eh(e: Eh, +app: Bool, +tys: List<&2, Asb>) -> Ek:
   match e:
     case Eh{+h, +k}:
       +key = Bool.pick(X.Sx, sp.head.is(h, "self"), sp.at(h, 1n), h)
-      Bool.pick(Ek, Bool.or(sp.head.is(h, "self"), sp.head.is(h, "g")), sp.eta.of(sp.as.look(key, tys), k, app), Bool.pick(Ek, app, EkApp{}, EkNode{}))
+      Bool.pick(Ek, Bool.or(sp.head.is(h, "self"), Bool.or(sp.head.is(h, "g"), sp.head.is(h, "l"))), sp.eta.of(sp.as.look(key, tys), k, app), Bool.pick(Ek, app, EkApp{}, EkNode{}))
 
 # x's mode, its parent's walk says
 def sp.eta.mode(+x: X.Sx, +tys: List<&2, Asb>) -> Ek:
-  +app = sp.head.is(x, "app")
-  Bool.pick(Ek, Bool.or(app, Bool.or(sp.head.is(x, "self"), sp.head.is(x, "g"))), sp.eta.eh(sp.eta.head(x, 0n), app, tys), EkNode{})
+  +app = Bool.or(sp.head.is(x, "app"), Bool.or(sp.head.is(x, "tyapp"), sp.head.is(x, "evapp")))
+  Bool.pick(Ek, Bool.or(app, Bool.or(sp.head.is(x, "self"), Bool.or(sp.head.is(x, "g"), sp.head.is(x, "l")))), sp.eta.eh(sp.eta.head(x, 0n), app, tys), EkNode{})
 
-# an application's function part: its parts, or a recursive reference kept
+# an application's function part (through type and dictionary
+# applications): its parts, or a recursive reference kept
 def sp.eta.fmode(+f: X.Sx) -> Ek:
-  Bool.pick(Ek, sp.head.is(f, "app"), EkApp{}, Bool.pick(Ek, Bool.or(sp.head.is(f, "self"), sp.head.is(f, "g")), EkSkip{}, EkNode{}))
+  Bool.pick(Ek, Bool.or(sp.head.is(f, "app"), Bool.or(sp.head.is(f, "tyapp"), sp.head.is(f, "evapp"))), EkApp{}, Bool.pick(Ek, Bool.or(sp.head.is(f, "self"), Bool.or(sp.head.is(f, "g"), sp.head.is(f, "l"))), EkSkip{}, EkNode{}))
 
 def sp.eta.tmode(+h: X.Sx) -> Ek:
   +a = X.tsx.atom.of(h)

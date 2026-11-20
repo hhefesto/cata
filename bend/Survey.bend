@@ -775,6 +775,18 @@ def sv.cl.add(full: Bool, +ps: List<&2, Nat>, c: Cl) -> Cl:
     case False{} Cl{n, e, k}:
       Cl{n, 1n+e, k}
 
+# f by itself, not an application's head: a call when f takes no
+# parameters (a value that recurs: settle = .. >> settle), else a use as a
+# value; in a head, the application has been counted
+def sv.cl.ref(esc: Bool, arity: Nat, c: Cl) -> Cl:
+  match esc arity:
+    case True{} 0n:
+      sv.cl.add(True{}, Nil{}, c)
+    case False{} 0n:
+      c
+    case e 1n+a:
+      sv.cl.esc(e, c)
+
 # a call of f with its arguments; fewer than the arity is a use as a value
 def sv.cl.got(hit: Bool, +args: List<&2, X.Sx>, +arity: Nat, +vs: List<&2, Vs>, c: Cl) -> Cl:
   match hit:
@@ -803,7 +815,7 @@ def sv.cl.call(top: Bool, +x: X.Sx, +f: X.Sx, +g: X.Sx, +arity: Nat, +vs: List<&
 def sv.calls(x: X.Sx, open: Bool, k: Ck, +f: X.Sx, +g: X.Sx, +arity: Nat, +vs: List<&2, Vs>, c: Cl) -> Cl:
   match x open k:
     case X.SxCons{h, t} True{} CkF{esc}:
-      sv.cl.esc(esc, c)
+      sv.cl.ref(esc, arity, c)
     case X.SxCons{+h, X.SxCons{+fn, X.SxCons{+ar, X.SxNil{}}}} True{} CkApp{top}:
       c1 = sv.cl.call(top, X.SxCons{h, X.SxCons{fn, X.SxCons{ar, X.SxNil{}}}}, f, g, arity, vs, c)
       c2 = sv.calls(fn, True{}, sv.ck(fn, f, g, True{}), f, g, arity, vs, c1)

@@ -991,7 +991,8 @@ reaching Bend as a call of the def, which the survey and the fold take.
 laws. `refsOf`, `tagsOf` now wait on foldMap at a derived Foldable,
 `hasRef` on any at it, `double` on fmap at a derived Functor, `settle` on
 a monadic value that recurs (no parameters to eta-expand). LamCase, As,
-Ap, Lifted, Fuel, Shows, Nt and Help: no losses (Help +2 ok-law).
+Ap, Lifted, Fuel, Shows, Nt and Help: no losses (As +2 ok-law, `pick` and
+`tags`, against a ledger from before rule 12's fold: rule 12's, not this one's).
 
 | | out | ok-law | ok-check | types |
 |---|---|---|---|---|
@@ -1011,3 +1012,35 @@ passed as values (`optimizeBuiltinFunctions`, `isUnbounded`,
 Next: a value that recurs, by fuel (rule 11's `.fu` with no other
 parameter), and local recursive functions as values; then Foldable and
 Functor at a derived instance; then `error`.
+
+## Telomare's rules, 14: values that recur, local recursion as values (2026-11-20)
+
+- **A value that recurs** (Survey): a def with no parameters whose body
+  names it (`settle = do ..; when (n > 1) (modify (`div` 2) >> settle)`)
+  calls itself; it was `rec-value`. The survey says nonstructural and the
+  gate gives it rule 11's fuel: `settle.fu(fuel_)`, the default at 0.
+- **Local recursive functions as values** (Spec, `sp.p9`): the members of
+  a `(rec ..)` group of local bindings are eta-expanded like the
+  module's own recursive defs (`maybe False go (lookup h m)`, `(f .
+  Set.map ..) $ ..`).
+- **Through type and dictionary applications** (Spec): the head of `tag
+  @a @anno $dRecursive anno` is `tag`, given one of its two arguments; a
+  binder's type is read under its `forall`s and its context.
+
+**Tests**: `tests/hs/RecV.hs`: `settle` in (check: no law at State),
+`settleList` 8 laws. The other tests: no change.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 13 (spec12, law22) | 502 | 95 | 197 | 110 |
+| telomare after rule 14 (spec13, law23, 294 s) | 501 | 95 | 198 | 110 |
+| hs1003 after rule 12 (law26) | 2959 | 1569 | 255 | 561 |
+| hs1003 after rule 14 (law27) | 2958 | 1569 | 256 | 561 |
+
+No def lost its verdict. Survey `rec-value` on telomare: 16 -> 0; the
+closure 283 -> 281 out. `isUnbounded` is in (check); `tag`, `stuckStep`
+and `optimizeBuiltinFunctions` wait on their other reasons (Recursive's
+`project` at a type variable, view patterns, `mapScoped`).
+
+Next: what the closure waits on (281): megaparsec (TelomareParser 56,
+ParsecT 55 and its methods), then `error` (17).
