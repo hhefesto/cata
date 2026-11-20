@@ -41,6 +41,8 @@ import GHC.Data.FastString (unpackFS)
 import GHC.Driver.Session (DynFlags (..), Language (..))
 import GHC.Hs
 import GHC.Tc.Types (TcGblEnv (..))
+import GHC.Tc.Utils.TcType (tcSplitDFunTy)
+import GHC.Core.Class (Class)
 import GHC.Tc.Types.Evidence (EvBind (..), EvTerm (..), HsWrapper (..), TcEvBinds (..))
 import GHC.Types.Basic (Origin (..), RecFlag (..))
 import GHC.Types.FieldLabel (FieldLabel (..))
@@ -309,7 +311,13 @@ famInstS fi = tagged "faminst" [S (modOf (fi_fam fi)), S (getOccString (fi_fam f
 instS :: ClsInst -> M Sexp
 instS ci = do
   d <- varS (is_dfun ci)
-  pure $ tagged "instance" [S (modOf (is_cls ci)), S (getOccString (is_cls ci)), list (map typeS (is_tys ci)), d, spanS (getSrcSpan (is_dfun ci))]
+  let (_, _, cls, _) = tcSplitDFunTy (idType (is_dfun ci))
+  pure $ tagged "instance" [S (modOf (is_cls ci)), S (getOccString (is_cls ci)), list (map typeS (is_tys ci)), d, spanS (getSrcSpan (is_dfun ci)), clsInfoS cls]
+
+-- (cls (TV...) (METHOD...) NSUPER): an instance's class, its dictionary's
+-- fields: NSUPER superclasses, then the methods in this order
+clsInfoS :: Class -> Sexp
+clsInfoS cls = tagged "cls" [list [S (getOccString v) | v <- classTyVars cls], list [S (getOccString m) | m <- classMethods cls], I (toInteger (length (classSCTheta cls)))]
 
 -- Bindings -----------------------------------------------------------------
 

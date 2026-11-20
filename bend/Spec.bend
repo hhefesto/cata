@@ -469,32 +469,6 @@ def sp.sy.find(ss: List<&2, Sy>, +k: List<&2, U32>) -> Maybe<&2, Sy>:
     case Sy{+sk, +tvs, +rhs} <> t:
       Bool.pick(Maybe<&2, Sy>, S.eq(sk, k), Some{Sy{sk, tvs, rhs}}, sp.sy.find(t, k))
 
-def sp.fm.at(m: Maybe<&2, List<&2, Sb>>, rhs: X.Sx, next: Maybe<&2, X.Sx>) -> Maybe<&2, X.Sx>:
-  match m:
-    case Some{sbs}:
-      Some{sp.subst(rhs, sbs)}
-    case None{}:
-      next
-
-def sp.fm.hit(ok: Bool, lhs: List<&2, X.Sx>, rhs: X.Sx, +args: List<&2, X.Sx>, next: Maybe<&2, X.Sx>) -> Maybe<&2, X.Sx>:
-  match ok:
-    case True{}:
-      sp.fm.at(sp.match.all(lhs, args, Some{Nil{}}), rhs, next)
-    case False{}:
-      next
-
-def sp.fm.find(fs: List<&2, Fm>, +k: List<&2, U32>, +args: List<&2, X.Sx>) -> Maybe<&2, X.Sx>:
-  match fs:
-    case Nil{}:
-      None{}
-    case Fm{+fk, +lhs, +rhs} <> t:
-      sp.fm.hit(Bool.and(S.eq(fk, k), Nat.is_eq(List.length(&2, X.Sx, lhs), List.length(&2, X.Sx, args))), lhs, rhs, args, sp.fm.find(t, k, args))
-
-# Normal types: synonyms expanded, type families applied, (tapp (tc ..) b)
-# as (tc .. b)
-def sp.tc(+m: List<&2, U32>, +n: List<&2, U32>, args: List<&2, X.Sx>) -> X.Sx:
-  X.SxCons{sp.a("tc"), X.SxCons{X.SxStr{m}, X.SxCons{X.SxStr{n}, sp.l(args)}}}
-
 def sp.take(xs: List<&2, X.Sx>, n: Nat) -> List<&2, X.Sx>:
   match xs n:
     case x <> t Succ{k}:
@@ -516,6 +490,33 @@ def sp.tyapply(args: List<&2, X.Sx>, t: X.Sx) -> X.Sx:
       t
     case a <> r:
       sp.tyapply(r, sp.l([sp.a("tapp"), t, a]))
+
+def sp.fm.at(m: Maybe<&2, List<&2, Sb>>, rhs: X.Sx, rest: List<&2, X.Sx>, next: Maybe<&2, X.Sx>) -> Maybe<&2, X.Sx>:
+  match m:
+    case Some{sbs}:
+      Some{sp.tyapply(rest, sp.subst(rhs, sbs))}
+    case None{}:
+      next
+
+def sp.fm.hit(ok: Bool, +lhs: List<&2, X.Sx>, rhs: X.Sx, +args: List<&2, X.Sx>, next: Maybe<&2, X.Sx>) -> Maybe<&2, X.Sx>:
+  match ok:
+    case True{}:
+      +n = List.length(&2, X.Sx, lhs)
+      sp.fm.at(sp.match.all(lhs, sp.take(args, n), Some{Nil{}}), rhs, sp.dropn(args, n), next)
+    case False{}:
+      next
+
+def sp.fm.find(fs: List<&2, Fm>, +k: List<&2, U32>, +args: List<&2, X.Sx>) -> Maybe<&2, X.Sx>:
+  match fs:
+    case Nil{}:
+      None{}
+    case Fm{+fk, +lhs, +rhs} <> t:
+      sp.fm.hit(Bool.and(S.eq(fk, k), Nat.is_le(List.length(&2, X.Sx, lhs), List.length(&2, X.Sx, args))), lhs, rhs, args, sp.fm.find(t, k, args))
+
+# Normal types: synonyms expanded, type families applied, (tapp (tc ..) b)
+# as (tc .. b)
+def sp.tc(+m: List<&2, U32>, +n: List<&2, U32>, args: List<&2, X.Sx>) -> X.Sx:
+  X.SxCons{sp.a("tc"), X.SxCons{X.SxStr{m}, X.SxCons{X.SxStr{n}, sp.l(args)}}}
 
 def sp.syn.at(m: Maybe<&2, Sy>, +args: List<&2, X.Sx>, +d: X.Sx) -> X.Sx:
   match m:
@@ -587,12 +588,17 @@ def sp.norms(xs: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
 def sp.fm.add(+k: List<&2, U32>, +x: X.Sx, +fms: List<&2, Fm>, +sys: List<&2, Sy>) -> List<&2, Fm>:
   Bool.pick(List<&2, Fm>, S.prefix(k, S.b("GHC.Internal.Generics.")), fms, Fm{k, sp.norms(sp.els(sp.at(x, 3n)), Ix{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, sys, Nil{}}), sp.at(x, 4n)} <> fms)
 
+# an instance's class, from its line's (cls (TV...) (METHOD...) NSUPER)
+def sp.cl.add(+x: X.Sx, +cls: List<&2, Cl>) -> List<&2, Cl>:
+  +c = sp.at(x, 6n)
+  Bool.pick(List<&2, Cl>, sp.head.is(c, "cls"), Cl{sp.key(sp.sat(x, 1n), sp.sat(x, 2n)), X.tsx.len(sp.at(c, 1n)), X.tsx.nat(sp.at(c, 3n)), sp.strs(sp.at(c, 2n))} <> cls, cls)
+
 def sp.ix.item.go(top: Bool, ins: Bool, cl: Bool, sy: Bool, fm: Bool, +m: List<&2, U32>, +ds: List<&2, Dn>, +x: X.Sx, ix: Ix) -> Ix:
   match top ins cl sy fm ix:
     case True{} _ _ _ _ i:
       sp.ix.top(m, x, i)
     case False{} True{} _ _ _ Ix{dfs, lcs, pss, iss, cls, sys, fms}:
-      Ix{dfs, lcs, pss, List.append(&2, In, sp.ix.in.mk(x, m, sp.dn.find(ds, sp.key(sp.sat(sp.at(x, 4n), 1n), sp.sat(sp.at(x, 4n), 2n)))), iss), cls, sys, fms}
+      Ix{dfs, lcs, pss, List.append(&2, In, sp.ix.in.mk(x, m, sp.dn.find(ds, sp.key(sp.sat(sp.at(x, 4n), 1n), sp.sat(sp.at(x, 4n), 2n)))), iss), sp.cl.add(x, cls), sys, fms}
     case False{} False{} True{} _ _ Ix{dfs, lcs, pss, iss, cls, sys, fms}:
       Ix{dfs, lcs, pss, iss, Cl{sp.key(m, sp.sat(x, 1n)), X.tsx.len(sp.at(x, 2n)), X.tsx.len(sp.at(x, 4n)), sp.ms(sp.at(x, 3n))} <> cls, sys, fms}
     case False{} False{} False{} True{} _ Ix{dfs, lcs, pss, iss, cls, sys, fms}:
@@ -703,26 +709,26 @@ def sp.nth(xs: List<&2, X.Sx>, n: Nat) -> Maybe<&2, X.Sx>:
 # default method), the instance's module and its variables' values; None
 # when the package has no instance there
 type Mi is Data:
-  Mi{impl: X.Sx, m: List<&2, U32>, sbs: List<&2, Sb>, ntv: Nat}
+  Mi{impl: X.Sx, m: List<&2, U32>, sbs: List<&2, Sb>, ntv: Nat, first: X.Sx}
 
-def sp.mi.term(t: Maybe<&2, X.Sx>, m: List<&2, U32>, sbs: List<&2, Sb>, ntv: Nat) -> Maybe<&2, Mi>:
+def sp.mi.term(t: Maybe<&2, X.Sx>, m: List<&2, U32>, sbs: List<&2, Sb>, ntv: Nat, first: X.Sx) -> Maybe<&2, Mi>:
   match t:
     case Some{x}:
-      Some{Mi{x, m, sbs, ntv}}
+      Some{Mi{x, m, sbs, ntv, first}}
     case None{}:
       None{}
 
-def sp.mi.at(p: Maybe<&2, Nat>, args: List<&2, X.Sx>, m: List<&2, U32>, sbs: List<&2, Sb>, ntv: Nat) -> Maybe<&2, Mi>:
+def sp.mi.at(p: Maybe<&2, Nat>, +args: List<&2, X.Sx>, m: List<&2, U32>, sbs: List<&2, Sb>, ntv: Nat, nsup: Nat) -> Maybe<&2, Mi>:
   match p:
     case Some{k}:
-      sp.mi.term(sp.nth(args, k), m, sbs, ntv)
+      sp.mi.term(sp.nth(args, k), m, sbs, ntv, Maybe.default(&2, X.Sx, sp.nth(args, nsup), X.SxNil{}))
     case None{}:
       None{}
 
 def sp.mi.of(r: Maybe<&2, Ri>, c: Maybe<&2, Cl>, +meth: List<&2, U32>) -> Maybe<&2, Mi>:
   match r c:
-    case Some{Ri{In{ic, head, m, tvs, args}, sbs}} Some{Cl{k, ntv, nsup, ms}}:
-      sp.mi.at(sp.index(ms, meth, nsup), args, m, sbs, ntv)
+    case Some{Ri{In{ic, head, m, tvs, args}, sbs}} Some{Cl{k, ntv, +nsup, ms}}:
+      sp.mi.at(sp.index(ms, meth, nsup), args, m, sbs, ntv, nsup)
     case _ _:
       None{}
 
@@ -929,7 +935,7 @@ def sp.impl.body.of(f: Maybe<&2, X.Sx>, +sbs: List<&2, Sb>, +rest: List<&2, X.Sx
 
 def sp.impl.body(mi: Maybe<&2, Mi>, +tys: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, X.Sx>:
   match mi ix:
-    case Some{Mi{impl, m, sbs, ntv}} Ix{dfs, lcs, pss, ins, cls, sys, fms}:
+    case Some{Mi{impl, m, sbs, ntv, first}} Ix{dfs, lcs, pss, ins, cls, sys, fms}:
       +h = sp.vhead(impl)
       Bool.pick(Maybe<&2, X.Sx>, sp.head.is(h, "l"), sp.impl.body.of(Maybe.bind(&2, X.Sx, X.Sx, sp.lc.find(lcs, m, X.tsx.atom.of(sp.at(h, 2n))), t => sp.fun.of(t)), sbs, sp.dropn(tys, ntv)), None{})
     case _ _:
@@ -1059,13 +1065,21 @@ def sp.p3(x: X.Sx, pv: Bool, +ix: Ix) -> X.Sx:
 # A binding f = \case .. (or \x -> ..), its only clause bare: f's clauses
 # are the lambda's (the survey and the fold read a def's parameters off
 # its clauses)
+def sp.p0.cl(cs: List<&2, X.Sx>, +ops: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case +c <> t:
+      sp.l([sp.a("match"), sp.l(List.append(&2, X.Sx, ops, sp.els(sp.at(c, 1n)))), sp.at(c, 2n)]) <> sp.p0.cl(t, ops)
+
 def sp.p0.ms(+ms: X.Sx) -> X.Sx:
   +m0 = sp.first(sp.els(sp.at(ms, 4n)))
   +gs = sp.at(sp.at(m0, 2n), 1n)
   +g0 = sp.first(sp.els(gs))
   +body = sp.at(g0, 2n)
-  +bare = Bool.and(Bool.and(sp.eq(sp.at(ms, 1n), X.SxNil{}), Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n)), Bool.and(Bool.and(sp.eq(sp.at(m0, 1n), X.SxNil{}), Nat.is_eq(X.tsx.len(gs), 1n)), Bool.and(Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(sp.at(m0, 2n), 2n), sp.l([sp.a("binds")]))), Bool.and(sp.head.is(body, "lam"), Bool.not(sp.is(X.tsx.atom.of(sp.at(body, 1n)), "cases"))))))
-  Bool.pick(X.Sx, bare, sp.at(body, 2n), ms)
+  +lm = sp.at(body, 2n)
+  +bare = Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n), Bool.and(Nat.is_eq(X.tsx.len(gs), 1n), Bool.and(Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(sp.at(m0, 2n), 2n), sp.l([sp.a("binds")]))), Bool.and(sp.head.is(body, "lam"), Bool.not(sp.is(X.tsx.atom.of(sp.at(body, 1n)), "cases"))))))
+  Bool.pick(X.Sx, bare, sp.l([sp.a("matches"), sp.l(List.append(&2, X.Sx, sp.els(sp.at(ms, 1n)), sp.els(sp.at(lm, 1n)))), sp.at(lm, 2n), sp.at(ms, 3n), sp.l(sp.p0.cl(sp.els(sp.at(lm, 4n)), sp.els(sp.at(m0, 1n))))]), ms)
 
 def sp.p0.fun(+f: X.Sx) -> X.Sx:
   sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), sp.p0.ms(sp.at(f, 4n)), sp.at(f, 5n)])
@@ -1132,16 +1146,38 @@ def sp.ask.def(+cur: List<&2, U32>, +h: X.Sx, +tys: List<&2, X.Sx>, +ix: Ix) -> 
 
 # a method at an instance the package wrote by hand: a copy of the
 # instance's method (a default method: a copy of it)
-def sp.ask.meth(mi: Maybe<&2, Mi>, +cur: List<&2, U32>, +tys: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, Rw>:
-  match mi ix:
-    case Some{Mi{+impl, +m, +sbs, +ntv}} Ix{dfs, lcs, pss, ins, cls, sys, fms}:
+def sp.ask.impl(+impl: X.Sx, +m: List<&2, U32>, +sbs: List<&2, Sb>, +ntv: Nat, +cur: List<&2, U32>, +tys: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, Rw>:
+  match ix:
+    case Ix{dfs, lcs, pss, ins, cls, sys, fms}:
       +h = sp.vhead(impl)
       +itys = sp.norms(List.append(&2, X.Sx, sp.els(sp.subst(sp.l(sp.spine.tys(impl, Nil{})), sbs)), sp.dropn(tys, ntv)), Ix{dfs, lcs, pss, ins, cls, sys, fms})
       +i = X.tsx.atom.of(sp.at(h, 2n))
       +top = sp.lc.find(lcs, m, i)
       +derived = sp.has(Maybe.default(&2, X.Sx, top, X.SxNil{}), S.b("generated"))
       Bool.pick(Maybe<&2, Rw>, Bool.and(sp.head.is(h, "l"), Bool.and(Maybe.is_some(&2, X.Sx, top), Bool.not(derived))), sp.ask(cur, sp.name(sp.sat(h, 1n), tys), LoL{m, i}, itys), Bool.pick(Maybe<&2, Rw>, sp.head.is(h, "g"), sp.ask.def(cur, h, itys, Ix{dfs, lcs, pss, ins, cls, sys, fms}), None{}))
-    case _ _:
+
+# Traversable's default sequence, sequenceA (t (f a) -> f (t a)) and mapM
+# are traverse (at f, f a and a; at m, a and b): its copy, sequence's given id
+def sp.wrap.id(r: Maybe<&2, Rw>, +ma: X.Sx) -> Maybe<&2, Rw>:
+  match r:
+    case Some{Rw{x, q}}:
+      Some{Rw{sp.l([sp.a("app"), x, sp.l([sp.a("tyapp"), sp.g(S.b("GHC.Internal.Base"), S.b("id"), "var"), ma])]), q}}
+    case None{}:
+      None{}
+
+def sp.ask.meth(mi: Maybe<&2, Mi>, +cur: List<&2, U32>, +tys: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, Rw>:
+  match mi:
+    case Some{Mi{+impl, +m, +sbs, +ntv, +first}}:
+      +k0 = sp.gkey(sp.vhead(impl))
+      +k = Bool.pick(List<&2, U32>, sp.is(sp.hd(sp.vhead(impl)), "l"), sp.gkey(sp.vhead(sp.or(sp.impl.body(Some{Mi{impl, m, sbs, ntv, first}}, tys, ix), X.SxNil{}))), k0)
+      +seq = Bool.or(sp.is(k, "GHC.Internal.Data.Traversable.$dmsequence"), sp.is(k, "GHC.Internal.Data.Traversable.$dmsequenceA"))
+      +mapm = sp.is(k, "GHC.Internal.Data.Traversable.$dmmapM")
+      +t0 = Maybe.default(&2, X.Sx, sp.nth(tys, 0n), X.SxNil{})
+      +f1 = Maybe.default(&2, X.Sx, sp.nth(tys, 1n), X.SxNil{})
+      +a2 = Maybe.default(&2, X.Sx, sp.nth(tys, 2n), X.SxNil{})
+      +fa = sp.norm(sp.l([sp.a("tapp"), f1, a2]), ix)
+      Bool.pick(Maybe<&2, Rw>, seq, sp.wrap.id(sp.ask.impl(first, m, sbs, ntv, cur, [t0, f1, fa, a2], ix), fa), Bool.pick(Maybe<&2, Rw>, mapm, sp.ask.impl(first, m, sbs, ntv, cur, tys, ix), sp.ask.impl(impl, m, sbs, ntv, cur, tys, ix)))
+    case None{}:
       None{}
 
 # a (tyapp)/(evapp) spine at types with no variable left: a copy's call,

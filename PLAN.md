@@ -689,3 +689,24 @@ copies' blockers next: mutual recursion (44), Traversable's `sequence`
 (39: the instance gives only `traverse`, base's default does the rest),
 `show` (27), Applicative at types the fold has no monad for (34),
 `error` (13), Machine's `debugTrace` (13), `CarryWrap` left unapplied (13).
+
+Then (same day): hs-export gives each instance line its class's variables,
+methods and superclass count, so base classes' instances (Applicative,
+Traversable, ...) resolve too; a family instance applies to more arguments
+than its own (`CarryWrap g g`); Traversable's `sequence`, `sequenceA` and
+`mapM`, when the instance takes base's default (GHC's `$csequence =
+$dmsequence ..`), are `traverse` (sequence given `id`); `f x = \case ..`
+becomes clauses with x first. Telomare (spec 29 s): copies 410 ok, 12
+ok-gen, 329 out; its own functions 148 ok (were 140 before the
+specialiser), no def lost its verdict.
+
+What telomare's own functions wait on now (survey of the specialised
+export, those taking no class): Digest SHA256 in EAL's state and error
+(EALError 67, EALM 61, EALState 60, Digest 59, ICState 39), megaparsec
+(TelomareParser 60, ParsecT 57 and its methods), mutual recursion (48),
+non-structural recursion (33), Int with negative numbers or subtraction
+(27: telomare's function indices are negative, `leftGateInd = -2`), EAL's
+`Tag` (31), Data.Binary's Get/Put/Word8 (Artifact), Data.Sequence (12),
+Rational (10); the copies on `error` (16), `show` at Fix (12, data-fix's
+instance through Show1), Applicative at Identity, Either and pairs
+(liftA2), and the fold's `\case` inside expressions.
