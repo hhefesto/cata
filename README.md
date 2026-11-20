@@ -128,6 +128,38 @@ order (crypton's); a ByteString is a list of `Word8` (Bend's U32), `pack`,
 
 Data.Void's `Void` is Base's `Empty`, `absurd` `Empty.absurd`, `==` at it `True`.
 
+## Lists, Maybe, Either, pairs
+
+base's list, Maybe, Either and pair functions are HsPrelude's `HsList`, with
+Haskell's answers on finite lists: `fst`, `snd`, `swap`, `uncurry`, `zip`,
+`zip3`, `zipWith`, `zipWith3`, `unzip`, `lookup`, `takeWhile`, `dropWhile`,
+`span`, `break`, `partition`, `find`, `notElem`, `nub`, `nubBy`,
+`isPrefixOf`, `isSuffixOf`, `isInfixOf`, `stripPrefix`, `intersperse`,
+`intercalate`, `lines`, `unlines`, `words`, `unwords`, `sort`, `sortBy`,
+`sortOn` (stable, as Haskell's), `group`, `groupBy`, `tails`, `inits`,
+`mapMaybe`, `catMaybes`, `isJust`, `isNothing`, `listToMaybe`,
+`maybeToList`, `lefts`, `rights`, `partitionEithers`, `isLeft`, `isRight`,
+`fromLeft`, `fromRight`, `foldr` and `foldl` (the function may copy the
+element); `==` or `compare` at the element a template, as at a Map's key.
+`zip [n ..] xs`, `zip xs [n ..]` and the same with `zipWith` (an endless
+list the zip ends) are HsList's `zipFrom`, `zipR`, `zipWithFrom`,
+`zipWithR`, the specialiser's rewrite. Data.Bifunctor's `first`, `second`
+and `bimap` at Either and pairs; `mempty` at lists, Maps, Sets, Ordering
+and (); `flip`; `liftM2` as `liftA2`; `trace` its second argument (the
+message to stderr not modelled); `<*>` at Maybe, Either and ExceptT over
+State as `>>=` and `fmap`. Foldable's functions at a Set are at its
+elements, at a Map at its values (in key order), as Data.Foldable has
+them, and `fmap` at a Map its `map`. Data.Sequence's `Seq a` is a list
+(front first) and `ViewL a` too (`EmptyL` the empty list, `x :< s` a
+cons): `empty`, `|>`, `<|`, `viewl`, `fromList`.
+
+GHC.Prim's `coerce` (a newtype's derived instance, GeneralizedNewtypeDeriving,
+is coerce of its field type's, and the specialiser copies it as it copies
+a hand-written one) is the term at one type, a newtype's constructor to
+it, its selector from it (a newtype without a field name: out,
+`fold:coerce-at-type`), and at function types the argument coerced back
+and the answer forth.
+
 ## Lifting
 
 Bend matches only parameters and pattern fields, not a local or a computed

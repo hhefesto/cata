@@ -775,3 +775,46 @@ sha256sum.
 No def lost its verdict or a law on either. Telomare's numbers are its
 own functions; besides them the specialiser's 738 copies (464 check, no
 laws: GHC has no copy to answer for).
+
+## Telomare's rules, 9: base's list functions, Bifunctor, Seq, coerce (2026-11-20)
+
+The survey passed base's list functions (`zip`, `fst`, `lookup`, ...) that
+the fold had no rule for, so a def using one was out at the fold
+(`base:...`), not at the survey. They are HsPrelude's `HsList` now (see
+README, Lists), with `==`/`compare` at the element as templates and the
+fold's table naming the roles of GHC's type arguments (`fd.dm`, as for
+Data.Map). Foldable at Set and Map (their elements, their values), `fmap`
+at Map, `mempty`, Data.Bifunctor at Either and pairs, `flip`, `trace`,
+`liftM2`, `<*>` at Maybe, Either and ExceptT over State, Data.Sequence (a
+list), `zip [n ..]` (the specialiser's rewrite to HsList's `zipFrom` and
+the like), and `coerce`: a newtype's derived instance (Enum at
+`FunctionIndex` and `UnsizedRecursionToken`, which 124 of telomare's
+functions reached) is coerce of the field type's, so the specialiser
+copies it like a hand-written instance and the fold writes coerce with
+the newtype's constructor and selector.
+
+The gate: an error inside a template's instance (`Location: List.foldr~0`,
+its lines Base's) named no line of the file, so the gate blamed the last
+item, then the next, until the culprit went: every def after it was out
+with its error. It blames the item of the file's K-th call of the
+template's def now (when that is an item). foldr and foldl are HsList's,
+whose element the function may copy (Base's take it once).
+
+**Tests**: `tests/hs/Lists.hs`, 28 functions, 19 with laws (GHC agrees),
+the rest check (their arguments or answers are Maps or Sets, which the
+laws do not read yet); `tests/hs/Newtypes.hs`, succ, toEnum and fromEnum
+of derived Enum at newtypes with laws (a newtype without a field name:
+out, `fold:coerce-at-type`).
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rules 6-8 (law7) | 573 | 80 | 142 | 109 |
+| telomare after rule 9 (spec6, law10, 88 s) | 539 | 85 | 170 | 110 |
+| hs1003 after rule 8 (law19) | 3090 | 1427 | 232 | 561 |
+| hs1003 after rule 9 (law20) | 3027 | 1512 | 244 | 561 |
+
+No def lost its verdict on either. Telomare's copies: 537 check (464).
+What still blocks telomare's own functions, by the survey: recursion Bend
+does not take (mutual 96, non-structural, `error` and `!!`), megaparsec
+(the parser), Data.Binary's Get and Put, `show` at its types (and at Fix
+through Show1), `Rational`, `Int64`, `iterate`.

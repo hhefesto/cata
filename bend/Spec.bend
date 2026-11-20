@@ -1153,7 +1153,8 @@ def sp.ask.impl(+impl: X.Sx, +m: List<&2, U32>, +sbs: List<&2, Sb>, +ntv: Nat, +
       +itys = sp.norms(List.append(&2, X.Sx, sp.els(sp.subst(sp.l(sp.spine.tys(impl, Nil{})), sbs)), sp.dropn(tys, ntv)), Ix{dfs, lcs, pss, ins, cls, sys, fms})
       +i = X.tsx.atom.of(sp.at(h, 2n))
       +top = sp.lc.find(lcs, m, i)
-      +derived = sp.has(Maybe.default(&2, X.Sx, top, X.SxNil{}), S.b("generated"))
+      +tt = Maybe.default(&2, X.Sx, top, X.SxNil{})
+      +derived = Bool.and(sp.has(tt, S.b("generated")), Bool.not(sp.has.str(tt, S.b("coerce"))))
       Bool.pick(Maybe<&2, Rw>, Bool.and(sp.head.is(h, "l"), Bool.and(Maybe.is_some(&2, X.Sx, top), Bool.not(derived))), sp.ask(cur, sp.name(sp.sat(h, 1n), tys), LoL{m, i}, itys), Bool.pick(Maybe<&2, Rw>, sp.head.is(h, "g"), sp.ask.def(cur, h, itys, Ix{dfs, lcs, pss, ins, cls, sys, fms}), None{}))
 
 # Traversable's default sequence, sequenceA (t (f a) -> f (t a)) and mapM
@@ -1402,6 +1403,68 @@ def sp.p5.ident(+y: X.Sx) -> X.Sx:
   +z = Bool.or(Bool.or(sp.is(k, "GHC.Internal.Data.Foldable.length"), sp.is(k, "GHC.Internal.List.take")), Bool.or(Bool.or(sp.is(k, "GHC.Internal.List.drop"), sp.is(k, "GHC.Internal.List.replicate")), Bool.or(sp.is(k, "GHC.Internal.Base.ord"), sp.is(k, "GHC.Internal.Char.chr"))))
   Bool.pick(X.Sx, idc, sp.g(S.b("GHC.Internal.Base"), S.b("id"), "var"), Bool.pick(X.Sx, pid, sp.at(sp.at(y, 3n), 1n), Bool.pick(X.Sx, z, sp.l([sp.a("g"), X.SxStr{S.b("HsPrelude.Z")}, sp.at(y, 2n), sp.at(y, 3n)]), y)))
 
+# zip [n ..] xs, zip xs [n ..], zipWith f [n ..] xs and zipWith f xs [n ..]
+# (Haskell's endless list from n, which the zip ends): HsPrelude.Z's zipFrom,
+# zipR, zipWithFrom and zipWithR given n
+def sp.zf.from(+x: X.Sx) -> Bool:
+  Bool.and(sp.head.is(x, "arith"), sp.head.is(sp.at(x, 2n), "from"))
+
+# the name of the global under a function's type arguments
+def sp.zf.key(f: X.Sx) -> List<&2, U32>:
+  match f:
+    case X.SxCons{+h, X.SxCons{+g, +r}}:
+      Bool.pick(List<&2, U32>, sp.is(X.tsx.atom.of(h), "tyapp"), sp.zf.key(g), sp.gkey(X.SxCons{h, X.SxCons{g, r}}))
+    case y:
+      sp.gkey(y)
+
+# the global under a function's type arguments renamed HsPrelude.Z's n
+def sp.zf.ren(f: X.Sx, +n: List<&2, U32>) -> X.Sx:
+  match f:
+    case X.SxCons{+h, X.SxCons{+g, +r}}:
+      Bool.pick(X.Sx, sp.is(X.tsx.atom.of(h), "tyapp"), X.SxCons{h, X.SxCons{sp.zf.ren(g, n), r}}, sp.g(S.b("HsPrelude.Z"), n, "var"))
+    case y:
+      y
+
+def sp.zf.ap(f: X.Sx, x: X.Sx) -> X.Sx:
+  sp.l([sp.a("app"), f, x])
+
+def sp.zf.n(+x: X.Sx) -> X.Sx:
+  sp.at(sp.at(x, 2n), 1n)
+
+def sp.zf.go(r1: Bool, r2: Bool, r3: Bool, r4: Bool, +f: X.Sx, +x: X.Sx, +y: X.Sx) -> X.Sx:
+  match r1 r2 r3 r4:
+    case True{} _ _ _:
+      sp.zf.ap(sp.zf.ren(f, S.b("zipFrom")), sp.zf.n(x))
+    case False{} True{} _ _:
+      sp.zf.ap(sp.zf.ap(sp.zf.ren(sp.at(f, 1n), S.b("zipR")), sp.at(f, 2n)), sp.zf.n(x))
+    case False{} False{} True{} _:
+      sp.zf.ap(sp.zf.ap(sp.zf.ren(sp.at(f, 1n), S.b("zipWithFrom")), sp.at(f, 2n)), sp.zf.n(x))
+    case False{} False{} False{} True{}:
+      sp.zf.ap(sp.zf.ap(sp.zf.ap(sp.zf.ren(sp.at(sp.at(f, 1n), 1n), S.b("zipWithR")), sp.at(sp.at(f, 1n), 2n)), sp.at(f, 2n)), sp.zf.n(x))
+    case False{} False{} False{} False{}:
+      y
+
+def sp.zf.app(+f: X.Sx, +x: X.Sx, +y: X.Sx) -> X.Sx:
+  +fr = sp.zf.from(x)
+  +f1 = sp.at(f, 1n)
+  +fa = Bool.and(fr, sp.head.is(f, "app"))
+  +k1 = sp.zf.key(f1)
+  sp.zf.go(Bool.and(fr, sp.is(sp.zf.key(f), "GHC.Internal.List.zip")), Bool.and(fa, sp.is(k1, "GHC.Internal.List.zip")), Bool.and(fa, sp.is(k1, "GHC.Internal.List.zipWith")), Bool.and(Bool.and(fa, sp.head.is(f1, "app")), sp.is(sp.zf.key(sp.at(f1, 1n)), "GHC.Internal.List.zipWith")), f, x, y)
+
+def sp.zf.if(app: Bool, +y: X.Sx) -> X.Sx:
+  match app:
+    case True{}:
+      sp.zf.app(sp.at(y, 1n), sp.at(y, 2n), y)
+    case False{}:
+      y
+
+def sp.zf(y: X.Sx) -> X.Sx:
+  match y:
+    case X.SxCons{+h, t}:
+      sp.zf.if(sp.is(X.tsx.atom.of(h), "app"), X.SxCons{h, t})
+    case z:
+      z
+
 # top: x is no spine's function (so a spine is judged whole)
 def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
   match x:
@@ -1410,7 +1473,7 @@ def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
       +inner = sp.isty(X.SxCons{h, X.SxCons{e, r}})
       +y = sp.cons(sp.p5(h, True{}), sp.cons(sp.p5(e, Bool.not(inner)), sp.p5(r, True{})))
       +c = Bool.pick(Maybe<&2, X.Sx>, Bool.and(top, sp.p5.isg(X.SxCons{h, X.SxCons{e, r}})), sp.p5.call(y), None{})
-      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y), sp.p5.ident(y)))
+      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y), sp.zf(sp.p5.ident(y))))
     case X.SxCons{+h, X.SxNil{}}:
       X.SxCons{sp.p5(h, True{}), X.SxNil{}}
     case y:
