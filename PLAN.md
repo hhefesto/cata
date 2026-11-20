@@ -570,3 +570,61 @@ stay out until there is a rule for it, whatever Data.Map does. Of the
 147 bindings Data.Map, Set or IntMap keeps out, 5 have no other reason of
 their own (Levels' `renderLevels`, Resolve's `qualifyBindings`, Size's
 `locateSizingFailure`, IC's `icEvalIC`, Fast's `ownerMap`).
+
+## Telomare's rules, 5: Data.Map, Data.Set, IntMap and IntSet (2026-11-20)
+
+**The types.** `Map k v` is HsPrelude's `HsMap<K, V>` (`HsMap.Tip{}`,
+`HsMap.Bin{key, val, rest}`), its pairs in ascending order of the key, each
+key once; `Set k` is `HsSet<K>` the same way; `IntMap v` is
+`HsMap<Nat, V>` and `IntSet` `HsSet<Nat>` (IntSet's `Key` is Int). One
+term per map, so `==` at them (`HsMap.eq`, `HsSet.eq`) is the derived one,
+and a type whose fields are Maps derives its `T.eq` too. They are their own
+types, not lists, so `<>` at them is `union` and not `++`.
+
+**The functions** (HsPrelude, structural on the list; Data.Map's semantics,
+a list's cost): the 31 of Data.Map that telomare and the test use, at
+Data.Map(.Strict) and at Data.IntMap(.Strict), and 18 of Data.Set and
+Data.IntSet (README, Containers). Each takes compare at the key as a
+template, written by the fold: `Nat.cmp` at Int, HsPrelude's `HsCmp.char`,
+`HsCmp.bool` and `HsCmp.unit`, and `HsCmp.list`, `HsCmp.pair`, `HsCmp.maybe`
+given compare at the parts (Haskell's derived Ord: `[]` first, then
+lexicographic; `Nothing` first; `False < True`). A function argument
+(`insertWith`'s, `map`'s, `filter`'s, `foldr`'s) is a template, so a closed
+one. The fold reads which of GHC's type arguments is the key and which the
+values from a table per function (`fd.dm.specs.*`, checked against
+hs-export's output, `map`'s are `a b k`, `filter`'s `a k`). Out: a key of
+another type (`fold:ord-at-type`: the module's own types need their
+`compare`, the next rule with the dictionaries), `!` (partial),
+`Foldable`'s methods at a Map or a Set, `mempty`, `alter`, `split`,
+`mapKeys`.
+
+bend's compiler overflowed its stack on the longer literals (the table as
+one list, HsPrelude as one string): both are in pieces now
+(`fd.hsprelude.m1`..`m5`, `fd.dm.specs.map1`..).
+
+**Test** (`tests/hs/Mp.hs`, 26 functions on Map Int Int, Map String Int,
+Map Char Int, IntMap, Set Int, Set Char, IntSet): 25 check, 24 with laws
+(GHC's answers: duplicates, the last one kept, `unionWith`, left-biased
+`union` and `<>`, `difference`, `==` at Maps), `build` ok-check (its result
+a Map: no law); out `counts` (a list comprehension in an argument,
+`fold:do`).
+
+| | functions out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| hs1003 before (law16) | 3107 | 1424 | 221 | 558 |
+| hs1003 now (law17) | 3107 | 1424 | 221 | 558 |
+| telomare before (law-pk10) | 721 | 61 | 40 | 82 |
+| telomare now (law-pk11, 56 s) | 668 | 64 | 76 | 96 |
+
+hs1003 does not use Data.Map (no row changed). Telomare: 53 out fewer, no
+def lost its verdict or a law. They are the records whose fields are Maps
+and their selectors (EAL's `CodeGuidance`, `DeferCtx`, `EALResult`, Fast's
+`FastMeter`, IC's `Node`, Eval.IC's `ICMeter`, Levels' `LevelsInfo` and
+state), Size's functions over them, Size.IR's generated catas, and their
+derived `T.eq`s; 36 are ok-check, their result a record or a Map (Law has
+no input or answer reader for them yet). Of fold's own reasons left: dep 74,
+`Digest` 17, `Rational` 10, `dep:Builtin` 9, `\case` 7; the survey still
+refuses 541, most for the classes over the base functors (`Recursive`,
+`Corecursive`, `~`, BasicBase, StuckBase), `Void`, ParsecT, EALState's
+and EALError's `Digest SHA256`, pattern synonyms, mutual recursion and
+`int-sub`.

@@ -81,6 +81,25 @@ function a template, so a closed one), and at any of these monads `when`,
 `fmap`. Other monads (`ExceptT` over anything else, `ParsecT`, `IO`, a
 type variable) and `<*>` at ExceptT are out.
 
+## Containers
+
+`Data.Map`'s `Map k v` and `Data.Set`'s `Set k` (`IntMap v` is `Map Int v`,
+`IntSet` `Set Int`) are HsPrelude's `HsMap<K, V>` and `HsSet<K>`: the pairs
+(the keys) in ascending order of the key, each key once, so two equal maps
+are one term and `==` at them is HsPrelude's `HsMap.eq`/`HsSet.eq`. The
+functions are Data.Map's semantics on that list, not its balanced tree's
+cost: `empty`, `singleton`, `insert`, `insertWith`, `lookup`, `member`,
+`notMember`, `findWithDefault`, `delete`, `adjust`, `toList`/`toAscList`/
+`assocs`, `fromList` (and the Asc ones), `fromListWith`, `elems`, `keys`,
+`keysSet`, `size`, `null`, `union`, `unionWith`, `difference`, `map`,
+`mapWithKey`, `filter`, `filterWithKey`, `foldr`, `foldrWithKey`; at Set
+the same names that exist there, `unions`, `\\` and `map`; `<>` at a Map
+or a Set is `union`. Each takes compare at the key as a template: `Nat.cmp`
+at Int, HsPrelude's `HsCmp.char`, `HsCmp.bool`, `HsCmp.unit`, and
+`HsCmp.list`, `HsCmp.pair`, `HsCmp.maybe` given compare at the parts (a
+String key is a list of Char). A key of any other type (the module's own,
+whose `compare` is not written yet) is out, `fold:ord-at-type`.
+
 ## Lifting
 
 Bend matches only parameters and pattern fields, not a local or a computed
