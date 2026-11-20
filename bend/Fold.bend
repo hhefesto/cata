@@ -232,13 +232,17 @@ type Tk is Data:
   TkT3{}
   TkUnit{}
   TkCmp{}
+  TkFix{}
+  TkCofree{}
+  TkCofreeF{}
+  TkBase{}
   TkNone{}
 
 type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -269,6 +273,115 @@ def fd.ty.t3(args: List<&2, T.Bt>) -> T.Bt:
       fd.pair(a, fd.pair(b, c))
     case _:
       fd.todo("fold:tuple-type")
+
+# Fix f, Cofree f a and CofreeF f a b (Data.Fix, Control.Comonad.Cofree,
+# Control.Comonad.Trans.Cofree) are HsPrelude's (see The prelude), with the
+# functor f a type function: a type written F<A> for all its arguments but
+# the last is (r_ => F<A, r_>), a list's is (r_ => List<&2, r_>), and a
+# type variable is itself.  Base t a (Data.Functor.Foldable's type family)
+# is f a at Fix f and CofreeF f w a at Cofree f w.
+
+def fd.rv() -> List<&2, U32>:
+  S.b("r_")
+
+# a spine with t after its last argument
+def fd.args.snoc(+args: T.Bt, t: T.Bt) -> T.Bt:
+  T.tba.args(List.append(&2, T.Bt, fd.spine(args), t <> Nil{}))
+
+def fd.fn.var.if(list: Bool, n: List<&2, U32>, t: T.Bt) -> T.Bt:
+  match list:
+    case True{}:
+      fd.list(t)
+    case False{}:
+      T.tba.call(T.BtVar{n}, [t])
+
+def fd.fn.var(+n: List<&2, U32>, t: T.Bt) -> T.Bt:
+  fd.fn.var.if(fd.is(n, "List"), n, t)
+
+# the functor f (a type written for all its arguments but the last)
+# applied to t
+def fd.fn.at(f: T.Bt, t: T.Bt) -> T.Bt:
+  match f:
+    case T.BtTyApp{n, args}:
+      T.BtTyApp{n, fd.args.snoc(args, t)}
+    case T.BtVar{n}:
+      fd.fn.var(n, t)
+    case _:
+      fd.todo("fold:functor")
+
+# the functor f as a type function
+def fd.fn.lam(f: T.Bt) -> T.Bt:
+  match f:
+    case T.BtVar{+n}:
+      Bool.pick(T.Bt, fd.is(n, "List"), T.BtLam{T.BmLive{}, fd.rv(), fd.list(T.BtVar{fd.rv()})}, T.BtVar{n})
+    case g:
+      T.BtLam{T.BmLive{}, fd.rv(), fd.fn.at(g, T.BtVar{fd.rv()})}
+
+def fd.ty.fix(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case f <> Nil{}:
+      T.BtTyApp{S.b("HsPrelude.Fix"), T.tba.args([fd.fn.lam(f)])}
+    case _:
+      fd.todo("fold:fix-type")
+
+def fd.ty.cofree(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case f <> a <> Nil{}:
+      T.BtTyApp{S.b("HsPrelude.Cofree"), T.tba.args([fd.fn.lam(f), a])}
+    case _:
+      fd.todo("fold:cofree-type")
+
+def fd.ty.cofreef(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case f <> a <> b <> Nil{}:
+      T.BtTyApp{S.b("HsPrelude.CofreeF"), T.tba.args([fd.fn.lam(f), a, b])}
+    case _:
+      fd.todo("fold:cofreef-type")
+
+# h, t without the last element
+def fd.init.go(t: List<&2, T.Bt>, h: T.Bt) -> List<&2, T.Bt>:
+  match t:
+    case Nil{}:
+      Nil{}
+    case h2 <> t2:
+      h <> fd.init.go(t2, h2)
+
+def fd.init(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match xs:
+    case h <> t:
+      fd.init.go(t, h)
+    case Nil{}:
+      Nil{}
+
+# a type function applied to a: its body with a for the variable, which
+# fd.fn.lam put last
+def fd.lam.at(l: T.Bt, a: T.Bt) -> T.Bt:
+  match l:
+    case T.BtLam{m, x, T.BtTyApp{n, args}}:
+      T.BtTyApp{n, fd.args.snoc(T.tba.args(fd.init(fd.spine(args))), a)}
+    case T.BtVar{n}:
+      T.tba.call(T.BtVar{n}, [a])
+    case _:
+      fd.todo("fold:functor")
+
+def fd.ty.base.if(fix: Bool, cof: Bool, rest: T.Bt, l: T.Bt, a: T.Bt) -> T.Bt:
+  match fix cof rest:
+    case True{} _ _:
+      fd.lam.at(l, a)
+    case False{} True{} T.BtArgs{w, _}:
+      T.BtTyApp{S.b("HsPrelude.CofreeF"), T.tba.args([l, w, a])}
+    case _ _ _:
+      fd.todo("type:Data.Functor.Foldable.Base")
+
+def fd.ty.base.of(+n: List<&2, U32>, l: T.Bt, rest: T.Bt, a: T.Bt) -> T.Bt:
+  fd.ty.base.if(fd.is(n, "HsPrelude.Fix"), fd.is(n, "HsPrelude.Cofree"), rest, l, a)
+
+def fd.ty.base(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case T.BtTyApp{n, T.BtArgs{l, rest}} <> a <> Nil{}:
+      fd.ty.base.of(n, l, rest, a)
+    case _:
+      fd.todo("type:Data.Functor.Foldable.Base")
 
 # a type that is not Base's: the module's own or an earlier module's of its
 # package, by its Bend name (None: neither)
@@ -305,6 +418,14 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
       fd.ty.t2(args)
     case TkT3{}:
       fd.ty.t3(args)
+    case TkFix{}:
+      fd.ty.fix(args)
+    case TkCofree{}:
+      fd.ty.cofree(args)
+    case TkCofreeF{}:
+      fd.ty.cofreef(args)
+    case TkBase{}:
+      fd.ty.base(args)
     case TkNone{}:
       fd.todo("fold:type")
 
@@ -342,13 +463,16 @@ type Cb is Data:
   CbUnit{}
   CbT2{}
   CbT3{}
+  CbFix{}
+  CbCofree{}
+  CbCofreeF{}
   CbNone{}
 
 type CbE is Data:
   CbE{k: String, v: Cb}
 
 def fd.cbtab() -> List<&2, CbE>:
-  [CbE{"GHC.Types.:", CbCons{}}, CbE{"GHC.Types.[]", CbNil{}}, CbE{"GHC.Types.True", CbTrue{}}, CbE{"GHC.Types.False", CbFalse{}}, CbE{"GHC.Internal.Maybe.Just", CbJust{}}, CbE{"GHC.Internal.Maybe.Nothing", CbNothing{}}, CbE{"GHC.Internal.Data.Either.Left", CbLeft{}}, CbE{"GHC.Internal.Data.Either.Right", CbRight{}}, CbE{"GHC.Types.LT", CbLT{}}, CbE{"GHC.Types.EQ", CbEQ{}}, CbE{"GHC.Types.GT", CbGT{}}, CbE{"GHC.Tuple.()", CbUnit{}}, CbE{"GHC.Tuple.(,)", CbT2{}}, CbE{"GHC.Tuple.(,,)", CbT3{}}]
+  [CbE{"GHC.Types.:", CbCons{}}, CbE{"GHC.Types.[]", CbNil{}}, CbE{"GHC.Types.True", CbTrue{}}, CbE{"GHC.Types.False", CbFalse{}}, CbE{"GHC.Internal.Maybe.Just", CbJust{}}, CbE{"GHC.Internal.Maybe.Nothing", CbNothing{}}, CbE{"GHC.Internal.Data.Either.Left", CbLeft{}}, CbE{"GHC.Internal.Data.Either.Right", CbRight{}}, CbE{"GHC.Types.LT", CbLT{}}, CbE{"GHC.Types.EQ", CbEQ{}}, CbE{"GHC.Types.GT", CbGT{}}, CbE{"GHC.Tuple.()", CbUnit{}}, CbE{"GHC.Tuple.(,)", CbT2{}}, CbE{"GHC.Tuple.(,,)", CbT3{}}, CbE{"Data.Fix.Fix", CbFix{}}, CbE{"Control.Comonad.Cofree.:<", CbCofree{}}, CbE{"Control.Comonad.Trans.Cofree.:<", CbCofreeF{}}]
 
 def fd.cb.find(xs: List<&2, CbE>, +k: List<&2, U32>) -> Cb:
   match xs:
@@ -371,6 +495,12 @@ def fd.cb.n(c: Cb) -> Nat:
       2n
     case CbT3{}:
       3n
+    case CbFix{}:
+      1n
+    case CbCofree{}:
+      2n
+    case CbCofreeF{}:
+      2n
     case _:
       0n
 
@@ -405,6 +535,12 @@ def fd.cb.mk(c: Cb, xs: List<&2, T.Bt>) -> T.Bt:
       T.BtCon{S.b("Tuple"), T.tba.args([a, b])}
     case CbT3{} a <> b <> c <> _:
       T.BtCon{S.b("Tuple"), T.tba.args([a, T.BtCon{S.b("Tuple"), T.tba.args([b, c])}])}
+    case CbFix{} a <> _:
+      T.BtCon{S.b("HsPrelude.Fix.Fix"), T.tba.args([a])}
+    case CbCofree{} a <> b <> _:
+      T.BtCon{S.b("HsPrelude.Cofree.Cofree"), T.tba.args([a, b])}
+    case CbCofreeF{} a <> b <> _:
+      T.BtCon{S.b("HsPrelude.CofreeF.CofreeF"), T.tba.args([a, b])}
     case _ _:
       fd.todo("fold:constructor")
 
@@ -433,6 +569,24 @@ def fd.df.find(xs: List<&2, Df>, +n: List<&2, U32>) -> Maybe<&2, Nat>:
     case Df{k, a} <> rest:
       Bool.pick(Maybe<&2, Nat>, S.eq(k, n), Some{a}, fd.df.find(rest, n))
 
+# a field's role
+type Fr is Data:
+  FrCopy{}
+  FrRec{}
+  FrIn{k: List<&2, U32>}
+  FrMaybe{r: Fr}
+  FrPair{a: Fr, b: Fr}
+  FrNo{}
+
+# a constructor of a functor: its Bend name, its fields' roles
+type Fc is Data:
+  Fc{c: List<&2, U32>, rs: List<&2, Fr>}
+
+# a functor: its key M.G, its Bend name, the type variables before the
+# last, its constructors
+type Fz is Data:
+  Fz{k: List<&2, U32>, b: List<&2, U32>, tvs: List<&2, List<&2, U32>>, cs: List<&2, Fc>}
+
 # What the modules of a package before this one have in (package mode).
 # Each is known by its key M.NAME and written with the alias of M's file,
 # M with each . as _: a def (its Bend name and arity), a constructor (its
@@ -441,6 +595,7 @@ type Ix is Data:
   IxDef{k: List<&2, U32>, b: List<&2, U32>, a: Nat}
   IxCon{k: List<&2, U32>, b: List<&2, U32>, n: Nat, fs: List<&2, List<&2, U32>>}
   IxTy{k: List<&2, U32>, b: List<&2, U32>}
+  IxFun{k: List<&2, U32>, b: List<&2, U32>, cs: List<&2, Fc>}
 
 # a synonym of an earlier module: its key and its (synonym ...), folded
 # again in each module that uses it (its types are that module's imports)
@@ -493,6 +648,8 @@ def fd.ix.key(i: Ix) -> List<&2, U32>:
       k
     case IxTy{k, b}:
       k
+    case IxFun{k, b, cs}:
+      fd.cat(k, S.b("/functor"))
 
 def fd.ix.hit(+xs: List<&2, Ix>, +k: List<&2, U32>) -> Bool:
   match xs:
@@ -692,13 +849,17 @@ type Bf is Data:
   BfId{}
   BfConst{}
   BfSucc{}
+  BfUnFix{}
+  BfProject{}
+  BfEmbed{}
+  BfCata{}
   BfNone{}
 
 type BfE is Data:
   BfE{k: String, v: Bf}
 
 def fd.bftab() -> List<&2, BfE>:
-  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}]
+  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}]
 
 def fd.bf.find(xs: List<&2, BfE>, +k: List<&2, U32>) -> Bf:
   match xs:
@@ -735,6 +896,12 @@ def fd.bf.n(f: Bf) -> Nat:
     case BfId{}:
       1n
     case BfSucc{}:
+      1n
+    case BfUnFix{}:
+      1n
+    case BfProject{}:
+      1n
+    case BfEmbed{}:
       1n
     case BfFoldr{}:
       3n
@@ -827,6 +994,76 @@ def fd.succ(q: Tq, x: T.Bt) -> T.Bt:
     case _:
       fd.todo("fold:succ-at-type")
 
+# Recursive's project and cata and Corecursive's embed
+# (Data.Functor.Foldable) at Fix f and Cofree f w: cata is the functor's
+# G.cata or G.cata.cofree (see Recursion schemes)
+def fd.project.if(fix: Bool, cof: Bool, l: T.Bt, rest: T.Bt, x: T.Bt) -> T.Bt:
+  match fix cof rest:
+    case True{} _ _:
+      fd.callS("HsPrelude.Fix.unFix", [l, x])
+    case False{} True{} T.BtArgs{w, _}:
+      fd.callS("HsPrelude.Cofree.project", [l, w, x])
+    case _ _ _:
+      fd.todo("fold:project-at-type")
+
+def fd.project(t: T.Bt, x: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTyApp{+n, T.BtArgs{l, rest}}:
+      fd.project.if(fd.is(n, "HsPrelude.Fix"), fd.is(n, "HsPrelude.Cofree"), l, rest, x)
+    case _:
+      fd.todo("fold:project-at-type")
+
+def fd.embed.if(fix: Bool, cof: Bool, l: T.Bt, rest: T.Bt, x: T.Bt) -> T.Bt:
+  match fix cof rest:
+    case True{} _ _:
+      T.BtCon{S.b("HsPrelude.Fix.Fix"), T.tba.args([x])}
+    case False{} True{} T.BtArgs{w, _}:
+      fd.callS("HsPrelude.Cofree.embed", [l, w, x])
+    case _ _ _:
+      fd.todo("fold:embed-at-type")
+
+def fd.embed(t: T.Bt, x: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTyApp{+n, T.BtArgs{l, rest}}:
+      fd.embed.if(fd.is(n, "HsPrelude.Fix"), fd.is(n, "HsPrelude.Cofree"), l, rest, x)
+    case _:
+      fd.todo("fold:embed-at-type")
+
+def fd.tpls(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match xs:
+    case h <> t:
+      fd.tpl0(h) <> fd.tpls(t)
+    case Nil{}:
+      Nil{}
+
+# G.cata(~A.., ~R, ~alg, x) at Fix<(r_ => G<A.., r_>)>, and
+# G.cata.cofree(~A.., ~W, ~R, ~alg, x) at Cofree<(r_ => G<A.., r_>), W>
+def fd.cata.call(+n: List<&2, U32>, +s: String, args: T.Bt, more: List<&2, T.Bt>) -> T.Bt:
+  T.tba.call(T.BtVar{fd.cat(n, S.b(s))}, List.append(&2, T.Bt, fd.tpls(fd.init(fd.spine(args))), more))
+
+def fd.cata.if(fix: Bool, cof: Bool, own: Bool, +n: List<&2, U32>, args: T.Bt, rest: T.Bt, r: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
+  match fix cof own rest:
+    case True{} _ True{} _:
+      fd.cata.call(n, ".cata", args, [fd.tpl0(r), g, x])
+    case False{} True{} True{} T.BtArgs{w, _}:
+      fd.cata.call(n, ".cata.cofree", args, [fd.tpl0(w), fd.tpl0(r), g, x])
+    case _ _ _ _:
+      fd.todo("fold:cata-at-type")
+
+def fd.cata.of(+h: List<&2, U32>, l: T.Bt, rest: T.Bt, r: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
+  match l:
+    case T.BtLam{m, v, T.BtTyApp{+n, args}}:
+      fd.cata.if(fd.is(h, "HsPrelude.Fix"), fd.is(h, "HsPrelude.Cofree"), Bool.not(Bool.or(fd.is(n, "List"), Bool.or(fd.is(n, "Maybe"), fd.is(n, "Either")))), n, args, rest, r, g, x)
+    case _:
+      fd.todo("fold:cata-at-type")
+
+def fd.cata(t: T.Bt, r: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTyApp{h, T.BtArgs{l, rest}}:
+      fd.cata.of(h, l, rest, r, g, x)
+    case _:
+      fd.todo("fold:cata-at-type")
+
 def fd.mul2() -> T.Bt:
   T.BtLam{T.BmLive{}, S.b("p"), T.BtLam{T.BmLive{}, S.b("q"), fd.callS("Nat.mul", [fd.v("p"), fd.v("q")])}}
 
@@ -893,6 +1130,14 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       a
     case BfSucc{} +t <> _ x <> _:
       fd.succ(fd.tq(t), x)
+    case BfUnFix{} f <> _ x <> _:
+      fd.callS("HsPrelude.Fix.unFix", [fd.fn.lam(f), x])
+    case BfProject{} t <> _ x <> _:
+      fd.project(t, x)
+    case BfEmbed{} t <> _ x <> _:
+      fd.embed(t, x)
+    case BfCata{} t <> r <> _ g <> x <> _:
+      fd.cata(t, r, fd.tpl(ls, g), x)
     case _ _ _:
       fd.todo("fold:base-call")
 
@@ -2496,9 +2741,424 @@ def fd.ok(+xs: List<&2, X.Sx>, +imp: V.Imp) -> List<&2, List<&2, U32>>:
   +all = V.sv.names(fs0)
   V.sv.ok.fix(1n+List.length(&2, V.Fn, fs0), False{}, fs0, all, all)
 
+# Recursion schemes ---------------------------------------------------------------
+#
+# A functor of the module is a data type with a Functor instance in it; Fix
+# and Cofree recurse through its last type variable.  Each field of its
+# constructors is copied (its type has no such variable), recursed into
+# (it is the variable), or taken apart: a Maybe, a pair, or a functor of
+# the package applied to the variable last (StuckExprB (BasicExprF f)).
+# For each, G.cata and G.cata.cofree are written: Data.Functor.Foldable's
+# cata at Fix G and at Cofree G w, as nested matches down to the variable,
+# where Bend sees the argument shrink (it does not see it through a
+# template such as an fmap).
+
+# whether the type x names the type variable f
+def fd.has.tv(x: X.Sx, +f: List<&2, U32>) -> Bool:
+  match x:
+    case X.SxCons{X.SxAtom{a}, X.SxCons{X.SxStr{n}, X.SxNil{}}}:
+      Bool.and(fd.is(a, "tv"), S.eq(n, f))
+    case X.SxCons{h, t}:
+      Bool.or(fd.has.tv(h, f), fd.has.tv(t, f))
+    case _:
+      False{}
+
+def fd.fr.one(+key: List<&2, U32>, r: Fr) -> Fr:
+  match r:
+    case FrCopy{}:
+      FrCopy{}
+    case FrRec{}:
+      Bool.pick(Fr, fd.is(key, "GHC.Internal.Maybe.Maybe"), FrMaybe{FrRec{}}, FrIn{key})
+    case r1:
+      Bool.pick(Fr, fd.is(key, "GHC.Internal.Maybe.Maybe"), FrMaybe{r1}, FrNo{})
+
+def fd.fr.two(+key: List<&2, U32>, r1: Fr, r2: Fr) -> Fr:
+  match r1 r2:
+    case FrCopy{} FrCopy{}:
+      FrCopy{}
+    case FrCopy{} FrRec{}:
+      Bool.pick(Fr, fd.is(key, "GHC.Tuple.Tuple2"), FrPair{FrCopy{}, FrRec{}}, FrIn{key})
+    case a b:
+      Bool.pick(Fr, fd.is(key, "GHC.Tuple.Tuple2"), FrPair{a, b}, FrNo{})
+
+def fd.fr.three(+key: List<&2, U32>, r1: Fr, r2: Fr, r3: Fr) -> Fr:
+  match r1 r2 r3:
+    case FrCopy{} FrCopy{} FrCopy{}:
+      FrCopy{}
+    case FrCopy{} FrCopy{} FrRec{}:
+      FrIn{key}
+    case _ _ _:
+      FrNo{}
+
+def fd.fr.fun(r1: Fr, r2: Fr) -> Fr:
+  match r1 r2:
+    case FrCopy{} FrCopy{}:
+      FrCopy{}
+    case _ _:
+      FrNo{}
+
+# the role of a field of type x, for the functor's variable f
+def fd.fr(x: X.Sx, +f: List<&2, U32>) -> Fr:
+  match x:
+    case X.SxCons{X.SxAtom{a}, X.SxCons{X.SxStr{n}, X.SxNil{}}}:
+      Bool.pick(Fr, Bool.and(fd.is(a, "tv"), S.eq(n, f)), FrRec{}, FrCopy{})
+    case X.SxCons{_, X.SxCons{X.SxStr{m}, X.SxCons{X.SxStr{n}, X.SxNil{}}}}:
+      FrCopy{}
+    case X.SxCons{_, X.SxCons{X.SxStr{m}, X.SxCons{X.SxStr{n}, X.SxCons{p, X.SxNil{}}}}}:
+      fd.fr.one(fd.cat3(m, S.b("."), n), fd.fr(p, f))
+    case X.SxCons{_, X.SxCons{X.SxStr{m}, X.SxCons{X.SxStr{n}, X.SxCons{p, X.SxCons{q, X.SxNil{}}}}}}:
+      fd.fr.two(fd.cat3(m, S.b("."), n), fd.fr(p, f), fd.fr(q, f))
+    case X.SxCons{_, X.SxCons{X.SxStr{m}, X.SxCons{X.SxStr{n}, X.SxCons{p, X.SxCons{q, X.SxCons{s, X.SxNil{}}}}}}}:
+      fd.fr.three(fd.cat3(m, S.b("."), n), fd.fr(p, f), fd.fr(q, f), fd.fr(s, f))
+    case X.SxCons{_, X.SxCons{p, X.SxCons{q, X.SxNil{}}}}:
+      fd.fr.fun(fd.fr(p, f), fd.fr(q, f))
+    case +y:
+      Bool.pick(Fr, fd.has.tv(y, f), FrNo{}, FrCopy{})
+
+def fd.frs(xs: X.Sx, +f: List<&2, U32>) -> List<&2, Fr>:
+  match xs:
+    case X.SxCons{h, t}:
+      fd.fr(h, f) <> fd.frs(t, f)
+    case _:
+      Nil{}
+
+# (con NAME (FIELD...) (ARGTYPE...) (ex NEX NTHETA))
+def fd.fcs(+ty: List<&2, U32>, +f: List<&2, U32>, cs: X.Sx) -> List<&2, Fc>:
+  match cs:
+    case X.SxCons{+c, t}:
+      Fc{fd.cname(ty, V.sv.str(c, 1n)), fd.frs(V.sv.at(c, 3n), f)} <> fd.fcs(ty, f, t)
+    case _:
+      Nil{}
+
+# the last of the (TV...) of a data type, as Haskell names it
+def fd.lasttv(xs: X.Sx, acc: List<&2, U32>) -> List<&2, U32>:
+  match xs:
+    case X.SxCons{X.SxStr{s}, t}:
+      fd.lasttv(t, s)
+    case _:
+      acc
+
+def fd.inits.go(t: List<&2, List<&2, U32>>, h: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match t:
+    case Nil{}:
+      Nil{}
+    case h2 <> t2:
+      h <> fd.inits.go(t2, h2)
+
+def fd.inits(xs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case h <> t:
+      fd.inits.go(t, h)
+    case Nil{}:
+      Nil{}
+
+# (data NAME (TV...) (CON...) SPAN), a functor
+def fd.fz.of(+m: List<&2, U32>, +x: X.Sx) -> Fz:
+  +n = V.sv.str(x, 1n)
+  +tvs = V.sv.at(x, 2n)
+  Fz{V.sv.key(m, n), fd.tyname(n), fd.inits(fd.tvs(tvs)), fd.fcs(n, fd.lasttv(tvs, Nil{}), V.sv.at(x, 3n))}
+
+# (instance CLSMOD CLS (TYPE ...) DFUN SPAN) of Functor: its type's key
+def fd.fkey.if(f: Bool, +x: X.Sx, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match f:
+    case True{}:
+      +t = V.sv.at(V.sv.at(x, 3n), 0n)
+      V.sv.key(V.sv.str(t, 1n), V.sv.str(t, 2n)) <> acc
+    case False{}:
+      acc
+
+def fd.fkeys(xs: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case +h <> t:
+      fd.fkey.if(Bool.and(V.sv.is(V.sv.hd(h), "instance"), Bool.and(V.sv.is(V.sv.str(h, 1n), "GHC.Internal.Base"), V.sv.is(V.sv.str(h, 2n), "Functor"))), h, fd.fkeys(t))
+    case Nil{}:
+      Nil{}
+
+def fd.fz.if(f: Bool, +m: List<&2, U32>, +x: X.Sx, acc: List<&2, Fz>) -> List<&2, Fz>:
+  match f:
+    case True{}:
+      fd.fz.of(m, x) <> acc
+    case False{}:
+      acc
+
+def fd.fzs.go(xs: List<&2, X.Sx>, +m: List<&2, U32>, +ks: List<&2, List<&2, U32>>) -> List<&2, Fz>:
+  match xs:
+    case +h <> t:
+      fd.fz.if(Bool.and(fd.isdata(h), S.mem(V.sv.key(m, V.sv.str(h, 1n)), ks)), m, h, fd.fzs.go(t, m, ks))
+    case Nil{}:
+      Nil{}
+
+# the module's functors
+def fd.fzs(+xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List<&2, Fz>:
+  fd.fzs.go(xs, m, fd.fkeys(xs))
+
+# the package's earlier functors
+def fd.ix.fzs(xs: List<&2, Ix>) -> List<&2, Fz>:
+  match xs:
+    case IxFun{k, b, cs} <> t:
+      Fz{k, b, Nil{}, cs} <> fd.ix.fzs(t)
+    case _ <> t:
+      fd.ix.fzs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.fz.find(xs: List<&2, Fz>, +k: List<&2, U32>) -> Maybe<&2, List<&2, Fc>>:
+  match xs:
+    case Fz{k2, b, tvs, cs} <> t:
+      Bool.pick(Maybe<&2, List<&2, Fc>>, S.eq(k2, k), Some{cs}, fd.fz.find(t, k))
+    case Nil{}:
+      None{}
+
+# The writing: a walk over work, each a field (its variable, its role), a
+# constructor to build of the last n values, or the cases of a match still
+# to write; vs are the values built so far, last first.  A field taken apart
+# is a match whose cases are written by the same walk (Bend has no mutual
+# recursion), each case's body then the cases after it.
+type Cw is Data:
+  CwF{v: List<&2, U32>, r: Fr}
+  CwB{c: List<&2, U32>, n: Nat}
+  CwC{v: List<&2, U32>, cs: List<&2, Fc>}
+
+# what the walk writes for: the functors, the recursive call's name and its
+# arguments before the value, and whether at Cofree
+type Cg is Data:
+  Cg{fz: List<&2, Fz>, n: List<&2, U32>, tas: List<&2, T.Bt>, cof: Bool}
+
+def fd.cg.fz(+c: Cg) -> List<&2, Fz>:
+  match c:
+    case Cg{fz, n, tas, cof}:
+      fz
+
+def fd.cg.call(+c: Cg, +v: List<&2, U32>) -> T.Bt:
+  match c:
+    case Cg{fz, n, tas, cof}:
+      T.tba.call(T.BtVar{n}, List.append(&2, T.Bt, tas, T.BtVar{v} <> Nil{}))
+
+def fd.cg.leaf.of(cof: Bool, v: T.Bt) -> T.Bt:
+  match cof:
+    case True{}:
+      T.BtExpr{T.tba.call(T.BtVar{S.b("alg")}, [T.BtCon{S.b("HsPrelude.CofreeF.CofreeF"), T.tba.args([T.BtVar{S.b("w0")}, v])}])}
+    case False{}:
+      T.BtExpr{T.tba.call(T.BtVar{S.b("alg")}, [v])}
+
+def fd.cg.leaf(+c: Cg, vs: List<&2, T.Bt>) -> T.Bt:
+  match c vs:
+    case Cg{fz, n, tas, cof} v <> Nil{}:
+      fd.cg.leaf.of(cof, v)
+    case _ _:
+      fd.todo("fold:cata-shape")
+
+# the constructor c of the last n values
+def fd.cg.build(+c: List<&2, U32>, +n: Nat, +vs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  T.BtCon{c, T.tba.args(List.reverse(&2, T.Bt, List.take(&2, T.Bt, vs, n)))} <> List.drop(&2, T.Bt, vs, n)
+
+def fd.cg.ys(n: Nat, +k: Nat) -> List<&2, List<&2, U32>>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      fd.cat(S.b("y"), fd.nshow(k)) <> fd.cg.ys(p, 1n+k)
+
+def fd.cg.pvs(ys: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
+  match ys:
+    case y <> t:
+      T.BtPv{T.BmLive{}, y} <> fd.cg.pvs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.cg.fields(ys: List<&2, List<&2, U32>>, rs: List<&2, Fr>, rest: List<&2, Cw>) -> List<&2, Cw>:
+  match ys rs:
+    case y <> t r <> u:
+      CwF{y, r} <> fd.cg.fields(t, u, rest)
+    case _ _:
+      rest
+
+def fd.cg.maybe(r: Fr) -> List<&2, Fc>:
+  [Fc{S.b("None"), Nil{}}, Fc{S.b("Some"), [r]}]
+
+def fd.cg.pair(a: Fr, b: Fr) -> List<&2, Fc>:
+  [Fc{S.b("Tuple"), [a, b]}]
+
+def fd.cg.match(+v: List<&2, U32>, cases: T.Bt) -> T.Bt:
+  T.BtMatch{T.tba.args([T.BtVar{v}]), cases}
+
+def fd.cg.in(m: Maybe<&2, List<&2, Fc>>) -> List<&2, Fc>:
+  match m:
+    case Some{cs}:
+      cs
+    case None{}:
+      Nil{}
+
+def fd.cg.found(m: Maybe<&2, List<&2, Fc>>) -> Bool:
+  match m:
+    case Some{cs}:
+      True{}
+    case None{}:
+      False{}
+
+def fd.cg(fuel: Nat, ws: List<&2, Cw>, +vs: List<&2, T.Bt>, +k: Nat, +c: Cg) -> T.Bt:
+  match fuel ws:
+    case 0n _:
+      fd.todo("fold:cata-depth")
+    case 1n+p Nil{}:
+      fd.cg.leaf(c, vs)
+    case 1n+p CwF{+v, FrCopy{}} <> rest:
+      fd.cg(p, rest, T.BtVar{v} <> vs, k, c)
+    case 1n+p CwF{+v, FrRec{}} <> rest:
+      fd.cg(p, rest, fd.cg.call(c, v) <> vs, k, c)
+    case 1n+p CwF{+v, FrIn{key}} <> rest:
+      +m = fd.fz.find(fd.cg.fz(c), key)
+      Bool.pick(T.Bt, fd.cg.found(m), fd.cg.match(v, fd.cg(p, CwC{v, fd.cg.in(m)} <> rest, vs, k, c)), fd.todo("fold:cata-functor"))
+    case 1n+p CwF{+v, FrMaybe{r}} <> rest:
+      fd.cg.match(v, fd.cg(p, CwC{v, fd.cg.maybe(r)} <> rest, vs, k, c))
+    case 1n+p CwF{+v, FrPair{a, b}} <> rest:
+      fd.cg.match(v, fd.cg(p, CwC{v, fd.cg.pair(a, b)} <> rest, vs, k, c))
+    case 1n+p CwF{v, FrNo{}} <> rest:
+      fd.todo("fold:cata-field")
+    case 1n+p CwB{+b, +n} <> rest:
+      fd.cg(p, rest, fd.cg.build(b, n, vs), k, c)
+    case 1n+p CwC{v, Nil{}} <> rest:
+      T.BtCEnd{}
+    case 1n+(+p) CwC{+v, Fc{+b, +rs} <> more} <> +rest:
+      +n = List.length(&2, Fr, rs)
+      +ys = fd.cg.ys(n, k)
+      T.BtCase{T.tba.args([T.BtCon{b, T.tba.args(fd.cg.pvs(ys))}]), fd.cg(p, fd.cg.fields(ys, rs, CwB{b, n} <> rest), vs, Nat.add(k, n), c), fd.cg(p, CwC{v, more} <> rest, vs, k, c)}
+
+# whether a role is flat: copied, recursed into, or a Maybe or pair of those
+def fd.fr.flat(r: Fr) -> Bool:
+  match r:
+    case FrCopy{}:
+      True{}
+    case FrRec{}:
+      True{}
+    case FrMaybe{a}:
+      fd.fr.flat(a)
+    case FrPair{a, b}:
+      Bool.and(fd.fr.flat(a), fd.fr.flat(b))
+    case _:
+      False{}
+
+def fd.frs.flat(rs: List<&2, Fr>) -> Bool:
+  match rs:
+    case r <> t:
+      Bool.and(fd.fr.flat(r), fd.frs.flat(t))
+    case Nil{}:
+      True{}
+
+def fd.fcs.flat(cs: List<&2, Fc>) -> Bool:
+  match cs:
+    case Fc{c, rs} <> t:
+      Bool.and(fd.frs.flat(rs), fd.fcs.flat(t))
+    case Nil{}:
+      True{}
+
+# a functor H the role takes apart must be another one, and flat (one
+# level: StuckExprF's BasicExprF), so the nested matches end
+def fd.in.ok(m: Maybe<&2, List<&2, Fc>>, +own: List<&2, U32>, +key: List<&2, U32>) -> Bool:
+  match m:
+    case Some{cs}:
+      Bool.and(Bool.not(S.eq(own, key)), fd.fcs.flat(cs))
+    case None{}:
+      False{}
+
+def fd.fr.ok(r: Fr, +own: List<&2, U32>, +fz: List<&2, Fz>) -> Bool:
+  match r:
+    case FrNo{}:
+      False{}
+    case FrIn{+key}:
+      fd.in.ok(fd.fz.find(fz, key), own, key)
+    case FrMaybe{a}:
+      fd.fr.ok(a, own, fz)
+    case FrPair{a, b}:
+      Bool.and(fd.fr.ok(a, own, fz), fd.fr.ok(b, own, fz))
+    case _:
+      True{}
+
+def fd.fc.ok(rs: List<&2, Fr>, +own: List<&2, U32>, +fz: List<&2, Fz>) -> Bool:
+  match rs:
+    case r <> t:
+      Bool.and(fd.fr.ok(r, own, fz), fd.fc.ok(t, own, fz))
+    case Nil{}:
+      True{}
+
+def fd.fz.ok(cs: List<&2, Fc>, +own: List<&2, U32>, +fz: List<&2, Fz>) -> Bool:
+  match cs:
+    case Fc{c, rs} <> t:
+      Bool.and(fd.fc.ok(rs, own, fz), fd.fz.ok(t, own, fz))
+    case Nil{}:
+      True{}
+
+# ~A: Data for each
+def fd.tvtpls(tvs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  match tvs:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      T.BParam{T.BmTpl{}, h, fd.v("Data")} <> fd.tvtpls(t)
+
+def fd.cata.doc(cof: Bool, +b: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match cof:
+    case True{}:
+      [fd.cat3(S.b("generated: Data.Functor.Foldable.cata at Cofree "), b, S.b(" w (Base: CofreeF)"))]
+    case False{}:
+      [fd.cat(S.b("generated: Data.Functor.Foldable.cata at Fix "), b)]
+
+# G.cata (cof False) or G.cata.cofree (cof True)
+def fd.cata.def(+cof: Bool, z: Fz, +fz: List<&2, Fz>) -> T.BItem:
+  match z:
+    case Fz{k, +b, +tvs, +cs}:
+      +name = fd.cat(b, fd.bpick(cof, S.b(".cata.cofree"), S.b(".cata")))
+      +tas = fd.tvbts(tvs)
+      +lam = {T.BtLam{T.BmLive{}, fd.rv(), T.BtTyApp{b, T.tba.args(List.append(&2, T.Bt, tas, T.BtVar{fd.rv()} <> Nil{}))}} : T.Bt}
+      +r = {T.BtVar{S.b("R_c")} : T.Bt}
+      +w = {T.BtVar{S.b("W_c")} : T.Bt}
+      +layer = Bool.pick(T.Bt, cof, T.BtTyApp{S.b("HsPrelude.CofreeF"), T.tba.args([lam, w, r])}, T.BtTyApp{b, T.tba.args(List.append(&2, T.Bt, tas, r <> Nil{}))})
+      +xty = Bool.pick(T.Bt, cof, T.BtTyApp{S.b("HsPrelude.Cofree"), T.tba.args([lam, w])}, T.BtTyApp{S.b("HsPrelude.Fix"), T.tba.args([lam])})
+      +wp = Bool.pick(List<&2, T.BParam>, cof, [T.BParam{T.BmTpl{}, S.b("W_c"), fd.v("Data")}], Nil{})
+      +ps = List.append(&2, T.BParam, fd.tvtpls(tvs), List.append(&2, T.BParam, wp, [T.BParam{T.BmTpl{}, S.b("R_c"), fd.v("Data")}, T.BParam{T.BmTpl{}, S.b("alg"), T.BtPi{T.BmLive{}, S.b("_"), False{}, layer, r}}, T.BParam{T.BmLive{}, S.b("x"), xty}]))
+      +targs = fd.tpls(List.append(&2, T.Bt, tas, List.append(&2, T.Bt, Bool.pick(List<&2, T.Bt>, cof, [w], Nil{}), [r, T.BtVar{S.b("alg")}])))
+      +pat = Bool.pick(T.Bt, cof, T.BtCon{S.b("HsPrelude.Cofree.Cofree"), T.tba.args([T.BtPv{T.BmLive{}, S.b("w0")}, T.BtPv{T.BmLive{}, S.b("y0")}])}, T.BtCon{S.b("HsPrelude.Fix.Fix"), T.tba.args([T.BtPv{T.BmLive{}, S.b("y0")}])})
+      +inner = fd.cg(4096n, CwC{S.b("y0"), cs} <> Nil{}, Nil{}, 1n, Cg{fz, name, targs, cof})
+      T.BiDef{name, ps, r, T.BtMatch{T.tba.args([T.BtVar{S.b("x")}]), T.BtCase{T.tba.args([pat]), fd.cg.match(S.b("y0"), inner), T.BtCEnd{}}}, fd.cata.doc(cof, b)}
+
+def fd.fz.k(z: Fz) -> List<&2, U32>:
+  match z:
+    case Fz{k, b, tvs, cs}:
+      k
+
+def fd.fz.b(z: Fz) -> List<&2, U32>:
+  match z:
+    case Fz{k, b, tvs, cs}:
+      b
+
+def fd.cata.got(ok: Bool, +z: Fz, +fz: List<&2, Fz>) -> List<&2, Got>:
+  match ok:
+    case True{}:
+      +b = fd.fz.b(z)
+      [fd.got.def(fd.cat(b, S.b(".cata")), fd.cata.def(False{}, z, fz)), fd.got.def(fd.cat(b, S.b(".cata.cofree")), fd.cata.def(True{}, z, fz))]
+    case False{}:
+      Nil{}
+
+def fd.fz.cs(z: Fz) -> List<&2, Fc>:
+  match z:
+    case Fz{k, b, tvs, cs}:
+      cs
+
+def fd.catas.go(zs: List<&2, Fz>, +fz: List<&2, Fz>) -> List<&2, Got>:
+  match zs:
+    case +z <> t:
+      List.append(&2, Got, fd.cata.got(fd.fz.ok(fd.fz.cs(z), fd.fz.k(z), fz), z, fz), fd.catas.go(t, fz))
+    case Nil{}:
+      Nil{}
+
+# the cata defs of the module's functors
+def fd.catas(+xs: List<&2, X.Sx>, +env: Env) -> List<&2, Got>:
+  +own = fd.fzs(xs, fd.env.m(env))
+  fd.catas.go(own, List.append(&2, Fz, own, fd.ix.fzs(fd.env.ix(env))))
+
 # the data types (and their selectors), then the bindings
 def fd.allgots(+xs: List<&2, X.Sx>, +tbs: List<&2, Tb>, +env: Env) -> List<&2, Got>:
-  +ds = fd.datas(xs, env)
+  +ds = List.append(&2, Got, fd.datas(xs, env), fd.catas(xs, env))
   List.append(&2, Got, ds, fd.gots.less(fd.gots(tbs, fd.ok(xs, fd.px.imp(fd.env.px(env))), env), fd.got.defnames(ds)))
 
 # The prelude ---------------------------------------------------------------------
@@ -2509,6 +3169,20 @@ def fd.pre.if() -> String:
 
 def fd.pre.map() -> String:
   "# map over a list Bend may copy (Base's List.map takes List<&1, A>)\ndef hs.map(~A: Data, ~B: Data, ~f: A -> B, xs: List<&2, A>) -> List<&2, B>:\n  match xs:\n    case Nil{}:\n      Nil{}\n    case h <> t:\n      f(h) <> hs.map(~A, ~B, ~f, t)\n\n"
+
+# HsPrelude.bend, written next to the modules: Haskell's Fix, Cofree and
+# CofreeF, each with its functor as a type function (see Types), and the
+# defs project and embed are at them
+def fd.hsprelude() -> String:
+  "# Written by cata: the recursion-scheme types of Haskell's data-fix and free\n# (Data.Fix, Control.Comonad.Cofree, Control.Comonad.Trans.Cofree), each\n# with its functor as a type function, and recursion-schemes' project and\n# embed at them (Data.Functor.Foldable).\nimport Base\n\n# Fix f: a layer of f whose holes are Fix f again\ntype Fix<-F: Data -> Data> is Data:\n  Fix.Fix{unFix: F(Fix<F>)}\n\n# Cofree f a: a :< f (Cofree f a), a layer of f under an annotation\ntype Cofree<-F: Data -> Data, -A: Data> is Data:\n  Cofree.Cofree{head: A, tail: F(Cofree<F, A>)}\n\n# CofreeF f a b: a :< f b, Cofree f a's base functor\ntype CofreeF<-F: Data -> Data, -A: Data, -B: Data> is Data:\n  CofreeF.CofreeF{head: A, tail: F(B)}\n\ndef Fix.unFix(-F: Data -> Data, x: Fix<F>) -> F(Fix<F>):\n  match x:\n    case Fix.Fix{y}:\n      y\n\ndef Cofree.project(-F: Data -> Data, -A: Data, x: Cofree<F, A>) -> CofreeF<F, A, Cofree<F, A>>:\n  match x:\n    case Cofree.Cofree{h, t}:\n      CofreeF.CofreeF{h, t}\n\ndef Cofree.embed(-F: Data -> Data, -A: Data, x: CofreeF<F, A, Cofree<F, A>>) -> Cofree<F, A>:\n  match x:\n    case CofreeF.CofreeF{h, t}:\n      Cofree.Cofree{h, t}\n"
+
+def fd.hsprelude.write(+out: String) -> IO(Unit):
+  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude()))
+
+# the files a module's text may name: HsPrelude's and the package's
+# earlier modules'
+def fd.ims(+px: Px) -> List<&2, List<&2, U32>>:
+  S.b("HsPrelude") <> fd.px.files(px)
 
 def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
   match its:
@@ -2908,10 +3582,18 @@ def fd.got.outs(gs: List<&2, Got>) -> List<&2, Dr>:
     case Nil{}:
       Nil{}
 
+# whether a def is one cata wrote itself (a functor's cata), not a binding
+def fd.isgen(d: List<&2, List<&2, U32>>) -> Bool:
+  match d:
+    case h <> t:
+      S.prefix(h, S.b("generated"))
+    case Nil{}:
+      False{}
+
 def fd.ledger.ok(+file: List<&2, U32>, its: List<&2, T.BItem>) -> List<&2, U32>:
   match its:
     case T.BiDef{n, ps, r, b, d} <> t:
-      fd.cat(S.join([file, n, S.b("ok"), Nil{}], 9), 10 <> fd.ledger.ok(file, t))
+      fd.cat(S.join([file, n, fd.bpick(fd.isgen(d), S.b("ok-gen"), S.b("ok")), Nil{}], 9), 10 <> fd.ledger.ok(file, t))
     case T.BiType{n, ps, k, cs, d} <> t:
       fd.cat(S.join([file, n, S.b("ok-type"), Nil{}], 9), 10 <> fd.ledger.ok(file, t))
     case _ <> t:
@@ -3497,6 +4179,29 @@ def fd.files.if(wrote: Bool, +a: List<&2, U32>, fs: List<&2, List<&2, U32>>) -> 
     case False{}:
       fs
 
+def fd.iface.fcs(cs: List<&2, Fc>, +alias: List<&2, U32>) -> List<&2, Fc>:
+  match cs:
+    case Fc{c, rs} <> t:
+      Fc{fd.akey(alias, c), rs} <> fd.iface.fcs(t, alias)
+    case Nil{}:
+      Nil{}
+
+def fd.iface.fz(in: Bool, z: Fz, +alias: List<&2, U32>, acc: List<&2, Ix>) -> List<&2, Ix>:
+  match in z:
+    case True{} Fz{k, b, tvs, cs}:
+      IxFun{k, fd.akey(alias, b), fd.iface.fcs(cs, alias)} <> acc
+    case _ _:
+      acc
+
+# the module's functors whose types it kept, their names as the package
+# writes them
+def fd.iface.fzs(zs: List<&2, Fz>, +alias: List<&2, U32>, +kept: List<&2, List<&2, U32>>) -> List<&2, Ix>:
+  match zs:
+    case +z <> t:
+      fd.iface.fz(S.mem(fd.fz.b(z), kept), z, alias, fd.iface.fzs(t, alias, kept))
+    case Nil{}:
+      Nil{}
+
 # the package after the module m (alias: its file's base name) kept the items kept
 def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>) -> Px:
   match p:
@@ -3508,7 +4213,7 @@ def fd.px.next(pkg: Bool, +p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, +xs:
   match pkg:
     case True{}:
       +names = fd.its.names(kept)
-      fd.px.add(p, m, alias, fd.wrote(True{}, kept), fd.iface(gs, m, alias, names, cs, ds), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names))
+      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names))
     case False{}:
       p
 
@@ -3535,10 +4240,11 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +g2 = fd.tpl.settle(fd.allgots(xs, tbs, env), fd.px.tfs(px))
   +gs = fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), fd.px.tfs(px)))
   +its = fd.got.items(gs)
-  +ims = fd.px.files(px)
+  +ims = fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
   do IO<Px>:
+    fd.hsprelude.write(out)
     +g : Gs <- fd.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), 1n+List.length(&2, T.BItem, its), rounds), fd.predrop(its, fd.got.outs(gs)), bend, try, file, m, ims)
     fd.module.fin(out, file, m, ims, path, pkg, g)
     return fd.px.next(pkg, px, m, base, xs, gs, fd.tfs(g2), cs, ds, fd.gs.its(g))

@@ -334,3 +334,45 @@ What is left of cata's own time is mostly reading the exports (about
 0.9 s per MB with ToBend/Sexp.bend). In a package, GHC's
 `-fobject-code -outputdir DIR` compiles the imports once and `*SRC` keeps
 the module interpreted (EAL's laws: 3.1 s, then 1.7 s with the cache).
+
+## Telomare's rules, 1: Fix, Cofree and recursion schemes (2026-11-19)
+
+The user: "Which rule should I build next for telomare? All of them in
+your recommended order": (1) Fix fused with its base functor, cata/embed/
+project generated, simple pattern synonyms inlined; (2) Maybe/Either monads
+as match; (3) State as a state passed and returned; (4) hs1003's test
+inputs for function arguments and `==` on the module's own types.
+
+Fusing turned out unneeded: Bend takes a type parameter that is a type
+function (`-F: Data -> Data`), so `Fix`, `Cofree` and `CofreeF` are one
+generic type each (`HsPrelude.bend`, written next to the modules), with the
+functor written as `(r_ => G<A, r_>)`; Bend sees a def recurse through
+`Fix.Fix{y}` then a match on `y` shrink, also through a field of another
+functor (`StuckExprB{BasicExprF<..>}`). It does not see it through a
+template, so `G.cata` is written as nested matches, not as an fmap. The
+fold now writes those types, `Fix`, `:<` (both), `unFix`, `Base t a`,
+`project`/`embed` at Fix and Cofree, and `cata` as the functor's generated
+`G.cata` or `G.cata.cofree`, for each data type with a Functor instance
+whose fields are copied, recursed into, a Maybe or pair of those, or
+another flat functor of the package (one level). A type whose own type
+appears at a field (a container such as hs1003's `PQ p a`) gets none.
+
+| telomare library (run/telomare/law-pk4, 49 s) | functions | types | generated | out |
+|---|---|---|---|---|
+| before (law-pk2) | 82 (55 with laws) | 67 | 0 | 755 |
+| now | 90 (55 with laws) | 82 | 44 (22 functors' cata, cata.cofree) | 732 |
+
+hs1003 (run/law8): the same ledger as law7, line for line.
+
+What this does not free yet, and why: telomare's 46 pattern synonyms are
+all class-polymorphic (`PairB :: (Recursive g, Base g ~ f, BasicBase f) =>
+..`, view patterns through `extractB`, `project`), so inlining one needs the
+instance chosen at its type (BasicBase StuckExprF's `extractB = \case
+StuckExprB x -> Just x; _ -> Nothing`) and the view pattern turned back
+into the constructor it inverts; the same specialisation frees the
+class-polymorphic functions (`varB`, `b2i`, `convertBasic`). A functor-
+polymorphic function without classes (`rewriteOuterTag :: anno -> Cofree
+a anno -> ..`) needs its variable's kind (Data -> Data), which hs-export
+does not write yet. GHC's example laws have no LawSx for Fix and Cofree
+yet (`nolaw:result-type:Data.Fix.Fix`). A data type with a function field
+(Desugar's `Builtin`) is Type, not Data, in Bend.

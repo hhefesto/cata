@@ -43,6 +43,21 @@ types and synonyms, by `M.NAME`), and importing their files as
     GHC="GHCT/bin/ghc -iSRC -XHaskell2010 -fobject-code -outputdir OBJ" \
       law --package OUT $(cat export/modules.txt)
 
+## Recursion schemes
+
+`Fix f`, `Cofree f a` and `CofreeF f a b` (data-fix, free) become
+`HsPrelude.Fix<F>`, `HsPrelude.Cofree<F, A>` and `HsPrelude.CofreeF<F, A,
+B>`, written next to the modules as `OUT/HsPrelude.bend`, with the functor
+as a type function: `Fix (PatternF t)` is `HsPrelude.Fix<(r_ => PatternF<T,
+r_>)>`. `Fix`, both `:<` and `unFix` are their constructors and field;
+recursion-schemes' `project` and `embed` at them are HsPrelude's defs or
+constructors; `Base t a` is reduced. For each data type with a Functor
+instance in its module (its last variable the recursive one), cata writes
+`G.cata` and `G.cata.cofree` (the ledger's `ok-gen`): `cata` at `Fix G` and
+at `Cofree G w`, as nested matches through the fields (a Maybe, a pair, or
+another, flat functor of the package such as `StuckExprB (BasicExprF f)`),
+which Bend sees shrink.
+
 ## Build
 
     nix build .#hs-export .#survey .#fold .#law .#ghc
