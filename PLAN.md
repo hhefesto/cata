@@ -1044,3 +1044,40 @@ and `optimizeBuiltinFunctions` wait on their other reasons (Recursive's
 
 Next: what the closure waits on (281): megaparsec (TelomareParser 56,
 ParsecT 55 and its methods), then `error` (17).
+
+## Telomare's rules, 15: known function arguments (2026-11-20)
+
+- **Known function arguments** (Spec, `sp.p10`, after `sp.p9`): a call of
+  a package def at a function parameter, the argument known (not a local
+  variable), at closed types, the def's patterns there variables or
+  wildcards, is a call of `NAME__fHASH`: the def with the argument in the
+  parameter's place, the argument's free locals its first parameters
+  (`fv_i`), dictionary locals left in place. Not copied: a def's own
+  self-calls, and inside a copy the def at another argument (no copy
+  grows another without end).
+- The walk is structural (the first try counted a `Nat` fuel down from
+  10^6: `U32.to_nat(1000000)` peeled one at a time costs ~60 s per million,
+  and spec hung on every module).
+- The package index (`Ix`) has an eighth list, `fns`: the package's defs
+  with a function parameter.
+
+**Tests**: `tests/hs/FunArg.hs`: `sumT` (through `mapT sumT`, one `.mu`
+with the copy), `sumTs` and `useTwiceL` out -> ok-law; `twice (+ n)`,
+`mapI (\x -> a * x + b)`, `go id` copied (check). The other tests: no
+change.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 14 (spec13, law23x) | 501 | 95 | 198 | 110 |
+| telomare after rule 15 (spec14, law23x, 276 s) | 501 | 95 | 198 | 110 |
+
+No def lost its verdict. On telomare the rule is neutral for now: 14
+calls are copied (`putList`/`putMap`/`putMaybe` at Artifact's putters,
+`mapScoped`, `projection`, the EAL solvers, `compileReporting`,
+`runMainCore`), and the 38 new copies are out for their other reasons
+(PutM, Rational, megaparsec, `error`). hs1003 is unchanged (its ledger
+does not run the specialiser).
+
+Next: megaparsec at `Parsec Void String` in Bend (HsPrelude), whose
+combinators (`many`, `sepBy`, `between`, `choice`) take parsers as
+function arguments: this rule's copies.

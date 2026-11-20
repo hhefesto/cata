@@ -105,6 +105,23 @@ templates take only closed arguments and the fuel is not one. The
 specialiser writes `f $ x` as `f x` and `(f . g) x` as `f (g x)`, so a
 call through them is a call.
 
+## Known function arguments
+
+A call of a package def at a function parameter whose argument is known
+(a def, a partial application, a section, a lambda: anything but a local
+variable) is a call of the def's copy `NAME__fHASH`, with the argument in
+the parameter's place (Spec). The argument's free locals become the copy's
+first parameters (`fv_0`, `fv_1`, ..), so a recursive call with the same
+argument inside the copy is a call of the copy: in `sumT (N ts) = sum
+(mapT sumT ts)`, `mapT__f..` calls `sumT`, and the two are one `.mu`.
+Bend calls a closure at most once and takes a template only closed; a
+function the def runs again (`twice f x = f (f x)`) is then plain code.
+The call must be at closed types, and the def's patterns at the
+parameter variables or wildcards. Not copied: a def's own self-calls
+(`go (f . (x :)) xs`, whose argument grows) and, inside a copy, the def
+at another argument. A dictionary local in the argument stays as it is:
+the fold reads a method at its type.
+
 ## Monads
 
 GHC hands a do block over as its `>>=` and `>>`, and cata writes those at
