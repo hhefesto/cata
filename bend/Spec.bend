@@ -1470,6 +1470,148 @@ def sp.p8(x: X.Sx, ism: Bool) -> X.Sx:
     case y:
       y
 
+# Recursive references as values ---------------------------------------------
+
+# A recursive reference (self X, or X by its global name) that is not called with all its arguments
+# (passed to >>=, maybe, fmap, ..., or applied to fewer) is the lambda that
+# takes the rest and calls X: \eta_0 .. eta_m -> X a1 .. ak eta_0 .. eta_m,
+# their types X's binder's. The survey and the fold take a call of a def's
+# own name; a value of it is rec-value.
+
+# the binders' types of the recursive defs in x: (fun (self V) TYPE ..)
+def sp.eta.fun(+x: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  +ok = Bool.and(sp.head.is(x, "fun"), sp.head.is(sp.at(x, 1n), "self"))
+  Bool.pick(List<&2, Asb>, ok, Asb{sp.at(sp.at(x, 1n), 1n), sp.at(x, 2n)} <> acc, acc)
+
+def sp.eta.tys(x: X.Sx, acc: List<&2, Asb>) -> List<&2, Asb>:
+  match x:
+    case X.SxCons{+h, +t}:
+      sp.eta.tys(t, sp.eta.tys(h, sp.eta.fun(X.SxCons{h, t}, acc)))
+    case _:
+      acc
+
+# a function type's parameters' types
+def sp.eta.params(t: X.Sx) -> List<&2, X.Sx>:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, X.SxCons{r, X.SxNil{}}}}:
+      +rest = sp.eta.params(r)
+      Bool.pick(List<&2, X.Sx>, sp.is(a, "tfun"), p <> rest, Nil{})
+    case _:
+      Nil{}
+
+# the type after n arrows
+def sp.eta.res(n: Nat, t: X.Sx) -> X.Sx:
+  match n t:
+    case Succ{p} X.SxCons{_, X.SxCons{_, X.SxCons{r, X.SxNil{}}}}:
+      sp.eta.res(p, r)
+    case _ y:
+      y
+
+def sp.eta.drop(n: Nat, xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match n xs:
+    case Succ{p} _ <> t:
+      sp.eta.drop(p, t)
+    case _ ys:
+      ys
+
+# an application chain's head, and how many arguments it is given
+type Eh is Data:
+  Eh{h: X.Sx, k: Nat}
+
+def sp.eta.head(x: X.Sx, +n: Nat) -> Eh:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
+      +r = sp.eta.head(f, 1n+n)
+      Bool.pick(Eh, sp.is(a, "app"), r, Eh{X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}}, n})
+    case y:
+      Eh{y, n}
+
+# what the walk does with a node: keep it, take its parts, eta-expand it
+# (an application of a recursive reference to too few, or the reference)
+type Ek is Data:
+  EkNode{}
+  EkApp{}
+  EkSkip{}
+  EkBinders{}
+  EkEtaApp{ps: List<&2, X.Sx>, res: X.Sx}
+  EkEtaSelf{ps: List<&2, X.Sx>, res: X.Sx}
+
+def sp.eta.of(m: Maybe<&2, X.Sx>, +k: Nat, +app: Bool) -> Ek:
+  match m:
+    case Some{+t}:
+      +ps = sp.eta.params(t)
+      +n = List.length(&2, X.Sx, ps)
+      +ps2 = sp.eta.drop(k, ps)
+      +res = sp.eta.res(n, t)
+      Bool.pick(Ek, Nat.is_lt(k, n), Bool.pick(Ek, app, EkEtaApp{ps2, res}, EkEtaSelf{ps2, res}), Bool.pick(Ek, app, EkApp{}, EkNode{}))
+    case None{}:
+      Bool.pick(Ek, app, EkApp{}, EkNode{})
+
+def sp.eta.eh(e: Eh, +app: Bool, +tys: List<&2, Asb>) -> Ek:
+  match e:
+    case Eh{+h, +k}:
+      +key = Bool.pick(X.Sx, sp.head.is(h, "self"), sp.at(h, 1n), h)
+      Bool.pick(Ek, Bool.or(sp.head.is(h, "self"), sp.head.is(h, "g")), sp.eta.of(sp.as.look(key, tys), k, app), Bool.pick(Ek, app, EkApp{}, EkNode{}))
+
+# x's mode, its parent's walk says
+def sp.eta.mode(+x: X.Sx, +tys: List<&2, Asb>) -> Ek:
+  +app = sp.head.is(x, "app")
+  Bool.pick(Ek, Bool.or(app, Bool.or(sp.head.is(x, "self"), sp.head.is(x, "g"))), sp.eta.eh(sp.eta.head(x, 0n), app, tys), EkNode{})
+
+# an application's function part: its parts, or a recursive reference kept
+def sp.eta.fmode(+f: X.Sx) -> Ek:
+  Bool.pick(Ek, sp.head.is(f, "app"), EkApp{}, Bool.pick(Ek, Bool.or(sp.head.is(f, "self"), sp.head.is(f, "g")), EkSkip{}, EkNode{}))
+
+def sp.eta.tmode(+h: X.Sx) -> Ek:
+  +a = X.tsx.atom.of(h)
+  Bool.pick(Ek, Bool.or(sp.is(a, "fun"), sp.is(a, "export")), EkBinders{}, EkNode{})
+
+def sp.eta.var(+i: Nat) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("eta_"), S.b(Nat.show(i)))}, sp.a("0")])
+
+def sp.eta.pats(ps: List<&2, X.Sx>, +i: Nat) -> List<&2, X.Sx>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case t <> r:
+      sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.eta.var(i), t])]) <> sp.eta.pats(r, 1n+i)
+
+def sp.eta.call(n: Nat, +i: Nat, f: X.Sx) -> X.Sx:
+  match n:
+    case Zero{}:
+      f
+    case Succ{p}:
+      sp.eta.call(p, 1n+i, sp.l([sp.a("app"), f, sp.eta.var(i)]))
+
+# \eta_0 .. -> body eta_0 ..
+def sp.eta.wrap(+ps: List<&2, X.Sx>, res: X.Sx, body: X.Sx) -> X.Sx:
+  +grhss = sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, sp.eta.call(List.length(&2, X.Sx, ps), 0n, body)])]), sp.l([sp.a("binds")])])
+  +ms = sp.l([sp.a("matches"), sp.l(ps), res, sp.a("source"), sp.l([sp.l([sp.a("match"), sp.l(sp.eta.pats(ps, 0n)), grhss])])])
+  sp.l([sp.a("lam"), sp.a("single"), ms])
+
+# each recursive reference not called with all its arguments, eta-expanded
+def sp.p9(x: X.Sx, k: Ek, +tys: List<&2, Asb>) -> X.Sx:
+  match x k:
+    case y EkSkip{}:
+      y
+    case X.SxCons{h, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}} EkApp{}:
+      sp.l([h, sp.p9(f, sp.eta.fmode(f), tys), sp.p9(e, sp.eta.mode(e, tys), tys)])
+    case X.SxCons{h, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}} EkEtaApp{ps, res}:
+      sp.eta.wrap(ps, res, sp.l([h, sp.p9(f, sp.eta.fmode(f), tys), sp.p9(e, sp.eta.mode(e, tys), tys)]))
+    case y EkEtaSelf{ps, res}:
+      sp.eta.wrap(ps, res, y)
+    case X.SxCons{v, t} EkBinders{}:
+      X.SxCons{v, sp.p9(t, EkNode{}, tys)}
+    case X.SxCons{+h, t} _:
+      X.SxCons{sp.p9(h, sp.eta.mode(h, tys), tys), sp.p9(t, sp.eta.tmode(h), tys)}
+    case y _:
+      y
+
+def sp.rw.p9(r: Rw) -> Rw:
+  match r:
+    case Rw{+x, q}:
+      Rw{sp.p9(x, EkNode{}, sp.eta.tys(x, Nil{})), q}
+
 # Type arguments normal (synonyms expanded, families applied): the survey
 # and the fold read a method's instance off its type argument, so cata at
 # telomare's Term3 is cata at Cofree Term3F LocTag
@@ -1499,7 +1641,7 @@ def sp.rw.p7(r: Rw, +ix: Ix) -> Rw:
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix) -> Rw:
   +x0 = sp.p0(x, sp.isfun(x))
   +y = sp.p1.go(12n, x0, sp.has.str(x0, S.b("PatSynCon")), ix)
-  sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix)
+  sp.rw.p9(sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix))
 
 def sp.rq.name(rq: Rq) -> List<&2, U32>:
   match rq:

@@ -973,3 +973,41 @@ argument (7), Show at a Maybe of the module's own type (`cshowsPrec__LocTag`,
 
 Next: specialise a call at a known function argument (rec-value and
 closures; `tests/hs/RecV.hs`'s shapes), then `error`.
+
+## Telomare's rules, 13: a def's own name as a value (2026-11-20)
+
+Goal: the recursion telomare writes through a function value (`parent >>=
+locStartLineColumn`, `foldMap refsOf x`, `maybe False go (lookup h m)`)
+reaching Bend as a call of the def, which the survey and the fold take.
+
+- **Recursive references as values, eta-expanded** (Spec, `sp.p9`): a
+  reference to a recursive def (`(self X)`, or X by its global name inside
+  its own group) that is not applied to all its parameters is the lambda
+  `\eta_0 .. eta_m -> X a1 .. ak eta_0 .. eta_m`, the binders' types
+  X's. A reference called with all its arguments is kept. Survey rows
+  `rec-value:NAME` on telomare's export: 44 -> 16.
+
+**Tests**: `tests/hs/RecV.hs`: `startOf` (`parent >>= startOf`) in, 5
+laws. `refsOf`, `tagsOf` now wait on foldMap at a derived Foldable,
+`hasRef` on any at it, `double` on fmap at a derived Functor, `settle` on
+a monadic value that recurs (no parameters to eta-expand). LamCase, As,
+Ap, Lifted, Fuel, Shows, Nt and Help: no losses (Help +2 ok-law).
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 12 (spec11, law22) | 519 | 88 | 187 | 110 |
+| telomare after rule 13 (spec12, law22, 272 s) | 502 | 95 | 197 | 110 |
+
+No def lost its verdict (12 out -> ok-check, 7 out -> ok-law); copies
+630 check (628), 223 out (225). hs1003 does not go through the
+specialiser: unchanged (2959 out).
+
+The pipeline's closure: 309 -> 283 out. The 16 `rec-value` left are
+values with no parameters that recur (`getShape :: Get Shape`,
+`presolve`, `reduce`, `resolveApplies`, `settle`) and local `go`/`f`
+passed as values (`optimizeBuiltinFunctions`, `isUnbounded`,
+`validateVariables`).
+
+Next: a value that recurs, by fuel (rule 11's `.fu` with no other
+parameter), and local recursive functions as values; then Foldable and
+Functor at a derived instance; then `error`.
