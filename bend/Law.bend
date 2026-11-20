@@ -82,6 +82,19 @@ def lw.dotted(xs: List<&2, U32>) -> Bool:
     case Nil{}:
       False{}
 
+# the name after the first dot
+def lw.afterdot(xs: List<&2, U32>) -> List<&2, U32>:
+  match xs:
+    case +h <> +t:
+      F.fd.bpick(U32.is_eq(h, 46), t, lw.afterdot(t))
+    case Nil{}:
+      Nil{}
+
+# whether a dotted name is a law's, NAME.exK (not a def lifted out of
+# NAME, NAME.lK or NAME.go)
+def lw.islaw(+k: List<&2, U32>) -> Bool:
+  S.prefix(lw.afterdot(k), S.b("ex"))
+
 # the name before the first dot
 def lw.undot(xs: List<&2, U32>) -> List<&2, U32>:
   S.until(xs, 46)
@@ -1274,7 +1287,7 @@ def lw.line(+file: List<&2, U32>, n: List<&2, U32>, st: String, w: List<&2, U32>
 def lw.nlaws(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Nat:
   match its:
     case T.BiDef{+k, ps, r, b, d} <> t:
-      Nat.add(Bool.pick(Nat, Bool.and(lw.dotted(k), S.eq(lw.undot(k), n)), 1n, 0n), lw.nlaws(t, n))
+      Nat.add(Bool.pick(Nat, Bool.and(lw.dotted(k), Bool.and(S.eq(lw.undot(k), n), lw.islaw(k))), 1n, 0n), lw.nlaws(t, n))
     case _ <> t:
       lw.nlaws(t, n)
     case Nil{}:

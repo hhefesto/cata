@@ -401,3 +401,67 @@ No def lost its verdict on either. In telomare the five are all `<>` on
 strings (renderMeter, renderBinding, renderDef, indent, plural); its
 Maybe/Either code is also blocked by other rules (case on a computed
 value, local functions, pattern synonyms).
+
+## Telomare's rules, 3: State, and lifting (2026-11-19)
+
+State before the rest of rule 1, because the class-specialised code rule 1
+would free (`convertBasic` over any monad) is mostly State or Either code.
+Rules 2 and 3 met the same wall, which this rule takes down too: Bend
+matches only parameters and pattern fields (not a let-bound local, not a
+computed value), refuses a match after a local statement, and a lambda in
+Bend is one expression.
+
+**State.** `State s a` (and `StateT s Identity a`, lazy or strict) is a
+function of the state to a result and the next state, `S -> A & S`, an `&1`
+pair so the result may be a function (`<*>` carries one). `State s`
+alone, a monad argument of `>>=`, is the marker `hs.State<S>`. The
+prelude's `hs.state.*` (written into a module that uses one) are `>>=`,
+`>>`, `pure`/`return`, `fmap`, `<*>`, mtl's MonadState `get`, `put`,
+`modify`, `modify'` and `gets` at State, and transformers' `evalState`,
+`execState` and `runState` (the last gives back a Haskell pair, `&2`). A
+synonym used with more arguments than it has (`type M = State Meter`, used
+as `M ()`) applies its right-hand side to the rest. `ExceptT e (State s)`
+(telomare's EALM) is not State: still out.
+
+**Lifting.** These become defs of their own: a case on a computed value or
+in an argument, a lambda whose body is a let or a case or whose patterns
+are not all variables, a local value whose body is one, a case after a let
+(a record update, GHC's `let f' = .. in case r of C .. -> C ..`, is one),
+and every where- or let-bound function, one that calls itself too (a rec
+group of one). The fold writes a marker (`%lift`, `%ldef`) that carries
+the clauses, the result type, the locals in scope with the types GHC gave
+their binders (FORMAT's `bv`, `fun`, `export`), and the enclosing def's
+type variables; `fd.def.of` takes the markers out. A lifted def is
+`NAME.lK` or `NAME.go` for a local `go`; its parameters are the type
+variables, the locals its body uses once its own markers are out and the
+local functions it calls are calls of their defs, then its own. Each use
+of a local function becomes a call of its def with those locals first
+(eta-expanded when it has fewer arguments). The ledger says `ok-gen`; Law
+skips them (dotted) and counts as laws only `NAME.exK`; a lifted def whose
+parent is out goes with it, and a parent whose lifted def fails takes that
+failure as its reason.
+
+Not yet: a lifted body that calls the def it came from (the two are
+mutually recursive, which Bend refuses: both out); a local function passed
+where a template is wanted (`map go xs`, `hs.map`'s `~f`) when it uses a
+local that is not a parameter (`fold:closure-argument`); a polymorphic
+local (its own type variables); mutually recursive locals; a list of State
+actions (`[State Int String]`: a function is Type, a list's element Data).
+
+| | functions out | ok-law | ok-check |
+|---|---|---|---|
+| hs1003 before (law9) | 3174 | 1373 | 205 |
+| hs1003 now (law12) | 3129 | 1403 | 220 |
+| telomare before (law-pk5) | 727 | 60 | 35 |
+| telomare now (law-pk7, 37 s) | 721 | 61 | 40 |
+
+No def lost its verdict or a law on either. hs1003's 45 are the lifted
+cases, lambdas and local functions; the top reasons left are `==` on the
+module's own types (94, the next rule), Double (41), sections (27) and
+Base functions the fold does not write yet (flip 27, lookup 13, snd 13,
+toUpper 12, fst 12, dropWhile 11). Telomare's six: `step` and `built`
+(State Meter, `modify'` with a record update), `indentWithOneChild'` and
+`indentWithTwoChildren'` (State Int String), `approxBody` (a local
+function) and `localDef` (a case after a let, with laws). Its remaining
+out are still mostly the survey's (547: classes over the base functors,
+Data.Map, ExceptT, pattern synonyms).

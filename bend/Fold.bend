@@ -236,13 +236,16 @@ type Tk is Data:
   TkCofree{}
   TkCofreeF{}
   TkBase{}
+  TkState{}
+  TkStateT{}
+  TkIdentity{}
   TkNone{}
 
 type TkE is Data:
   TkE{k: String, v: Tk}
 
 def fd.tktab() -> List<&2, TkE>:
-  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}]
+  [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}]
 
 def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
   match xs:
@@ -392,6 +395,54 @@ def fd.tc.none(tn: Maybe<&2, List<&2, U32>>, +key: List<&2, U32>, args: List<&2,
     case None{}:
       T.BtTodo{fd.cat(S.b("type:"), key)}
 
+# State s a, and StateT s Identity a (Control.Monad.Trans.State, lazy or
+# strict), is a function of the state to a result and the next state,
+# S -> A & S (an &1 pair: A may be a function, as at <*>); State s alone, a
+# monad argument, is the marker hs.State<S> (see Monads), Identity alone
+# hs.Identity
+def fd.spair(a: T.Bt, s: T.Bt) -> T.Bt:
+  T.BtTyApp{S.b("Sigma"), T.tba.args([fd.v("&1"), fd.v("&1"), a, T.BtLam{T.BmLive{}, S.b("_"), s}])}
+
+def fd.ty.st(+s: T.Bt, a: T.Bt) -> T.Bt:
+  T.BtPi{T.BmLive{}, S.b("_"), False{}, s, fd.spair(a, s)}
+
+def fd.ty.state(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case s <> a <> Nil{}:
+      fd.ty.st(s, a)
+    case s <> Nil{}:
+      T.BtTyApp{S.b("hs.State"), T.tba.args([s])}
+    case _:
+      fd.todo("fold:state-type")
+
+def fd.isid(t: T.Bt) -> Bool:
+  match t:
+    case T.BtTyApp{+n, T.BtANil{}}:
+      fd.is(n, "hs.Identity")
+    case _:
+      False{}
+
+def fd.ty.statet.if(id: Bool, args: List<&2, T.Bt>) -> T.Bt:
+  match id:
+    case True{}:
+      fd.ty.state(args)
+    case False{}:
+      fd.todo("fold:statet-type")
+
+def fd.ty.statet(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case s <> m <> t:
+      fd.ty.statet.if(fd.isid(m), s <> t)
+    case _:
+      fd.todo("fold:statet-type")
+
+def fd.ty.identity(args: List<&2, T.Bt>) -> T.Bt:
+  match args:
+    case Nil{}:
+      fd.ty0("hs.Identity")
+    case _:
+      fd.todo("fold:identity-type")
+
 def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
   match k:
     case TkNat{}:
@@ -426,6 +477,12 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
       fd.ty.cofreef(args)
     case TkBase{}:
       fd.ty.base(args)
+    case TkState{}:
+      fd.ty.state(args)
+    case TkStateT{}:
+      fd.ty.statet(args)
+    case TkIdentity{}:
+      fd.ty.identity(args)
     case TkNone{}:
       fd.todo("fold:type")
 
@@ -699,47 +756,51 @@ def fd.px.imp(+p: Px) -> V.Imp:
 type Syn is Data:
   Syn{n: List<&2, U32>, tvs: List<&2, List<&2, U32>>, body: T.Bt}
 
+# a local's type, folded (see Lifting)
+type Lt is Data:
+  Lt{x: List<&2, U32>, t: T.Bt}
+
 type Env is Data:
-  Env{m: List<&2, U32>, cons: List<&2, Ctr>, defs: List<&2, Df>, res: Maybe<&2, T.Bt>, self: List<&2, T.Bt>, ls: List<&2, List<&2, U32>>, syn: List<&2, Syn>, px: Px}
+  Env{m: List<&2, U32>, cons: List<&2, Ctr>, defs: List<&2, Df>, res: Maybe<&2, T.Bt>, self: List<&2, T.Bt>, ls: List<&2, List<&2, U32>>, syn: List<&2, Syn>, px: Px, lt: List<&2, Lt>}
 
 def fd.env.m(e: Env) -> List<&2, U32>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       m
 
 def fd.env.cons(e: Env) -> List<&2, Ctr>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       c
 
 def fd.env.defs(e: Env) -> List<&2, Df>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       d
 
 def fd.env.res(e: Env) -> Maybe<&2, T.Bt>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       r
 
 def fd.env.self(e: Env) -> List<&2, T.Bt>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       s
 
 def fd.env.ls(e: Env) -> List<&2, List<&2, U32>>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       l
 
 def fd.env.syn(e: Env) -> List<&2, Syn>:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       y
 
 def fd.env.px(e: Env) -> Px:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
+    case Env{m, c, d, r, s, l, y, p, q}:
       p
 
 # the package's modules before this one (none for a module alone)
@@ -751,28 +812,47 @@ def fd.env.ix(e: Env) -> List<&2, Ix>:
 
 def fd.withsyn(e: Env, ys: List<&2, Syn>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
-      Env{m, c, d, r, s, l, ys, p}
+    case Env{m, c, d, r, s, l, y, p, q}:
+      Env{m, c, d, r, s, l, ys, p, q}
 
 def fd.withres(e: Env, t: T.Bt) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
-      Env{m, c, d, Some{t}, s, l, y, p}
+    case Env{m, c, d, r, s, l, y, p, q}:
+      Env{m, c, d, Some{t}, s, l, y, p, q}
 
 def fd.notail(e: Env) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
-      Env{m, c, d, None{}, s, l, y, p}
+    case Env{m, c, d, r, s, l, y, p, q}:
+      Env{m, c, d, None{}, s, l, y, p, q}
 
 def fd.addls(e: Env, xs: List<&2, List<&2, U32>>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
-      Env{m, c, d, r, s, List.append(&2, List<&2, U32>, xs, l), y, p}
+    case Env{m, c, d, r, s, l, y, p, q}:
+      Env{m, c, d, r, s, List.append(&2, List<&2, U32>, xs, l), y, p, q}
 
 def fd.withself(e: Env, ts: List<&2, T.Bt>) -> Env:
   match e:
-    case Env{m, c, d, r, s, l, y, p}:
-      Env{m, c, d, r, ts, l, y, p}
+    case Env{m, c, d, r, s, l, y, p, q}:
+      Env{m, c, d, r, ts, l, y, p, q}
+
+def fd.env.lt(e: Env) -> List<&2, Lt>:
+  match e:
+    case Env{m, c, d, r, s, l, y, p, q}:
+      q
+
+# locals in scope with their types, in front of those already there
+def fd.addlts(e: Env, xs: List<&2, Lt>) -> Env:
+  match e:
+    case Env{m, c, d, r, s, l, y, p, q}:
+      Env{m, c, d, r, s, l, y, p, List.append(&2, Lt, xs, q)}
+
+# a local's type: the innermost local of that name
+def fd.lt.find(xs: List<&2, Lt>, +x: List<&2, U32>) -> Maybe<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      None{}
+    case Lt{+y, t} <> r:
+      Bool.pick(Maybe<&2, T.Bt>, S.eq(y, x), Some{t}, fd.lt.find(r, x))
 
 # Calls ---------------------------------------------------------------------
 
@@ -861,13 +941,21 @@ type Bf is Data:
   BfFromMaybe{}
   BfEither{}
   BfSemi{}
+  BfAp{}
+  BfGet{}
+  BfPut{}
+  BfModify{}
+  BfGets{}
+  BfEval{}
+  BfExec{}
+  BfRun{}
   BfNone{}
 
 type BfE is Data:
   BfE{k: String, v: Bf}
 
 def fd.bftab() -> List<&2, BfE>:
-  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}]
+  [BfE{"GHC.Classes.==", BfCmp{"is_eq"}}, BfE{"GHC.Classes./=", BfCmp{"is_ne"}}, BfE{"GHC.Classes.<", BfCmp{"is_lt"}}, BfE{"GHC.Classes.<=", BfCmp{"is_le"}}, BfE{"GHC.Classes.>", BfCmp{"is_gt"}}, BfE{"GHC.Classes.>=", BfCmp{"is_ge"}}, BfE{"GHC.Classes.compare", BfCmp{"cmp"}}, BfE{"GHC.Classes.max", BfCmp{"max"}}, BfE{"GHC.Classes.min", BfCmp{"min"}}, BfE{"GHC.Classes.&&", BfAnd{}}, BfE{"GHC.Classes.||", BfOr{}}, BfE{"GHC.Classes.not", BfNot{}}, BfE{"GHC.Internal.Base.otherwise", BfTrue{}}, BfE{"GHC.Internal.Num.+", BfNum{"add"}}, BfE{"GHC.Internal.Num.*", BfNum{"mul"}}, BfE{"GHC.Internal.Real.div", BfNum{"div"}}, BfE{"GHC.Internal.Real.mod", BfNum{"mod"}}, BfE{"GHC.Internal.Real.quot", BfNum{"div"}}, BfE{"GHC.Internal.Real.rem", BfNum{"mod"}}, BfE{"GHC.Internal.Real.^", BfNum{"pow"}}, BfE{"GHC.Internal.Real./", BfNum{"div"}}, BfE{"GHC.Internal.Base.++", BfAppend{}}, BfE{"GHC.Internal.Data.Foldable.length", BfLength{}}, BfE{"GHC.Internal.Data.Foldable.null", BfNull{}}, BfE{"GHC.Internal.List.reverse", BfReverse{}}, BfE{"GHC.Internal.Data.Foldable.concat", BfConcat{}}, BfE{"GHC.Internal.List.take", BfTake{}}, BfE{"GHC.Internal.List.drop", BfDrop{}}, BfE{"GHC.Internal.List.replicate", BfReplicate{}}, BfE{"GHC.Internal.Base.map", BfMap{}}, BfE{"GHC.Internal.List.filter", BfFilter{}}, BfE{"GHC.Internal.Data.Foldable.any", BfAny{}}, BfE{"GHC.Internal.Data.Foldable.all", BfAll{}}, BfE{"GHC.Internal.Data.Foldable.foldr", BfFoldr{}}, BfE{"GHC.Internal.Data.Foldable.foldl", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.foldl'", BfFoldl{}}, BfE{"GHC.Internal.Data.Foldable.elem", BfElem{}}, BfE{"GHC.Internal.Data.Foldable.sum", BfSum{}}, BfE{"GHC.Internal.Data.Foldable.product", BfProduct{}}, BfE{"GHC.Internal.Data.Foldable.and", BfAndL{}}, BfE{"GHC.Internal.Data.Foldable.or", BfOrL{}}, BfE{"GHC.Internal.Data.Foldable.concatMap", BfConcatMap{}}, BfE{"GHC.Internal.Show.show", BfShow{}}, BfE{"GHC.Internal.Base.id", BfId{}}, BfE{"GHC.Internal.Base.const", BfConst{}}, BfE{"GHC.Internal.Enum.succ", BfSucc{}}, BfE{"Data.Fix.unFix", BfUnFix{}}, BfE{"Data.Functor.Foldable.project", BfProject{}}, BfE{"Data.Functor.Foldable.embed", BfEmbed{}}, BfE{"Data.Functor.Foldable.cata", BfCata{}}, BfE{"GHC.Internal.Base.>>=", BfBind{}}, BfE{"GHC.Internal.Base.>>", BfThen{}}, BfE{"GHC.Internal.Base.return", BfPure{}}, BfE{"GHC.Internal.Base.pure", BfPure{}}, BfE{"GHC.Internal.Base.fmap", BfFmap{}}, BfE{"GHC.Internal.Data.Functor.<$>", BfFmap{}}, BfE{"GHC.Internal.Data.Maybe.maybe", BfMaybe{}}, BfE{"GHC.Internal.Data.Maybe.fromMaybe", BfFromMaybe{}}, BfE{"GHC.Internal.Data.Either.either", BfEither{}}, BfE{"GHC.Internal.Base.<>", BfSemi{}}, BfE{"GHC.Internal.Base.<*>", BfAp{}}, BfE{"Control.Monad.State.Class.get", BfGet{}}, BfE{"Control.Monad.State.Class.put", BfPut{}}, BfE{"Control.Monad.State.Class.modify", BfModify{}}, BfE{"Control.Monad.State.Class.modify'", BfModify{}}, BfE{"Control.Monad.State.Class.gets", BfGets{}}, BfE{"Control.Monad.Trans.State.Lazy.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Strict.evalState", BfEval{}}, BfE{"Control.Monad.Trans.State.Lazy.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Strict.execState", BfExec{}}, BfE{"Control.Monad.Trans.State.Lazy.runState", BfRun{}}, BfE{"Control.Monad.Trans.State.Strict.runState", BfRun{}}]
 
 def fd.bf.find(xs: List<&2, BfE>, +k: List<&2, U32>) -> Bf:
   match xs:
@@ -912,6 +1000,14 @@ def fd.bf.n(f: Bf) -> Nat:
     case BfEmbed{}:
       1n
     case BfPure{}:
+      1n
+    case BfGet{}:
+      0n
+    case BfPut{}:
+      1n
+    case BfModify{}:
+      1n
+    case BfGets{}:
       1n
     case BfMaybe{}:
       3n
@@ -1015,14 +1111,11 @@ type Mk is Data:
   MkMaybe{}
   MkEither{e: T.Bt}
   MkList{}
+  MkState{s: T.Bt}
   MkOther{}
 
-def fd.mk.one(maybe: Bool) -> Mk:
-  match maybe:
-    case True{}:
-      MkMaybe{}
-    case False{}:
-      MkOther{}
+def fd.mk.one(+n: List<&2, U32>, a: T.Bt) -> Mk:
+  Bool.pick(Mk, fd.is(n, "Maybe"), MkMaybe{}, Bool.pick(Mk, fd.is(n, "hs.State"), MkState{a}, MkOther{}))
 
 def fd.mk.three(either: Bool, e: T.Bt) -> Mk:
   match either:
@@ -1041,8 +1134,8 @@ def fd.mk.var(list: Bool) -> Mk:
 # what the monad (or functor) argument m, as the fold wrote it, is
 def fd.mk(m: T.Bt) -> Mk:
   match m:
-    case T.BtTyApp{n, T.BtArgs{a, T.BtANil{}}}:
-      fd.mk.one(fd.is(n, "Maybe"))
+    case T.BtTyApp{+n, T.BtArgs{a, T.BtANil{}}}:
+      fd.mk.one(n, a)
     case T.BtTyApp{n, T.BtArgs{a, T.BtArgs{b, T.BtArgs{e, T.BtANil{}}}}}:
       fd.mk.three(fd.is(n, "Either"), e)
     case T.BtVar{n}:
@@ -1056,10 +1149,12 @@ def fd.bind(k: Mk, a: T.Bt, b: T.Bt, x: T.Bt, f: T.Bt) -> T.Bt:
       fd.callS("Maybe.bind", [fd.v("&2"), a, b, x, f])
     case MkEither{e}:
       fd.callS("hs.either.bind", [e, a, b, x, f])
+    case MkState{s}:
+      fd.callS("hs.state.bind", [s, a, b, x, f])
     case _:
       fd.todo("fold:monad-at-type")
 
-def fd.pure(k: Mk, x: T.Bt) -> T.Bt:
+def fd.pure(k: Mk, a: T.Bt, x: T.Bt) -> T.Bt:
   match k:
     case MkMaybe{}:
       T.BtCon{S.b("Some"), T.tba.args([x])}
@@ -1067,6 +1162,8 @@ def fd.pure(k: Mk, x: T.Bt) -> T.Bt:
       T.BtCon{S.b("Inr"), T.tba.args([x])}
     case MkList{}:
       T.BtCon{S.b("Con"), T.tba.args([x, fd.con0("Nil")])}
+    case MkState{s}:
+      fd.callS("hs.state.pure", [s, a, x])
     case _:
       fd.todo("fold:monad-at-type")
 
@@ -1083,10 +1180,34 @@ def fd.fmap(k: Mk, a: T.Bt, b: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
       fd.callS("Maybe.map", [fd.v("&2"), a, b, fd.untpl(g), x])
     case MkEither{e}:
       fd.callS("hs.either.map", [e, a, b, fd.untpl(g), x])
+    case MkState{s}:
+      fd.callS("hs.state.map", [s, a, b, fd.untpl(g), x])
     case MkList{}:
       fd.callS("hs.map", [fd.tpl0(a), fd.tpl0(b), g, x])
     case _:
       fd.todo("fold:fmap-at-type")
+
+# <*>, and MonadState's methods (mtl), at State s
+def fd.ap(k: Mk, a: T.Bt, b: T.Bt, f: T.Bt, x: T.Bt) -> T.Bt:
+  match k:
+    case MkState{s}:
+      fd.callS("hs.state.ap", [s, a, b, fd.untpl(f), x])
+    case _:
+      fd.todo("fold:applicative-at-type")
+
+def fd.st.get(k: Mk, s: T.Bt) -> T.Bt:
+  match k:
+    case MkState{t}:
+      fd.callS("hs.state.get", [s])
+    case _:
+      fd.todo("fold:monadstate-at-type")
+
+def fd.st.call(k: Mk, f: String, xs: List<&2, T.Bt>) -> T.Bt:
+  match k:
+    case MkState{t}:
+      fd.callS(f, xs)
+    case _:
+      fd.todo("fold:monadstate-at-type")
 
 # <> at a list
 def fd.semi(t: T.Bt, x: T.Bt, y: T.Bt) -> T.Bt:
@@ -1245,7 +1366,7 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
     case BfThen{} m <> a <> b <> _ x <> y <> _:
       fd.bind(fd.mk(m), a, b, x, T.BtLam{T.BmLive{}, S.b("_"), y})
     case BfPure{} m <> a <> _ x <> _:
-      fd.pure(fd.mk(m), x)
+      fd.pure(fd.mk(m), a, x)
     case BfFmap{} m <> a <> b <> _ g <> x <> _:
       fd.fmap(fd.mk(m), a, b, fd.tpl(ls, g), x)
     case BfMaybe{} b <> a <> _ d <> g <> m <> _:
@@ -1256,6 +1377,22 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.callS("hs.either", [a, b, c, f, g, e])
     case BfSemi{} t <> _ x <> y <> _:
       fd.semi(t, x, y)
+    case BfAp{} m <> a <> b <> _ f <> x <> _:
+      fd.ap(fd.mk(m), a, b, f, x)
+    case BfGet{} s <> m <> _ _:
+      fd.st.get(fd.mk(m), s)
+    case BfPut{} s <> m <> _ x <> _:
+      fd.st.call(fd.mk(m), "hs.state.put", [s, x])
+    case BfModify{} s <> m <> _ g <> _:
+      fd.st.call(fd.mk(m), "hs.state.modify", [s, fd.untpl(g)])
+    case BfGets{} s <> m <> a <> _ g <> _:
+      fd.st.call(fd.mk(m), "hs.state.gets", [s, a, fd.untpl(g)])
+    case BfEval{} s <> a <> _ m <> x <> _:
+      fd.callS("hs.state.eval", [s, a, m, x])
+    case BfExec{} s <> a <> _ m <> x <> _:
+      fd.callS("hs.state.exec", [s, a, m, x])
+    case BfRun{} s <> a <> _ m <> x <> _:
+      fd.callS("hs.state.run", [s, a, m, x])
     case _ _ _:
       fd.todo("fold:base-call")
 
@@ -1457,6 +1594,7 @@ type R is Data:
   RG{c: Maybe<&2, T.Bt>, b: T.Bt}
   RB{x: List<&2, U32>, v: T.Bt}
   RMs{tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>}
+  RLf{x: List<&2, U32>, tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>}
 
 def fd.cons(h: R, t: R) -> R:
   match t:
@@ -1979,18 +2117,403 @@ def fd.tvbts(tvs: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
     case h <> t:
       T.BtVar{h} <> fd.tvbts(t)
 
-# a def from its name, its type variables and its clauses (an RMs)
-def fd.def.of(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, +tys: List<&2, T.Bt>, res: T.Bt, +cls: List<&2, R>) -> T.BItem:
-  +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
-  +body = fd.mark(fd.body.of(fd.anysplit(pms), pms, cls))
-  T.BiDef{fd.vname(name), List.append(&2, T.BParam, fd.tvparams(tvs), fd.params(pms, tys, body)), res, body, Nil{}}
+# Lifting ----------------------------------------------------------------------
+#
+# Bend matches only parameters, and a lambda holds one expression, so a
+# case on a computed value, a case in an argument, and a lambda whose body
+# is a let or a match (or whose patterns are not all variables) become a
+# def of their own.  Its parameters are the enclosing def's type
+# variables, the locals its body uses (each with the type its binder has
+# in GHC's tree, Env's lt) and the clauses' own; its result type is the
+# clauses'.  The fold writes a marker in the term,
+#
+#   %lift(OWN, RES, BODY, ARGS, LTS, TVS)
+#
+# OWN its own parameters, a spine of {x : T}, RES the result type, BODY the
+# new def's body, ARGS what the call passes for OWN, LTS the locals in
+# scope with their types, TVS the type variables; then fd.def.of takes each
+# marker out as a def NAME.lK (its parameters: TVS, the locals of LTS its
+# body uses, OWN) and puts the call in its place.  A lambda becomes x0 => .. => NAME.lK(.., x0, ..), a case
+# NAME.lK(.., e).  A body that calls the def it came from makes the two
+# mutually recursive, which Bend refuses: the gate then takes both out.
 
-def fd.def(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, r: R) -> T.BItem:
+def fd.lt1(+x: List<&2, U32>, r: R) -> R:
+  RL{RB{x, fd.rt(r)} <> Nil{}}
+
+def fd.lt.cat(a: R, b: R) -> R:
+  RL{List.append(&2, R, fd.items(a), fd.items(b))}
+
+def fd.lts.go(xs: List<&2, R>) -> List<&2, Lt>:
+  match xs:
+    case RB{x, t} <> r:
+      Lt{x, t} <> fd.lts.go(r)
+    case _ <> r:
+      fd.lts.go(r)
+    case Nil{}:
+      Nil{}
+
+def fd.lts.of(r: R) -> List<&2, Lt>:
+  fd.lts.go(fd.items(r))
+
+def fd.lts.spine(xs: List<&2, Lt>) -> T.Bt:
+  match xs:
+    case Lt{x, t} <> r:
+      T.BtArgs{T.BtAnn{T.BtVar{x}, t}, fd.lts.spine(r)}
+    case Nil{}:
+      T.BtANil{}
+
+def fd.lift.tvs(tvs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match tvs:
+    case T.BtVar{x} <> t:
+      T.BtAnn{T.BtPv{T.BmErased{}, x}, fd.v("Data")} <> fd.lift.tvs(t)
+    case _ <> t:
+      fd.lift.tvs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.lift.lts(xs: List<&2, Lt>) -> List<&2, T.Bt>:
+  match xs:
+    case Lt{x, t} <> r:
+      T.BtAnn{T.BtPv{T.BmLive{}, x}, t} <> fd.lift.lts(r)
+    case Nil{}:
+      Nil{}
+
+def fd.lt.vars(xs: List<&2, Lt>) -> List<&2, T.Bt>:
+  match xs:
+    case Lt{x, t} <> r:
+      T.BtVar{x} <> fd.lt.vars(r)
+    case Nil{}:
+      Nil{}
+
+def fd.lt.zip(xs: List<&2, List<&2, U32>>, ts: List<&2, T.Bt>) -> List<&2, Lt>:
+  match xs ts:
+    case x <> r t <> u:
+      Lt{x, t} <> fd.lt.zip(r, u)
+    case _ _:
+      Nil{}
+
+def fd.pm.names(pms: List<&2, Pm>) -> List<&2, List<&2, U32>>:
+  match pms:
+    case Pm{x, s} <> t:
+      x <> fd.pm.names(t)
+    case Nil{}:
+      Nil{}
+
+def fd.vars(xs: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
+  match xs:
+    case x <> t:
+      T.BtVar{x} <> fd.vars(t)
+    case Nil{}:
+      Nil{}
+
+def fd.lams(xs: List<&2, List<&2, U32>>, b: T.Bt) -> T.Bt:
+  match xs:
+    case x <> t:
+      T.BtLam{T.BmLive{}, x, fd.lams(t, b)}
+    case Nil{}:
+      b
+
+# the variables the matches of a body scrutinize (tba.frees reads a
+# match's cases only)
+def fd.scrs(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtMatch{xs, cs}:
+      T.tba.refs(xs, fd.scrs(cs, acc))
+    case T.BtCase{p, b, rest}:
+      fd.scrs(b, fd.scrs(rest, acc))
+    case T.BtLet{x, v, b}:
+      fd.scrs(b, acc)
+    case _:
+      acc
+
+# the locals a body uses, each once, with their types (a name no local in
+# scope has is a global's); own: the new def's own parameters
+def fd.fvs.put(found: Maybe<&2, T.Bt>, x: List<&2, U32>, rest: List<&2, Lt>) -> List<&2, Lt>:
+  match found:
+    case Some{t}:
+      Lt{x, t} <> rest
+    case None{}:
+      rest
+
+def fd.fvs.go(xs: List<&2, List<&2, U32>>, +lts: List<&2, Lt>, +own: List<&2, List<&2, U32>>) -> List<&2, Lt>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      fd.fvs.put(Bool.pick(Maybe<&2, T.Bt>, S.mem(x, own), None{}, fd.lt.find(lts, x)), x, fd.fvs.go(t, lts, own))
+
+def fd.fvs(+body: T.Bt, +lts: List<&2, Lt>, +own: List<&2, List<&2, U32>>) -> List<&2, Lt>:
+  fd.fvs.go(T.tba.nub(T.tba.frees(body, fd.scrs(body, Nil{}))), lts, own)
+
+def fd.lift.args(lam: Bool, +own: List<&2, List<&2, U32>>, e: T.Bt) -> List<&2, T.Bt>:
+  match lam:
+    case True{}:
+      fd.vars(own)
+    case False{}:
+      e <> Nil{}
+
+def fd.lift.wrap(lam: Bool, +own: List<&2, List<&2, U32>>, t: T.Bt) -> T.Bt:
+  match lam:
+    case True{}:
+      fd.lams(own, t)
+    case False{}:
+      t
+
+# clauses (a lambda's, or a case's: one parameter) as a lifted def, as
+# fd.def.of makes a def of a binding's; lam: a lambda (its parameters are
+# the call's), else a case on e
+def fd.lift.of(+lam: Bool, +tys: List<&2, T.Bt>, +res: T.Bt, +cls: List<&2, R>, +env: Env, e: T.Bt) -> T.Bt:
+  +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
+  +own = fd.pm.names(pms)
+  fd.lift.wrap(lam, own, fd.callS("%lift", [T.tba.args(fd.lift.lts(fd.lt.zip(own, tys))), res, fd.body.of(fd.anysplit(pms), pms, cls), T.tba.args(fd.lift.args(lam, own, e)), fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))]))
+
+# a body is a statement (a match, a let)
+def fd.isexpr(t: T.Bt) -> Bool:
+  match t:
+    case T.BtMatch{xs, cs}:
+      False{}
+    case T.BtLet{x, v, b}:
+      False{}
+    case T.BtRw{e, p, b}:
+      False{}
+    case _:
+      True{}
+
+# a lambda that stays one: a clause of variables and an expression
+def fd.lam.flat(cls: List<&2, R>) -> Bool:
+  match cls:
+    case RC{ps, b} <> Nil{}:
+      Bool.and(fd.allvar(ps), fd.isexpr(b))
+    case _:
+      False{}
+
+# Taking the markers out (see Lifting): a %lift becomes a def NAME.lK, K
+# counting the markers in the order they close (one inside another's body
+# or arguments first), a %ldef the def NAME.x.  A lifted def's parameters
+# are counted here, from its body once its own markers are out and the
+# local functions it uses are calls of their defs (whose arguments then
+# count): the enclosing def's type variables, the locals in LTS its body
+# uses, its own.  A walk is told by its caller what the term is (Bend
+# allows no mutual recursion); ctx: the local functions in scope.
+type Lf is Data:
+  Lf{x: List<&2, U32>, h: List<&2, U32>, ex: List<&2, T.Bt>, k: Nat}
+
+type Lq is Data:
+  LqMark{}
+  LqDef{}
+  LqApp{f: Lf}
+  LqVar{f: Lf}
+  LqNo{}
+
+def fd.lf.find(ctx: List<&2, Lf>, +x: List<&2, U32>) -> Maybe<&2, Lf>:
+  match ctx:
+    case Lf{+y, h, ex, k} <> t:
+      Bool.pick(Maybe<&2, Lf>, S.eq(y, x), Some{Lf{y, h, ex, k}}, fd.lf.find(t, x))
+    case Nil{}:
+      None{}
+
+def fd.lq.app(mark: Bool, f: Maybe<&2, Lf>) -> Lq:
+  match mark f:
+    case True{} _:
+      LqMark{}
+    case False{} Some{g}:
+      LqApp{g}
+    case False{} None{}:
+      LqNo{}
+
+def fd.lq.var(f: Maybe<&2, Lf>) -> Lq:
+  match f:
+    case Some{g}:
+      LqVar{g}
+    case None{}:
+      LqNo{}
+
+def fd.lq(+t: T.Bt, +ctx: List<&2, Lf>) -> Lq:
+  match t:
+    case T.BtApp{T.BtVar{+x}, a}:
+      fd.lq.app(fd.is(x, "%lift"), fd.lf.find(ctx, x))
+    case T.BtLet{y, T.BtApp{T.BtVar{+x}, a}, b}:
+      Bool.pick(Lq, fd.is(x, "%ldef"), LqDef{}, LqNo{})
+    case T.BtVar{+x}:
+      fd.lq.var(fd.lf.find(ctx, x))
+    case _:
+      LqNo{}
+
+def fd.lq0(+t: T.Bt) -> Lq:
+  fd.lq(t, Nil{})
+
+# how many %lift markers a term holds
+def fd.lift.n(t: T.Bt, q: Lq) -> Nat:
+  match t q:
+    case T.BtApp{_, T.BtArgs{_, T.BtArgs{_, T.BtArgs{+b, T.BtArgs{+a, _}}}}} LqMark{}:
+      1n+Nat.add(fd.lift.n(b, fd.lq0(b)), fd.lift.n(a, fd.lq0(a)))
+    case T.BtLet{_, T.BtApp{_, T.BtArgs{_, T.BtArgs{_, T.BtArgs{+body, _}}}}, +b} LqDef{}:
+      Nat.add(fd.lift.n(body, fd.lq0(body)), fd.lift.n(b, fd.lq0(b)))
+    case T.BtApp{+f, +a} _:
+      Nat.add(fd.lift.n(f, fd.lq0(f)), fd.lift.n(a, fd.lq0(a)))
+    case T.BtArgs{+a, +r} _:
+      Nat.add(fd.lift.n(a, fd.lq0(a)), fd.lift.n(r, fd.lq0(r)))
+    case T.BtTplArg{+a} _:
+      fd.lift.n(a, fd.lq0(a))
+    case T.BtLam{m, x, +b} _:
+      fd.lift.n(b, fd.lq0(b))
+    case T.BtCon{c, +a} _:
+      fd.lift.n(a, fd.lq0(a))
+    case T.BtMatch{xs, +cs} _:
+      fd.lift.n(cs, fd.lq0(cs))
+    case T.BtCase{p, +b, +r} _:
+      Nat.add(fd.lift.n(b, fd.lq0(b)), fd.lift.n(r, fd.lq0(r)))
+    case T.BtLet{x, +v, +b} _:
+      Nat.add(fd.lift.n(v, fd.lq0(v)), fd.lift.n(b, fd.lq0(b)))
+    case T.BtExpr{+e} _:
+      fd.lift.n(e, fd.lq0(e))
+    case T.BtAnn{+a, ty} _:
+      fd.lift.n(a, fd.lq0(a))
+    case T.BtSucc{+a} _:
+      fd.lift.n(a, fd.lq0(a))
+    case T.BtDead{+a} _:
+      fd.lift.n(a, fd.lq0(a))
+    case _ _:
+      0n
+
+def fd.lift.name(+name: List<&2, U32>, k: Nat) -> List<&2, U32>:
+  fd.cat(name, fd.cat(S.b(".l"), fd.nshow(1n+k)))
+
+def fd.ldef.name(+name: List<&2, U32>, +x: List<&2, U32>) -> List<&2, U32>:
+  fd.cat3(name, S.b("."), x)
+
+# the own parameters' names, a spine of {x : T}; a spine of {x : T} as locals
+def fd.ps.names(ps: T.Bt) -> List<&2, List<&2, U32>>:
+  match ps:
+    case T.BtArgs{T.BtAnn{T.BtPv{m, x}, ty}, r}:
+      x <> fd.ps.names(r)
+    case _:
+      Nil{}
+
+def fd.lts.un(s: T.Bt) -> List<&2, Lt>:
+  match s:
+    case T.BtArgs{T.BtAnn{T.BtVar{x}, t}, r}:
+      Lt{x, t} <> fd.lts.un(r)
+    case _:
+      Nil{}
+
+def fd.lf.call(+h: List<&2, U32>, ys: List<&2, T.Bt>) -> T.Bt:
+  T.BtApp{T.BtVar{h}, T.tba.args(ys)}
+
+# the term with each marker (the first numbered n) a call of its def
+def fd.lift.calls(t: T.Bt, q: Lq, +name: List<&2, U32>, +n: Nat, +ctx: List<&2, Lf>) -> T.Bt:
+  match t q:
+    case T.BtApp{_, T.BtArgs{+ps, T.BtArgs{res, T.BtArgs{+body, T.BtArgs{+oa, T.BtArgs{+lts, T.BtArgs{+tvs, _}}}}}}} LqMark{}:
+      +nb = fd.lift.n(body, fd.lq0(body))
+      +fv = fd.fvs(fd.lift.calls(body, fd.lq(body, ctx), name, n, ctx), fd.lts.un(lts), fd.ps.names(ps))
+      fd.lf.call(fd.lift.name(name, Nat.add(n, Nat.add(nb, fd.lift.n(oa, fd.lq0(oa))))), List.concat(&2, T.Bt, [fd.spine(tvs), fd.lt.vars(fv), fd.spine(fd.lift.calls(oa, fd.lq(oa, ctx), name, Nat.add(n, nb), ctx))]))
+    case T.BtLet{_, T.BtApp{_, T.BtArgs{+ps, T.BtArgs{res, T.BtArgs{+body, T.BtArgs{T.BtVar{+x}, T.BtArgs{+ar, T.BtArgs{+lts, T.BtArgs{+tvs, _}}}}}}}}, b} LqDef{}:
+      +fv = fd.fvs(fd.lift.calls(body, fd.lq(body, ctx), name, n, ctx), fd.lts.un(lts), x <> fd.ps.names(ps))
+      +ctx2 = {Lf{x, fd.ldef.name(name, x), List.append(&2, T.Bt, fd.spine(tvs), fd.lt.vars(fv)), T.tba.args.len(ar)} <> ctx : List<&2, Lf>}
+      fd.lift.calls(b, fd.lq(b, ctx2), name, Nat.add(n, fd.lift.n(body, fd.lq0(body))), ctx2)
+    case T.BtApp{f, +a} LqApp{Lf{x, +h, +ex, k}}:
+      fd.sat(Nat.add(List.length(&2, T.Bt, ex), k), List.append(&2, T.Bt, ex, fd.spine(fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx))), ys => fd.lf.call(h, ys))
+    case _ LqVar{Lf{x, +h, +ex, k}}:
+      fd.sat(Nat.add(List.length(&2, T.Bt, ex), k), ex, ys => fd.lf.call(h, ys))
+    case T.BtApp{+f, +a} _:
+      T.BtApp{fd.lift.calls(f, fd.lq(f, ctx), name, n, ctx), fd.lift.calls(a, fd.lq(a, ctx), name, Nat.add(n, fd.lift.n(f, fd.lq0(f))), ctx)}
+    case T.BtArgs{+a, +r} _:
+      T.BtArgs{fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx), fd.lift.calls(r, fd.lq(r, ctx), name, Nat.add(n, fd.lift.n(a, fd.lq0(a))), ctx)}
+    case T.BtTplArg{+a} _:
+      T.BtTplArg{fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx)}
+    case T.BtLam{m, x, +b} _:
+      T.BtLam{m, x, fd.lift.calls(b, fd.lq(b, ctx), name, n, ctx)}
+    case T.BtCon{c, +a} _:
+      T.BtCon{c, fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx)}
+    case T.BtMatch{xs, +cs} _:
+      T.BtMatch{xs, fd.lift.calls(cs, fd.lq(cs, ctx), name, n, ctx)}
+    case T.BtCase{p, +b, +r} _:
+      T.BtCase{p, fd.lift.calls(b, fd.lq(b, ctx), name, n, ctx), fd.lift.calls(r, fd.lq(r, ctx), name, Nat.add(n, fd.lift.n(b, fd.lq0(b))), ctx)}
+    case T.BtLet{x, +v, +b} _:
+      T.BtLet{x, fd.lift.calls(v, fd.lq(v, ctx), name, n, ctx), fd.lift.calls(b, fd.lq(b, ctx), name, Nat.add(n, fd.lift.n(v, fd.lq0(v))), ctx)}
+    case T.BtExpr{+e} _:
+      T.BtExpr{fd.lift.calls(e, fd.lq(e, ctx), name, n, ctx)}
+    case T.BtAnn{+a, ty} _:
+      T.BtAnn{fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx), ty}
+    case T.BtSucc{+a} _:
+      T.BtSucc{fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx)}
+    case T.BtDead{+a} _:
+      T.BtDead{fd.lift.calls(a, fd.lq(a, ctx), name, n, ctx)}
+    case u _:
+      u
+
+# a lifted def's parameters, each live one + where its body uses it twice
+def fd.lift.ps(ps: T.Bt, +b: T.Bt) -> List<&2, T.BParam>:
+  match ps:
+    case T.BtArgs{T.BtAnn{T.BtPv{T.BmErased{}, x}, ty}, r}:
+      T.BParam{T.BmErased{}, x, ty} <> fd.lift.ps(r, b)
+    case T.BtArgs{T.BtAnn{T.BtPv{m, +x}, ty}, r}:
+      T.BParam{fd.mode(fd.uses(b, x)), x, ty} <> fd.lift.ps(r, b)
+    case _:
+      Nil{}
+
+# a lifted def: the type variables, the locals fv, its own parameters ps
+def fd.lift.def(+k: List<&2, U32>, +name: List<&2, U32>, tvs: T.Bt, fv: List<&2, Lt>, ps: T.Bt, res: T.Bt, body: T.Bt) -> T.BItem:
+  +b = fd.mark(body)
+  T.BiDef{k, fd.lift.ps(T.tba.args(List.concat(&2, T.Bt, [fd.lift.tvs(fd.spine(tvs)), fd.lift.lts(fv), fd.spine(ps)])), b), res, b, fd.cat(S.b("generated: lifted out of "), name) <> Nil{}}
+
+# the defs the markers make, in order (one before any def it is in)
+def fd.lift.items(t: T.Bt, q: Lq, +name: List<&2, U32>, +n: Nat, +ctx: List<&2, Lf>) -> List<&2, T.BItem>:
+  match t q:
+    case T.BtApp{_, T.BtArgs{+ps, T.BtArgs{res, T.BtArgs{+body, T.BtArgs{+oa, T.BtArgs{+lts, T.BtArgs{tvs, _}}}}}}} LqMark{}:
+      +nb = fd.lift.n(body, fd.lq0(body))
+      +na = fd.lift.n(oa, fd.lq0(oa))
+      +b1 = fd.lift.calls(body, fd.lq(body, ctx), name, n, ctx)
+      List.concat(&2, T.BItem, [fd.lift.items(body, fd.lq(body, ctx), name, n, ctx), fd.lift.items(oa, fd.lq(oa, ctx), name, Nat.add(n, nb), ctx), fd.lift.def(fd.lift.name(name, Nat.add(n, Nat.add(nb, na))), name, tvs, fd.fvs(b1, fd.lts.un(lts), fd.ps.names(ps)), ps, res, b1) <> Nil{}])
+    case T.BtLet{_, T.BtApp{_, T.BtArgs{+ps, T.BtArgs{res, T.BtArgs{+body, T.BtArgs{T.BtVar{+x}, T.BtArgs{+ar, T.BtArgs{+lts, T.BtArgs{+tvs, _}}}}}}}}, b} LqDef{}:
+      +h = fd.ldef.name(name, x)
+      +b1 = fd.lift.calls(body, fd.lq(body, ctx), name, n, ctx)
+      +fv = fd.fvs(b1, fd.lts.un(lts), x <> fd.ps.names(ps))
+      +ctx2 = {Lf{x, h, List.append(&2, T.Bt, fd.spine(tvs), fd.lt.vars(fv)), T.tba.args.len(ar)} <> ctx : List<&2, Lf>}
+      List.concat(&2, T.BItem, [fd.lift.items(body, fd.lq(body, ctx2), name, n, ctx2), fd.lift.def(h, name, tvs, fv, ps, res, fd.lift.calls(body, fd.lq(body, ctx2), name, n, ctx2)) <> Nil{}, fd.lift.items(b, fd.lq(b, ctx2), name, Nat.add(n, fd.lift.n(body, fd.lq0(body))), ctx2)])
+    case T.BtApp{f, +a} LqApp{g}:
+      fd.lift.items(a, fd.lq(a, ctx), name, n, ctx)
+    case T.BtApp{+f, +a} _:
+      List.append(&2, T.BItem, fd.lift.items(f, fd.lq(f, ctx), name, n, ctx), fd.lift.items(a, fd.lq(a, ctx), name, Nat.add(n, fd.lift.n(f, fd.lq0(f))), ctx))
+    case T.BtArgs{+a, +r} _:
+      List.append(&2, T.BItem, fd.lift.items(a, fd.lq(a, ctx), name, n, ctx), fd.lift.items(r, fd.lq(r, ctx), name, Nat.add(n, fd.lift.n(a, fd.lq0(a))), ctx))
+    case T.BtTplArg{+a} _:
+      fd.lift.items(a, fd.lq(a, ctx), name, n, ctx)
+    case T.BtLam{m, x, +b} _:
+      fd.lift.items(b, fd.lq(b, ctx), name, n, ctx)
+    case T.BtCon{c, +a} _:
+      fd.lift.items(a, fd.lq(a, ctx), name, n, ctx)
+    case T.BtMatch{xs, +cs} _:
+      fd.lift.items(cs, fd.lq(cs, ctx), name, n, ctx)
+    case T.BtCase{p, +b, +r} _:
+      List.append(&2, T.BItem, fd.lift.items(b, fd.lq(b, ctx), name, n, ctx), fd.lift.items(r, fd.lq(r, ctx), name, Nat.add(n, fd.lift.n(b, fd.lq0(b))), ctx))
+    case T.BtLet{x, +v, +b} _:
+      List.append(&2, T.BItem, fd.lift.items(v, fd.lq(v, ctx), name, n, ctx), fd.lift.items(b, fd.lq(b, ctx), name, Nat.add(n, fd.lift.n(v, fd.lq0(v))), ctx))
+    case T.BtExpr{+e} _:
+      fd.lift.items(e, fd.lq(e, ctx), name, n, ctx)
+    case T.BtAnn{+a, ty} _:
+      fd.lift.items(a, fd.lq(a, ctx), name, n, ctx)
+    case T.BtSucc{+a} _:
+      fd.lift.items(a, fd.lq(a, ctx), name, n, ctx)
+    case T.BtDead{+a} _:
+      fd.lift.items(a, fd.lq(a, ctx), name, n, ctx)
+    case _ _:
+      Nil{}
+
+# a def from its name, its type variables and its clauses (an RMs)
+def fd.def.of(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, +tys: List<&2, T.Bt>, res: T.Bt, +cls: List<&2, R>) -> List<&2, T.BItem>:
+  +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
+  +b0 = fd.body.of(fd.anysplit(pms), pms, cls)
+  +vn = fd.vname(name)
+  +body = fd.mark(fd.lift.calls(b0, fd.lq0(b0), vn, 0n, Nil{}))
+  List.append(&2, T.BItem, fd.lift.items(b0, fd.lq0(b0), vn, 0n, Nil{}), T.BiDef{vn, List.append(&2, T.BParam, fd.tvparams(tvs), fd.params(pms, tys, body)), res, body, Nil{}} <> Nil{})
+
+def fd.def(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, r: R) -> List<&2, T.BItem>:
   match r:
     case RMs{tys, res, cls}:
       fd.def.of(name, tvs, tys, res, cls)
     case _:
-      T.BiDef{fd.vname(name), Nil{}, fd.todo("fold:shape"), fd.todo("fold:shape"), Nil{}}
+      T.BiDef{fd.vname(name), Nil{}, fd.todo("fold:shape"), fd.todo("fold:shape"), Nil{}} <> Nil{}
 
 # Right-hand sides --------------------------------------------------------------
 
@@ -2033,35 +2556,16 @@ def fd.chain(gs: List<&2, R>, +res: Maybe<&2, T.Bt>) -> T.Bt:
     case _:
       fd.todo("fold:right-hand-side")
 
-# local bindings in front of a body
-def fd.lets(bs: List<&2, R>, b: T.Bt) -> T.Bt:
-  match bs:
-    case RB{x, v} <> t:
-      T.BtLet{x, fd.expr(v), fd.lets(t, b)}
-    case RT{v} <> t:
-      T.BtLet{S.b("_"), v, fd.lets(t, b)}
-    case _ <> t:
-      T.BtLet{S.b("_"), fd.todo("fold:local-binding"), fd.lets(t, b)}
-    case Nil{}:
-      fd.stmt(b)
-
 def fd.bnames(bs: List<&2, R>) -> List<&2, List<&2, U32>>:
   match bs:
     case RB{x, v} <> t:
+      x <> fd.bnames(t)
+    case RLf{x, tys, res, cls} <> t:
       x <> fd.bnames(t)
     case _ <> t:
       fd.bnames(t)
     case Nil{}:
       Nil{}
-
-# a local binding: a value (a fun with no arguments) is a let; a local
-# function is not written yet
-def fd.lbind(+x: List<&2, U32>, r: R) -> R:
-  match r:
-    case RMs{Nil{}, res, RC{Nil{}, b} <> Nil{}}:
-      RB{x, T.BtAnn{fd.expr(b), res}}
-    case _:
-      RB{x, fd.todo("fold:local-function")}
 
 def fd.grhs(gs: R, e: R, +env: Env) -> R:
   RG{fd.conds(fd.exs(fd.items(gs), env)), fd.ex(e, env)}
@@ -2084,43 +2588,171 @@ def fd.lam.go(ps: List<&2, T.Bt>, b: T.Bt) -> T.Bt:
     case Nil{}:
       fd.expr(b)
 
-def fd.lam(r: R) -> R:
+def fd.lam.one(cls: List<&2, R>) -> T.Bt:
+  match cls:
+    case RC{ps, b} <> Nil{}:
+      fd.lam.go(ps, b)
+    case _:
+      fd.todo("fold:lambda")
+
+def fd.lam.if(flat: Bool, tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>, +env: Env) -> T.Bt:
+  match flat:
+    case True{}:
+      fd.lam.one(cls)
+    case False{}:
+      fd.lift.of(True{}, tys, res, cls, env, fd.con0("Unit"))
+
+# a lambda: one clause of variables and an expression, else lifted
+def fd.lam(r: R, +env: Env) -> R:
   match r:
-    case RMs{tys, res, RC{ps, b} <> Nil{}}:
-      RE{fd.et(fd.lam.go(ps, b))}
+    case RMs{tys, res, +cls}:
+      RE{fd.et(fd.lam.if(fd.lam.flat(cls), tys, res, cls, env))}
     case _:
       fd.bad(S.b("fold:lambda"))
 
-def fd.ecase.of(res: Maybe<&2, T.Bt>, +x: List<&2, U32>, cls: List<&2, R>) -> T.Bt:
-  match res:
+def fd.ecase.of(r0: Maybe<&2, T.Bt>, +x: List<&2, U32>, tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>, +env: Env) -> T.Bt:
+  match r0:
     case Some{r}:
       T.BtMatch{T.tba.args([T.BtVar{x}]), fd.cases(cls, [Pm{x, True{}}])}
     case None{}:
-      fd.todo("fold:case-in-argument")
+      fd.lift.of(False{}, tys, res, cls, env, T.BtVar{x})
 
-# case x of ..: a match on the local x
+# case x of ..: a match on the local x (lifted in an argument)
 def fd.ecase(+x: List<&2, U32>, r: R, +env: Env) -> R:
   match r:
     case RMs{tys, res, cls}:
-      RE{fd.et(fd.ecase.of(fd.env.res(env), x, cls))}
+      RE{fd.et(fd.ecase.of(fd.env.res(env), x, tys, res, cls, env))}
     case _:
       fd.bad(S.b("fold:case"))
+
+# case e of .. on a computed e: lifted
+def fd.ecasec(e: R, r: R, +env: Env) -> R:
+  match r:
+    case RMs{tys, res, cls}:
+      RE{fd.et(fd.lift.of(False{}, tys, res, cls, env, fd.ex(e, env)))}
+    case _:
+      fd.bad(S.b("fold:case"))
+
+
+# A local function (a where- or let-bound binding with arguments) is lifted
+# too: %ldef(PARAMS, RES, BODY, x, EXTRA, ARITY) stands as a let's value
+# (_ = %ldef(..)) in front of the rest of its scope; fd.def.of takes it out
+# as a def NAME.x and makes each use of x in the scope a call of NAME.x with
+# EXTRA (the type variables and the locals it uses) before the use's own
+# arguments (ARITY: a spine as long as its parameters; a use with fewer is
+# eta-expanded).  A recursive local (a rec group of one binding) calls its own
+# def the same way.
+def fd.wilds(n: Nat) -> List<&2, T.Bt>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      T.BtWild{} <> fd.wilds(p)
+
+def fd.ldef.of(+x: List<&2, U32>, +tys: List<&2, T.Bt>, res: T.Bt, +cls: List<&2, R>, +env: Env) -> T.Bt:
+  +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
+  fd.callS("%ldef", [T.tba.args(fd.lift.lts(fd.lt.zip(fd.pm.names(pms), tys))), res, fd.body.of(fd.anysplit(pms), pms, cls), T.BtVar{x}, T.tba.args(fd.wilds(List.length(&2, T.Bt, tys))), fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))])
+
+# a match after a let: Bend matches before any local statement, so it is
+# lifted, its own def a match on parameters (the locals it uses)
+def fd.ismatch(t: T.Bt) -> Bool:
+  match t:
+    case T.BtMatch{xs, cs}:
+      True{}
+    case _:
+      False{}
+
+def fd.lift.stmt(r: Maybe<&2, T.Bt>, b: T.Bt, +env: Env) -> T.Bt:
+  match r:
+    case Some{res}:
+      T.BtExpr{fd.callS("%lift", [T.BtANil{}, res, b, T.BtANil{}, fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))])}
+    case None{}:
+      b
+
+def fd.lets.m(m: Bool, b: T.Bt, +env: Env) -> T.Bt:
+  match m:
+    case True{}:
+      fd.lift.stmt(fd.env.res(env), b, env)
+    case False{}:
+      fd.stmt(b)
+
+def fd.lets.end(some: Bool, +b: T.Bt, +env: Env) -> T.Bt:
+  match some:
+    case True{}:
+      fd.lets.m(fd.ismatch(b), b, env)
+    case False{}:
+      fd.stmt(b)
+
+# local bindings in front of a body (some: a statement is written already;
+# a local function's %ldef is not one, fd.def.of takes it out)
+def fd.lets.go(bs: List<&2, R>, b: T.Bt, +env: Env, some: Bool) -> T.Bt:
+  match bs:
+    case RB{x, v} <> t:
+      T.BtLet{x, fd.expr(v), fd.lets.go(t, b, env, True{})}
+    case RLf{x, tys, res, cls} <> t:
+      T.BtLet{S.b("_"), fd.ldef.of(x, tys, res, cls, env), fd.lets.go(t, b, env, some)}
+    case RT{v} <> t:
+      T.BtLet{S.b("_"), v, fd.lets.go(t, b, env, True{})}
+    case _ <> t:
+      T.BtLet{S.b("_"), fd.todo("fold:local-binding"), fd.lets.go(t, b, env, True{})}
+    case Nil{}:
+      fd.lets.end(some, b, env)
+
+def fd.lets(bs: List<&2, R>, b: T.Bt, +env: Env) -> T.Bt:
+  fd.lets.go(bs, b, env, False{})
+
+# a local binding: a value (a fun with no arguments) is a let, lifted when
+# its body is a statement; a local function is lifted (RLf)
+def fd.lbind(+x: List<&2, U32>, r: R, +env: Env) -> R:
+  match r:
+    case RMs{Nil{}, +res, +cls}:
+      RB{x, T.BtAnn{fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env), res}}
+    case RMs{tys, res, cls}:
+      RLf{x, tys, res, cls}
+    case _:
+      RB{x, fd.todo("fold:local-function")}
+
+# the local functions' names, and the types of the others (a local
+# function is no local of the defs lifted in its scope: its uses there are
+# calls of its own def)
+def fd.rlf.names(xs: List<&2, R>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case RLf{x, tys, res, cls} <> t:
+      x <> fd.rlf.names(t)
+    case _ <> t:
+      fd.rlf.names(t)
+    case Nil{}:
+      Nil{}
+
+def fd.lt.minus.put(drop: Bool, h: Lt, rest: List<&2, Lt>) -> List<&2, Lt>:
+  match drop:
+    case True{}:
+      rest
+    case False{}:
+      h <> rest
+
+def fd.lt.minus(xs: List<&2, Lt>, +ns: List<&2, List<&2, U32>>) -> List<&2, Lt>:
+  match xs:
+    case Lt{+x, t} <> r:
+      fd.lt.minus.put(S.mem(x, ns), Lt{x, t}, fd.lt.minus(r, ns))
+    case Nil{}:
+      Nil{}
 
 def fd.eif(c: R, a: R, b: R, +env: Env) -> R:
   RE{fd.et(fd.if(fd.env.res(env), fd.ex(c, env), fd.ex(a, env), fd.ex(b, env)))}
 
-def fd.elet.of(res: Maybe<&2, T.Bt>, bs: List<&2, R>, b: T.Bt) -> T.Bt:
+def fd.elet.of(res: Maybe<&2, T.Bt>, bs: List<&2, R>, b: T.Bt, +env: Env) -> T.Bt:
   match res:
     case Some{r}:
-      fd.lets(bs, b)
+      fd.lets(bs, b, env)
     case None{}:
       fd.todo("fold:let-in-argument")
 
 def fd.elet(bs: R, e: R, +env: Env) -> R:
-  RE{fd.et(fd.elet.of(fd.env.res(env), fd.items(bs), fd.ex(e, env)))}
+  RE{fd.et(fd.elet.of(fd.env.res(env), fd.items(bs), fd.ex(e, env), env))}
 
 def fd.grhss(bs: R, gs: R, +env: Env) -> R:
-  RT{fd.lets(fd.items(bs), fd.chain(fd.items(gs), fd.env.res(env)))}
+  RT{fd.lets(fd.items(bs), fd.chain(fd.items(gs), fd.env.res(env)), env)}
 
 def fd.multiif(+ty: R, gs: R) -> R:
   RE{fd.et(fd.expr(fd.chain(fd.items(gs), Some{fd.rt(ty)})))}
@@ -2135,12 +2767,30 @@ def fd.syn.mark(tvs: List<&2, List<&2, U32>>, body: T.Bt) -> T.Bt:
     case Nil{}:
       body
 
+# a type applied to more arguments (a synonym of fewer variables than its
+# use has arguments: type M = State Meter, used as M ())
+def fd.ty.app.if(st: Bool, +n: List<&2, U32>, a: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
+  match st:
+    case True{}:
+      fd.ty.state(List.append(&2, T.Bt, fd.spine(a), args))
+    case False{}:
+      T.BtTyApp{n, T.tba.args(List.append(&2, T.Bt, fd.spine(a), args))}
+
+def fd.ty.app(t: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
+  match t:
+    case T.BtTyApp{+n, a}:
+      fd.ty.app.if(fd.is(n, "hs.State"), n, a, args)
+    case _:
+      fd.todo("fold:synonym-arity")
+
 def fd.syn.fill(tvs: List<&2, List<&2, U32>>, body: T.Bt, args: List<&2, T.Bt>) -> T.Bt:
   match tvs args:
     case v <> t a <> u:
       fd.syn.fill(t, T.tba.subst(body, fd.cat(v, S.b("%")), a), u)
     case Nil{} Nil{}:
       body
+    case Nil{} a <> u:
+      fd.ty.app(body, a <> u)
     case _ _:
       fd.todo("fold:synonym-arity")
 
@@ -2291,6 +2941,11 @@ type K is Data:
   KBfun{}
   KBabs{}
   KAbs1{}
+  KEcaseC{}
+  KLtw{}
+  KLbv{}
+  KLfun{}
+  KLstop{}
   KBad{why: List<&2, U32>}
 
 type Kt is Data:
@@ -2329,7 +2984,7 @@ def fd.k.pat(k: K, +x: X.Sx) -> K:
 def fd.k.ex(k: K, +x: X.Sx) -> K:
   match k:
     case KEcase{}:
-      Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 1n)), "l"), KEcase{}, KBad{S.b("fold:case-of-computed")})
+      Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 1n)), "l"), KEcase{}, KEcaseC{})
     case KElam{}:
       Bool.pick(K, V.sv.is(X.tsx.atom.of(V.sv.at(x, 1n)), "single"), KElam{}, KBad{S.b("fold:lambda-case")})
     case k1:
@@ -2348,7 +3003,7 @@ def fd.k.guard(+x: X.Sx) -> K:
   Bool.pick(K, V.sv.is(V.sv.hd(x), "body"), KGbody{}, KBad{S.b("fold:pattern-guard")})
 
 def fd.k.group(+x: X.Sx) -> K:
-  Bool.pick(K, V.sv.is(V.sv.hd(x), "nonrec"), KNonrec{}, KBad{S.b("fold:recursive-local")})
+  Bool.pick(K, Bool.or(V.sv.is(V.sv.hd(x), "nonrec"), Bool.and(V.sv.is(V.sv.hd(x), "rec"), Nat.is_eq(X.tsx.len(x), 2n))), KNonrec{}, KBad{S.b("fold:recursive-local")})
 
 # a local abs (GHC's generalised group) that takes no dictionary is its one
 # bind (its type variables are erased in a let)
@@ -2357,6 +3012,13 @@ def fd.k.abs(+x: X.Sx) -> K:
 
 def fd.k.bind(+x: X.Sx) -> K:
   Bool.pick(K, V.sv.is(V.sv.hd(x), "fun"), KBfun{}, Bool.pick(K, V.sv.is(V.sv.hd(x), "abs"), fd.k.abs(x), fd.k.bad("fold:local-", V.sv.hd(x))))
+
+# a binder's type (see Lifting): (bv VAR TYPE) in a pattern, and a local
+# binding's head, (fun VAR TYPE ..) and (export VAR TYPE); a body (matches,
+# grhss) and a dictionary's binding are not looked into
+def fd.k.lt(+x: X.Sx) -> K:
+  +h = V.sv.hd(x)
+  Bool.pick(K, V.sv.is(h, "bv"), KLbv{}, Bool.pick(K, Bool.or(V.sv.is(h, "fun"), V.sv.is(h, "export")), KLfun{}, Bool.pick(K, Bool.or(V.sv.is(h, "matches"), Bool.or(V.sv.is(h, "grhss"), V.sv.is(h, "evbinds"))), KLstop{}, KLtw{})))
 
 # The fold: one def over the export's tree, the form k of x given by the
 # parent (Bend allows no mutual recursion, so types, patterns, expressions
@@ -2427,7 +3089,7 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     case X.SxCons{_, X.SxCons{X.SxStr{s}, _}} KEstring{}:
       RE{fd.et(fd.callS("String.to_list", [T.BtStr{s}]))}
     case X.SxCons{_, X.SxCons{_, X.SxCons{ms, _}}} KElam{}:
-      fd.lam(fd.go(ms, KMatches{}, env))
+      fd.lam(fd.go(ms, KMatches{}, env), env)
     case X.SxCons{_, es} KEtuple{}:
       fd.etuple(fd.go(es, KEs{}, fd.notail(env)), env)
     case X.SxCons{_, X.SxCons{+e, X.SxCons{ms, _}}} KEcase{}:
@@ -2437,9 +3099,10 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     case X.SxCons{_, X.SxCons{+t, X.SxCons{gs, _}}} KEmultiif{}:
       +ty = fd.go(t, fd.k(RoTy{}, t), env)
       fd.multiif(ty, fd.go(gs, KGrhsL{}, fd.withres(env, fd.rt(ty))))
-    case X.SxCons{_, X.SxCons{bs, X.SxCons{+e, _}}} KElet{}:
+    case X.SxCons{_, X.SxCons{+bs, X.SxCons{+e, _}}} KElet{}:
       +rb = fd.go(bs, KBinds{}, fd.notail(env))
-      fd.elet(rb, fd.go(e, fd.k(RoEx{}, e), fd.addls(env, fd.bnames(fd.items(rb)))), env)
+      +env2 = fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(fd.lts.of(fd.go(bs, KLtw{}, env)), fd.rlf.names(fd.items(rb))))
+      fd.elet(rb, fd.go(e, fd.k(RoEx{}, e), env2), env2)
     case X.SxCons{_, X.SxCons{_, X.SxCons{es, _}}} KElist{}:
       fd.elist(fd.go(es, KEs{}, fd.notail(env)), env)
     case X.SxCons{_, X.SxCons{+g, X.SxCons{fs, _}}} KEreccon{}:
@@ -2462,12 +3125,13 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.cons(fd.go(h, KMatch{}, env), fd.go(t, KMs{}, env))
     case _ KMs{}:
       fd.nil()
-    case X.SxCons{_, X.SxCons{ps, X.SxCons{g, _}}} KMatch{}:
+    case X.SxCons{_, X.SxCons{+ps, X.SxCons{g, _}}} KMatch{}:
       +rp = fd.go(ps, KPs{}, env)
-      fd.clause(rp, fd.go(g, KGrhss{}, fd.addls(env, fd.pnames(fd.bts(fd.items(rp))))))
-    case X.SxCons{_, X.SxCons{gs, X.SxCons{bs, _}}} KGrhss{}:
+      fd.clause(rp, fd.go(g, KGrhss{}, fd.addlts(fd.addls(env, fd.pnames(fd.bts(fd.items(rp)))), fd.lts.of(fd.go(ps, KLtw{}, env)))))
+    case X.SxCons{_, X.SxCons{gs, X.SxCons{+bs, _}}} KGrhss{}:
       +rb = fd.go(bs, KBinds{}, fd.notail(env))
-      fd.grhss(rb, fd.go(gs, KGrhsL{}, fd.addls(env, fd.bnames(fd.items(rb)))), env)
+      +env2 = fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(fd.lts.of(fd.go(bs, KLtw{}, env)), fd.rlf.names(fd.items(rb))))
+      fd.grhss(rb, fd.go(gs, KGrhsL{}, env2), env2)
     case X.SxCons{h, t} KGrhsL{}:
       fd.cons(fd.go(h, KGrhs{}, env), fd.go(t, KGrhsL{}, env))
     case _ KGrhsL{}:
@@ -2496,7 +3160,25 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     case _ KAbs1{}:
       fd.bad(S.b("fold:local-group"))
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{ms, _}}}}} KBfun{}:
-      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)))
+      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)), env)
+    # binders' types (see Lifting)
+    case X.SxCons{_, X.SxCons{+v, X.SxCons{+t, _}}} KLbv{}:
+      fd.lt1(fd.vname(V.sv.str(v, 1n)), fd.go(t, fd.k(RoTy{}, t), env))
+    case X.SxCons{_, X.SxCons{+v, X.SxCons{+t, _}}} KLfun{}:
+      fd.lt1(fd.vname(V.sv.str(fd.unself(v), 1n)), fd.go(t, fd.k(RoTy{}, t), env))
+    case X.SxCons{+h, t} KLtw{}:
+      fd.lt.cat(fd.go(h, fd.k.lt(h), env), fd.go(t, KLtw{}, env))
+    case _ KLtw{}:
+      fd.nil()
+    case _ KLbv{}:
+      fd.nil()
+    case _ KLfun{}:
+      fd.nil()
+    case _ KLstop{}:
+      fd.nil()
+    # case e of .. on a computed e (see Lifting)
+    case X.SxCons{_, X.SxCons{+e, X.SxCons{ms, _}}} KEcaseC{}:
+      fd.ecasec(fd.go(e, fd.k(RoEx{}, e), fd.notail(env)), fd.go(ms, KMatches{}, env), env)
     case _ KBad{why}:
       fd.bad(why)
     case _ _:
@@ -2775,18 +3457,54 @@ def fd.datas(xs: List<&2, X.Sx>, +env: Env) -> List<&2, Got>:
     case Nil{}:
       Nil{}
 
-def fd.got.of(ok: Bool, tb: Tb, +env: Env) -> Got:
+def fd.lift.iname(it: T.BItem) -> List<&2, U32>:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      n
+    case _:
+      S.b("?")
+
+# a binding's def and the defs lifted out of it (last the binding's own):
+# each a GotDef, the lifted ones by their own names; or, for the first
+# place one could not fill, the binding out
+def fd.got.lifted(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, Got>:
+  match its:
+    case it <> Nil{}:
+      GotDef{n, it} <> Nil{}
+    case +it <> t:
+      GotDef{fd.lift.iname(it), it} <> fd.got.lifted(t, n)
+    case Nil{}:
+      Nil{}
+
+def fd.todos.all(its: List<&2, T.BItem>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match its:
+    case it <> t:
+      fd.todos.all(t, T.tba.item.fold(~T.tba.todos, it, acc))
+    case Nil{}:
+      acc
+
+def fd.got.defs.of(todos: List<&2, List<&2, U32>>, +n: List<&2, U32>, its: List<&2, T.BItem>) -> List<&2, Got>:
+  match todos:
+    case Nil{}:
+      fd.got.lifted(its, n)
+    case w <> t:
+      GotOut{n, w} <> Nil{}
+
+def fd.got.defs(+n: List<&2, U32>, +its: List<&2, T.BItem>) -> List<&2, Got>:
+  fd.got.defs.of(List.reverse(&2, List<&2, U32>, fd.todos.all(its, Nil{})), n, its)
+
+def fd.got.of(ok: Bool, tb: Tb, +env: Env) -> List<&2, Got>:
   match ok tb:
     case True{} TbFun{+n, +tvs, f}:
-      fd.got.def(n, fd.def(n, tvs, fd.go(V.sv.at(f, 4n), KMatches{}, fd.withself(env, fd.tvbts(tvs)))))
+      fd.got.defs(n, fd.def(n, tvs, fd.go(V.sv.at(f, 4n), KMatches{}, fd.withself(env, fd.tvbts(tvs)))))
     case True{} TbNo{n, why}:
-      GotOut{n, why}
+      GotOut{n, why} <> Nil{}
     case False{} TbFun{n, tvs, f}:
-      GotOut{n, S.b("survey")}
+      GotOut{n, S.b("survey")} <> Nil{}
     case False{} TbNo{n, why}:
-      GotOut{n, S.b("survey")}
+      GotOut{n, S.b("survey")} <> Nil{}
     case _ _:
-      GotOut{S.b("?"), S.b("fold:skip")}
+      GotOut{S.b("?"), S.b("fold:skip")} <> Nil{}
 
 def fd.tb.name(tb: Tb) -> List<&2, U32>:
   match tb:
@@ -2804,7 +3522,7 @@ def fd.tb.user(+tb: Tb) -> Bool:
 def fd.gots.if(user: Bool, +ok: List<&2, List<&2, U32>>, +tb: Tb, +env: Env, acc: List<&2, Got>) -> List<&2, Got>:
   match user:
     case True{}:
-      fd.got.of(S.mem(fd.tb.name(tb), ok), tb, env) <> acc
+      List.append(&2, Got, fd.got.of(S.mem(fd.tb.name(tb), ok), tb, env), acc)
     case False{}:
       acc
 
@@ -3323,11 +4041,22 @@ def fd.pre.maybe() -> String:
 def fd.pre.either() -> String:
   "# Haskell's either\ndef hs.either(-A: Data, -B: Data, -C: Data, f: A -> C, g: B -> C, e: Either<&2, &2, A, B>) -> C:\n  match e:\n    case Inl{a}:\n      f(a)\n    case Inr{b}:\n      g(b)\n\n"
 
+def fd.pre.state() -> String:
+  "# State s a (Control.Monad.Trans.State): S -> A & S, a function of the\n# state to a result and the next state; mtl's MonadState methods at it\ndef hs.state.bind.go(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, A, _ => S>, f: A -> S -> Sigma<&1, &1, B, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (a, s) = p\n  f(a)(s)\n\ndef hs.state.bind(-S: Data, -A: Type, -B: Type, m: S -> Sigma<&1, &1, A, _ => S>, f: A -> S -> Sigma<&1, &1, B, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.bind.go(S, A, B, m(s), f)\n\ndef hs.state.pure(-S: Data, -A: Type, a: A) -> S -> Sigma<&1, &1, A, _ => S>:\n  s => (a, s)\n\ndef hs.state.map.go(-S: Data, -A: Type, -B: Type, f: A -> B, p: Sigma<&1, &1, A, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (a, s) = p\n  (f(a), s)\n\ndef hs.state.map(-S: Data, -A: Type, -B: Type, f: A -> B, m: S -> Sigma<&1, &1, A, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.map.go(S, A, B, f, m(s))\n\ndef hs.state.ap.go(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, (A -> B), _ => S>, m: S -> Sigma<&1, &1, A, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (f, s) = p\n  hs.state.map.go(S, A, B, f, m(s))\n\ndef hs.state.ap(-S: Data, -A: Type, -B: Type, mf: S -> Sigma<&1, &1, (A -> B), _ => S>, m: S -> Sigma<&1, &1, A, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.ap.go(S, A, B, mf(s), m)\n\ndef hs.state.dup(-S: Data, +s: S) -> Sigma<&1, &1, S, _ => S>:\n  (s, s)\n\ndef hs.state.get(-S: Data) -> S -> Sigma<&1, &1, S, _ => S>:\n  s => hs.state.dup(S, s)\n\ndef hs.state.put(-S: Data, s: S) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  _ => (Unit{}, s)\n\ndef hs.state.modify(-S: Data, f: S -> S) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  s => (Unit{}, f(s))\n\ndef hs.state.gets.go(-S: Data, -A: Type, f: S -> A, +s: S) -> Sigma<&1, &1, A, _ => S>:\n  (f(s), s)\n\ndef hs.state.gets(-S: Data, -A: Type, f: S -> A) -> S -> Sigma<&1, &1, A, _ => S>:\n  s => hs.state.gets.go(S, A, f, s)\n\ndef hs.state.fst(-S: Data, -A: Type, p: Sigma<&1, &1, A, _ => S>) -> A:\n  (a, s) = p\n  a\n\ndef hs.state.snd(-S: Data, -A: Type, p: Sigma<&1, &1, A, _ => S>) -> S:\n  (a, s) = p\n  s\n\ndef hs.state.re(-S: Data, -A: Data, p: Sigma<&1, &1, A, _ => S>) -> Sigma<&2, &2, A, _ => S>:\n  (a, s) = p\n  (a, s)\n\ndef hs.state.eval(-S: Data, -A: Type, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> A:\n  hs.state.fst(S, A, m(s))\n\ndef hs.state.exec(-S: Data, -A: Type, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> S:\n  hs.state.snd(S, A, m(s))\n\ndef hs.state.run(-S: Data, -A: Data, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> Sigma<&2, &2, A, _ => S>:\n  hs.state.re(S, A, m(s))\n\n"
+
+# whether the items name any of ns
+def fd.uses.any(+its: List<&2, T.BItem>, ns: List<String>) -> Bool:
+  match ns:
+    case Nil{}:
+      False{}
+    case n <> t:
+      Bool.or(fd.uses.name(its, S.b(n)), fd.uses.any(its, t))
+
 def fd.pre.one(+its: List<&2, T.BItem>, n: String, text: String) -> List<&2, U32>:
   fd.bpick(fd.uses.name(its, S.b(n)), S.b(text), Nil{})
 
 def fd.prelude(+its: List<&2, T.BItem>) -> List<&2, U32>:
-  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.either", fd.pre.either())])
+  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run"]), S.b(fd.pre.state()), Nil{})])
 
 # The file -------------------------------------------------------------------------
 
@@ -3536,6 +4265,21 @@ def fd.item.name(it: T.BItem) -> List<&2, U32>:
       Nil{}
 
 # whether an item mentions one of the names gone
+# the def a lifted def was taken out of (its doc says so), or none
+def fd.liftof.doc(d: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match d:
+    case +h <> t:
+      fd.bpick(S.prefix(h, S.b("generated: lifted out of ")), List.drop(&2, U32, h, 25n), Nil{})
+    case Nil{}:
+      Nil{}
+
+def fd.liftof(it: T.BItem) -> List<&2, U32>:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      fd.liftof.doc(d)
+    case _:
+      Nil{}
+
 def fd.hits(+it: T.BItem, gone: List<&2, List<&2, U32>>) -> Bool:
   match gone:
     case +g <> t:
@@ -3557,11 +4301,12 @@ def fd.split.if(hit: Bool, +it: T.BItem, +why: List<&2, U32>, s: Split) -> Split
     case False{} Split{k, o}:
       Split{it <> k, o}
 
-# the items that mention a name gone go too
+# the items that mention a name gone go too, and the defs lifted out of one
+# (see Lifting)
 def fd.split(its: List<&2, T.BItem>, +gone: List<&2, List<&2, U32>>, +why: List<&2, U32>) -> Split:
   match its:
     case +h <> t:
-      fd.split.if(fd.hits(h, gone), h, why, fd.split(t, gone, why))
+      fd.split.if(Bool.or(fd.hits(h, gone), S.mem(fd.liftof(h), gone)), h, why, fd.split(t, gone, why))
     case Nil{}:
       Split{Nil{}, Nil{}}
 
@@ -3649,13 +4394,25 @@ def Split.out(s: Split) -> List<&2, Dr>:
     case Split{k, o}:
       o
 
+# an out item's name: a lifted def's is a Bend name already (a Haskell
+# name with a dot in it is an operator's)
+def fd.has.dot(xs: List<&2, U32>) -> Bool:
+  match xs:
+    case c <> t:
+      Bool.or(U32.is_eq(c, 46), fd.has.dot(t))
+    case Nil{}:
+      False{}
+
+def fd.oname(+n: List<&2, U32>) -> List<&2, U32>:
+  fd.bpick(Bool.and(fd.name.lead(n), fd.has.dot(n)), n, fd.vname(n))
+
 # the item an error is in gone, with every item that uses it
 def fd.gate.drop(who: Maybe<&2, List<&2, U32>>, +its: List<&2, T.BItem>, out: List<&2, Dr>, +why: List<&2, U32>) -> Gs:
   match who:
     case None{}:
       Gs{Nil{}, List.append(&2, Dr, fd.gate.all(its, why), out), True{}}
     case Some{+n}:
-      +dep = fd.cat(S.b("dep:"), n)
+      +dep = fd.bpick(Bool.and(fd.name.lead(n), fd.has.dot(n)), why, fd.cat(S.b("dep:"), n))
       +s = fd.closure(List.length(&2, T.BItem, its), fd.split(fd.without(its, n), fd.namesof(its, n), dep), dep, Dr{n, why} <> out)
       Gs{Split.keep(s), Split.out(s), List.is_empty(&2, T.BItem, Split.keep(s))}
 
@@ -3711,7 +4468,7 @@ def fd.got.items(gs: List<&2, Got>) -> List<&2, T.BItem>:
 def fd.got.outs(gs: List<&2, Got>) -> List<&2, Dr>:
   match gs:
     case GotOut{n, w} <> t:
-      Dr{fd.vname(n), w} <> fd.got.outs(t)
+      Dr{fd.oname(n), w} <> fd.got.outs(t)
     case _ <> t:
       fd.got.outs(t)
     case Nil{}:
@@ -3775,7 +4532,7 @@ def fd.module.fin(+out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: L
         S.add(out ++ "/ledger.tsv", fd.ledger(file, k, o))
 
 def fd.env0(m: List<&2, U32>, cs: List<&2, Ctr>, ds: List<&2, Df>, px: Px) -> Env:
-  Env{m, cs, ds, None{}, Nil{}, Nil{}, Nil{}, px}
+  Env{m, cs, ds, None{}, Nil{}, Nil{}, Nil{}, px, Nil{}}
 
 # (synonym NAME (TV...) TYPE SPAN), folded with the synonyms of the round
 # before; as many rounds as there are synonyms, so one that names another

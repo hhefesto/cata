@@ -58,6 +58,34 @@ at `Cofree G w`, as nested matches through the fields (a Maybe, a pair, or
 another, flat functor of the package such as `StuckExprB (BasicExprF f)`),
 which Bend sees shrink.
 
+## Monads
+
+GHC hands a do block over as its `>>=` and `>>`, and cata writes those at
+the monad they are at. At `Maybe` and `Either e`: Base's `Maybe.bind` or
+the prelude's `hs.either.bind`, with the rest of the block as a closure;
+`return`/`pure`, `fmap`/`<$>`, `maybe`, `either` and `fromMaybe` too. At
+`State s` (`StateT s Identity`, lazy or strict): a function of the state to
+a result and the next state, `S -> A & S` (an `&1` pair, so the result may
+be a function, as at `<*>`), with the prelude's `hs.state.*`: `>>=`, `>>`,
+`pure`, `fmap`, `<*>`, mtl's `get`, `put`, `modify`, `modify'` and `gets`,
+and `evalState`, `execState` and `runState`. Other monads (`ExceptT`,
+`ParsecT`, `IO`, a type variable) are out.
+
+## Lifting
+
+Bend matches only parameters and pattern fields, not a local or a computed
+value, and no match may follow a local statement; a lambda holds one
+expression. So these become defs of their own: a `case` on a computed value
+or in an argument, a lambda whose body is a `let` or a `case` (or whose
+patterns are not all variables), a local value whose body is one, a `case`
+after a `let`, and every `where` or `let` function (one that calls itself
+too). A lifted def is `NAME.lK` (`NAME.go` for a local `go`); its
+parameters are the enclosing def's type variables, the locals its body
+uses, with the types GHC gave their binders, and its own. A use of a local
+function becomes a call of its def with those locals first. The ledger
+says `ok-gen` for a lifted def; a lifted def that calls the def it came
+from makes the two mutually recursive, which Bend refuses (both out).
+
 ## Build
 
     nix build .#hs-export .#survey .#fold .#law .#ghc
