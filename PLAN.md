@@ -38,6 +38,8 @@ exactly from its input, and every file is checked by `bend`.
 - `bend/` (Bend 2.0.39): everything that decides. `bend/a2b` is agda2bend's
   `bend/` (a git-ignored link here, the `agda2bend` flake input in a build).
 - `run/` (git-ignored): exports, surveys, gcroots.
+- `tests/hs`: small Haskell modules a rule was tried on (`hs-export`, then
+  `law`).
 
 ## Steps
 
@@ -510,3 +512,61 @@ code the survey still refuses or at its `LocTag`. Left of the 94: an
 order (`fold:ord-at-type`, 38) and `==` at a type variable
 (`fold:eq-at-tyvar`, 31): the dictionaries, next (an `Eq a`/`Ord a` def
 takes `~eq_A`/`~cmp_A`, its callers pass `==`/`compare` at their type).
+
+## Telomare's rules, 4: ExceptT over State (2026-11-20)
+
+The user: "Telomare's blockers: ExceptT first, then Data.Map, classes and
+pattern synonyms."
+
+**ExceptT.** `ExceptT e m a` is its newtype's `m (Either e a)`. Over
+`State s` (or `StateT s Identity`), telomare's three monads (EAL's `EALM`,
+IC's `ICM`, Fast's `EvalM`), it is a State whose result is an Either,
+`S -> Either E A & S`, so `runExceptT` is the term itself; over Identity
+it is `Either e` (the Either monad). `ExceptT e (State s)` alone, a monad
+argument, is the marker `hs.ExceptS<E, S>` (a synonym's use, `EALM a`,
+applies it). The prelude's `hs.exs.*` (written into a module that uses
+one): `>>=` (a `Left` stops the rest, the state it had goes on), `>>`,
+`pure`, `fmap`, mtl's MonadState methods lifted through ExceptT (`get`,
+`put`, `modify`, `modify'`, `gets`) and MonadError's `throwError` (at
+Either too: `Left`).
+
+**Control.Monad.** At State and at ExceptT over State, `mapM_`/`forM_`,
+`mapM`/`forM`/`traverse` at a list and `foldM` are the prelude's
+`hs.state.*`/`hs.exs.*` `mapm_`, `mapm` and `foldm`, structural on the
+list, the function a template (`~f`, so a closed one: a lambda that uses
+a local is `fold:closure-argument`, as at `map`). At State, ExceptT over
+State, Maybe and Either, `when` and `unless` are an if whose other branch
+is `pure ()`, `void` an fmap, `=<<` a `>>=` and `*>` a `>>`. The survey
+no longer counts these eight as IO. Out: `<*>` at ExceptT (an Either of a
+function is not Data), ExceptT over any other monad
+(`fold:exceptt-type`), `catchError`, `withExceptT`, `lift`.
+
+**Test** (`tests/hs/Exc.hs`, 23 functions on ExceptT String (State Int),
+State Int, Maybe and Either): 20 check, 15 of them with laws (GHC's
+answers, a `Left` with the state it stopped at among them), 5 ok-check
+(their result is a monadic action: no law); out `peek` (an `if` in an
+argument, `fold:if-in-argument`) and `half` (`even`), and `halfR` with it.
+
+| | functions out | ok-law | ok-check |
+|---|---|---|---|
+| hs1003 before (law15) | 3107 | 1424 | 221 |
+| hs1003 now (law16) | 3107 | 1424 | 221 |
+| telomare before (law-pk9) | 721 | 61 | 40 |
+| telomare now (law-pk10, 39 s) | 721 | 61 | 40 |
+
+Nothing moved on either, as the survey predicted: hs1003 has no ExceptT
+(3 out reasons changed, `traverse` at another monad now
+`fold:monad-at-type`), and every one of telomare's 119 ExceptT bindings
+is out for something else too. With ExceptT's 110 `type:ExceptT` and its
+methods gone from the survey (run/telomare survey, sv1), what those 119
+still meet, besides calls: `EALState` (62: Map fields, one keyed by
+`Digest SHA256`), EALError (62: a `Digest SHA256` field), `Map` (58),
+`Digest`/`SHA256` (38), `ICState` (37: IntMap, Seq, Map, a Digest-keyed
+Map), EAL's `Tag` (32), `BodyTemplate` and `ApplySite` (20 each), mutual
+recursion (18), Set (17), IntMap (16), Seq (13), Fast's `FastMeter` (12:
+a Map field), `int-sub` (7). `Digest SHA256` (crypton's hash of a term's
+`encode . show`) is in both EAL's state and its error type, so EAL and IC
+stay out until there is a rule for it, whatever Data.Map does. Of the
+147 bindings Data.Map, Set or IntMap keeps out, 5 have no other reason of
+their own (Levels' `renderLevels`, Resolve's `qualifyBindings`, Size's
+`locateSizingFailure`, IC's `icEvalIC`, Fast's `ownerMap`).

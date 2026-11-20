@@ -68,8 +68,18 @@ the prelude's `hs.either.bind`, with the rest of the block as a closure;
 a result and the next state, `S -> A & S` (an `&1` pair, so the result may
 be a function, as at `<*>`), with the prelude's `hs.state.*`: `>>=`, `>>`,
 `pure`, `fmap`, `<*>`, mtl's `get`, `put`, `modify`, `modify'` and `gets`,
-and `evalState`, `execState` and `runState`. Other monads (`ExceptT`,
-`ParsecT`, `IO`, a type variable) are out.
+and `evalState`, `execState` and `runState`. At `ExceptT e (State s)`
+(`StateT s Identity` too): ExceptT's newtype, `m (Either e a)`, so a State
+whose result is an Either, `S -> Either E A & S`, with the prelude's
+`hs.exs.*` (`>>=` stops at a `Left`): `>>=`, `>>`, `pure`, `fmap`, mtl's
+`get`, `put`, `modify`, `modify'`, `gets` and `throwError`, and
+`runExceptT` is the term itself; `ExceptT e Identity` is `Either e`. At
+State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
+`mapM`/`forM`/`traverse` (at a list) and `foldM` are the prelude's (the
+function a template, so a closed one), and at any of these monads `when`,
+`unless`, `void`, `=<<` and `*>` are written with their `>>=`, `pure` and
+`fmap`. Other monads (`ExceptT` over anything else, `ParsecT`, `IO`, a
+type variable) and `<*>` at ExceptT are out.
 
 ## Lifting
 
