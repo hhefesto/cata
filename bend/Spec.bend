@@ -174,8 +174,47 @@ def sp.bind(+v: List<&2, U32>, +t: X.Sx, acc: Maybe<&2, List<&2, Sb>>) -> Maybe<
     case Some{+sbs}:
       Bool.pick(Maybe<&2, List<&2, Sb>>, sp.sb.has(sbs, v), Bool.pick(Maybe<&2, List<&2, Sb>>, sp.eq(sp.sb.get(sbs, v, X.SxNil{}), t), Some{sbs}, None{}), Some{Sb{v, t} <> sbs})
 
+# a list's elements but the last, and its last (SxNil when empty)
+def sp.ty.init.go(t: List<&2, X.Sx>, x: X.Sx) -> List<&2, X.Sx>:
+  match t:
+    case Nil{}:
+      Nil{}
+    case y <> r:
+      x <> sp.ty.init.go(r, y)
+
+def sp.ty.init(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      sp.ty.init.go(t, x)
+
+def sp.ty.last.go(t: List<&2, X.Sx>, x: X.Sx) -> X.Sx:
+  match t:
+    case Nil{}:
+      x
+    case y <> r:
+      sp.ty.last.go(r, y)
+
+def sp.ty.last(xs: List<&2, X.Sx>) -> X.Sx:
+  match xs:
+    case Nil{}:
+      X.SxNil{}
+    case x <> t:
+      sp.ty.last.go(t, x)
+
+# a node (A P Q) against t: (tapp P Q), a variable applied (an instance
+# head (f x)), against (tc M N a1 .. an), n > 0, a type constructor
+# applied and written whole (sp.norm's form), is P against (tc M N a1 ..
+# an-1) and Q against an; else t is (A P' Q'), P against P', Q against Q'
 def sp.match(p: X.Sx, +t: X.Sx, +acc: Maybe<&2, List<&2, Sb>>) -> Maybe<&2, List<&2, Sb>>:
   match p:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+pp, X.SxCons{+pq, X.SxNil{}}}}:
+      +es = sp.els(t)
+      +n = List.length(&2, X.Sx, es)
+      +app = Bool.and(sp.is(a, "tapp"), Bool.and(sp.head.is(t, "tc"), Nat.is_gt(n, 3n)))
+      +same = Bool.and(S.eq(a, X.tsx.atom.of(sp.at(t, 0n))), Nat.is_eq(n, 3n))
+      sp.if(Maybe<&2, List<&2, Sb>>, app, _ => sp.match(pq, sp.ty.last(es), sp.match(pp, sp.l(sp.ty.init(es)), acc)), _ => sp.if(Maybe<&2, List<&2, Sb>>, same, _ => sp.match(pq, sp.at(t, 2n), sp.match(pp, sp.at(t, 1n), acc)), _ => None{}))
     case X.SxCons{+ph, +pt}:
       Bool.pick(Maybe<&2, List<&2, Sb>>, sp.istv(ph, pt), sp.bind(X.tsx.str.of(sp.at(pt, 0n)), t, acc), sp.match(pt, X.tsx.args(t), sp.match(ph, sp.at(t, 0n), acc)))
     case X.SxAtom{a}:
@@ -1352,11 +1391,12 @@ def sp.pc.btab() -> List<&2, Pcr>:
 
 # base's functions that are the model's at any type (Control.Monad's
 # Kleisli compositions <=< and >=>: kleisliR, kleisliL; GHC.Base's until;
-# GHC.List's filter; Data.Foldable's default foldr, $dmfoldr, foldrDefault),
-# at their own types (d is how many to drop: none)
+# GHC.List's filter; Data.Foldable's default foldr, $dmfoldr, foldrDefault,
+# and asum, foldr (<|>) empty), at their own types (d is how many to drop:
+# none)
 def sp.pc.ktab() -> List<&2, Pcr>:
   +cm = {"GHC.Internal.Control.Monad." : String}
-  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}, Pcr{S.b("GHC.Internal.Base.until"), S.b("until"), 0n}, Pcr{S.b("GHC.Internal.List.filter"), S.b("filter"), 0n}, Pcr{S.b("GHC.Internal.Data.Foldable.$dmfoldr"), S.b("foldrDefault"), 0n}]
+  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}, Pcr{S.b("GHC.Internal.Base.until"), S.b("until"), 0n}, Pcr{S.b("GHC.Internal.List.filter"), S.b("filter"), 0n}, Pcr{S.b("GHC.Internal.Data.Foldable.$dmfoldr"), S.b("foldrDefault"), 0n}, Pcr{S.b("GHC.Internal.Data.Foldable.asum"), S.b("asum"), 0n}]
 
 def sp.pc.atlist(+tys: List<&2, X.Sx>) -> Bool:
   sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")

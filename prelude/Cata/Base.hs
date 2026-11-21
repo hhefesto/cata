@@ -15,6 +15,7 @@ module Cata.Base where
 
 import Prelude hiding (concatMap, filter, foldl, foldl', foldr, until)
 
+import Control.Applicative (Alternative (..))
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
@@ -122,6 +123,12 @@ foldMapMonoid f xs = F.foldr (\x acc -> f x <> acc) mempty xs
 -- appEndo (foldMap (Endo . f) t) z)
 foldrDefault :: forall t a b. Foldable t => (a -> b -> b) -> b -> t a -> b
 foldrDefault f z t = foldr f z (F.foldMap (\x -> [x]) t)
+
+-- | Data.Foldable's asum, base's definition: foldr (<|>) empty (Spec writes
+-- asum at t f a as this def; its foldr is the Foldable's at t, a package's
+-- derived instance's own code, its <|> and empty the Alternative's at f)
+asum :: forall t f a. (F.Foldable t, Alternative f) => t (f a) -> f a
+asum xs = F.foldr (<|>) empty xs
 
 -- | data-fix's Show instance at Fix f, through f's Show1: showsPrec d (Fix
 -- a) is showParen (d >= 11) (showString "Fix " . liftShowsPrec showsPrec

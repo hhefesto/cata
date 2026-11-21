@@ -1711,3 +1711,36 @@ Eval_Reference), StuckExprF, InputSizingExprF, StaticCheckExprF and
 UnsizedExprF; forget at four types; cshow at PrettyPartialType;
 isGateSelector and removeRefinementWrappers at UnsizedExprF. Copies 1039
 -> 1053 ok-check, 292 -> 278 out. Nothing lost.
+
+## Telomare's rules, 29: an instance over a type variable applied, asum, a digest shown inside a show (2026-11-21)
+
+- **An instance head that applies a type variable** (`PrettyPrintable (f
+  x)`, `Show (f a)`): Spec's `sp.match` takes a pattern node `(tapp P Q)`
+  against a type constructor applied and written whole, `(tc M N a1 ..
+  an)`, as P against `(tc M N a1 .. an-1)` and Q against `an`
+  (`sp.ty.init`, `sp.ty.last`), so such an instance's methods are
+  specialised at the types telomare uses them at.
+- **`asum`** (Data.Foldable): cata's own Haskell definition in
+  `prelude/Cata/Base.hs`, base's `foldr (<|>) empty`, written by Spec at
+  its types like Rule 28's Kleisli compositions (`sp.pc.ktab`).
+- **Show of a SHA-256 digest inside another value's show**: the survey
+  takes `Show.showsPrec@HsDigest` as a method it maps (the digest's hex
+  show, rule 8).
+- **Check against GHC**: `tests/telomare/run.sh` on law's lps59 package
+  (telomare-eal 0058cf46): 13 files, the same skeleton as GHC's.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| before (tsp49, law61, lps58) | 416 | 103 | 310 | 113 |
+| after rule 29 (tsp50, law62, lps59, 2016 s) | 415 | 103 | 311 | 113 |
+
+Own out -> ok-check: IC's icOutcome. Copies out -> ok-check:
+prettyPrint at CompiledExprF (Driver, Eval_Reference), StaticCheckExprF
+and StuckExprF; cshowsPrec at EAL's Tag. Copies 1053 -> 1097 ok-check,
+278 -> 281 out (39 new copies check, 9 new copies out). Nothing lost.
+
+Not freed yet: Driver's evaluator chain. The survey now takes
+`plainEval`, but the fold leaves it out (`fold:missing`), and
+`evalLoop`, `evalLoopCore` and their copies are still out on the survey.
+Telomare's own out by first reason: survey 411, dep 138, fold 130, law
+21, check 15, type 5, base 2 (copies included).
