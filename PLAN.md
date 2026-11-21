@@ -1340,3 +1340,39 @@ No def lost its verdict; copies 797 -> 881 ok-check. `closeLams` checks;
 only on the partial-function rule (`error` on an unexpected ParserTermL).
 compileModules' frontier: 215 defs, 213 no; `error` 24, Map's `!` 18,
 `show` at Fix 6, WriterT 5 (Resolve's letsToApps), LamBase 4.
+
+## Telomare's rules, 21: WriterT, mconcat, Bifunctor's plain functions (2026-11-21)
+
+Resolve's `letsToApps` builds its term in a `WriterT (Set String)
+(Either ResolverError)` (the names a term refers to as the log), through
+`cata` and `sequence` at a Cofree's layer.
+
+- **WriterT** (`Control.Monad.Trans.Writer`, lazy or strict): `WriterT w
+  Identity a` is `A & W`, `WriterT w (Either e) a` is `Either E (A & W)`;
+  the prelude's `hs.wr.*` and `hs.wre.*` (Fold's `fd.pre.wr`,
+  `fd.pre.wre`): `>>=`, `>>`, `pure`, `fmap`, `<*>` (as `>>=`), `liftA2`
+  and `throwError`, each taking w's `mempty` and `<>` (Fold's `fd.wmon`, at
+  w's type: lists, Sets, Maps). `writer` is the inner monad's `pure` of the
+  pair, `lift` at `WriterT w` the inner `fmap` pairing with `mempty`;
+  `WriterT`, `runWriterT` and `runWriter` are the term (a pattern
+  `WriterT p` is `p`).
+- **`mconcat`** at lists (`concat`) and Sets (HsSet's `unions`).
+- **Data.Bifunctor's `first`, `second`, `bimap`** at Either and pairs take
+  their functions plain (each calls it once), so a lambda over locals is
+  in (they were templates, closed only).
+- **Tests** (`tests/hs/Writer.hs`, letsToApps' shapes: a cata into
+  `WriterT (Set String) (Either String)`, `lift . Left`, `Set.delete`,
+  `null`, `sequence` at a derived Traversable inside Cofree): ex1..ex6
+  ok-law (5, 2, 8, 8, 8, 8 laws, GHC's answers), the rest ok-check; the 17
+  earlier test sets: no def moved.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 20 (spec34, law46) | 445 | 98 | 286 | 113 |
+| after rule 21 (spec34, law48, 842 s) | 445 | 98 | 286 | 113 |
+
+No def lost its verdict; copies 879 -> 882 ok-check (Resolve's
+`ctraverse` at WriterT for BasicExprF, HighTermF, LamTermF). compileModules'
+frontier: 211 defs, 209 no; `error` 24, Map's `!` 18, `show` at Fix 6,
+LamBase 4. `letsToApps` waits on its `error` (an unexpected constructor),
+LamBase's pattern synonyms and Cofree's `unwrap`/`embed`.

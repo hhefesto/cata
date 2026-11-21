@@ -172,7 +172,18 @@ function of the environment, `R -> A`, with the prelude's `hs.rd.*`:
 Either E A`, the prelude's `hs.rde.*` (`>>=` stops at a `Left`), those and
 `throwError`. `lift` at `ReaderT r` is the inner monad's term under an
 environment it ignores, and `runReaderT` and `runReader` are the term
-itself. At State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
+itself. At `WriterT w Identity` (`Writer w`, lazy or strict): WriterT's
+newtype, `m (a, w)`, so a result and its log, `A & W` (an `&2` pair),
+with the prelude's `hs.wr.*`; at `WriterT w (Either e)`, `Either E (A &
+W)`, the prelude's `hs.wre.*` (`>>=` stops at a `Left`): `>>=`, `>>`,
+`pure`, `fmap`, `<*>` (as `>>=`), `liftA2` and `throwError`. Each of
+those defs takes w's `mempty` and `<>` (a function of two logs) after W
+(and E), the fold writing them at w's type (see "Containers"): `pure`
+logs `mempty`, `>>=` joins the two logs with `<>`. `writer` is `pure` at
+the inner monad of the pair, `lift` at `WriterT w` is `fmap` at the
+inner monad of a pair with `mempty`, and the constructor `WriterT`,
+`runWriterT` and `runWriter` are the term itself (a pattern `WriterT p`
+is `p`). At State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
 `mapM`/`forM`/`traverse` (at a list) and `foldM` are the prelude's (the
 function a template, so a closed one), and at any of these monads `when`,
 `unless`, `void`, `=<<` and `*>` are written with their `>>=`, `pure` and
@@ -317,8 +328,9 @@ element); `==` or `compare` at the element a template, as at a Map's key.
 `zip [n ..] xs`, `zip xs [n ..]` and the same with `zipWith` (an endless
 list the zip ends) are HsList's `zipFrom`, `zipR`, `zipWithFrom`,
 `zipWithR`, the specialiser's rewrite. Data.Bifunctor's `first`, `second`
-and `bimap` at Either and pairs; `mempty` at lists, Maps, Sets, Ordering
-and (); `flip`; `liftM2` as `liftA2`; `trace` its second argument (the
+and `bimap` at Either and pairs (their functions plain, not templates: each
+is called once, so a lambda over locals is in); `mempty` at lists, Maps,
+Sets, Ordering and (); `flip`; `liftM2` as `liftA2`; `trace` its second argument (the
 message to stderr not modelled); `<*>` at Maybe, Either and ExceptT over
 State as `>>=` and `fmap`, a chain `f <$> a <*> b <*> c` (or `pure f <*>
 ..`) as `a >>= \x -> b >>= \y -> fmap (f x y) c`, so that no Maybe or
