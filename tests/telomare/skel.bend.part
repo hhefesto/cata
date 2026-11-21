@@ -1,0 +1,85 @@
+# The skeleton of telomare's parse of a file, as cata's Bend of
+# Telomare.Parse runs it: what Skel.hs writes from GHC's (run.sh puts the
+# files' texts after this, as Sk.files).
+import Base
+import ./HsPrelude.bend as HsPrelude
+import ./Telomare_IR_Loc.bend as Telomare_IR_Loc
+import ./Telomare_IR_Surface.bend as Telomare_IR_Surface
+import ./Telomare_Parse.bend as Telomare_Parse
+
+def Sk.s(+s: String) -> List<&2, Char>:
+  String.to_list(s)
+
+def Sk.loc(l: Telomare_IR_Loc.LocTag) -> List<&2, Char>:
+  match l:
+    case Telomare_IR_Loc.LocTag.SourceLoc{s}:
+      Telomare_IR_Loc.cshowsPrec__SourceSpan(HsPrelude.HsInt.Pos{0n}, s)(Nil{})
+    case _:
+      Sk.s("gen")
+
+def Sk.name(n: Telomare_IR_Loc.LocatedName) -> List<&2, Char>:
+  match n:
+    case Telomare_IR_Loc.LocatedName.LocatedName{Tuple{l, s}}:
+      List.concat(&2, Char, [s, Sk.s(" "), Sk.loc(l)])
+
+def Sk.names(ns: List<&2, Telomare_IR_Loc.LocatedName>) -> List<&2, Char>:
+  match ns:
+    case Nil{}:
+      Nil{}
+    case n <> t:
+      List.concat(&2, Char, [Sk.s(" "), Sk.name(n), Sk.names(t)])
+
+def Sk.root(t: HsPrelude.Cofree<(r_ => Telomare_IR_Surface.ParsedTermF<HsPrelude.Fix<(r_ => Telomare_IR_Surface.PatternF<Telomare_IR_Surface.AnnotatedPST, r_>)>, r_>), Telomare_IR_Loc.LocTag>) -> List<&2, Char>:
+  match t:
+    case HsPrelude.Cofree.Cofree{l, r}:
+      Sk.loc(l)
+
+def Sk.ann(a: Maybe<&2, Sigma<&2, &2, Telomare_IR_Loc.LocTag, (_ => HsPrelude.Cofree<(r_ => Telomare_IR_Surface.ParsedTermF<HsPrelude.Fix<(r_ => Telomare_IR_Surface.PatternF<Telomare_IR_Surface.AnnotatedPST, r_>)>, r_>), Telomare_IR_Loc.LocTag>)>>) -> List<&2, Char>:
+  match a:
+    case None{}:
+      Nil{}
+    case Some{x}:
+      Sk.s(" ann")
+
+def Sk.qual(q: Maybe<&2, Telomare_IR_Loc.LocatedName>) -> List<&2, Char>:
+  match q:
+    case None{}:
+      Nil{}
+    case Some{x}:
+      List.append(&2, Char, Sk.s(" as "), Sk.name(x))
+
+def Sk.import(d: Telomare_IR_Surface.ImportDecl) -> List<&2, Char>:
+  match d:
+    case Telomare_IR_Surface.ImportDecl.ImportDecl{l, m, q}:
+      List.concat(&2, Char, [Sk.s("import "), Sk.name(m), Sk.s(" at "), Sk.loc(l), Sk.qual(q), Sk.s("\n")])
+
+def Sk.def(d: Telomare_IR_Surface.DefinitionF<HsPrelude.Cofree<(r_ => Telomare_IR_Surface.ParsedTermF<HsPrelude.Fix<(r_ => Telomare_IR_Surface.PatternF<Telomare_IR_Surface.AnnotatedPST, r_>)>, r_>), Telomare_IR_Loc.LocTag>>) -> List<&2, Char>:
+  match d:
+    case Telomare_IR_Surface.DefinitionF.SingleDefF{n, a, t}:
+      List.concat(&2, Char, [Sk.s("def "), Sk.name(n), Sk.ann(a), Sk.s(" body "), Sk.root(t), Sk.s("\n")])
+    case Telomare_IR_Surface.DefinitionF.ListDefF{l, ns, t}:
+      List.concat(&2, Char, [Sk.s("defs "), Sk.loc(l), Sk.names(ns), Sk.s(" body "), Sk.root(t), Sk.s("\n")])
+
+def Sk.item(it: Telomare_IR_Surface.ModuleItem<HsPrelude.Cofree<(r_ => Telomare_IR_Surface.ParsedTermF<HsPrelude.Fix<(r_ => Telomare_IR_Surface.PatternF<Telomare_IR_Surface.AnnotatedPST, r_>)>, r_>), Telomare_IR_Loc.LocTag>>) -> List<&2, Char>:
+  match it:
+    case Telomare_IR_Surface.ModuleItem.ModuleImportItem{d}:
+      Sk.import(d)
+    case Telomare_IR_Surface.ModuleItem.ModuleDefinitionItem{d}:
+      Sk.def(d)
+
+def Sk.items(xs: List<&2, Telomare_IR_Surface.ModuleItem<HsPrelude.Cofree<(r_ => Telomare_IR_Surface.ParsedTermF<HsPrelude.Fix<(r_ => Telomare_IR_Surface.PatternF<Telomare_IR_Surface.AnnotatedPST, r_>)>, r_>), Telomare_IR_Loc.LocTag>>>) -> List<&2, Char>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      List.append(&2, Char, Sk.item(x), Sk.items(t))
+
+def Sk.skel(r: Either<&2, &2, List<&2, Char>, List<&2, Telomare_IR_Surface.ModuleItem<HsPrelude.Cofree<(r_ => Telomare_IR_Surface.ParsedTermF<HsPrelude.Fix<(r_ => Telomare_IR_Surface.PatternF<Telomare_IR_Surface.AnnotatedPST, r_>)>, r_>), Telomare_IR_Loc.LocTag>>>>) -> List<&2, Char>:
+  match r:
+    case Inl{e}:
+      List.concat(&2, Char, [Sk.s("error\n"), e, Sk.s("\n")])
+    case Inr{xs}:
+      Sk.items(xs)
+
+def Sk.file(+n: String, +src: String) -> List<&2, Char>:
+  List.concat(&2, Char, [Sk.s("== "), Sk.s(n), Sk.s("\n"), Sk.skel(Telomare_Parse.runParseModule(String.to_list(n))(String.to_list(src)))])

@@ -1529,6 +1529,22 @@ def lw.laws(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
     lw.laws2(rounds, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt)
 
+# the items before the gate, and the ones it drops before its first check
+# (dep: what they use that is out), as OUT/NAME_all.bend and
+# OUT/NAME_drops.tsv: what a gate's ledger does not list (a group's .mu, a
+# lifted def)
+def lw.drs.text(ds: List<&2, F.Dr>) -> List<&2, U32>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case F.Dr{n, w} <> t:
+      S.append(n, 9 <> S.append(w, 10 <> lw.drs.text(t)))
+
+def lw.gs.drs(g: F.Gs) -> List<&2, F.Dr>:
+  match g:
+    case F.Gs{its, o, d}:
+      o
+
 # a module: fold it as Fold.bend does, ask GHC for its defs' laws, and gate
 # the defs and laws together (px: what its package's modules before it
 # gave, F.fd.px0() for a module alone); the package after it
@@ -1547,7 +1563,10 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
   do IO<F.Px>:
     F.fd.hsprelude.write(out)
-    +kept : List<&2, T.BItem> <- lw.laws(rounds, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, F.fd.predrop(its, F.fd.got.outs(gs)), F.fd.px.dt(px))
+    S.write(out ++ "/" ++ S.str(base) ++ "_all.bend", F.fd.render(file, m, ims, its))
+    +g0 : F.Gs <- IO.pure(F.Gs, F.fd.predrop(its, F.fd.got.outs(gs)))
+    S.write(out ++ "/" ++ S.str(base) ++ "_drops.tsv", lw.drs.text(lw.gs.drs(g0)))
+    +kept : List<&2, T.BItem> <- lw.laws(rounds, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, g0, F.fd.px.dt(px))
     return F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, kept)
 
 def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px) -> IO(Unit):

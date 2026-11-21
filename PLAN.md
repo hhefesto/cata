@@ -1151,3 +1151,57 @@ closure twice). Telomare.Parse: 68 ok-check (the lexer, `identifierRaw`,
 `parseSameLvl`, the copies of `many`, `some`, `manyTill`, `space`, the
 SourcePos functions), 1 ok-law (`rws`). Its grammar (parseLongExpr and
 the 50 parsers around it) is one group that still goes as a whole.
+
+## Telomare's rules, 17: closures to base's folds; the parser runs (2026-11-20)
+
+Rule 16 left telomare's grammar (parseLongExpr and the ~50 parsers that
+call it) out as one group. The law's new `OUT/M_drops.tsv` (each item the
+gate or the fold dropped, and why; `OUT/M_all.bend`, the items before the
+gate) named the root: `parseApplied`'s `foldl (\a b -> x :< embedL (AppF a
+b)) f args`, a closure over the pattern's `x` as foldl's template
+(`fold:closure-argument`); every other parser of the group went with it.
+
+- **Base's model** (`prelude/Cata/Base.hs`, exported with the package
+  before `Cata/Parsec.hs`): `foldr`, `foldl`, `foldl'`, base's
+  definitions (foldl's loop takes the list first, so Bend sees it shrink).
+  Spec writes a call of Foldable's `foldr`/`foldl`/`foldl'` at a list as a
+  call of the model's def at the types after the list (`sp.pc.btab`), when
+  the package has the model (`sp.ix.hasbase`); rule 15 then copies it at
+  its known function argument, a lambda's free locals the copy's first
+  parameters.
+- **Fold**: a local's recursive reference (`self (l "go" N)`) is a local,
+  not the def's own call: its lifting had passed the def's type
+  parameters twice (`foldl.go(~B, ~A, ~f, B, A)(..)`, `many.go(~A, ~p, A,
+  ..)`), so a polymorphic def with a recursive `where` failed its check.
+  `(f . g) x y` and `(op y) x z` in one spine (a copy's composition in
+  its parameter's place, `foldr (PairP . i2B . ord) ZeroB`) are `f (g x)
+  y` and `op x y z`, not `fold:section`. `maxBound`/`minBound` at Int are
+  2^48 - 1 and -(2^48 - 1), Bend's runtime's largest immediate Nat (GHC's
+  2^63 - 1 stopped the run: "a Nat past the largest immediate 2^48-1",
+  at `naturalIntRaw`'s range check of every number literal).
+- **Check against GHC** (`tests/telomare/run.sh`): runParseModule under
+  GHC and in Bend (law37's Bend of the modules through Telomare.Parse) on
+  13 files: Prelude.tel, tictactoe.tel, tc_ultra_minimal.tel,
+  test/programs' simpleplus.tel and testchar.tel, and 8 malformed inputs
+  (`tests/telomare/bad/`): each item's kind, names and spans, and each
+  error's text, the same.
+- **Test** (`tests/hs/Clo.hs`): foldl at a lambda over a pattern's
+  variable, foldr and foldl' over parameters, a fold in a fold's lambda,
+  foldl at a def: all 10 ok-law; the model's three defs ok-check. The
+  other tests (ap as lc lp fu sh nt t rv fa pc, spec25 + law35): no def
+  lost; pc 2 out -> ok-check (`many`'s and `manyTill`'s generic defs, the
+  local self-call).
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 16 (spec23, law30) | 507 | 97 | 239 | 110 |
+| telomare after rule 17 (spec24, law37, 421 s) | 474 | 97 | 275 | 110 |
+
+No def lost its verdict; 56 out -> ok-check. Telomare.Parse: 117
+ok-check, 1 ok-law, 4 out (`commaSep`, `commaSep1`, used only through
+their copies, and the test helpers `runTelomareParser`,
+`parseSuccessful`, over any monad). What compileModules waits on next
+(the survey's frontier over its 219 defs): `error` (17 defs), EAL's
+simplex over Rational (Rational 14, Tab 9, Row 8, Elim 4), view patterns
+(11), `!!` (8) and Map's `!` (7), `iterate` (7), `show` at Fix (6),
+ReaderT (6).

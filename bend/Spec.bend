@@ -1255,6 +1255,28 @@ def sp.pc.model(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
     case None{}:
       x
 
+# Base's list functions that run a function they are given more than once
+# (foldr, foldl, foldl') are cata's model's too, at a list
+# (prelude/Cata/Base.hs, exported with the package as Cata/Parsec.hs is):
+# a call of one whose first type argument is the list is a call of the
+# model's def at the types after it, its dictionary dropped. Rule 15 then
+# copies it at its known function argument, the argument's free locals its
+# first parameters: a lambda over a pattern's variable is code in a
+# first-order def, not a closure Bend refuses as a template.
+def sp.pc.btab() -> List<&2, Pcr>:
+  +fo = {"GHC.Internal.Data.Foldable." : String}
+  [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}]
+
+def sp.pc.atlist(+tys: List<&2, X.Sx>) -> Bool:
+  sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")
+
+def sp.pc.bmodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
+  match m:
+    case Some{Pcr{k, n, d}}:
+      sp.pc.tyapps(sp.pc.drop(d, tys), sp.g(S.b("Cata.Base"), n, "var"))
+    case None{}:
+      x
+
 # an expression under its (expanded ..) and (cast ..) wrappers
 def sp.pc.strip(x: X.Sx) -> X.Sx:
   match x:
@@ -1340,22 +1362,32 @@ def sp.pc.app(+f: X.Sx, +a: X.Sx) -> X.Sx:
   sp.if(X.Sx, dollar, _ => sp.pc.app2(sp.pc.strip(sp.at(sf, 2n)), a), _ => sp.pc.app2(f, a))
 
 # a node (a f e), its parts f2 and e2 rewritten
-def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx) -> X.Sx:
+def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb: Bool) -> X.Sx:
   +x = {X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}} : X.Sx}
   +chain = Bool.or(sp.is(a, "tyapp"), sp.is(a, "evapp"))
   +p = sp.pc.peel(x, Nil{}, Nil{})
   +m = sp.pc.find(sp.pc.tab(), sp.pc.key(p))
+  +mb = sp.pc.find(sp.pc.btab(), sp.pc.key(p))
+  +tys = sp.pc.tys(p)
+  +isb = Bool.and(hb, Bool.and(chain, Bool.and(Maybe.is_some(&2, Pcr, mb), sp.pc.atlist(tys))))
   +x2 = {X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}} : X.Sx}
-  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, sp.pc.tys(p), x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.pc.app(f2, e2), _ => x2))
+  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.pc.app(f2, e2), _ => x2)))
 
-def sp.pc(x: X.Sx) -> X.Sx:
+# (hb: whether the package exports Base's model, Cata.Base, before the
+# module; without it a call stays base's)
+def sp.pc(x: X.Sx, +hb: Bool) -> X.Sx:
   match x:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
-      sp.pc.three(a, f, e, sp.pc(f), sp.pc(e))
+      sp.pc.three(a, f, e, sp.pc(f, hb), sp.pc(e, hb), hb)
     case X.SxCons{h, t}:
-      X.SxCons{sp.pc(h), sp.pc(t)}
+      X.SxCons{sp.pc(h, hb), sp.pc(t, hb)}
     case y:
       y
+
+def sp.ix.hasbase(ix: Ix) -> Bool:
+  match ix:
+    case Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}:
+      Maybe.is_some(&2, X.Sx, sp.df.find(fns, S.b("Cata.Base.foldr")))
 
 # Local bindings generalised over a type ---------------------------------------
 
@@ -2566,7 +2598,7 @@ def sp.copy.any(+rq: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
 # a binding's passes: pattern synonyms, views, copies' calls, normal type
 # arguments
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix) -> Rw:
-  +xp = sp.beta(sp.pl(sp.pc(x), ix))
+  +xp = sp.beta(sp.pl(sp.pc(x, sp.ix.hasbase(ix)), ix))
   +x0 = sp.p0(xp, sp.isfun(xp))
   +y = sp.p1.go(12n, x0, sp.has.str(x0, S.b("PatSynCon")), ix)
   sp.rw.p10(sp.rw.p9(sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix)), cur, ix)

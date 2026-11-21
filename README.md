@@ -122,6 +122,21 @@ parameter variables or wildcards. Not copied: a def's own self-calls
 at another argument. A dictionary local in the argument stays as it is:
 the fold reads a method at its type.
 
+Base's `foldr`, `foldl` and `foldl'` at a list are cata's model's
+(`prelude/Cata/Base.hs`, base's definitions, the list first in foldl's
+loop so that Bend sees it shrink), exported with the package before
+`Cata/Parsec.hs`: a call of one is a call of the model's def at the types
+after the list (`sp.pc.btab`), so it is copied like the package's own. A
+lambda over a pattern's variable (telomare's `parseApplied`: `foldl (\a b
+-> x :< embedL (AppF a b)) f args`), which Bend refuses as a template (a
+closure), is then a first-order def with the variable its parameter. A
+package without the model keeps base's, the prelude's. In the copy, `(f .
+g) x y` and `(op y) x z` (a composition or a section in the parameter's
+place, applied to more than its one argument) are `f (g x) y` and `op x
+y z`. A local's recursive reference (`self (l ..)`, a `where go` calling
+itself) is a local's, so its lifting passes the def's type parameters
+once.
+
 ## Monads
 
 GHC hands a do block over as its `>>=` and `>>`, and cata writes those at
@@ -172,7 +187,8 @@ character counts one column here, two there). `Pos` is a Nat,
   `space`, `lineFold`, `indentGuard`, `skipBlockCommentNested`), is cata's
   model, `prelude/Cata/Parsec.hs`: those packages' definitions in Haskell
   at `Parsec Void String`, exported with the package (its file first among
-  ARGS' modules, `-iprelude` among the flags). The specialiser writes a
+  ARGS' modules after `prelude/Cata/Base.hs`, `-iprelude` among the
+  flags). The specialiser writes a
   call of one as a call of the model's def (`sp.pc`), so it is the
   package's own code: rule 15 copies it at its known parser arguments,
   and the parsers that call back into it are one group with them.
@@ -194,7 +210,14 @@ character counts one column here, two there). `Pos` is a Nat,
   `isSpace` and `isDigit` are HsChar's (`prelude/HsChar.bend`: GHC's
   answers as ranges of code points, written by
   `tools/char-table/CharTable.hs`); `maxBound` and `minBound` at Int are
-  2^63 - 1 and -2^63.
+  2^48 - 1 and -(2^48 - 1): an HsInt is a sign and a Nat, and Bend's
+  runtime holds a Nat up to its largest immediate, 2^48 - 1 (one past it
+  stops the run), a range Haskell 2010 allows (at least 2^29 - 1).
+- `tests/telomare/run.sh SRC PKG FILE.tel..` runs telomare's
+  `runParseModule` under GHC and in cata's Bend (PKG: a `--package`
+  output through Telomare.Parse) on each file, and compares the skeletons
+  (`Skel.hs`, `skel.bend.part`: each item's kind, names, the spans of the
+  names and of the body's root, or the error's text).
 
 `prelude/*.bend` are written into HsPrelude.bend by the fold, from
 `bend/Prelude.bend`, which `tools/prelude-text.sh` writes from them.

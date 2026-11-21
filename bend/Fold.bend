@@ -2443,17 +2443,21 @@ def fd.cata(t: T.Bt, r: T.Bt, g: T.Bt, x: T.Bt) -> T.Bt:
     case _:
       fd.todo("fold:cata-at-type")
 
-# maxBound and minBound at Int: 2^63 - 1 and -2^63 (HsInt; a Nat literal
-# is at most 2^32 - 1, so as (2^32 - 1) 2^31 + 2^31 - 1 and its successor)
+# maxBound and minBound at Int: 2^48 - 1 and -(2^48 - 1). An HsInt is a
+# sign and a Nat, and Bend's runtime holds a Nat up to its largest
+# immediate, 2^48 - 1 (a Nat past it stops the run), so that is the Int's
+# range: one Haskell 2010 allows (at least -2^29 .. 2^29 - 1), not GHC's
+# 2^63 - 1, which would stop the run at once. A Nat literal is at most
+# 2^32 - 1: 2^48 - 1 is (2^32 - 1) 2^16 + 2^16 - 1.
 def fd.bound.big() -> T.Bt:
-  fd.callS("Nat.mul", [T.BtNat{S.b("4294967295")}, T.BtNat{S.b("2147483648")}])
+  fd.callS("Nat.add", [fd.callS("Nat.mul", [T.BtNat{S.b("4294967295")}, T.BtNat{S.b("65536")}]), T.BtNat{S.b("65535")}])
 
 def fd.bound(q: Tq, hi: Bool) -> T.Bt:
   match q hi:
     case TqInt{} True{}:
-      T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([fd.callS("Nat.add", [fd.bound.big(), T.BtNat{S.b("2147483647")}])])}
+      T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([fd.bound.big()])}
     case TqInt{} False{}:
-      T.BtCon{S.b("HsPrelude.HsInt.Neg"), T.tba.args([fd.callS("Nat.add", [fd.bound.big(), T.BtNat{S.b("2147483648")}])])}
+      T.BtCon{S.b("HsPrelude.HsInt.Neg"), T.tba.args([fd.bound.big()])}
     case _ _:
       fd.todo("fold:bounded-at-type")
 
@@ -2927,6 +2931,12 @@ def fd.close(e: E, more: List<&2, T.Bt>, +env: Env) -> T.Bt:
       T.BtLam{T.BmLive{}, S.b("x_c"), fd.close(op, T.BtVar{S.b("x_c")} <> fd.close(y, Nil{}, env) <> Nil{}, env)}
     case ESp{HdRsec{}, tys, EArgs{op, EArgs{y, ENil{}}}} x <> xs:
       fd.close(op, x <> fd.close(y, Nil{}, env) <> xs, env)
+    # (f . g) x .., (op y) x .. in one spine (a copy's argument in place
+    # of its function parameter: rule 15)
+    case ESp{HdDot{}, tys, EArgs{f, EArgs{g, EArgs{x, rest}}}} _:
+      fd.close(f, fd.close(g, fd.close(x, Nil{}, env) <> Nil{}, env) <> List.append(&2, T.Bt, fd.spine(fd.close(rest, Nil{}, env)), more), env)
+    case ESp{HdRsec{}, tys, EArgs{op, EArgs{y, EArgs{x, rest}}}} _:
+      fd.close(op, fd.close(x, Nil{}, env) <> fd.close(y, Nil{}, env) <> List.append(&2, T.Bt, fd.spine(fd.close(rest, Nil{}, env)), more), env)
     case ESp{h, tys, args} _:
       fd.head(h, tys, List.append(&2, T.Bt, fd.spine(fd.close(args, Nil{}, env)), more), env)
 
@@ -4279,6 +4289,16 @@ def fd.plit(+v: X.Sx) -> R:
 def fd.selfname(+v: X.Sx) -> List<&2, U32>:
   fd.bpick(V.sv.is(V.sv.hd(v), "g"), V.sv.str(v, 2n), V.sv.str(v, 1n))
 
+# a recursive reference: the def's own (self (g ..)), called at the def's
+# type parameters, or a local's (self (l ..)), a local like any other (its
+# lifting passes the def's type parameters, once)
+def fd.self.hd(top: Bool, +v: X.Sx) -> Hd:
+  match top:
+    case True{}:
+      HdSelf{fd.selfname(v)}
+    case False{}:
+      HdL{fd.vname(V.sv.str(v, 1n))}
+
 def fd.kind.of(x: X.Sx) -> List<&2, U32>:
   match x:
     case X.SxAtom{a}:
@@ -4483,7 +4503,7 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     case +l KEl{}:
       RE{fd.e0(HdL{fd.vname(V.sv.str(l, 1n))})}
     case X.SxCons{_, X.SxCons{+v, _}} KEself{}:
-      RE{fd.e0(HdSelf{fd.selfname(v)})}
+      RE{fd.e0(fd.self.hd(V.sv.is(V.sv.hd(v), "g"), v))}
     case X.SxCons{_, X.SxCons{+f, X.SxCons{+a, _}}} KEapp{}:
       RE{fd.eapp(fd.re(fd.go(f, fd.k(RoEx{}, f), fd.notail(env))), fd.re(fd.go(a, fd.k(RoEx{}, a), fd.notail(env))))}
     case X.SxCons{_, X.SxCons{+e, X.SxCons{+t, _}}} KEtyapp{}:
