@@ -15,6 +15,8 @@ module Cata.Base where
 
 import Prelude hiding (concatMap, foldl, foldl', foldr)
 
+import Control.Comonad.Trans.Cofree (CofreeF (..))
+
 foldr :: (a -> b -> b) -> b -> [a] -> b
 foldr f z [] = z
 foldr f z (x : xs) = f x (foldr f z xs)
@@ -76,3 +78,17 @@ kleisliR f g x = g x >>= f
 
 kleisliL :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
 kleisliL f g x = f x >>= g
+
+-- | free's instances at CofreeF f a (a Cofree's layer): Functor and
+-- Traversable, its definitions (the annotation kept, the layer mapped).
+-- Spec writes a method at CofreeF f a as the def here, at f and a then the
+-- method's types; sequence and sequenceA are traverse id (the layer's
+-- own traverse, the package's instance).
+cofreeFFmap :: forall f a b c. Functor f => (b -> c) -> CofreeF f a b -> CofreeF f a c
+cofreeFFmap g (a :< fb) = a :< fmap g fb
+
+cofreeFTraverse :: forall f a g b c. (Traversable f, Applicative g) => (b -> g c) -> CofreeF f a b -> g (CofreeF f a c)
+cofreeFTraverse h (a :< fb) = fmap (a :<) (traverse h fb)
+
+cofreeFSequence :: forall f a g b. (Traversable f, Applicative g) => CofreeF f a (g b) -> g (CofreeF f a b)
+cofreeFSequence (a :< fgb) = fmap (a :<) (traverse id fgb)

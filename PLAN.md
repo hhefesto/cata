@@ -1292,3 +1292,51 @@ base's instances at pairs (`pure`, `<*>`, `traverse`, `fmap` at `(,) w`:
 No def lost its verdict. compileModules' frontier: 223 defs, 220 no;
 `error` 24 (the `iterateIndex` copies among them), Map's `!` 18, `show` at
 Fix 6, ReaderT 5 (a fold into functions), LamBase 4.
+
+## Telomare's rules, 20: ReaderT, CofreeF's instances, derived Functor/Foldable/Traversable, twins (2026-11-20)
+
+Resolve's `debruijinize`, `debruijinizeApp` and `closeLams` fold a term
+into a Reader (`runReaderT . cata f`), their algebras `local`, `ask`,
+`lift` and `sequence` at a Cofree's layer.
+
+- **ReaderT**: `ReaderT r Identity a` (and transformers' `Reader r a`) is
+  its newtype's `R -> A`, `ReaderT r (Either e) a` is `R -> Either E A`;
+  the prelude's `hs.rd.*` and `hs.rde.*`: `>>=`, `>>`, `pure`, `fmap`,
+  `<*>` (as `>>=`), mtl's `ask`, `local` (transformers' too), `asks`,
+  `reader`, and `throwError` over Either; `lift` at `ReaderT r` the inner
+  term under an environment it ignores; `runReaderT`/`runReader` the term.
+- **CofreeF's instances** (free's Functor and Traversable at `CofreeF f
+  a`) are Base's model's `cofreeFFmap`, `cofreeFTraverse` and
+  `cofreeFSequence` (free's `traverse id`), as pairs' are (rule 19).
+- **Derived Functor, Foldable and Traversable**: GHC's generated `fmap`,
+  `<$`, `foldr`, `foldMap`, `null` and `traverse` are copied like a
+  hand-written instance's (only derived Show was before); a pattern's
+  type arguments are normal too (type families applied: Resolve's `LamT`
+  and `LamVar`), and `pure`/`return` at a list is `[x]`.
+- **Twins**: a layer of a monad's actions is a layer of functions, and
+  Bend's Data holds none. Each of the package's types with type variables
+  whose fields allow it has a twin `D.fn` (its last variable a Type, itself
+  a Type, constructors `D.fn.C`, a field of another of the package's types
+  at that variable the other's twin); the fold writes it wherever a type's
+  last argument is a function or a twin, in types, patterns and terms,
+  with `HsPrelude.CofreeF.fn` and `G.cata.fn`/`G.cata.cofree.fn` (the same
+  nested matches, building the twin's layer). Twins are generated (not in
+  the ledger). An `if` whose branches both use such a function takes it as
+  an argument of each branch, applied once (Bend does not copy a Type).
+- **Tests** (`tests/hs/Reader.hs`): Reader at Identity and over Either,
+  cata into a Reader at a hand-written and at a derived Traversable,
+  `sequence` at CofreeF, closeLams' `if` over one child: ex1..ex7 ok-law
+  (5, 5, 8, 8, 5, 8, 8 laws, GHC's answers). Pair's `sequence` at a
+  derived Traversable is now ok-law (2 out -> ok-law); the other tests: no
+  def lost.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 19 (spec31, law40) | 446 | 98 | 285 | 113 |
+| after rule 20 (spec34, law46, 834 s) | 445 | 98 | 286 | 113 |
+
+No def lost its verdict; copies 797 -> 881 ok-check. `closeLams` checks;
+`debruijinize` and `debruijinizeApp` (at Either ResolverError) now wait
+only on the partial-function rule (`error` on an unexpected ParserTermL).
+compileModules' frontier: 215 defs, 213 no; `error` 24, Map's `!` 18,
+`show` at Fix 6, WriterT 5 (Resolve's letsToApps), LamBase 4.

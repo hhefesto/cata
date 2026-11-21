@@ -1403,7 +1403,7 @@ def lw.ledger.ok(its: List<&2, T.BItem>, +all: List<&2, T.BItem>, +file: List<&2
     case T.BiDef{+n, xs, r, b, d} <> t:
       lw.cat(lw.ledger.def(lw.dotted(n), lw.nlaws(all, n), file, n, lw.first(fb, lw.nowhy(ps, n))), lw.ledger.ok(t, all, file, ps, fb))
     case T.BiType{+n, xs, k, cs, d} <> t:
-      lw.cat(F.fd.bpick(lw.fuelname(n), Nil{}, lw.line(file, n, "ok-type", Nil{})), lw.ledger.ok(t, all, file, ps, fb))
+      lw.cat(F.fd.bpick(Bool.or(lw.fuelname(n), F.fd.isgen(d)), Nil{}, lw.line(file, n, "ok-type", Nil{})), lw.ledger.ok(t, all, file, ps, fb))
     case _ <> t:
       lw.ledger.ok(t, all, file, ps, fb)
     case Nil{}:

@@ -74,6 +74,18 @@ at `Cofree G w`, as nested matches through the fields (a Maybe, a pair, or
 another, flat functor of the package such as `StuckExprB (BasicExprF f)`),
 which Bend sees shrink.
 
+A layer of a monad's actions is a layer of functions (a cata at Reader or
+State hands its algebra one, and `sequence` takes one), and Bend's Data
+holds no function. So each of the package's types with type variables has
+a twin, `D.fn`, when its fields allow one (each of the last variable, or of
+another of the package's types at it): the last variable a Type and the
+twin a Type, its constructors `D.fn.C`. The fold writes the twin wherever a
+type's last argument is a function (or a twin), in types, patterns and
+terms; `CofreeF f a b` at such a b is `HsPrelude.CofreeF.fn`, and `cata`
+at such a result `G.cata.fn` or `G.cata.cofree.fn`, the same nested matches
+building the twin's layer. A twin's functions are used once (Bend's Type
+is not copied).
+
 ## Recursion Bend refuses: fuel
 
 Bend takes a recursive call only when an argument shrinks, and no mutual
@@ -153,7 +165,14 @@ whose result is an Either, `S -> Either E A & S`, with the prelude's
 `hs.exs.*` (`>>=` stops at a `Left`): `>>=`, `>>`, `pure`, `fmap`, mtl's
 `get`, `put`, `modify`, `modify'`, `gets` and `throwError`, and
 `runExceptT` is the term itself; `ExceptT e Identity` is `Either e`. At
-State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
+`ReaderT r Identity` (`Reader r`): ReaderT's newtype, `r -> m a`, so a
+function of the environment, `R -> A`, with the prelude's `hs.rd.*`:
+`>>=`, `>>`, `pure`, `fmap`, `<*>` (as `>>=`), mtl's `ask`, `local`
+(transformers' too), `asks` and `reader`; at `ReaderT r (Either e)`, `R ->
+Either E A`, the prelude's `hs.rde.*` (`>>=` stops at a `Left`), those and
+`throwError`. `lift` at `ReaderT r` is the inner monad's term under an
+environment it ignores, and `runReaderT` and `runReader` are the term
+itself. At State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
 `mapM`/`forM`/`traverse` (at a list) and `foldM` are the prelude's (the
 function a template, so a closed one), and at any of these monads `when`,
 `unless`, `void`, `=<<` and `*>` are written with their `>>=`, `pure` and
@@ -323,6 +342,11 @@ defs, the specialiser's rewrite of a method whose class type is `(,) w`:
 at w then the method's types; `g <$> y <*> x` there is `pairLiftA2 g y x`,
 so no pair holds a function. A copy of one at w is at w's own Monoid (a
 package's instance, as Resolve's `DeferMap`), as any def with a class is.
+free's instances at `CofreeF f a` (a Cofree's layer) are Base's model's
+defs the same way, at f and a then the method's types: `fmap` and `<$>`
+(`cofreeFFmap`), `traverse` and `mapM` (`cofreeFTraverse`), `sequence` and
+`sequenceA` (`cofreeFSequence`, free's `traverse id`), the layer's own
+`traverse` the package's instance.
 
 A view pattern `(f -> p)` is a plain pattern when f is known (the
 specialiser's `sp.p3`): `id`, a constructor, `pure` at Maybe, a
@@ -342,7 +366,10 @@ precedence 6), Char and String (GHC's escapes: `\n`, `\DEL`, `\SOH`,
 instance of the package's own types (GHC's generated `showsPrec`, its
 literals bare Ints the specialiser makes HsInt) is copied at its type like
 a hand-written one, and base's default `show` and `showList` given it are
-HsPrelude.Z's `showVia` and `showListVia`. Show at a list or a Maybe of the
+HsPrelude.Z's `showVia` and `showListVia`. So are derived Functor, Foldable
+and Traversable instances (GHC's generated `fmap`, `<$`, `foldr`,
+`foldMap`, `null` and `traverse`: constructors, lambdas and the fields' own
+methods). Show at a list or a Maybe of the
 package's own type, at Fix (through Show1), at Map and Set: out.
 
 GHC.Prim's `coerce` (a newtype's derived instance, GeneralizedNewtypeDeriving,

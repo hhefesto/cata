@@ -1427,6 +1427,26 @@ def sp.pc.pmodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
     case None{}:
       x
 
+# free's instances at CofreeF f a (a Cofree's layer), Functor and
+# Traversable, are Base's model's defs too: a method whose class type is
+# CofreeF f a is the model's def at f and a, then the method's types
+# (sequence and sequenceA the model's traverse id)
+def sp.pc.ctab() -> List<&2, Pcr>:
+  +tr = {"GHC.Internal.Data.Traversable." : String}
+  [Pcr{S.b("GHC.Internal.Base.fmap"), S.b("cofreeFFmap"), 0n}, Pcr{S.b("GHC.Internal.Data.Functor.<$>"), S.b("cofreeFFmap"), 0n}, Pcr{S.b(tr ++ "traverse"), S.b("cofreeFTraverse"), 0n}, Pcr{S.b(tr ++ "mapM"), S.b("cofreeFTraverse"), 0n}, Pcr{S.b(tr ++ "sequence"), S.b("cofreeFSequence"), 0n}, Pcr{S.b(tr ++ "sequenceA"), S.b("cofreeFSequence"), 0n}]
+
+def sp.pc.atcofreef(+tys: List<&2, X.Sx>) -> Bool:
+  +t = sp.first(tys)
+  Bool.and(sp.is(sp.tckey(t), "Control.Comonad.Trans.Cofree.CofreeF"), Nat.is_eq(X.tsx.len(t), 5n))
+
+def sp.pc.cmodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
+  match m:
+    case Some{Pcr{k, n, d}}:
+      +t = sp.first(tys)
+      sp.pc.tyapps(sp.at(t, 3n) <> sp.at(t, 4n) <> sp.pc.drop(1n, tys), sp.g(S.b("Cata.Base"), n, "var"))
+    case None{}:
+      x
+
 # pairAp (pairFmap g y) x, both the model's, is pairLiftA2 g y x: a pair
 # then holds no function (a function is Type, a pair's parts Data)
 def sp.pc.isla2(+f: X.Sx) -> Bool:
@@ -1460,8 +1480,10 @@ def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb
   +isp = Bool.and(hb, Bool.and(chain, Bool.and(Maybe.is_some(&2, Pcr, mp), sp.pc.atpair(tys))))
   +mk = sp.pc.find(sp.pc.ktab(), sp.pc.key(p))
   +isk = Bool.and(hb, Bool.and(chain, Maybe.is_some(&2, Pcr, mk)))
+  +mc = sp.pc.find(sp.pc.ctab(), sp.pc.key(p))
+  +isc = Bool.and(hb, Bool.and(chain, Bool.and(Maybe.is_some(&2, Pcr, mc), sp.pc.atcofreef(tys))))
   +x2 = {X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}} : X.Sx}
-  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.pc.app(f2, e2))), _ => x2)))))
+  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, isc, _ => sp.pc.cmodel(mc, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.pc.app(f2, e2))), _ => x2))))))
 
 # (hb: whether the package exports Base's model, Cata.Base, before the
 # module; without it a call stays base's)
@@ -1735,6 +1757,14 @@ def sp.ask.def(+cur: List<&2, U32>, +h: X.Sx, +tys: List<&2, X.Sx>, +ix: Ix) -> 
       +nt = sp.df.tvs(sp.df.find(dfs, k))
       Bool.pick(Maybe<&2, Rw>, Bool.and(Maybe.is_some(&2, Nat, nt), Nat.is_eq(Maybe.default(&2, Nat, nt, 0n), List.length(&2, X.Sx, tys))), sp.ask(cur, sp.name(sp.sat(h, 2n), tys), LoG{k}, tys), None{})
 
+# the derived methods copied as hand-written ones: Show's (showsPrec, show,
+# showList), and Functor's, Foldable's and Traversable's (GHC's generated
+# fmap, <$, foldr, foldMap, null and traverse: constructors, lambdas and
+# the fields' own methods)
+def sp.derived.ok(+n: List<&2, U32>) -> Bool:
+  +fo = Bool.or(S.prefix(n, S.b("$cfoldr")), Bool.or(S.prefix(n, S.b("$cfoldMap")), S.eq(n, S.b("$cnull"))))
+  Bool.or(Bool.or(S.prefix(n, S.b("$cshow")), S.eq(n, S.b("$ctraverse"))), Bool.or(Bool.or(S.eq(n, S.b("$cfmap")), S.eq(n, S.b("$c<$"))), fo))
+
 # a method at an instance the package wrote by hand: a copy of the
 # instance's method (a default method: a copy of it)
 def sp.ask.impl(+impl: X.Sx, +m: List<&2, U32>, +sbs: List<&2, Sb>, +ntv: Nat, +cur: List<&2, U32>, +tys: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, Rw>:
@@ -1745,7 +1775,7 @@ def sp.ask.impl(+impl: X.Sx, +m: List<&2, U32>, +sbs: List<&2, Sb>, +ntv: Nat, +
       +i = X.tsx.atom.of(sp.at(h, 2n))
       +top = sp.lc.find(lcs, m, i)
       +tt = Maybe.default(&2, X.Sx, top, X.SxNil{})
-      +derived = Bool.and(sp.has(tt, S.b("generated")), Bool.not(Bool.or(sp.has.str(tt, S.b("coerce")), S.prefix(sp.sat(h, 1n), S.b("$cshow")))))
+      +derived = Bool.and(sp.has(tt, S.b("generated")), Bool.not(Bool.or(sp.has.str(tt, S.b("coerce")), sp.derived.ok(sp.sat(h, 1n)))))
       Bool.pick(Maybe<&2, Rw>, Bool.and(sp.head.is(h, "l"), Bool.and(Maybe.is_some(&2, X.Sx, top), Bool.not(derived))), sp.ask(cur, sp.name(sp.sat(h, 1n), tys), LoL{m, i}, itys), Bool.pick(Maybe<&2, Rw>, sp.head.is(h, "g"), sp.ask.def(cur, h, itys, Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}), None{}))
 
 # Traversable's default sequence, sequenceA (t (f a) -> f (t a)) and mapM
@@ -2247,10 +2277,16 @@ def sp.p7.at(ty: Bool, +a: List<&2, U32>, f: X.Sx, t: X.Sx, +ix: Ix) -> X.Sx:
     case False{}:
       X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{t, X.SxNil{}}}}
 
+# a constructor pattern's type arguments too, (pcon CON (TYS...) ARGS)
+def sp.p7.pcon(+c: X.Sx, tys: X.Sx, ps: X.Sx, +ix: Ix) -> X.Sx:
+  sp.l([sp.a("pcon"), c, sp.l(sp.norms(sp.els(tys), ix)), ps])
+
 def sp.p7(x: X.Sx, +ix: Ix) -> X.Sx:
   match x:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{f, X.SxCons{t, X.SxNil{}}}}:
       sp.p7.at(sp.is(a, "tyapp"), a, sp.p7(f, ix), sp.p7(t, ix), ix)
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+c, X.SxCons{+tys, X.SxCons{+ps, X.SxNil{}}}}}:
+      sp.if(X.Sx, sp.is(a, "pcon"), _ => sp.p7.pcon(c, tys, sp.p7(ps, ix), ix), _ => X.SxCons{X.SxAtom{a}, sp.p7(X.SxCons{c, X.SxCons{tys, X.SxCons{ps, X.SxNil{}}}}, ix)})
     case X.SxCons{h, t}:
       X.SxCons{sp.p7(h, ix), sp.p7(t, ix)}
     case y:
