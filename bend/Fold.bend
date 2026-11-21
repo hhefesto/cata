@@ -2491,6 +2491,22 @@ def fd.pc.op(k: Mk, +f: String, xs: List<&2, T.Bt>) -> T.Bt:
     case _:
       fd.todo("fold:alternative-at-type")
 
+# <|> and empty at Maybe (the first Just; the second a thunk, Haskell's
+# <|> lazy in it), else at a parser
+def fd.alt(k: Mk, a: T.Bt, x: T.Bt, y: T.Bt) -> T.Bt:
+  match k:
+    case MkMaybe{}:
+      fd.callS("hs.maybe.alt", [a, x, T.BtLam{T.BmLive{}, S.b("_"), y}])
+    case +k2:
+      fd.pc.op(k2, "alt", [a, x, y])
+
+def fd.empty(k: Mk, a: T.Bt) -> T.Bt:
+  match k:
+    case MkMaybe{}:
+      fd.con0("None")
+    case +k2:
+      fd.pc.op(k2, "empty", [a])
+
 def fd.pc.drop(n: Nat, xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
   match n xs:
     case 1n+k h <> t:
@@ -2658,9 +2674,9 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
     case BfShows{} t <> _ x <> r <> _:
       fd.sp(t, fd.sp.zero(), x, r)
     case BfAlt{} m <> a <> _ x <> y <> _:
-      fd.pc.op(fd.mk(m), "alt", [a, x, y])
+      fd.alt(fd.mk(m), a, x, y)
     case BfEmpty{} m <> a <> _ _:
-      fd.pc.op(fd.mk(m), "empty", [a])
+      fd.empty(fd.mk(m), a)
     case BfLeft{} m <> a <> b <> _ x <> y <> _:
       fd.pc.op(fd.mk(m), "left", [a, b, x, y])
     case BfConstL{} m <> a <> b <> _ x <> y <> _:
@@ -5726,6 +5742,9 @@ def fd.pre.either.bind() -> String:
 def fd.pre.either.map() -> String:
   "# Either's fmap\ndef hs.either.map(-E: Data, -A: Data, -B: Data, f: A -> B, m: Either<&2, &2, E, A>) -> Either<&2, &2, E, B>:\n  match m:\n    case Inl{e}:\n      Inl{e}\n    case Inr{a}:\n      Inr{f(a)}\n\n"
 
+def fd.pre.maybe.alt() -> String:
+  "# Maybe's <|> (Alternative): the first Just, the second a thunk\ndef hs.maybe.alt(-A: Data, x: Maybe<&2, A>, y: Unit -> Maybe<&2, A>) -> Maybe<&2, A>:\n  match x:\n    case None{}:\n      y(Unit{})\n    case Some{a}:\n      Some{a}\n\n"
+
 def fd.pre.maybe() -> String:
   "# Haskell's maybe\ndef hs.maybe(-A: Data, -B: Data, d: B, f: A -> B, m: Maybe<&2, A>) -> B:\n  match m:\n    case None{}:\n      d\n    case Some{x}:\n      f(x)\n\n"
 
@@ -5770,7 +5789,7 @@ def fd.pre.one(+its: List<&2, T.BItem>, n: String, text: String) -> List<&2, U32
   fd.bpick(fd.uses.name(its, S.b(n)), S.b(text), Nil{})
 
 def fd.prelude(+its: List<&2, T.BItem>) -> List<&2, U32>:
-  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.pre.one(its, "hs.eq.list", fd.pre.eq.list()), fd.pre.one(its, "hs.eq.maybe", fd.pre.eq.maybe()), fd.pre.one(its, "hs.eq.either", fd.pre.eq.either()), fd.pre.one(its, "hs.eq.pair", fd.pre.eq.pair()), fd.pre.one(its, "hs.eq.unit", fd.pre.eq.unit()), fd.pre.one(its, "hs.eq.cmp", fd.pre.eq.cmp()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run", "hs.state.mapm_", "hs.state.mapm", "hs.state.foldm"]), S.b(fd.pre.state()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.exs.bind", "hs.exs.pure", "hs.exs.throw", "hs.exs.map", "hs.exs.get", "hs.exs.put", "hs.exs.modify", "hs.exs.gets", "hs.exs.mapm_", "hs.exs.mapm", "hs.exs.foldm"]), S.b(fd.pre.exs()), Nil{})])
+  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.maybe.alt", fd.pre.maybe.alt()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.pre.one(its, "hs.eq.list", fd.pre.eq.list()), fd.pre.one(its, "hs.eq.maybe", fd.pre.eq.maybe()), fd.pre.one(its, "hs.eq.either", fd.pre.eq.either()), fd.pre.one(its, "hs.eq.pair", fd.pre.eq.pair()), fd.pre.one(its, "hs.eq.unit", fd.pre.eq.unit()), fd.pre.one(its, "hs.eq.cmp", fd.pre.eq.cmp()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run", "hs.state.mapm_", "hs.state.mapm", "hs.state.foldm"]), S.b(fd.pre.state()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.exs.bind", "hs.exs.pure", "hs.exs.throw", "hs.exs.map", "hs.exs.get", "hs.exs.put", "hs.exs.modify", "hs.exs.gets", "hs.exs.mapm_", "hs.exs.mapm", "hs.exs.foldm"]), S.b(fd.pre.exs()), Nil{})])
 
 # The file -------------------------------------------------------------------------
 

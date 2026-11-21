@@ -1,3 +1,5 @@
+{-# LANGUAGE ExplicitForAll #-}
+
 -- | cata's model of base's list functions that run a function they are
 -- given more than once: their definitions in base (GHC.List, and
 -- Data.Foldable's instance at lists). The specialiser (bend/Spec.bend)
@@ -37,3 +39,40 @@ foldl' f z0 xs0 = go xs0 z0
 concatMap :: (a -> [b]) -> [a] -> [b]
 concatMap f [] = []
 concatMap f (x : xs) = f x ++ concatMap f xs
+
+-- | iterate f x !! n, base's two definitions together (Spec writes the one
+-- as the other): f applied n times to x, the infinite list never built.
+-- A negative n is (!!)'s error.
+iterateIndex :: (a -> a) -> a -> Int -> a
+iterateIndex f x n
+  | n < 0 = error "Prelude.!!: negative index"
+  | n == 0 = x
+  | otherwise = iterateIndex f (f x) (n - 1)
+
+-- | base's instances at pairs, (,) w: Functor, Applicative (at a Monoid
+-- w) and Traversable. Spec writes a method at (,) w as the def here, at w
+-- then the method's types, and g <$> y <*> x as pairLiftA2 g y x (no pair
+-- then holds a function).
+pairFmap :: forall w a b. (a -> b) -> (w, a) -> (w, b)
+pairFmap f (w, a) = (w, f a)
+
+pairPure :: forall w a. Monoid w => a -> (w, a)
+pairPure a = (mempty, a)
+
+pairAp :: forall w a b. Monoid w => (w, a -> b) -> (w, a) -> (w, b)
+pairAp (u, f) (v, x) = (u <> v, f x)
+
+pairLiftA2 :: forall w a b c. Monoid w => (a -> b -> c) -> (w, a) -> (w, b) -> (w, c)
+pairLiftA2 f (u, x) (v, y) = (u <> v, f x y)
+
+pairTraverse :: forall w f a b. Applicative f => (a -> f b) -> (w, a) -> f (w, b)
+pairTraverse f (w, a) = fmap (\b -> (w, b)) (f a)
+
+-- | Control.Monad's Kleisli compositions (Spec writes f <=< g and f >=> g
+-- as these), base's definitions: copied at their known functions, at the
+-- monad's own >>=.
+kleisliR :: Monad m => (b -> m c) -> (a -> m b) -> a -> m c
+kleisliR f g x = g x >>= f
+
+kleisliL :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
+kleisliL f g x = f x >>= g

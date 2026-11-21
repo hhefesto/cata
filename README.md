@@ -311,6 +311,29 @@ Data.Sequence's `Seq a` is a list (front first) and `ViewL a` too
 (`EmptyL` the empty list, `x :< s` a cons): `empty`, `|>`, `<|`, `viewl`,
 `fromList`.
 
+`iterate f x !! n` is Base's model's `iterateIndex f x n` (the
+specialiser's rewrite): f applied n times to x, the endless list never
+built, a negative n `(!!)`'s error (so a partial function, out with the
+others until they have a rule). Alternative's `<|>` and `empty` at Maybe:
+the first `Just`, the second argument a thunk (Haskell's `<|>` is lazy in
+it), and `Nothing`. base's instances at pairs, `(,) w`, are Base's model's
+defs, the specialiser's rewrite of a method whose class type is `(,) w`:
+`fmap` and `<$>` (`pairFmap`), `pure` (`pairPure`, `mempty`), `<*>`
+(`pairAp`, `<>`), `liftA2` (`pairLiftA2`) and `traverse` (`pairTraverse`),
+at w then the method's types; `g <$> y <*> x` there is `pairLiftA2 g y x`,
+so no pair holds a function. A copy of one at w is at w's own Monoid (a
+package's instance, as Resolve's `DeferMap`), as any def with a class is.
+
+A view pattern `(f -> p)` is a plain pattern when f is known (the
+specialiser's `sp.p3`): `id`, a constructor, `pure` at Maybe, a
+projection `\(C .. x ..) -> x`, a selector `\case C .. x .. -> Just x; _
+-> Nothing` (its answers through casts, `pure` as `Just`), a composition
+of those, Recursive's `project` and Corecursive's `embed` at Fix and
+Cofree, and a class's method whose class types are known (its instance's
+body, the method's own types free), as telomare's pattern synonyms'
+`extractB`, `extractL` (an instance with associated types: casts),
+`extractS`.
+
 Show at base's types is HsPrelude's `HsShow`, GHC.Show's text: `showsPrec`,
 `show` and `shows` at Int (HsInt; a negative number in parentheses above
 precedence 6), Char and String (GHC's escapes: `\n`, `\DEL`, `\SOH`,

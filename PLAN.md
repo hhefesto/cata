@@ -1246,3 +1246,49 @@ copies ok-check. Telomare.Parse's 13-file check against GHC still the
 same. compileModules' frontier (226 defs, 223 no): Map's partial `!`
 (18), `error` (17), view patterns (11), `!!` (8), `iterate` (7), `show`
 at Fix (6), ReaderT (6).
+
+## Telomare's rules, 19: view patterns at a class's instance, iterate, Alternative at Maybe, pairs, Kleisli (2026-11-20)
+
+compileModules' frontier after rule 18 (226 defs, 223 no) held, besides the
+partial functions (`error`, Map's `!`, `!!`) that wait for the user's
+rule, view patterns (11), `iterate` (7), Alternative's `<|>` at Maybe (3),
+base's instances at pairs (`pure`, `<*>`, `traverse`, `fmap` at `(,) w`:
+9) and Control.Monad's `<=<` and `>=>` (4).
+
+- **View patterns** (Spec's `sp.p3`): a selector's answers are read
+  through their casts (an instance with associated types, LamBase's
+  `extractL`, casts its `Just x`), and `pure x` at Maybe is `Just x`
+  (Term3LiftingF's `extractB`); a method's instance is picked by its
+  class's types alone, the method's own may hold variables (EAL's
+  `envUsageL`, over the annotation `b`). telomare's tree has 736 view
+  patterns after the specialiser before, 688 after; the 11 in
+  compileModules' reach are gone, and 10 copies of `extractL`/`extractB`/
+  `extractS` (ok-check) are no longer asked for.
+- **`iterate f x !! n`** is Base's model's `iterateIndex f x n` (f applied
+  n times; a negative n `(!!)`'s error), copied at its known f (rule 15).
+  The 7 uses now wait only on the partial-function rule.
+- **Alternative at Maybe**: `<|>` is HsPrelude's `hs.maybe.alt` (its second
+  argument a thunk, as Haskell's is lazy), `empty` `None`.
+- **Pairs**: a Functor, Applicative or Traversable method whose class type
+  is `(,) w` is Base's model's (`pairFmap`, `pairPure`, `pairAp`,
+  `pairLiftA2`, `pairTraverse`) at w then the method's types, and `g <$> y
+  <*> x` there `pairLiftA2 g y x` (no pair holds a function). A copy is at
+  w's own Monoid: Resolve's deferLift folds into `(DeferMap, term)`, and its
+  traversals' pair copies check (16 ok-check); DeferMap's `<>` itself is
+  out (`unionWithKey`, and an `error`).
+- **Kleisli**: `<=<` and `>=>` are Base's model's `kleisliR`, `kleisliL`,
+  copied at their monad and known functions.
+- **Tests** (`tests/hs/Iter.hs`, `Alt.hs`, `Pair.hs`, `Kleisli.hs`, with
+  the model): Alt 7 ok-law, Pair 9 ok-law (its `sequence` at a derived
+  Traversable stays out, `method:Traversable.sequence@U`), Kleisli 7
+  ok-law; Iter's uses wait on `error` (with `iterateIndex` total, all 8
+  were ok-law). The other tests (spec31 + law40): no def lost.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 18 (spec27, law39) | 450 | 97 | 282 | 113 |
+| after rule 19 (spec31, law40, 784 s) | 446 | 98 | 285 | 113 |
+
+No def lost its verdict. compileModules' frontier: 223 defs, 220 no;
+`error` 24 (the `iterateIndex` copies among them), Map's `!` 18, `show` at
+Fix 6, ReaderT 5 (a fold into functions), LamBase 4.

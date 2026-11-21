@@ -825,6 +825,20 @@ def sp.method(+h: X.Sx, +ts: List<&2, X.Sx>, +ix: Ix) -> Maybe<&2, Mi>:
       +ntv = Maybe.default(&2, Nat, Maybe.map(&2, Cl, Nat, x => sp.cl.ntv(x), cl), 0n)
       sp.mi.of(sp.resolve(ins, sp.in.hit(ins, c), c, sp.take(ts, ntv), Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}), cl, sp.sat(h, 2n))
 
+# a method's type arguments that are its class's (they pick the instance;
+# the rest are the method's own), all of them when the class is unknown
+def sp.cls.args.of(c: Maybe<&2, Cl>, +tys: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match c:
+    case Some{k}:
+      sp.take(tys, sp.cl.ntv(k))
+    case None{}:
+      tys
+
+def sp.cls.args(+h: X.Sx, +tys: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
+  match ix:
+    case Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}:
+      sp.cls.args.of(sp.cl.find(cls, sp.method.cls(h)), tys)
+
 # Pattern synonyms ---------------------------------------------------------------
 
 # (pvar (bv V T)) whose V is the i-th of bs replaced by the i-th of ps
@@ -976,15 +990,22 @@ def sp.con.is(+x: X.Sx, s: String) -> Bool:
   +h = sp.vhead(x)
   Bool.and(sp.head.is(h, "g"), sp.is(sp.key(sp.sat(h, 1n), sp.sat(h, 2n)), s))
 
+# Just, or pure (return) at Maybe
+def sp.is.just(+f: X.Sx) -> Bool:
+  +k = sp.gkey(sp.vhead(f))
+  +pure = Bool.or(sp.is(k, "GHC.Internal.Base.pure"), sp.is(k, "GHC.Internal.Base.return"))
+  Bool.or(sp.con.is(f, "GHC.Internal.Maybe.Just"), Bool.and(pure, sp.is(sp.tckey(sp.first(sp.spine.tys(f, Nil{}))), "GHC.Internal.Maybe.Maybe")))
+
 def sp.sel.go(ms: List<&2, X.Sx>, acc: Sel) -> Sel:
   match ms acc:
     case +m <> t Sel{+hit, +n, +ok}:
       +ps = sp.els(sp.at(m, 1n))
-      +body = sp.at(sp.at(sp.at(sp.at(m, 2n), 1n), 0n), 2n)
-      +just = Bool.and(sp.head.is(body, "app"), Bool.and(sp.con.is(sp.at(body, 1n), "GHC.Internal.Maybe.Just"), sp.head.is(sp.at(body, 2n), "l")))
+      +body = sp.uncast(sp.at(sp.at(sp.at(sp.at(m, 2n), 1n), 0n), 2n))
+      +x = sp.uncast(sp.at(body, 2n))
+      +just = Bool.and(sp.head.is(body, "app"), Bool.and(sp.is.just(sp.at(body, 1n)), sp.head.is(x, "l")))
       +noth = Bool.and(Bool.not(sp.head.is(body, "app")), sp.con.is(body, "GHC.Internal.Maybe.Nothing"))
       +one = Nat.is_eq(List.length(&2, X.Sx, ps), 1n)
-      sp.sel.go(t, Sel{Bool.pick(Maybe<&2, X.Sx>, just, Some{sp.l([sp.first(ps), sp.at(body, 2n)])}, hit), Bool.pick(Nat, just, Succ{n}, n), Bool.and(ok, Bool.and(one, Bool.or(just, noth)))})
+      sp.sel.go(t, Sel{Bool.pick(Maybe<&2, X.Sx>, just, Some{sp.l([sp.first(ps), x])}, hit), Bool.pick(Nat, just, Succ{n}, n), Bool.and(ok, Bool.and(one, Bool.or(just, noth)))})
     case Nil{} a:
       a
 
@@ -1055,7 +1076,7 @@ def sp.vk(+e: X.Sx, +ix: Ix) -> Vk:
   +dot = Bool.and(app, Bool.and(sp.head.is(f, "app"), sp.is(sp.gkey(sp.vhead(sp.at(f, 1n))), "GHC.Internal.Base..")))
   +pure = Bool.and(Bool.or(sp.is(k, "GHC.Internal.Base.pure"), sp.is(k, "GHC.Internal.Base.return")), sp.is(sp.tckey(sp.first(tys)), "GHC.Internal.Maybe.Maybe"))
   +con = Bool.and(Bool.not(app), Bool.and(sp.head.is(h, "g"), sp.is(X.tsx.atom.of(sp.at(h, 3n)), "con")))
-  +meth = Bool.and(Bool.not(app), Bool.and(Bool.not(S.eq(sp.method.cls(h), Nil{})), sp.all.closed(tys)))
+  +meth = Bool.and(Bool.not(app), Bool.and(Bool.not(S.eq(sp.method.cls(h), Nil{})), sp.all.closed(sp.cls.args(h, tys, ix))))
   +rs = Bool.or(sp.is(k, "Data.Functor.Foldable.project"), sp.is(k, "Data.Functor.Foldable.embed"))
   Bool.pick(Vk, sp.is(k, "GHC.Internal.Base.id"), VkId{}, Bool.pick(Vk, pure, VkPure{}, Bool.pick(Vk, con, VkCon{}, Bool.pick(Vk, sp.head.is(e, "expanded"), VkExp{}, Bool.pick(Vk, dot, VkDot{}, Bool.pick(Vk, sp.head.is(e, "cast"), VkCast{}, Bool.pick(Vk, Maybe.is_some(&2, X.Sx, sp.lam.proj(e)), VkLam{}, Bool.pick(Vk, Maybe.is_some(&2, X.Sx, sp.lam.sel(e)), VkSel{}, Bool.pick(Vk, Bool.and(meth, rs), VkRs{}, Bool.pick(Vk, meth, VkMeth{}, VkNo{}))))))))))
 
@@ -1267,6 +1288,13 @@ def sp.pc.btab() -> List<&2, Pcr>:
   +fo = {"GHC.Internal.Data.Foldable." : String}
   [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}, Pcr{S.b(fo ++ "concatMap"), S.b("concatMap"), 1n}]
 
+# base's functions that are the model's at any type (Control.Monad's
+# Kleisli compositions <=< and >=>: kleisliR, kleisliL), at their own types
+# (d is how many to drop: none)
+def sp.pc.ktab() -> List<&2, Pcr>:
+  +cm = {"GHC.Internal.Control.Monad." : String}
+  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}]
+
 def sp.pc.atlist(+tys: List<&2, X.Sx>) -> Bool:
   sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")
 
@@ -1361,6 +1389,64 @@ def sp.pc.app(+f: X.Sx, +a: X.Sx) -> X.Sx:
   +dollar = Bool.and(sp.head.is(sf, "app"), sp.is(sp.pc.key(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{})), "GHC.Internal.Base.$"))
   sp.if(X.Sx, dollar, _ => sp.pc.app2(sp.pc.strip(sp.at(sf, 2n)), a), _ => sp.pc.app2(f, a))
 
+# iterate g x !! n is the model's iterateIndex g x n (prelude/Cata/Base.hs:
+# g applied n times, the infinite list never built), at iterate's type
+# argument; f is (!!) applied to the list, already rewritten
+def sp.pc.isiter(+f: X.Sx) -> Bool:
+  +sf = sp.pc.strip(f)
+  +l = sp.pc.strip(sp.at(sf, 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +bang = sp.is(sp.pc.key(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{})), "GHC.Internal.List.!!")
+  +iter = sp.is(sp.pc.key(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{})), "GHC.Internal.List.iterate")
+  Bool.and(Bool.and(sp.head.is(sf, "app"), bang), Bool.and(Bool.and(sp.head.is(l, "app"), sp.head.is(i, "app")), iter))
+
+def sp.pc.iter(+f: X.Sx, +n: X.Sx) -> X.Sx:
+  +sf = sp.pc.strip(f)
+  +l = sp.pc.strip(sp.at(sf, 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +it = sp.pc.tyapps(sp.pc.tys(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{})), sp.g(S.b("Cata.Base"), S.b("iterateIndex"), "var"))
+  sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("app"), it, sp.at(i, 2n)]), sp.at(l, 2n)]), n])
+
+# base's instances at pairs, (,) w, are the model's too: a method of
+# Functor, Applicative or Traversable whose class type is (,) w is the
+# model's def (pairFmap, pairPure, pairAp, pairLiftA2, pairTraverse) at w
+# then the method's types, its dictionaries dropped (a copy of the model's
+# def at those types is one at its own Monoid's instance)
+def sp.pc.ptab() -> List<&2, Pcr>:
+  +b = {"GHC.Internal.Base." : String}
+  [Pcr{S.b(b ++ "fmap"), S.b("pairFmap"), 0n}, Pcr{S.b("GHC.Internal.Data.Functor.<$>"), S.b("pairFmap"), 0n}, Pcr{S.b(b ++ "pure"), S.b("pairPure"), 0n}, Pcr{S.b(b ++ "<*>"), S.b("pairAp"), 0n}, Pcr{S.b(b ++ "liftA2"), S.b("pairLiftA2"), 0n}, Pcr{S.b("GHC.Internal.Data.Traversable.traverse"), S.b("pairTraverse"), 0n}]
+
+def sp.pc.atpair(+tys: List<&2, X.Sx>) -> Bool:
+  +t = sp.first(tys)
+  Bool.and(sp.is(sp.tckey(t), "GHC.Tuple.Tuple2"), Nat.is_eq(X.tsx.len(t), 4n))
+
+def sp.pc.pmodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
+  match m:
+    case Some{Pcr{k, n, d}}:
+      sp.pc.tyapps(sp.at(sp.first(tys), 3n) <> sp.pc.drop(1n, tys), sp.g(S.b("Cata.Base"), n, "var"))
+    case None{}:
+      x
+
+# pairAp (pairFmap g y) x, both the model's, is pairLiftA2 g y x: a pair
+# then holds no function (a function is Type, a pair's parts Data)
+def sp.pc.isla2(+f: X.Sx) -> Bool:
+  +sf = sp.pc.strip(f)
+  +l = sp.pc.strip(sp.at(sf, 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +ap = sp.is(sp.pc.key(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{})), "Cata.Base.pairAp")
+  +fm = sp.is(sp.pc.key(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{})), "Cata.Base.pairFmap")
+  Bool.and(Bool.and(sp.head.is(sf, "app"), ap), Bool.and(Bool.and(sp.head.is(l, "app"), sp.head.is(i, "app")), fm))
+
+def sp.pc.la2(+f: X.Sx, +x: X.Sx) -> X.Sx:
+  +sf = sp.pc.strip(f)
+  +l = sp.pc.strip(sp.at(sf, 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +ta = sp.pc.tys(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{}))
+  +tf = sp.pc.tys(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{}))
+  +tys = {[sp.first(ta), Maybe.default(&2, X.Sx, sp.nth(tf, 1n), X.SxNil{}), Maybe.default(&2, X.Sx, sp.nth(ta, 1n), X.SxNil{}), Maybe.default(&2, X.Sx, sp.nth(ta, 2n), X.SxNil{})] : List<&2, X.Sx>}
+  +la = sp.pc.tyapps(tys, sp.g(S.b("Cata.Base"), S.b("pairLiftA2"), "var"))
+  sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("app"), la, sp.at(i, 2n)]), sp.at(l, 2n)]), x])
+
 # a node (a f e), its parts f2 and e2 rewritten
 def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb: Bool) -> X.Sx:
   +x = {X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}} : X.Sx}
@@ -1370,8 +1456,12 @@ def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb
   +mb = sp.pc.find(sp.pc.btab(), sp.pc.key(p))
   +tys = sp.pc.tys(p)
   +isb = Bool.and(hb, Bool.and(chain, Bool.and(Maybe.is_some(&2, Pcr, mb), sp.pc.atlist(tys))))
+  +mp = sp.pc.find(sp.pc.ptab(), sp.pc.key(p))
+  +isp = Bool.and(hb, Bool.and(chain, Bool.and(Maybe.is_some(&2, Pcr, mp), sp.pc.atpair(tys))))
+  +mk = sp.pc.find(sp.pc.ktab(), sp.pc.key(p))
+  +isk = Bool.and(hb, Bool.and(chain, Maybe.is_some(&2, Pcr, mk)))
   +x2 = {X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}} : X.Sx}
-  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.pc.app(f2, e2), _ => x2)))
+  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.pc.app(f2, e2))), _ => x2)))))
 
 # (hb: whether the package exports Base's model, Cata.Base, before the
 # module; without it a call stays base's)
