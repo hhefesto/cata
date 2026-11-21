@@ -268,9 +268,12 @@ cost: `empty`, `singleton`, `insert`, `insertWith`, `lookup`, `member`,
 `notMember`, `findWithDefault`, `delete`, `adjust`, `toList`/`toAscList`/
 `assocs`, `fromList` (and the Asc ones), `fromListWith`, `elems`, `keys`,
 `keysSet`, `size`, `null`, `union`, `unionWith`, `difference`, `map`,
-`mapWithKey`, `filter`, `filterWithKey`, `foldr`, `foldrWithKey`; at Set
-the same names that exist there, `unions`, `\\` and `map`; `<>` at a Map
-or a Set is `union`. Each takes compare at the key as a template: `Nat.cmp`
+`mapWithKey`, `filter`, `filterWithKey`, `foldr`, `foldrWithKey`,
+`intersectionWith`, `restrictKeys`, `withoutKeys`, `fromSet`,
+`unionWithKey`, `unionsWith` (of a list) and `split`
+(`prelude/HsMapMore.bend`); at Set the same names that exist there,
+`unions`, `\\`, `map` and `intersection`; `<>` at a Map or a Set is
+`union`. Each takes compare at the key as a template: `Nat.cmp`
 at Int, HsPrelude's `HsCmp.char`, `HsCmp.bool`, `HsCmp.unit`, and
 `HsCmp.list`, `HsCmp.pair`, `HsCmp.maybe` given compare at the parts (a
 String key is a list of Char). A key of any other type (the module's own,
@@ -381,8 +384,13 @@ a hand-written one, and base's default `show` and `showList` given it are
 HsPrelude.Z's `showVia` and `showListVia`. So are derived Functor, Foldable
 and Traversable instances (GHC's generated `fmap`, `<$`, `foldr`,
 `foldMap`, `null` and `traverse`: constructors, lambdas and the fields' own
-methods). Show at a list or a Maybe of the
-package's own type, at Fix (through Show1), at Map and Set: out.
+methods). Show at Fix f (data-fix's instance, through f's Show1) is Base's
+model's `fixShowsPrec` (`show`, `shows`, `showList` with it), copied at f: a
+fold to the text a node shows unparenthesised, `showParen (d >= 11)` at
+precedence d, its children's text handed to `liftShowsPrec` at the
+precedence it asks for (exact when the Show1 only prepends text; the laws
+hold it to GHC's), f's Functor needed for the fold. Show at a list or a
+Maybe of the package's own type or of a Fix, at Map and Set: out.
 
 GHC.Prim's `coerce` (a newtype's derived instance, GeneralizedNewtypeDeriving,
 is coerce of its field type's, and the specialiser copies it as it copies

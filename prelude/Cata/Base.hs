@@ -16,6 +16,10 @@ module Cata.Base where
 import Prelude hiding (concatMap, foldl, foldl', foldr)
 
 import Control.Comonad.Trans.Cofree (CofreeF (..))
+import Data.Fix (Fix (..))
+import Data.Functor.Classes (Show1 (..))
+import Data.Functor.Foldable (cata)
+import GHC.Show (showList__)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
 foldr f z [] = z
@@ -92,3 +96,30 @@ cofreeFTraverse h (a :< fb) = fmap (a :<) (traverse h fb)
 
 cofreeFSequence :: forall f a g b. (Traversable f, Applicative g) => CofreeF f a (g b) -> g (CofreeF f a b)
 cofreeFSequence (a :< fgb) = fmap (a :<) (traverse id fgb)
+
+-- | data-fix's Show instance at Fix f, through f's Show1: showsPrec d (Fix
+-- a) is showParen (d >= 11) (showString "Fix " . liftShowsPrec showsPrec
+-- showList 11 a), showList base's default (showList__ (showsPrec 0)). Spec
+-- writes a method at Fix f (and shows) as the def here, at f. A node's
+-- text at any precedence is its text unparenthesised, parenthesised from
+-- 11 on, so this is a fold to that text: its children's showsPrec q is
+-- fixShowsAt q of their text (exact when f's liftShowsPrec only prepends
+-- text, as one built with base's Show combinators does; the laws hold it
+-- to GHC's). The fold needs f's Functor too.
+fixShowsAt :: Int -> String -> ShowS
+fixShowsAt q s = showParen (q >= 11) (showString s)
+
+fixShowAlg :: forall f. Show1 f => f String -> String
+fixShowAlg a = showString "Fix " (liftShowsPrec fixShowsAt (showList__ showString) 11 a "")
+
+fixShowsPrec :: forall f. (Functor f, Show1 f) => Int -> Fix f -> ShowS
+fixShowsPrec d x = fixShowsAt d (cata fixShowAlg x)
+
+fixShow :: forall f. (Functor f, Show1 f) => Fix f -> String
+fixShow x = cata fixShowAlg x
+
+fixShows :: forall f. (Functor f, Show1 f) => Fix f -> ShowS
+fixShows x = showString (cata fixShowAlg x)
+
+fixShowList :: forall f. (Functor f, Show1 f) => [Fix f] -> ShowS
+fixShowList xs = showList__ showString (map (cata fixShowAlg) xs)

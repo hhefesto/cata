@@ -1497,11 +1497,18 @@ def fd.dm.specs.set1() -> List<&2, DmS>:
 def fd.dm.specs.set2() -> List<&2, DmS>:
   [DmS{"fromList", "HsSet.fromList", "K", "", "Kc", 0n, 1n}, DmS{"union", "HsSet.union", "K", "", "Kc", 0n, 2n}, DmS{"difference", "HsSet.difference", "K", "", "Kc", 0n, 2n}, DmS{"\\\\", "HsSet.difference", "K", "", "Kc", 0n, 2n}, DmS{"filter", "HsSet.filter", "K", "", "K", 1n, 2n}, DmS{"size", "HsSet.size", "K", "", "K", 0n, 1n}, DmS{"null", "HsSet.null", "K", "", "K", 0n, 1n}, DmS{"unions", "HsSet.unions", "XK", "X", "Kc", 0n, 1n}]
 
+# (map5 and set3: prelude/HsMapMore.bend's; unionsWith's Foldable a list)
+def fd.dm.specs.map5() -> List<&2, DmS>:
+  [DmS{"intersectionWith", "HsMap.intersectionWith", "KVWX", "VWX", "KVWXc", 1n, 3n}, DmS{"restrictKeys", "HsMap.restrictKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"withoutKeys", "HsMap.withoutKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"fromSet", "HsMap.fromSet", "KV", "V", "KV", 1n, 2n}, DmS{"unionWithKey", "HsMap.unionWithKey", "KV", "V", "KVc", 1n, 3n}, DmS{"unionsWith", "HsMap.unionsWith", "XKV", "XV", "KVc", 1n, 2n}, DmS{"split", "HsMap.split", "KV", "V", "KVc", 0n, 2n}]
+
+def fd.dm.specs.set3() -> List<&2, DmS>:
+  [DmS{"intersection", "HsSet.intersection", "K", "", "Kc", 0n, 2n}]
+
 def fd.dm.specs.maps() -> List<&2, DmS>:
-  List.concat(&2, DmS, [fd.dm.specs.map1(), fd.dm.specs.map2(), fd.dm.specs.map3(), fd.dm.specs.map4()])
+  List.concat(&2, DmS, [fd.dm.specs.map1(), fd.dm.specs.map2(), fd.dm.specs.map3(), fd.dm.specs.map4(), fd.dm.specs.map5()])
 
 def fd.dm.specs.sets() -> List<&2, DmS>:
-  List.concat(&2, DmS, [fd.dm.specs.set1(), fd.dm.specs.set2()])
+  List.concat(&2, DmS, [fd.dm.specs.set1(), fd.dm.specs.set2(), fd.dm.specs.set3()])
 
 def fd.dm.tab.map(xs: List<&2, DmS>) -> List<&2, BfE>:
   match xs:
@@ -6287,7 +6294,7 @@ def fd.hsprelude.lists() -> String:
   fd.hsprelude.l1() ++ fd.hsprelude.l2() ++ fd.hsprelude.l3() ++ fd.hsprelude.l4() ++ fd.hsprelude.l5() ++ fd.hsprelude.l6() ++ fd.hsprelude.l7() ++ fd.hsprelude.l8() ++ fd.hsprelude.l9()
 
 def fd.hsprelude.write(+out: String) -> IO(Unit):
-  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc() ++ PR.pre.HsRational()))
+  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc() ++ PR.pre.HsRational() ++ PR.pre.HsMapMore()))
 
 # the files a module's text may name: HsPrelude's and the package's
 # earlier modules'

@@ -1376,3 +1376,42 @@ No def lost its verdict; copies 879 -> 882 ok-check (Resolve's
 frontier: 211 defs, 209 no; `error` 24, Map's `!` 18, `show` at Fix 6,
 LamBase 4. `letsToApps` waits on its `error` (an unexpected constructor),
 LamBase's pattern synonyms and Cofree's `unwrap`/`embed`.
+
+## Telomare's rules, 22: Show at Fix, more of Data.Map and Data.Set (2026-11-21)
+
+- **Show at Fix f** (data-fix's instance, through f's Show1: IR.Base's
+  `convertAbortMessage`, Core's `show` at RunTimeError): Base's model's
+  `fixShowsPrec`, `fixShow`, `fixShows`, `fixShowList` (Spec's
+  `sp.pc.ftab`, the type normal first, so a synonym like BasicExpr is one
+  too), copied at f. A node's text at precedence d is its text
+  unparenthesised under `showParen (d >= 11)`, so the model is a `cata` to
+  that text, a child handed to `liftShowsPrec` as `fixShowsAt q` of its
+  text: data-fix's answer when f's Show1 only prepends text (one built
+  with base's Show combinators does; the laws hold it to GHC's). Checked in
+  GHC against data-fix's instance at 4 precedences and two rests.
+- **Data.Map and Data.Set** (`prelude/HsMapMore.bend`): `intersectionWith`,
+  `restrictKeys`, `withoutKeys`, `fromSet`, `unionWithKey` (with
+  `insertWithKey`), `unionsWith` (of a list; IntMap's has its key second
+  in Data.Map's order, Spec's `sp.p5.second`), `split`, and Set's
+  `intersection`; each checked by 9 closed laws in Bend.
+- **Tests**: `tests/hs/ShowFix.hs` (telomare's Show1 shapes, one that
+  reads the precedence, `show` at a class's type variable copied at Fix):
+  ex1..ex5, ex7 ok-law (8, 8, 8, 5, 8, 8 laws), ex6 out (Show at a list of
+  Fix, `fold:show-at-type`); `tests/hs/Maps.hs` (telomare's uses): ex1..ex10
+  ok-law (8 laws each). The 17 earlier sets, Writer and Reader: no def
+  moved.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 21 (spec34, law48) | 445 | 98 | 286 | 113 |
+| after rule 22 (spec36, law49, 1037 s) | 445 | 98 | 286 | 113 |
+
+No def lost its verdict; copies 882 -> 941 ok-check (24 out -> ok-check:
+`convertAbortMessage` at Fix BasicExprF in 7 modules, PrettyPrint's
+`showP1`/`showP`/`prettyPrint` at Term3F's Cofree and AbortableF), 35 new
+copies. compileModules' frontier: 176 defs, 174 no (from 211/209); the
+container functions are off it, `show` at Fix too (one left, inside
+Size's `error` message, a local generalised over its type: Spec's
+`sp.pl` runs after `sp.pc`). What is left is led by the partial
+functions: `error` 24, Map's `!` 18, `minimum`/`minimumBy` 2, `!!` 1;
+across telomare 61 of the 488 out functions wait only on them.
