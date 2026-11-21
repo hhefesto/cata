@@ -1168,14 +1168,60 @@ def sp.p0.cl(cs: List<&2, X.Sx>, +ops: List<&2, X.Sx>) -> List<&2, X.Sx>:
     case +c <> t:
       sp.l([sp.a("match"), sp.l(List.append(&2, X.Sx, ops, sp.els(sp.at(c, 1n)))), sp.at(c, 2n)]) <> sp.p0.cl(t, ops)
 
+# A generated binding (a derived instance's method) with no parameters
+# whose one bare right-hand side is a function but not a lambda ($cfoldr =
+# $dmfoldr at a phantom type, base's default, then Base's model's
+# foldrDefault) takes its arguments: f eta_0 .. eta_n = g eta_0 .. eta_n,
+# so that a template argument reaches g through f (a def's value is no
+# template)
+def sp.p0.ev(+i: Nat) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("eta_"), S.b(Nat.show(i)))}, sp.a("0")])
+
+def sp.p0.eps(ts: List<&2, X.Sx>, +i: Nat) -> List<&2, X.Sx>:
+  match ts:
+    case Nil{}:
+      Nil{}
+    case t <> r:
+      sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.p0.ev(i), t])]) <> sp.p0.eps(r, 1n+i)
+
+def sp.p0.ecall(n: Nat, +i: Nat, f: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      f
+    case 1n+p:
+      sp.p0.ecall(p, 1n+i, sp.l([sp.a("app"), f, sp.p0.ev(i)]))
+
+# a function type's parameters' types
+def sp.p0.params(t: X.Sx) -> List<&2, X.Sx>:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, X.SxCons{+r, X.SxNil{}}}}:
+      Bool.pick(List<&2, X.Sx>, sp.is(a, "tfun"), p <> sp.p0.params(r), Nil{})
+    case _:
+      Nil{}
+
+# a function type's result after its parameters
+def sp.p0.res(t: X.Sx) -> X.Sx:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, X.SxCons{+r, X.SxNil{}}}}:
+      Bool.pick(X.Sx, sp.is(a, "tfun"), sp.p0.res(r), X.SxCons{X.SxAtom{a}, X.SxCons{p, X.SxCons{r, X.SxNil{}}}})
+    case u:
+      u
+
+def sp.p0.eta(+ms: X.Sx, +body: X.Sx) -> X.Sx:
+  +ps = sp.p0.params(sp.at(ms, 2n))
+  +gr = sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, sp.p0.ecall(List.length(&2, X.Sx, ps), 0n, body)])]), sp.l([sp.a("binds")])])
+  sp.l([sp.a("matches"), sp.l(ps), sp.p0.res(sp.at(ms, 2n)), sp.at(ms, 3n), sp.l([sp.l([sp.a("match"), sp.l(sp.p0.eps(ps, 0n)), gr])])])
+
 def sp.p0.ms(+ms: X.Sx) -> X.Sx:
   +m0 = sp.first(sp.els(sp.at(ms, 4n)))
   +gs = sp.at(sp.at(m0, 2n), 1n)
   +g0 = sp.first(sp.els(gs))
   +body = sp.at(g0, 2n)
   +lm = sp.at(body, 2n)
-  +bare = Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n), Bool.and(Nat.is_eq(X.tsx.len(gs), 1n), Bool.and(Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(sp.at(m0, 2n), 2n), sp.l([sp.a("binds")]))), Bool.and(sp.head.is(body, "lam"), Bool.not(sp.is(X.tsx.atom.of(sp.at(body, 1n)), "cases"))))))
-  Bool.pick(X.Sx, bare, sp.l([sp.a("matches"), sp.l(List.append(&2, X.Sx, sp.els(sp.at(ms, 1n)), sp.els(sp.at(lm, 1n)))), sp.at(lm, 2n), sp.at(ms, 3n), sp.l(sp.p0.cl(sp.els(sp.at(lm, 4n)), sp.els(sp.at(m0, 1n))))]), ms)
+  +one = Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n), Bool.and(Nat.is_eq(X.tsx.len(gs), 1n), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(sp.at(m0, 2n), 2n), sp.l([sp.a("binds")])))))
+  +bare = Bool.and(one, Bool.and(sp.head.is(body, "lam"), Bool.not(sp.is(X.tsx.atom.of(sp.at(body, 1n)), "cases"))))
+  +gen = Bool.and(Bool.and(one, sp.is(X.tsx.atom.of(sp.at(ms, 3n)), "generated")), Bool.and(Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), sp.head.is(sp.at(ms, 2n), "tfun")), Bool.not(sp.head.is(body, "lam"))))
+  sp.if(X.Sx, bare, _ => sp.l([sp.a("matches"), sp.l(List.append(&2, X.Sx, sp.els(sp.at(ms, 1n)), sp.els(sp.at(lm, 1n)))), sp.at(lm, 2n), sp.at(ms, 3n), sp.l(sp.p0.cl(sp.els(sp.at(lm, 4n)), sp.els(sp.at(m0, 1n))))]), _ => sp.if(X.Sx, gen, _ => sp.p0.eta(ms, body), _ => ms))
 
 def sp.p0.fun(+f: X.Sx) -> X.Sx:
   sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), sp.p0.ms(sp.at(f, 4n)), sp.at(f, 5n)])
@@ -1284,16 +1330,20 @@ def sp.pc.model(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
 # copies it at its known function argument, the argument's free locals its
 # first parameters: a lambda over a pattern's variable is code in a
 # first-order def, not a closure Bend refuses as a template.
+# foldMap at a list is the model's foldMapMonoid at the list too (its
+# dictionaries dropped, the list kept: at a package's derived Foldable,
+# whose foldr is base's default, it stays the instance's foldMap).
 def sp.pc.btab() -> List<&2, Pcr>:
   +fo = {"GHC.Internal.Data.Foldable." : String}
-  [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}, Pcr{S.b(fo ++ "concatMap"), S.b("concatMap"), 1n}]
+  [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}, Pcr{S.b(fo ++ "concatMap"), S.b("concatMap"), 1n}, Pcr{S.b(fo ++ "foldMap"), S.b("foldMapMonoid"), 0n}]
 
 # base's functions that are the model's at any type (Control.Monad's
-# Kleisli compositions <=< and >=>: kleisliR, kleisliL; GHC.Base's until),
+# Kleisli compositions <=< and >=>: kleisliR, kleisliL; GHC.Base's until;
+# GHC.List's filter; Data.Foldable's default foldr, $dmfoldr, foldrDefault),
 # at their own types (d is how many to drop: none)
 def sp.pc.ktab() -> List<&2, Pcr>:
   +cm = {"GHC.Internal.Control.Monad." : String}
-  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}, Pcr{S.b("GHC.Internal.Base.until"), S.b("until"), 0n}]
+  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}, Pcr{S.b("GHC.Internal.Base.until"), S.b("until"), 0n}, Pcr{S.b("GHC.Internal.List.filter"), S.b("filter"), 0n}, Pcr{S.b("GHC.Internal.Data.Foldable.$dmfoldr"), S.b("foldrDefault"), 0n}]
 
 def sp.pc.atlist(+tys: List<&2, X.Sx>) -> Bool:
   sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")
@@ -1742,6 +1792,47 @@ def sp.beta(x: X.Sx) -> X.Sx:
       sp.if(X.Sx, sp.is(a, "app"), _ => sp.beta.at(sp.beta.lam(sp.pc.strip(f2)), e2, y), _ => y)
     case X.SxCons{h, t}:
       X.SxCons{sp.beta(h), sp.beta(t)}
+    case y:
+      y
+
+# Ifs and lets out of arguments ---------------------------------------------------
+
+# An if or a let that is an application's argument or function part goes
+# out over it: f (if c then a else b) is if c then f a else f b, and f (let
+# ds in e) is let ds in f e (the locals are numbered apart, so nothing is
+# captured; the values are the same). The fold writes an if where its type
+# is known, a body's or a branch's (an argument's is fold:if-in-argument),
+# and a let there too (fold:let-in-argument). Not out over && and ||,
+# lazy in their second argument; not out of a lambda, a case or a tuple.
+# Bend sees no subterm shrink here, so the depth is fuel (32).
+
+def sp.ifl.lazy(+f: X.Sx) -> Bool:
+  +h = sp.pc.strip(sp.spine.head(sp.pc.strip(f)))
+  +k = sp.sat(h, 2n)
+  Bool.and(sp.head.is(h, "g"), Bool.or(sp.is(k, "&&"), sp.is(k, "||")))
+
+def sp.ifl.is(+x: X.Sx, s: String, n: Nat) -> Bool:
+  Bool.and(sp.head.is(x, s), Nat.is_eq(X.tsx.len(x), n))
+
+def sp.ifl.app(fuel: Nat, +a: List<&2, U32>, +f: X.Sx, +e: X.Sx) -> X.Sx:
+  match fuel:
+    case 0n:
+      sp.l([X.SxAtom{a}, f, e])
+    case 1n++p:
+      +sf = sp.pc.strip(f)
+      +se = sp.pc.strip(e)
+      +lz = sp.ifl.lazy(f)
+      sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "if", 4n)), _ => sp.l([sp.a("if"), sp.at(se, 1n), sp.ifl.app(p, a, f, sp.at(se, 2n)), sp.ifl.app(p, a, f, sp.at(se, 3n))]), _ => sp.if(X.Sx, sp.ifl.is(sf, "if", 4n), _ => sp.l([sp.a("if"), sp.at(sf, 1n), sp.ifl.app(p, a, sp.at(sf, 2n), e), sp.ifl.app(p, a, sp.at(sf, 3n), e)]), _ => sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "let", 3n)), _ => sp.l([sp.a("let"), sp.at(se, 1n), sp.ifl.app(p, a, f, sp.at(se, 2n))]), _ => sp.if(X.Sx, sp.ifl.is(sf, "let", 3n), _ => sp.l([sp.a("let"), sp.at(sf, 1n), sp.ifl.app(p, a, sp.at(sf, 2n), e)]), _ => sp.l([X.SxAtom{a}, f, e])))))
+
+# bottom up: (app F A), its parts done
+def sp.ifl(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
+      +f2 = sp.ifl(f)
+      +e2 = sp.ifl(e)
+      sp.if(X.Sx, sp.is(a, "app"), _ => sp.ifl.app(32n, a, f2, e2), _ => X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}})
+    case X.SxCons{h, t}:
+      X.SxCons{sp.ifl(h), sp.ifl(t)}
     case y:
       y
 
@@ -2408,6 +2499,125 @@ def sp.fa.unself.of(x: X.Sx, +orig: X.Sx) -> X.Sx:
     case y:
       y
 
+# A local function in a known argument -------------------------------------
+
+# A nonrecursive let's or where's function with parameters (an abs that
+# generalises nothing, or a bare fun) is, in a known argument, its lambda,
+# applied ones reduced (sp.beta, so that a copy's self-call with the same
+# arguments is the copy's): the copy's parameters are its free locals, not
+# the function, a closure over them (Resolve's pruneBindings: until (\s ->
+# expand s == s) expand seed, expand r = r <> fold (restrictKeys bmap r),
+# is a copy of until whose parameter is bmap, a Map), and a copy takes no
+# template for it (a recursion through the copy, as freeVarsDeep's through
+# foldMap's, is then a group the fold writes with fuel). The lambda's own
+# local functions are lambdas too, one round each.
+
+# a fun's lambda: (lam single|case|cases MATCHES)
+def sp.fa.lam.of(+fun: X.Sx) -> X.Sx:
+  +ms = sp.at(fun, 4n)
+  +one = Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n)
+  +arg1 = Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 1n)
+  sp.l([sp.a("lam"), Bool.pick(X.Sx, one, sp.a("single"), Bool.pick(X.Sx, arg1, sp.a("case"), sp.a("cases"))), ms])
+
+# a local function's value in an argument: its lambda when it takes
+# parameters; when it takes none but is a function (patternRefs = cata palg
+# where palg ..), its one unguarded right-hand side, under a let of its
+# where-bindings when it has any
+def sp.fa.lf.val(+fun: X.Sx) -> Maybe<&2, X.Sx>:
+  +ms = sp.at(fun, 4n)
+  +cls = sp.els(sp.at(ms, 4n))
+  +gr = sp.at(sp.first(cls), 2n)
+  +gs = sp.els(sp.at(gr, 1n))
+  +g0 = sp.first(gs)
+  +lb = sp.at(gr, 2n)
+  +e = sp.at(g0, 2n)
+  +haspar = Bool.not(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n))
+  +isfn = sp.head.is(sp.strip(sp.at(fun, 2n)), "tfun")
+  +one = Bool.and(Nat.is_eq(List.length(&2, X.Sx, cls), 1n), Bool.and(Nat.is_eq(List.length(&2, X.Sx, gs), 1n), sp.eq(sp.at(g0, 1n), X.SxNil{})))
+  +v = Bool.pick(X.Sx, sp.eq(lb, sp.l([sp.a("binds")])), e, sp.l([sp.a("let"), lb, e]))
+  Bool.pick(Maybe<&2, X.Sx>, haspar, Some{sp.fa.lam.of(fun)}, Bool.pick(Maybe<&2, X.Sx>, Bool.and(isfn, one), Some{v}, None{}))
+
+def sp.fa.lf.fun.at(+v: X.Sx, m: Maybe<&2, X.Sx>, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  match m:
+    case Some{+val}:
+      Asb{v, val} <> acc
+    case None{}:
+      acc
+
+# a bind (fun V T SPAN MATCHES) that is a local function, with its value,
+# before acc
+def sp.fa.lf.fun(+b: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  +isf = Bool.and(sp.head.is(b, "fun"), sp.head.is(sp.var.of(sp.at(b, 1n)), "l"))
+  sp.if(List<&2, Asb>, isf, _ => sp.fa.lf.fun.at(sp.var.of(sp.at(b, 1n)), sp.fa.lf.val(b), acc), _ => acc)
+
+def sp.fa.lf.funs(bs: List<&2, X.Sx>, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  match bs:
+    case Nil{}:
+      acc
+    case +b <> t:
+      sp.fa.lf.funs(t, sp.fa.lf.fun(b, acc))
+
+# a nonrec's bind: an abs generalising nothing (no type variable, no
+# dictionary) is its binds
+def sp.fa.lf.bind(+b: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  +isabs = Bool.and(sp.head.is(b, "abs"), Bool.and(sp.eq(sp.at(b, 1n), X.SxNil{}), sp.eq(sp.at(b, 2n), X.SxNil{})))
+  sp.if(List<&2, Asb>, isabs, _ => sp.fa.lf.funs(sp.els(sp.at(b, 5n)), acc), _ => sp.fa.lf.fun(b, acc))
+
+def sp.fa.lf.binds(bs: List<&2, X.Sx>, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  match bs:
+    case Nil{}:
+      acc
+    case +b <> t:
+      sp.fa.lf.binds(t, sp.fa.lf.bind(b, acc))
+
+# the tree's local functions in nonrec groups, with their lambdas
+def sp.fa.lfuns(x: X.Sx, +acc: List<&2, Asb>) -> List<&2, Asb>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +isn = sp.is(X.tsx.atom.of(h), "nonrec")
+      +acc2 = sp.if(List<&2, Asb>, isn, _ => sp.fa.lf.binds(sp.els(t), acc), _ => acc)
+      sp.fa.lfuns(t, sp.fa.lfuns(h, acc2))
+    case _:
+      acc
+
+# x with its local functions' uses as their lambdas, fuel rounds
+def sp.fa.inl(fuel: Nat, x: X.Sx, +lf: List<&2, Asb>) -> X.Sx:
+  match fuel:
+    case 0n:
+      x
+    case 1n+p:
+      +u = sp.fa.unself(x)
+      sp.fa.inl(p, sp.as.sub(u, sp.as.look(u, lf), lf), lf)
+
+# whether x holds y
+def sp.fa.names(x: X.Sx, +y: X.Sx) -> Bool:
+  match x:
+    case X.SxCons{+h, +t}:
+      Bool.or(sp.eq(X.SxCons{h, t}, y), Bool.or(sp.fa.names(h, y), sp.fa.names(t, y)))
+    case _:
+      False{}
+
+# a top's local functions: all of them, those that name a local or the def
+# (meg, its var), and the def
+type Lf is Data:
+  Lf{all: List<&2, Asb>, need: List<&2, Asb>, meg: X.Sx}
+
+# an argument that names the def (a recursion through the copy) has all
+# its local functions as their values, so the copy takes no template; any
+# other, those that name a local or the def
+def sp.fa.inl.one(+a: X.Sx, +lf: Lf) -> X.Sx:
+  match lf:
+    case Lf{+all, +need, +meg}:
+      +fs = Bool.pick(List<&2, Asb>, sp.fa.names(a, meg), all, need)
+      sp.ifl(sp.beta(sp.fa.inl(List.length(&2, Asb, fs), a, fs)))
+
+def sp.fa.inl.all(xs: List<&2, X.Sx>, +lf: Lf) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case a <> t:
+      sp.fa.inl.one(a, lf) <> sp.fa.inl.all(t, lf)
+
 # the free locals of the arguments, in order
 def sp.fa.frees.all(fas: List<&2, Fa>, +acc: List<&2, X.Sx>) -> List<&2, X.Sx>:
   match fas:
@@ -2563,18 +2773,23 @@ def sp.fa.apps(xs: List<&2, X.Sx>, f: X.Sx) -> X.Sx:
     case a <> t:
       sp.fa.apps(t, sp.l([sp.a("app"), f, a]))
 
+# a call's decision: the copy's function part (its name applied to the free
+# locals), the places of the arguments that go, the copy asked for
+type Fd is Data:
+  Fd{hd: X.Sx, fas: List<&2, Fa>, q: List<&2, Rq>}
+
 # the decision on a call x of the def fun: its copy's call and the copy
 # asked for, or none
-def sp.fa.at(m: Maybe<&2, X.Sx>, +h: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>) -> Maybe<&2, Fd>:
+def sp.fa.at(m: Maybe<&2, X.Sx>, +h: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf, +otys: Maybe<&2, List<&2, X.Sx>>) -> Maybe<&2, Fd>:
   match m:
     case Some{+fun}:
-      +tys = sp.norms(sp.spine.tys(sp.fa.fn(x), Nil{}), ix)
+      +tys = Maybe.default(&2, List<&2, X.Sx>, otys, sp.norms(sp.spine.tys(sp.fa.fn(x), Nil{}), ix))
       +tvs = sp.foralls(sp.at(fun, 2n))
       +tyok = Bool.and(Nat.is_eq(List.length(&2, List<&2, U32>, tvs), List.length(&2, X.Sx, tys)), sp.all.closed(tys))
       +sbs = sp.zip(tvs, tys)
       +ptys = sp.fa.params(sp.subst(sp.strip(sp.at(fun, 2n)), sbs))
       +ms = sp.at(fun, 4n)
-      +args = sp.spine.args(x, Nil{})
+      +args = sp.fa.inl.all(sp.spine.args(x, Nil{}), lf)
       +fas0 = sp.fa.pick(args, ptys, sp.els(sp.at(ms, 4n)), 0n, X.tsx.len(sp.at(ms, 1n)), sp.ix.sys(ix))
       +frees = sp.fa.frees.all(fas0, Nil{})
       +fvt = sp.fa.tys(frees, env)
@@ -2588,22 +2803,92 @@ def sp.fa.at(m: Maybe<&2, X.Sx>, +h: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur: L
     case None{}:
       None{}
 
-def sp.fa.decide(+x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>) -> Maybe<&2, Fd>:
+# A call of a def's dictionary copy (p4 has asked for it in this top, at
+# the call's types) is the def's call at the copy's types: a def with a
+# class (Base's model's foldMapMonoid, at Foldable t and Monoid m) is
+# copied at its known function argument too, its dictionaries' methods
+# then at the types (as a dictionary copy's are)
+def sp.rq.k(r: Rq) -> List<&2, U32>:
+  match r:
+    case Rq{n, LoG{k}, tys}:
+      k
+    case _:
+      Nil{}
+
+def sp.rq.tys(r: Rq) -> List<&2, X.Sx>:
+  match r:
+    case Rq{n, lo, tys}:
+      tys
+
+def sp.rq.n(r: Rq) -> List<&2, U32>:
+  match r:
+    case Rq{n, lo, tys}:
+      n
+
+def sp.rq.isg(r: Rq) -> Bool:
+  match r:
+    case Rq{n, LoG{k}, tys}:
+      True{}
+    case _:
+      False{}
+
+# the request of the dictionary copy h calls, if p4 made it
+def sp.fa.dq.find(dq: List<&2, Rq>, +h: X.Sx, +cur: List<&2, U32>) -> Maybe<&2, Rq>:
+  match dq:
+    case Nil{}:
+      None{}
+    case +r <> t:
+      +hit = Bool.and(sp.rq.isg(r), Bool.and(S.eq(sp.rq.n(r), sp.sat(h, 2n)), S.eq(cur, sp.sat(h, 1n))))
+      Bool.pick(Maybe<&2, Rq>, hit, Some{r}, sp.fa.dq.find(t, h, cur))
+
+def sp.ix.fns(ix: Ix) -> List<&2, Df>:
+  match ix:
+    case Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}:
+      fns
+
+# whether an argument names v inside it (a lambda over the def, not the def)
+def sp.fa.inside(fas: List<&2, Fa>, +v: X.Sx) -> Bool:
+  match fas:
+    case Nil{}:
+      False{}
+    case Fa{i, +a} <> t:
+      Bool.or(Bool.and(Bool.not(sp.eq(sp.pc.strip(a), v)), sp.fa.names(a, v)), sp.fa.inside(t, v))
+
+# a dictionary copy's call is the def's copy's only when its dictionary
+# copy would not do: an argument that names a local (the copy then has
+# parameters) or the def the call is in, inside a lambda (a template Bend
+# takes closed, and a recursive def's fuel is not; the def itself is a
+# closed template)
+def sp.fa.need(d: Maybe<&2, Fd>, +meg: X.Sx) -> Maybe<&2, Fd>:
+  match d:
+    case Some{Fd{+hd, +fas, q}}:
+      +need = Bool.or(sp.head.is(hd, "app"), sp.fa.inside(fas, meg))
+      Bool.pick(Maybe<&2, Fd>, need, Some{Fd{hd, fas, q}}, None{})
+    case None{}:
+      None{}
+
+def sp.fa.decide.at(dc: Maybe<&2, Rq>, +top0: Maybe<&2, X.Sx>, +h0: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf) -> Maybe<&2, Fd>:
+  match dc:
+    case Some{+r}:
+      +top = sp.df.find(sp.ix.fns(ix), sp.rq.k(r))
+      +h = sp.at(sp.or(sp.nth(sp.exports(Maybe.default(&2, X.Sx, top, X.SxNil{})), 0n), X.SxNil{}), 1n)
+      sp.fa.need(sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top, t => sp.fun.of(t)), h, x, me, cur, ix, env, lf, Some{sp.rq.tys(r)}), sp.g(cur, me, "var"))
+    case None{}:
+      sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top0, t => sp.fun.of(t)), h0, x, me, cur, ix, env, lf, None{})
+
+def sp.fa.decide(+x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf, +dq: List<&2, Rq>) -> Maybe<&2, Fd>:
   match ix:
     case Ix{dfs, lcs, pss, ins, cls, sys, fms, +fns}:
       +h = sp.fa.unself(sp.spine.head(x))
-      +top = Bool.pick(Maybe<&2, X.Sx>, sp.head.is(h, "g"), sp.df.find(fns, sp.gkey(h)), None{})
-      sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top, t => sp.fun.of(t)), h, x, me, cur, Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}, env)
+      +isg = sp.head.is(h, "g")
+      +top = Bool.pick(Maybe<&2, X.Sx>, isg, sp.df.find(fns, sp.gkey(h)), None{})
+      +dc = sp.if(Maybe<&2, Rq>, Bool.and(isg, Bool.not(Maybe.is_some(&2, X.Sx, top))), _ => sp.fa.dq.find(dq, h, cur), _ => None{})
+      sp.fa.decide.at(dc, top, h, x, me, cur, Ix{dfs, lcs, pss, ins, cls, sys, fms, fns}, env, lf)
 
 def sp.rw.addq(r: Rw, q: List<&2, Rq>) -> Rw:
   match r:
     case Rw{x, p}:
       Rw{x, sp.rw.cat(p, q)}
-
-# a call's decision: the copy's function part (its name applied to the free
-# locals), the places of the arguments that go, the copy asked for
-type Fd is Data:
-  Fd{hd: X.Sx, fas: List<&2, Fa>, q: List<&2, Rq>}
 
 # the walk's mode at a node: a node (top: no spine's function part), or a
 # copy's call's spine (hd: the copy's function part; i: the place of the
@@ -2619,10 +2904,10 @@ def sp.pred(n: Nat) -> Nat:
     case 1n+p:
       p
 
-def sp.fa.decide.if(isapp: Bool, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>) -> Maybe<&2, Fd>:
+def sp.fa.decide.if(isapp: Bool, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf, +dq: List<&2, Rq>) -> Maybe<&2, Fd>:
   match isapp:
     case True{}:
-      sp.fa.decide(x, me, cur, ix, env)
+      sp.fa.decide(x, me, cur, ix, env, lf, dq)
     case False{}:
       None{}
 
@@ -2661,18 +2946,18 @@ def sp.p10.spine(+a: List<&2, U32>, +i: Nat, +fas: List<&2, Fa>, +hd: X.Sx, +fw:
   Bool.pick(Rw, sp.is(a, "app"), sp.p10.arg(sp.fa.isat(fas, i), a, fw, ew), Bool.pick(Rw, isty, fw, Rw{hd, Nil{}}))
 
 # the walk, structural: at a top application, the decision on its call
-def sp.p10(x: X.Sx, m: Pm, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>) -> Rw:
+def sp.p10(x: X.Sx, m: Pm, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf, +dq: List<&2, Rq>) -> Rw:
   match x m:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}} PmNode{top}:
       +n = {X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}} : X.Sx}
       +k = List.length(&2, X.Sx, sp.spine.args(n, Nil{}))
-      +d = sp.fa.decide.if(Bool.and(top, sp.is(a, "app")), n, me, cur, ix, env)
-      sp.fd.fin(d, a, sp.p10(f, sp.fd.mode(d, k, sp.isapp(n)), me, cur, ix, env), sp.p10(e, PmNode{True{}}, me, cur, ix, env), k)
+      +d = sp.fa.decide.if(Bool.and(top, sp.is(a, "app")), n, me, cur, ix, env, lf, dq)
+      sp.fd.fin(d, a, sp.p10(f, sp.fd.mode(d, k, sp.isapp(n)), me, cur, ix, env, lf, dq), sp.p10(e, PmNode{True{}}, me, cur, ix, env, lf, dq), k)
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}} PmArgs{+hd, +i, +fas}:
       +j = Bool.pick(Nat, sp.is(a, "app"), sp.pred(i), i)
-      sp.p10.spine(a, i, fas, hd, sp.p10(f, PmArgs{hd, j, fas}, me, cur, ix, env), sp.p10(e, PmNode{True{}}, me, cur, ix, env))
+      sp.p10.spine(a, i, fas, hd, sp.p10(f, PmArgs{hd, j, fas}, me, cur, ix, env, lf, dq), sp.p10(e, PmNode{True{}}, me, cur, ix, env, lf, dq))
     case X.SxCons{+h, +t} PmNode{top}:
-      sp.rw.cons(sp.p10(h, PmNode{True{}}, me, cur, ix, env), sp.p10(t, PmNode{True{}}, me, cur, ix, env))
+      sp.rw.cons(sp.p10(h, PmNode{True{}}, me, cur, ix, env, lf, dq), sp.p10(t, PmNode{True{}}, me, cur, ix, env, lf, dq))
     case _ PmArgs{hd, i, fas}:
       Rw{hd, Nil{}}
     case y PmNode{top}:
@@ -2683,11 +2968,27 @@ def sp.fa.me(+x: X.Sx) -> List<&2, U32>:
   +es = sp.exports(x)
   sp.sat(sp.at(sp.or(sp.nth(es, 0n), X.SxNil{}), 1n), 2n)
 
+# the local functions an argument has as their values: those that name a
+# local or the def they are in (a closed one the fold lifts to a closed
+# def, a template, as it was)
+def sp.fa.lf.need(lf: List<&2, Asb>, +meg: X.Sx) -> List<&2, Asb>:
+  match lf:
+    case Nil{}:
+      Nil{}
+    case Asb{+v, +val} <> t:
+      +fr = sp.fa.frees(val, sp.fa.binds(val, Nil{}), Nil{})
+      +keep = Bool.or(Bool.not(List.is_empty(&2, X.Sx, fr)), sp.fa.names(val, meg))
+      +rest = sp.fa.lf.need(t, meg)
+      Bool.pick(List<&2, Asb>, keep, Asb{v, val} <> rest, rest)
+
 def sp.rw.p10(r: Rw, +cur: List<&2, U32>, +ix: Ix) -> Rw:
   match r:
-    case Rw{+x, q}:
+    case Rw{+x, +q}:
       +env = sp.fa.binds(x, Nil{})
-      sp.rw.addq(sp.p10(x, PmNode{True{}}, sp.fa.me(x), cur, ix, env), q)
+      +lfa = sp.fa.lfuns(x, Nil{})
+      +meg = sp.g(cur, sp.fa.me(x), "var")
+      +lf = {Lf{lfa, sp.fa.lf.need(lfa, meg), meg} : Lf}
+      sp.rw.addq(sp.p10(x, PmNode{True{}}, sp.fa.me(x), cur, ix, env, lf, q), q)
 
 # The copy: the def at the types, the arguments in their parameters' places
 # (a variable pattern's uses are the argument), the free locals first
@@ -2848,7 +3149,7 @@ def sp.lc(x: X.Sx, +env: List<&2, Asb>) -> X.Sx:
 # a binding's passes: pattern synonyms, views, copies' calls, normal type
 # arguments
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix) -> Rw:
-  +xp = sp.beta(sp.pl(sp.pc(sp.lc(x, sp.fa.binds(x, Nil{})), sp.ix.hasbase(ix), ix), ix))
+  +xp = sp.ifl(sp.beta(sp.pl(sp.pc(sp.lc(x, sp.fa.binds(x, Nil{})), sp.ix.hasbase(ix), ix), ix)))
   +x0 = sp.p0(xp, sp.isfun(xp))
   +y = sp.p1.go(12n, x0, sp.has.str(x0, S.b("PatSynCon")), ix)
   sp.rw.p10(sp.rw.p9(sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix)), cur, ix)

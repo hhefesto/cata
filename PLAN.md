@@ -1454,3 +1454,70 @@ others: freeVarsDeep on `foldMap` with a lambda over a local function
 AbortableF's derived `foldr`, base's default (GHC derives it at a type
 whose variable is phantom), patternBinders on its type variable. Still
 first on the path: the partial functions (`error` 24, Map's `!` 18).
+
+## Telomare's rules, 24: local functions in known arguments, ifs out of arguments, foldMap, filter, the default foldr (2026-11-21)
+
+- **A local function in a known argument** (a nonrecursive let's or
+  where's, Spec's `sp.fa.lfuns`) is its value there: its lambda (an
+  applied one reduced, `sp.beta`), or, with no parameters but a function
+  (`patternRefs = cata palg where ..`), its right-hand side under a let of
+  its where-bindings. So a copy's parameters are its free locals, not a
+  closure over them: pruneBindings' `until (\s -> expand s == s) expand
+  seed` is a copy of until at bmap, a Map. An argument has the local
+  functions that name a local or the def they are in; one that names the
+  def (a recursion through the copy) has all of them, so the copy takes no
+  template and the recursion is a group the fold writes with fuel. A
+  closed local function that names neither stays a template, as it was.
+- **A def with a class at a known argument**: a call of its dictionary
+  copy (asked for by p4 in the same top) is the def's call at the copy's
+  types (`sp.fa.dq.find`), when the argument names a local or, inside a
+  lambda, the def the call is in; else the dictionary copy takes it as a
+  closed template, as before (pair's `traverse (\x -> if ..)` stays so).
+- **Ifs and lets out of arguments** (`sp.ifl`, after `sp.beta`): `f (if c
+  then a else b)` is `if c then f a else f b`, `f (let ds in e)` is `let
+  ds in f e`, so the if is where the fold knows its type (EAL's
+  `mergeClasses`: `pure $ if la >= lb then a else b`). Not over `&&` and
+  `||`, not out of a lambda, a case or a tuple.
+- **Base's model**: `foldMap` at a list is `foldMapMonoid` (Foldable's
+  default, `foldr (\x acc -> f x <> acc) mempty`; at a package's derived
+  Foldable it stays the instance's), GHC.List's `filter` is the model's
+  `filter`, and base's default `foldr`, `$dmfoldr` (GHC's derived Foldable
+  leaves it at a type whose variable is phantom: AbortableF,
+  IndexedInputF), is `foldrDefault`, `foldr` over `foldMap (\x -> [x])`.
+  A generated method with no parameters that is a function and not a
+  lambda (`$cfoldr = $dmfoldr`) takes its arguments (`sp.p0.eta`), so a
+  template reaches the def through it.
+- **Tests**: `tests/hs/Prune.hs` (pruneBindings' and freeVarsDeep's
+  shapes with a local function, filter at a section over a local): prune,
+  reach, ex1..ex4 ok-law, free ok-check (a Set). `tests/hs/IfArg.hs`:
+  pick, dist, grow, nested, halves, ex1, ex2, ex4 ok-law; `both` (an if in
+  a tuple) and `lazyAnd` (under `&&`) out, fold:if-in-argument, as
+  designed. `tests/hs/Phantom.hs`: sumAb, ab, ex1..ex3 ok-law (were out,
+  survey: `$dmfoldr`). `tests/hs/FreeDeep.hs` (freeVarsDeep's shape
+  whole): out, see below. The 23 earlier sets (the 17, ShowFix, Writer,
+  Reader, Maps, FoldM, Until) against their last ledgers: rv 2 out ->
+  ok-law, Until's reach and ex1 out -> ok-law, nothing lost (each set
+  has the model's new generic defs, out on their own as the others are).
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 23 (spec38, law49, 1073 s) | 445 | 98 | 286 | 113 |
+| after rule 24 (spec49, law49, 1303 s) | 443 | 98 | 288 | 113 |
+
+Own: mergeClasses and Levels' globalEnv out -> ok-check, no own def
+lost. Copies (`help/LedgerN.hs`, without the hash): 935 -> 969 ok-check;
+10 out -> ok-check, 6 ok-check -> out: four now hold the local function
+they took as a template, and its Map `!` (EAL's foldl copies at
+eliminate's and simplexSolve's), one a guard that falls through, one a
+let in a tuple (validateVariables'); every def calling those six was out
+before and is now. Frontier from compileModules: 188 reached, 186 not
+ok, first `error` 25, Map's `!` 22; 69 of telomare's not-ok defs wait
+on partial functions only. Spec takes 366 s on telomare (was 175 s).
+
+Still out: freeVarsDeep and pruneBindings (which calls it). The group the
+fold now makes (freeVarsDeep, its alg and patternRefs' palg, the foldMap
+and foldr copies) has freeVarsDeep = `cata alg`, a member with no
+parameters whose cata takes the group's algebra as a template naming the
+fuel, which Bend refuses (law: "expected a term, observed '~'"). Next: a
+group member that is a cata at the group's algebra is a member of its
+own, the cata's recursion written with the fuel.

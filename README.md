@@ -132,7 +132,18 @@ The call must be at closed types, and the def's patterns at the
 parameter variables or wildcards. Not copied: a def's own self-calls
 (`go (f . (x :)) xs`, whose argument grows) and, inside a copy, the def
 at another argument. A dictionary local in the argument stays as it is:
-the fold reads a method at its type.
+the fold reads a method at its type. A local function in the argument (a
+let's or a where's, nonrecursive, with parameters) is its lambda there,
+an applied one reduced, so that the copy's parameters are its free locals
+and not a closure over them: in Resolve's `pruneBindings`, `until (\s ->
+expand s == s) expand seed` with `expand r = r <> fold (restrictKeys bmap
+r)` is a call of until's copy at bmap, a Map. The copy then takes no
+template for it, so a recursion through the copy (freeVarsDeep's, through
+`foldMap (\(p, body) -> patternRefs p <> body)`) is a group the fold
+writes with fuel. A call of a def's dictionary copy is the def's call at
+the copy's types, so a def with a class is copied at a known argument
+too, when the argument names a local or the def the call is in (else the
+dictionary copy takes it as a template, closed).
 
 Base's `foldr`, `foldl`, `foldl'` and `concatMap` at a list are cata's model's
 (`prelude/Cata/Base.hs`, base's definitions, the list first in foldl's
@@ -368,9 +379,18 @@ defs the same way, at f and a then the method's types: `fmap` and `<$>`
 instance. Data.Foldable's `fold` at any container is Base's model's
 `foldMonoid`, `foldr (<>) mempty` (the same value at a lawful Monoid), at
 the container and the Monoid: `foldr` at a list, a Map, CofreeF or a
-package's instance (a derived one's own; base's default `foldr`, which
-GHC derives at a type whose variable is phantom, is out), `<>` and
-`mempty` at lists, Maps and Sets.
+package's instance (a derived one's own; at a type whose variable is
+phantom, as telomare's AbortableF, GHC leaves base's default, `$dmfoldr`,
+which is the model's `foldrDefault`, `foldr` over the list `foldMap (\x
+-> [x])` gives, and the instance's `$cfoldr = $dmfoldr`, a generated
+method with no parameters that is a function, takes them: `$cfoldr f z t
+= foldrDefault f z t`, so that f reaches it as a template), `<>` and
+`mempty` at lists, Maps and Sets. `foldMap f` at a list is
+`foldMapMonoid f`, Foldable's default, `foldr (\x acc -> f x <> acc)
+mempty`, at the list, the Monoid and the element (at a package's derived
+Foldable it stays the instance's), and GHC.List's `filter` is the
+model's `filter`, base's definition: both are copied at a known function
+argument.
 
 A view pattern `(f -> p)` is a plain pattern when f is known (the
 specialiser's `sp.p3`): `id`, a constructor, `pure` at Maybe, a
@@ -423,6 +443,15 @@ binders, and its own. A use of a local function becomes a call of its def
 with those locals first. The ledger says `ok-gen` for a lifted def; a
 lifted def that calls the def it came from is in a cycle of calls with it
 (see "Recursion Bend refuses").
+
+An `if` or a `let` that is an application's argument or function part
+goes out over it first (the specialiser's `sp.ifl`): `f (if c then a else
+b)` is `if c then f a else f b` and `f (let ds in e)` is `let ds in f e`
+(the locals are numbered apart; the values are the same), so that the if
+is where its type is known, a body's or a branch's (EAL's `mergeClasses`:
+`pure $ if la >= lb then a else b`). Not over `&&` and `||`, lazy in
+their second argument, and not out of a lambda, a `case` or a tuple (an
+if there is still `fold:if-in-argument`).
 
 ## Equality
 

@@ -13,7 +13,7 @@
 -- Bend is strict, so foldl' is foldl.
 module Cata.Base where
 
-import Prelude hiding (concatMap, foldl, foldl', foldr, until)
+import Prelude hiding (concatMap, filter, foldl, foldl', foldr, until)
 
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Data.Foldable as F
@@ -109,6 +109,20 @@ cofreeFFoldr g z (_ :< fb) = F.foldr g z fb
 foldMonoid :: forall t m. (Foldable t, Monoid m) => t m -> m
 foldMonoid xs = F.foldr (<>) mempty xs
 
+-- | Data.Foldable's foldMap at any Foldable t: its default, foldr (mappend
+-- . f) mempty (Spec writes foldMap as this def, at t, the Monoid and the
+-- element; a known f is copied in, its free locals the copy's parameters)
+foldMapMonoid :: forall t m a. (Foldable t, Monoid m) => (a -> m) -> t a -> m
+foldMapMonoid f xs = F.foldr (\x acc -> f x <> acc) mempty xs
+
+-- | Data.Foldable's default foldr (base's $dmfoldr, which GHC's derived
+-- Foldable leaves in place at a type whose variable is phantom, as
+-- telomare's AbortableF): foldr over the elements foldMap gives as a list
+-- (Spec writes $dmfoldr at t as this def; the same value, base's is
+-- appEndo (foldMap (Endo . f) t) z)
+foldrDefault :: forall t a b. Foldable t => (a -> b -> b) -> b -> t a -> b
+foldrDefault f z t = foldr f z (F.foldMap (\x -> [x]) t)
+
 -- | data-fix's Show instance at Fix f, through f's Show1: showsPrec d (Fix
 -- a) is showParen (d >= 11) (showString "Fix " . liftShowsPrec showsPrec
 -- showList 11 a), showList base's default (showList__ (showsPrec 0)). Spec
@@ -142,3 +156,12 @@ fixShowList xs = showList__ showString (map (cata fixShowAlg) xs)
 -- "Recursion Bend refuses: fuel").
 until :: forall a. (a -> Bool) -> (a -> a) -> a -> a
 until p f x = if p x then x else until p f (f x)
+
+-- | GHC.List's filter (Spec writes filter as this def, so that a known
+-- predicate over a local, as Resolve's (`Set.member` reachable) . fst, is
+-- copied in, the local the copy's parameter)
+filter :: forall a. (a -> Bool) -> [a] -> [a]
+filter _pred [] = []
+filter pred (x : xs)
+  | pred x = x : filter pred xs
+  | otherwise = filter pred xs
