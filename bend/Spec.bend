@@ -1265,7 +1265,7 @@ def sp.pc.model(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
 # first-order def, not a closure Bend refuses as a template.
 def sp.pc.btab() -> List<&2, Pcr>:
   +fo = {"GHC.Internal.Data.Foldable." : String}
-  [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}]
+  [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}, Pcr{S.b(fo ++ "concatMap"), S.b("concatMap"), 1n}]
 
 def sp.pc.atlist(+tys: List<&2, X.Sx>) -> Bool:
   sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")
@@ -2595,10 +2595,95 @@ def sp.copy.any(+rq: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
     case r i:
       sp.copy(r, cur, i)
 
+# List comprehensions ----------------------------------------------------------
+
+# [e | Q] (do listcomp (List X) STMTS) as the Haskell 2010 report's
+# translation (3.11): [e | b, Q] = if b then [e | Q] else []; [e | p <- l,
+# Q] = concatMap (\p -> [e | Q]; _ -> []) l (the wildcard when p can fail);
+# [e | let ds, Q] = let ds in [e | Q]; [e | ] = [e]. The lambda's argument
+# type is l's element type when l is a local of known type, else p's: a
+# variable's, a tuple's of its parts', a constructor's (base's list, Maybe,
+# Either; a package's, the type of its name). concatMap at a list is Base's
+# model's when the package has it (sp.pc), so the lambda is copied with its
+# free locals (a generator's variables).
+
+# a constructor's type at its type arguments
+def sp.lc.cty(+c: X.Sx, +args: List<&2, X.Sx>) -> X.Sx:
+  +n = sp.sat(c, 2n)
+  +lst = Bool.or(sp.is(n, ":"), sp.is(n, "[]"))
+  +may = Bool.or(sp.is(n, "Just"), sp.is(n, "Nothing"))
+  +eit = Bool.or(sp.is(n, "Left"), sp.is(n, "Right"))
+  Bool.pick(X.Sx, lst, sp.tc(S.b("GHC.Types"), S.b("List"), args), Bool.pick(X.Sx, may, sp.tc(S.b("GHC.Internal.Maybe"), S.b("Maybe"), args), Bool.pick(X.Sx, eit, sp.tc(S.b("GHC.Internal.Data.Either"), S.b("Either"), args), sp.tc(sp.sat(c, 1n), n, args))))
+
+# the types of a pattern (isl False) or of a list of patterns (isl True);
+# an unknown one is ()
+def sp.lc.ty(p: X.Sx, isl: Bool) -> List<&2, X.Sx>:
+  match p isl:
+    case X.SxCons{h, t} True{}:
+      List.append(&2, X.Sx, sp.lc.ty(h, False{}), sp.lc.ty(t, True{}))
+    case _ True{}:
+      Nil{}
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+q, +r}} False{}:
+      +bv = Bool.or(sp.is(a, "pvar"), sp.is(a, "pas"))
+      +inner = Bool.or(sp.is(a, "pbang"), sp.is(a, "plazy"))
+      +tup = sp.is(a, "ptuple")
+      +con = sp.is(a, "pcon")
+      sp.if(List<&2, X.Sx>, bv, _ => [sp.at(q, 2n)], _ => sp.if(List<&2, X.Sx>, sp.is(a, "pwild"), _ => [q], _ => sp.if(List<&2, X.Sx>, inner, _ => sp.lc.ty(q, False{}), _ => sp.if(List<&2, X.Sx>, tup, _ => [sp.tc(S.b("GHC.Tuple"), sp.cat(S.b("Tuple"), S.b(Nat.show(List.length(&2, X.Sx, sp.els(q))))), sp.lc.ty(q, True{}))], _ => sp.if(List<&2, X.Sx>, con, _ => [sp.lc.cty(q, sp.els(sp.at(X.SxCons{X.SxAtom{a}, X.SxCons{q, r}}, 2n)))], _ => [sp.l(Nil{})])))))
+    case _ False{}:
+      [sp.l(Nil{})]
+
+# whether a generator's pattern can fail (a constructor's but a tuple's, a
+# literal)
+def sp.lc.fails(+p: X.Sx) -> Bool:
+  Bool.or(sp.head.is(p, "pcon"), Bool.or(sp.head.is(p, "plit"), Bool.or(sp.head.is(p, "pnlit"), sp.head.is(p, "plist"))))
+
+# the element type of a generator's list l with pattern p
+def sp.lc.elem(+l: X.Sx, +p: X.Sx, +env: List<&2, Asb>) -> X.Sx:
+  +lt = Bool.pick(Maybe<&2, X.Sx>, sp.head.is(l, "l"), sp.as.look(l, env), None{})
+  +ok = Bool.and(Maybe.is_some(&2, X.Sx, lt), sp.is(sp.tckey(Maybe.default(&2, X.Sx, lt, X.SxNil{})), "GHC.Types.List"))
+  Bool.pick(X.Sx, ok, sp.at(Maybe.default(&2, X.Sx, lt, X.SxNil{}), 3n), sp.first(sp.lc.ty(p, False{})))
+
+def sp.lc.nil(+x: X.Sx) -> X.Sx:
+  sp.l([sp.a("list"), x, X.SxNil{}])
+
+def sp.lc.lam(+a: X.Sx, +x: X.Sx, +p: X.Sx, +body: X.Sx) -> X.Sx:
+  +ok = sp.l([sp.a("match"), sp.l([p]), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, body])]), sp.l([sp.a("binds")])])])
+  +no = sp.l([sp.a("match"), sp.l([sp.l([sp.a("pwild"), a])]), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, sp.lc.nil(x)])]), sp.l([sp.a("binds")])])])
+  +ms = Bool.pick(List<&2, X.Sx>, sp.lc.fails(p), [ok, no], [ok])
+  sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([a]), sp.tc(S.b("GHC.Types"), S.b("List"), [x]), sp.a("generated"), sp.l(ms)])])
+
+# concatMap f l at a list, from a to x
+def sp.lc.cmap(+a: X.Sx, +x: X.Sx, +f: X.Sx, +l: X.Sx) -> X.Sx:
+  +fo = S.b("GHC.Internal.Data.Foldable")
+  +h = sp.l([sp.a("evapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.g(fo, S.b("concatMap"), "var"), sp.tc(S.b("GHC.Types"), S.b("List"), Nil{})]), a]), x]), sp.g(fo, S.b("$fFoldableList"), "dfun")])
+  sp.l([sp.a("app"), sp.l([sp.a("app"), h, f]), l])
+
+# [e | STMTS] at element type x
+def sp.lc.stmts(ss: X.Sx, +x: X.Sx, +env: List<&2, Asb>) -> X.Sx:
+  match ss:
+    case X.SxCons{X.SxCons{X.SxAtom{+a}, X.SxCons{+e, +r}}, +t}:
+      +s = {X.SxCons{X.SxAtom{a}, X.SxCons{e, r}} : X.Sx}
+      +rest = sp.lc.stmts(t, x, env)
+      +l = sp.at(s, 2n)
+      +el = sp.lc.elem(l, e, env)
+      sp.if(X.Sx, sp.is(a, "last"), _ => sp.l([sp.a("list"), x, sp.l([e])]), _ => sp.if(X.Sx, sp.is(a, "body"), _ => sp.l([sp.a("if"), e, rest, sp.lc.nil(x)]), _ => sp.if(X.Sx, sp.is(a, "letstmt"), _ => sp.l([sp.a("let"), e, rest]), _ => sp.lc.cmap(el, x, sp.lc.lam(el, x, e, rest), l))))
+    case _:
+      sp.lc.nil(x)
+
+# every list comprehension, the innermost first
+def sp.lc(x: X.Sx, +env: List<&2, Asb>) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      +y = {X.SxCons{sp.lc(h, env), sp.lc(t, env)} : X.Sx}
+      +isl = Bool.and(sp.head.is(y, "do"), sp.is(X.tsx.atom.of(sp.at(y, 1n)), "listcomp"))
+      sp.if(X.Sx, isl, _ => sp.lc.stmts(sp.at(y, 3n), sp.at(sp.at(y, 2n), 3n), env), _ => y)
+    case z:
+      z
+
 # a binding's passes: pattern synonyms, views, copies' calls, normal type
 # arguments
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix) -> Rw:
-  +xp = sp.beta(sp.pl(sp.pc(x, sp.ix.hasbase(ix)), ix))
+  +xp = sp.beta(sp.pl(sp.pc(sp.lc(x, sp.fa.binds(x, Nil{})), sp.ix.hasbase(ix)), ix))
   +x0 = sp.p0(xp, sp.isfun(xp))
   +y = sp.p1.go(12n, x0, sp.has.str(x0, S.b("PatSynCon")), ix)
   sp.rw.p10(sp.rw.p9(sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix)), cur, ix)
@@ -2695,7 +2780,8 @@ def sp.p5.tc(+k: List<&2, U32>, +x: X.Sx) -> X.Sx:
   +dig = sp.is(k, "Crypto.Hash.Types.Digest")
   +sha = Bool.or(sp.is(k, "Crypto.Hash.SHA256.SHA256"), sp.is(k, "Crypto.Hash.Algorithms.SHA256"))
   +bs = Bool.or(Bool.or(sp.is(k, "Data.ByteString.Internal.Type.ByteString"), sp.is(k, "Data.ByteString.Internal.Type.StrictByteString")), Bool.or(sp.is(k, "Data.ByteString.Lazy.Internal.ByteString"), sp.is(k, "Data.ByteString.Lazy.Internal.LazyByteString")))
-  Bool.pick(X.Sx, dig, sp.tc(S.b("HsPrelude"), S.b("HsDigest"), Nil{}), Bool.pick(X.Sx, sha, sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), Bool.pick(X.Sx, bs, sp.tc(S.b("GHC.Types"), S.b("List"), [sp.tc(S.b("GHC.Internal.Word"), S.b("Word8"), Nil{})]), Bool.pick(X.Sx, int, sp.hsint(), Bool.pick(X.Sx, integer, sp.tc(S.b("HsPrelude"), S.b("HsInteger"), Nil{}), Bool.pick(X.Sx, im, sp.tc(S.b("Data.Map.Internal"), S.b("Map"), sp.hsint() <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), Bool.pick(X.Sx, iset, sp.tc(S.b("Data.Set.Internal"), S.b("Set"), [sp.hsint()]), x)))))))
+  +rat = Bool.or(sp.is(k, "GHC.Internal.Real.Rational"), sp.is(k, "GHC.Internal.Real.Ratio"))
+  Bool.pick(X.Sx, rat, sp.tc(S.b("HsPrelude"), S.b("HsRational"), Nil{}), Bool.pick(X.Sx, dig, sp.tc(S.b("HsPrelude"), S.b("HsDigest"), Nil{}), Bool.pick(X.Sx, sha, sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), Bool.pick(X.Sx, bs, sp.tc(S.b("GHC.Types"), S.b("List"), [sp.tc(S.b("GHC.Internal.Word"), S.b("Word8"), Nil{})]), Bool.pick(X.Sx, int, sp.hsint(), Bool.pick(X.Sx, integer, sp.tc(S.b("HsPrelude"), S.b("HsInteger"), Nil{}), Bool.pick(X.Sx, im, sp.tc(S.b("Data.Map.Internal"), S.b("Map"), sp.hsint() <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), Bool.pick(X.Sx, iset, sp.tc(S.b("Data.Set.Internal"), S.b("Set"), [sp.hsint()]), x))))))))
 
 # an IntMap or IntSet function's Map or Set name, and where its key goes
 def sp.p5.mod(+m: List<&2, U32>) -> List<&2, U32>:

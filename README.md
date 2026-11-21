@@ -122,7 +122,7 @@ parameter variables or wildcards. Not copied: a def's own self-calls
 at another argument. A dictionary local in the argument stays as it is:
 the fold reads a method at its type.
 
-Base's `foldr`, `foldl` and `foldl'` at a list are cata's model's
+Base's `foldr`, `foldl`, `foldl'` and `concatMap` at a list are cata's model's
 (`prelude/Cata/Base.hs`, base's definitions, the list first in foldl's
 loop so that Bend sees it shrink), exported with the package before
 `Cata/Parsec.hs`: a call of one is a call of the model's def at the types
@@ -262,6 +262,25 @@ order (crypton's); a ByteString is a list of `Word8` (Bend's U32), `pack`,
 `unpack` at a digest its bytes, utf8-string's `encode` UTF-8.
 
 Data.Void's `Void` is Base's `Empty`, `absurd` `Empty.absurd`, `==` at it `True`.
+
+`Rational` (Data.Ratio's `Ratio Integer`, either name) is HsPrelude's
+`HsRational` (`prelude/HsRational.bend`): `HsRational{num: HsInt, den:
+Nat}` in lowest terms, den at least 1, as GHC keeps it, so equality is the
+fields'. `+`, `-`, `*`, `/`, `negate`, `abs`, `signum`, `compare` and the
+other comparisons, `fromInteger`, `fromIntegral` from Int, literals (`2`,
+and `0.5` as `1 % 2`), `numerator`, `denominator`, `%`, `show` and
+`showsPrec` (GHC.Real's: `(-3) % 2`), and `gcd` and `lcm` at Int and
+Integer. Euclid's gcd is fuelled by its second argument. A zero
+denominator (GHC's error) answers 0, the type's default.
+
+A list comprehension is the report's translation (3.11): `[e | b, Q]` is
+`if b then [e | Q] else []`, `[e | p <- l, Q]` `concatMap (\p -> [e |
+Q]; _ -> []) l` (the wildcard when p can fail), `[e | let ds, Q]` `let ds
+in [e | Q]` (Spec's `sp.lc`). The lambda's argument type is l's element
+type when l is a local of known type, else p's (a variable's, a tuple's, a
+constructor's: base's list, Maybe or Either, a package's the type of its
+name). `concatMap` at a list is Base's model's (`prelude/Cata/Base.hs`), so
+the lambda, which names the earlier generators' variables, is copied.
 
 ## Lists, Maybe, Either, pairs
 

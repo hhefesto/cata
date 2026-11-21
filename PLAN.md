@@ -1205,3 +1205,44 @@ their copies, and the test helpers `runTelomareParser`,
 simplex over Rational (Rational 14, Tab 9, Row 8, Elim 4), view patterns
 (11), `!!` (8) and Map's `!` (7), `iterate` (7), `show` at Fix (6),
 ReaderT (6).
+
+## Telomare's rules, 18: Rational and list comprehensions (2026-11-20)
+
+compileModules' frontier after rule 17 held EAL's simplex over Rational
+(Rational 14, Tab 9, Row 8, Elim 4) and, through EAL, 41 list
+comprehensions (20 in EAL) that the fold left out (`fold:do`).
+
+- **Rational** (`prelude/HsRational.bend`, written into HsPrelude.bend):
+  `HsRational{num: HsInt, den: Nat}` in lowest terms, den at least 1
+  (GHC's invariant, so equality is structural); Spec writes `Rational` and
+  `Ratio _` as it; Survey takes its Num, Fractional and Show methods and
+  `%`; the fold maps `+ - * /`, `negate`/`abs`/`signum`, comparisons,
+  `fromInteger` and literals (`frac` as `HsRational.mk`), `fromIntegral`
+  from Int, `numerator`, `denominator`, `%`, `gcd`/`lcm` (Int), `show` and
+  `showsPrec` (GHC.Real's); Euclid's gcd fuelled by its second argument; a
+  zero denominator answers 0 (GHC's error). Twelve answers against GHC's
+  (`5 % 6`, `(-15) % 8`, `((-3) % 4)` at precedence 8, lcm 4 (-6) = 12, ...)
+  the same.
+- **List comprehensions** (Spec's `sp.lc`, before the other passes): the
+  report's translation (3.11) to `if`, `let` and `concatMap` of a lambda
+  (a wildcard clause when the generator's pattern can fail); the lambda's
+  argument type the generator list's element type (a local of known type)
+  or the pattern's. `concatMap` joins Base's model (`prelude/Cata/Base.hs`),
+  so a lambda over an earlier generator's variables is copied.
+- **Test** (`tests/hs/Rat.hs`, with the model): EAL's scaleRow (a
+  comprehension over rationals, `foldr (lcm . denominator . snd)`), a pivot
+  step, `%`, `/` by a literal, `max`, `show`: 3 ok-law (`ex1` the scaled
+  row, `ex3` the shown ratio, `ex5`), the rest ok-check (laws do not write
+  a Rational yet: `nolaw:argument-type:HsPrelude.HsRational`). The other
+  tests (spec27 + law39): no def lost.
+
+| | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| telomare after rule 17 (spec24, law37) | 474 | 97 | 275 | 110 |
+| telomare after rule 18 (spec27, law39, 711 s) | 455 | 97 | 292 | 113 |
+
+No def lost its verdict; 20 out -> ok-check, 3 out -> ok-type, 67 new
+copies ok-check. Telomare.Parse's 13-file check against GHC still the
+same. compileModules' frontier (226 defs, 223 no): Map's partial `!`
+(18), `error` (17), view patterns (11), `!!` (8), `iterate` (7), `show`
+at Fix (6), ReaderT (6).

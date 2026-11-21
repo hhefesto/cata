@@ -11,7 +11,7 @@
 -- Bend is strict, so foldl' is foldl.
 module Cata.Base where
 
-import Prelude hiding (foldl, foldl', foldr)
+import Prelude hiding (concatMap, foldl, foldl', foldr)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
 foldr f z [] = z
@@ -31,3 +31,9 @@ foldl' f z0 xs0 = go xs0 z0
   where
     go [] z = z
     go (x : xs) z = go xs (f z x)
+
+-- | a list comprehension's generator (Spec writes [e | p <- l, Q] as
+-- concatMap (\p -> [e | Q]) l)
+concatMap :: (a -> [b]) -> [a] -> [b]
+concatMap f [] = []
+concatMap f (x : xs) = f x ++ concatMap f xs
