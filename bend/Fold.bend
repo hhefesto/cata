@@ -1074,6 +1074,7 @@ type Fr is Data:
   FrIn{k: List<&2, U32>}
   FrMaybe{r: Fr}
   FrPair{a: Fr, b: Fr}
+  FrList{r: Fr}
   FrNo{}
 
 # a constructor of a functor: its Bend name, its fields' roles
@@ -5678,14 +5679,14 @@ def fd.has.tv(x: X.Sx, +f: List<&2, U32>) -> Bool:
     case _:
       False{}
 
-def fd.fr.one(+key: List<&2, U32>, r: Fr) -> Fr:
+def fd.fr.one(+key: List<&2, U32>, +r: Fr) -> Fr:
   match r:
     case FrCopy{}:
       FrCopy{}
     case FrRec{}:
-      Bool.pick(Fr, fd.is(key, "GHC.Internal.Maybe.Maybe"), FrMaybe{FrRec{}}, FrIn{key})
+      Bool.pick(Fr, fd.is(key, "GHC.Internal.Maybe.Maybe"), FrMaybe{FrRec{}}, Bool.pick(Fr, fd.is(key, "GHC.Types.List"), FrList{FrRec{}}, FrIn{key}))
     case r1:
-      Bool.pick(Fr, fd.is(key, "GHC.Internal.Maybe.Maybe"), FrMaybe{r1}, FrNo{})
+      Bool.pick(Fr, fd.is(key, "GHC.Internal.Maybe.Maybe"), FrMaybe{r1}, Bool.pick(Fr, fd.is(key, "GHC.Types.List"), FrList{r1}, FrNo{}))
 
 def fd.fr.two(+key: List<&2, U32>, r1: Fr, r2: Fr) -> Fr:
   match r1 r2:
@@ -5937,6 +5938,8 @@ def fd.cg(fuel: Nat, ws: List<&2, Cw>, +vs: List<&2, T.Bt>, +k: Nat, +c: Cg) -> 
       fd.cg.match(v, fd.cg(p, CwC{v, fd.cg.pair(a, b)} <> rest, vs, k, c))
     case 1n+p CwF{v, FrNo{}} <> rest:
       fd.todo("fold:cata-field")
+    case 1n+p CwF{v, FrList{r}} <> rest:
+      fd.todo("fold:cata-list")
     case 1n+p CwB{+b, +n} <> rest:
       fd.cg(p, rest, fd.cg.build(fd.cg.cname(c, b), n, vs), k, c)
     case 1n+p CwC{v, Nil{}} <> rest:
@@ -5986,6 +5989,8 @@ def fd.in.ok(m: Maybe<&2, List<&2, Fc>>, +own: List<&2, U32>, +key: List<&2, U32
 def fd.fr.ok(r: Fr, +own: List<&2, U32>, +fz: List<&2, Fz>) -> Bool:
   match r:
     case FrNo{}:
+      False{}
+    case FrList{a}:
       False{}
     case FrIn{+key}:
       fd.in.ok(fd.fz.find(fz, key), own, key)
@@ -7714,16 +7719,209 @@ def fd.mu.wrap.call(same: Bool, call: T.Bt, +o: List<&2, U32>) -> T.Bt:
     case False{}:
       T.BtApp{T.BtVar{o}, T.tba.args([call])}
 
-# the members, each a call of g at its constructor
-def fd.mu.wrappers(ds: List<&2, T.BItem>, +g: List<&2, U32>, +same: Bool, +i: Nat) -> List<&2, T.BItem>:
+# A member whose answer is a function (a def written point-free, as
+# freeD = cata alg is) takes its argument as a parameter of its own in the
+# group, as many as its answer's arrows (up to 4): g.Out's fields are data,
+# and a function is not. Its body is applied to the new variable mu_aK (a
+# lambda's variable renamed to it), its calls in the group are given the
+# arguments they are applied to (else eta-expanded, mu_eK => ...), and its
+# def outside the group is the lambda again.
+
+type Mab is Data:
+  Mab{n: List<&2, U32>, k: Nat}
+
+type Mabi is Data:
+  Mabi{it: T.BItem, k: Nat}
+
+def fd.mu.ab.v(+k: Nat) -> List<&2, U32>:
+  fd.cat(S.b("mu_a"), fd.nshow(k))
+
+# e applied to the variable v
+def fd.mu.ab.ap(e: T.Bt, +v: List<&2, U32>) -> T.Bt:
+  match e:
+    case T.BtLam{m, +y, b}:
+      T.tba.subst(b, y, T.BtVar{v})
+    case u:
+      T.BtApp{u, T.tba.args([T.BtVar{v}])}
+
+# a body's answers applied to v
+def fd.mu.ab.app(b: T.Bt, +v: List<&2, U32>) -> T.Bt:
+  match b:
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.mu.ab.app(cs, v)}
+    case T.BtCase{p, e, rest}:
+      T.BtCase{p, fd.mu.ab.app(e, v), fd.mu.ab.app(rest, v)}
+    case T.BtLet{x, val, e}:
+      T.BtLet{x, val, fd.mu.ab.app(e, v)}
+    case T.BtRw{e, p, e2}:
+      T.BtRw{e, p, fd.mu.ab.app(e2, v)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.mu.ab.ap(e, v)}
+    case T.BtCEnd{}:
+      T.BtCEnd{}
+    case e:
+      fd.mu.ab.ap(e, v)
+
+# it with one more parameter, when its answer is a function
+def fd.mu.ab1(it: T.BItem, +k: Nat) -> Maybe<&2, T.BItem>:
+  match it:
+    case T.BiDef{n, ps, T.BtPi{pm, px, False{}, a, b}, body, d}:
+      +v = fd.mu.ab.v(k)
+      +b2 = fd.mu.ab.app(body, v)
+      Some{T.BiDef{n, List.append(&2, T.BParam, ps, [T.BParam{fd.mode(fd.uses(b2, v)), v, a}]), b, b2, d}}
+    case _:
+      None{}
+
+def fd.mu.ab.go(fuel: Nat, m: Maybe<&2, T.BItem>, it: T.BItem, +k: Nat) -> Mabi:
+  match fuel m:
+    case 1n+f Some{+j}:
+      fd.mu.ab.go(f, fd.mu.ab1(j, 1n+k), j, 1n+k)
+    case _ _:
+      Mabi{it, k}
+
+def fd.mu.abs(ds: List<&2, T.BItem>) -> List<&2, Mabi>:
   match ds:
     case Nil{}:
       Nil{}
-    case T.BiDef{n, +ps, r, b, d} <> t:
-      +call = {T.BtApp{T.BtVar{g}, T.tba.args([fd.fu.max(), T.BtCon{fd.mu.inc(g, i), fd.fu.pargs(ps)}])} : T.Bt}
-      T.BiDef{n, ps, r, T.BtExpr{fd.mu.wrap.call(same, call, fd.mu.outp(g, i))}, [S.b("fuel: a call of the group's def, from 2^32 - 1")]} <> fd.mu.wrappers(t, g, same, 1n+i)
+    case +h <> t:
+      fd.mu.ab.go(4n, fd.mu.ab1(h, 0n), h, 0n) <> fd.mu.abs(t)
+
+def fd.mu.abks(xs: List<&2, Mabi>) -> List<&2, Mab>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Mabi{it, k} <> t:
+      Mab{fd.item.name(it), k} <> fd.mu.abks(t)
+
+def fd.mu.abits(xs: List<&2, Mabi>) -> List<&2, T.BItem>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Mabi{it, k} <> t:
+      it <> fd.mu.abits(t)
+
+def fd.mu.abk(ks: List<&2, Mab>, +x: List<&2, U32>) -> Nat:
+  match ks:
+    case Nil{}:
+      0n
+    case Mab{+n, +k} <> t:
+      Bool.pick(Nat, S.eq(n, x), k, fd.mu.abk(t, x))
+
+def fd.mu.etas(k: Nat, +i: Nat) -> List<&2, List<&2, U32>>:
+  match k:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      fd.cat(S.b("mu_e"), fd.nshow(i)) <> fd.mu.etas(p, 1n+i)
+
+def fd.mu.vars(xs: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      Nil{}
     case h <> t:
-      fd.mu.wrappers(t, g, same, 1n+i)
+      T.BtVar{h} <> fd.mu.vars(t)
+
+def fd.mu.lamv(xs: List<&2, List<&2, U32>>, b: T.Bt) -> T.Bt:
+  match xs:
+    case Nil{}:
+      b
+    case h <> t:
+      T.BtLam{T.BmLive{}, h, fd.mu.lamv(t, b)}
+
+def fd.mu.lams(ps: List<&2, T.BParam>, b: T.Bt) -> T.Bt:
+  match ps:
+    case Nil{}:
+      b
+    case T.BParam{m, x, ty} <> t:
+      T.BtLam{m, x, fd.mu.lams(t, b)}
+
+# x(a) of a member that takes k more: eta-expanded
+def fd.mu.sat1(k: Nat, +x: List<&2, U32>, a: T.Bt) -> T.Bt:
+  match k:
+    case 0n:
+      T.BtApp{T.BtVar{x}, a}
+    case 1n+(+p):
+      +vs = fd.mu.etas(1n+p, 0n)
+      fd.mu.lamv(vs, T.BtApp{T.BtVar{x}, T.tba.args(List.append(&2, T.Bt, fd.dv.list(a), fd.mu.vars(vs)))})
+
+def fd.mu.more(f: T.Bt, xs: List<&2, T.Bt>) -> T.Bt:
+  match xs:
+    case Nil{}:
+      f
+    case h <> t:
+      T.BtApp{f, T.tba.args(h <> t)}
+
+def fd.mu.sat2b(ge: Bool, +k: Nat, +x: List<&2, U32>, a: T.Bt, b: T.Bt, +bs: List<&2, T.Bt>) -> T.Bt:
+  match ge:
+    case True{}:
+      fd.mu.more(T.BtApp{T.BtVar{x}, T.tba.args(List.append(&2, T.Bt, fd.dv.list(a), List.take(&2, T.Bt, bs, k)))}, List.drop(&2, T.Bt, bs, k))
+    case False{}:
+      T.BtApp{fd.mu.sat1(k, x, a), b}
+
+# x(a)(b) of a member that takes k more: given them from b
+def fd.mu.sat2(k: Nat, +x: List<&2, U32>, a: T.Bt, +b: T.Bt) -> T.Bt:
+  match k:
+    case 0n:
+      T.BtApp{T.BtApp{T.BtVar{x}, a}, b}
+    case 1n+(+p):
+      +bs = fd.dv.list(b)
+      fd.mu.sat2b(Nat.is_ge(List.length(&2, T.Bt, bs), 1n+p), 1n+p, x, a, b, bs)
+
+# t with the calls of members that take more given them
+def fd.mu.sat(t: T.Bt, +ks: List<&2, Mab>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtApp{T.BtVar{+x}, a}, b}:
+      fd.mu.sat2(fd.mu.abk(ks, x), x, fd.mu.sat(a, ks), fd.mu.sat(b, ks))
+    case T.BtApp{T.BtVar{+x}, a}:
+      fd.mu.sat1(fd.mu.abk(ks, x), x, fd.mu.sat(a, ks))
+    case T.BtApp{h, a}:
+      T.BtApp{fd.mu.sat(h, ks), fd.mu.sat(a, ks)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.mu.sat(a, ks)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.mu.sat(b, ks)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.mu.sat(a, ks)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.mu.sat(a, ks), fd.mu.sat(b, ks)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.mu.sat(a, ks)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.mu.sat(a, ks), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.mu.sat(cs, ks)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.mu.sat(e, ks)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.mu.sat(e, ks), p, fd.mu.sat(b, ks)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.mu.sat(v, ks), fd.mu.sat(b, ks)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.mu.sat(b, ks), fd.mu.sat(rest, ks)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.mu.sat(a, ks), fd.mu.sat(rest, ks)}
+    case u:
+      u
+
+def fd.mu.sats(ds: List<&2, T.BItem>, +ks: List<&2, Mab>) -> List<&2, T.BItem>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, ps, r, fd.mu.sat(b, ks), d} <> fd.mu.sats(t, ks)
+    case h <> t:
+      h <> fd.mu.sats(t, ks)
+
+# the members, each a call of g at its constructor
+def fd.mu.wrappers(ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +g: List<&2, U32>, +same: Bool, +i: Nat) -> List<&2, T.BItem>:
+  match ds os:
+    case T.BiDef{n, +ps, r, b, d} <> t T.BiDef{n0, +ps0, r0, b0, d0} <> u:
+      +call = {T.BtApp{T.BtVar{g}, T.tba.args([fd.fu.max(), T.BtCon{fd.mu.inc(g, i), fd.fu.pargs(ps)}])} : T.Bt}
+      T.BiDef{n0, ps0, r0, T.BtExpr{fd.mu.lams(List.drop(&2, T.BParam, ps, List.length(&2, T.BParam, ps0)), fd.mu.wrap.call(same, call, fd.mu.outp(g, i)))}, [S.b("fuel: a call of the group's def, from 2^32 - 1")]} <> fd.mu.wrappers(t, u, g, same, 1n+i)
+    case h <> t o <> u:
+      fd.mu.wrappers(t, u, g, same, 1n+i)
+    case _ _:
+      Nil{}
 
 # g.outK: member K's answer out of g.Out
 def fd.mu.outs(ds: List<&2, T.BItem>, +g: List<&2, U32>, +tys: List<&2, T.BItem>, +i: Nat) -> List<&2, T.BItem>:
@@ -7757,7 +7955,7 @@ def fd.mu.r0(ds: List<&2, T.BItem>) -> T.Bt:
 
 # the group's items: g.In, g.Out and g.outK (when the answers differ), g,
 # the members
-def fd.mu.items(+ds: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+def fd.mu.items(+ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   +g = fd.cat(fd.mu.head(ns), S.b(".mu"))
   +same = fd.mu.same(ds, fd.mu.first(ds))
   +tin = {T.BiType{fd.cat(g, S.b(".In")), Nil{}, fd.v("Data"), fd.mu.inctors(ds, g, 0n), [S.b("generated: fuel: the group's arguments")]} : T.BItem}
@@ -7766,7 +7964,7 @@ def fd.mu.items(+ds: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +its: List
   +r = Bool.pick(T.Bt, same, fd.mu.r0(ds), T.BtVar{fd.cat(g, S.b(".Out"))})
   +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(T.BmCopy{})]), T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), fd.mu.cases(ds, ns, g, same, 0n)}, T.BtCEnd{}}}} : T.Bt}
   +gdef = {T.BiDef{g, [T.BParam{T.BmLive{}, S.b("fuel_"), fd.ty0("Nat")}, T.BParam{T.BmLive{}, S.b("in_"), T.BtVar{fd.cat(g, S.b(".In"))}}], r, body, [fd.mu.doc(ns)]} : T.BItem}
-  List.concat(&2, T.BItem, [[tin], Bool.pick(List<&2, T.BItem>, same, Nil{}, tout <> fd.mu.outs(ds, g, tys, 0n)), [gdef], fd.mu.wrappers(ds, g, same, 0n)])
+  List.concat(&2, T.BItem, [[tin], Bool.pick(List<&2, T.BItem>, same, Nil{}, tout <> fd.mu.outs(ds, g, tys, 0n)), [gdef], fd.mu.wrappers(ds, os, g, same, 0n)])
 
 def fd.mu.dput(b: Bool, h: T.BItem, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match b:
@@ -7784,8 +7982,10 @@ def fd.mu.drop(its: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>) -> List<&2,
       fd.mu.dput(Bool.and(fd.mu.isdef(h), S.mem(fd.item.name(h), ns)), h, fd.mu.drop(t, ns))
 
 def fd.mu.one(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  +ds = fd.mu.gets(ns, its)
-  +new = fd.mu.items(ds, ns, its, dt)
+  +ds0 = fd.mu.gets(ns, its)
+  +abs = fd.mu.abs(ds0)
+  +ds = fd.mu.sats(fd.mu.abits(abs), fd.mu.abks(abs))
+  +new = fd.mu.items(ds, ds0, ns, its, dt)
   Bool.pick(List<&2, T.BItem>, Bool.and(fd.mu.ok(ds), List.is_empty(&2, List<&2, U32>, fd.todos.all(new, Nil{}))), List.append(&2, T.BItem, fd.mu.drop(its, ns), new), its)
 
 def fd.mu.each(gs: List<&2, List<&2, List<&2, U32>>>, its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
@@ -7801,6 +8001,456 @@ def fd.mu.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
   +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
   fd.mu.each(fd.mu.groups(ns, ns, rs, Nil{}), its, dt)
+
+# Local catas -----------------------------------------------------------------
+#
+# A cata whose algebra calls back the def it is in, or at a functor with a
+# list of the recursive variable, is written as a def of its own at the
+# call, D.cH (H a hash of the call's functor, types and algebra). The first:
+# D and the algebra's defs are a group, one def with fuel once merged, and
+# the algebra, a template argument of G.cata, would then hold the fuel,
+# which Bend's templates refuse (they take only closed arguments). The
+# second: such a functor has no G.cata (Bend sees no list shrink). D.cH
+# matches the value at Fix or Cofree and the layer at the functor's
+# constructors and applies the algebra to the layer, each recursive field a
+# call of D.cH, each list, Maybe, pair or other functor of them a call of a
+# def D.cH.hP mapping it (P its path: constructor, field, part). These call
+# each other and D's group, and the group's merge takes them in.
+
+# a cata call made local: its def, the functor, whether at Cofree, the
+# functor's other type arguments, Cofree's W, the answer, the algebra
+type Lc is Data:
+  Lc{n: List<&2, U32>, g: List<&2, U32>, cof: Bool, as: List<&2, T.Bt>, w: T.Bt, r: T.Bt, alg: T.Bt}
+
+# what the rewrite of a def knows: its name, what each def reaches, the
+# functors, the types
+type Lcx is Data:
+  Lcx{d: List<&2, U32>, rs: List<&2, Mrch>, fz: List<&2, Fz>, tys: List<&2, T.BItem>}
+
+# what writing a local cata knows: its name, the def it is out of, whether at
+# Cofree, the algebra, the functor's parameters and their arguments in the
+# value (src) and in the answer (dst), the functors, the types
+type Lm is Data:
+  Lm{n: List<&2, U32>, d: List<&2, U32>, cof: Bool, alg: T.Bt, ps: List<&2, T.BParam>, src: T.Bt, dst: T.Bt, fz: List<&2, Fz>, tys: List<&2, T.BItem>}
+
+# a field still to write the mapping defs for: its role, its type (in the
+# functor's parameters), its path
+type Lw is Data:
+  Lw{r: Fr, ty: T.Bt, p: List<&2, U32>}
+
+def fd.lc.fzb(zs: List<&2, Fz>, +b: List<&2, U32>) -> Maybe<&2, Fz>:
+  match zs:
+    case Nil{}:
+      None{}
+    case Fz{k, +b2, tvs, cs} <> t:
+      Bool.pick(Maybe<&2, Fz>, S.eq(b2, b), Some{Fz{k, b2, tvs, cs}}, fd.lc.fzb(t, b))
+
+def fd.lc.fzk(zs: List<&2, Fz>, +k: List<&2, U32>) -> Maybe<&2, Fz>:
+  match zs:
+    case Nil{}:
+      None{}
+    case Fz{+k2, b, tvs, cs} <> t:
+      Bool.pick(Maybe<&2, Fz>, S.eq(k2, k), Some{Fz{k2, b, tvs, cs}}, fd.lc.fzk(t, k))
+
+# n without its last k characters
+def fd.lc.cut(+n: List<&2, U32>, k: Nat) -> List<&2, U32>:
+  List.take(&2, U32, n, Nat.sub(List.length(&2, U32, n), k))
+
+def fd.lc.hash(xs: List<&2, U32>, +h: U32) -> U32:
+  match xs:
+    case Nil{}:
+      h
+    case c <> t:
+      fd.lc.hash(t, (h * 33 + c : U32))
+
+# whether one of xs is d or reaches it
+def fd.lc.back(xs: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +d: List<&2, U32>) -> Bool:
+  match xs:
+    case Nil{}:
+      False{}
+    case +x <> t:
+      Bool.or(Bool.or(S.eq(x, d), fd.mu.reaches(rs, x, d)), fd.lc.back(t, rs, d))
+
+def fd.lc.untpls(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      fd.untpl(h) <> fd.lc.untpls(t)
+
+def fd.lc.some(b: Bool, c: Lc) -> Maybe<&2, Lc>:
+  match b:
+    case True{}:
+      Some{c}
+    case False{}:
+      None{}
+
+# the call's arguments after the functor's: Cofree's W, the answer, the
+# algebra, the value (at Fix no W)
+def fd.lc.q4(cof: Bool, ys: List<&2, T.Bt>, +nocata: Bool, +n: List<&2, U32>, +g: List<&2, U32>, +as: List<&2, T.Bt>, +d: List<&2, U32>, +rs: List<&2, Mrch>) -> Maybe<&2, Lc>:
+  match cof ys:
+    case True{} w <> r <> +alg <> x <> Nil{}:
+      fd.lc.some(Bool.or(nocata, fd.lc.back(T.tba.refs(fd.untpl(alg), Nil{}), rs, d)), Lc{n, g, True{}, as, fd.untpl(w), fd.untpl(r), fd.untpl(alg)})
+    case False{} r <> +alg <> x <> Nil{}:
+      fd.lc.some(Bool.or(nocata, fd.lc.back(T.tba.refs(fd.untpl(alg), Nil{}), rs, d)), Lc{n, g, False{}, as, fd.v("Unit"), fd.untpl(r), fd.untpl(alg)})
+    case _ _:
+      None{}
+
+def fd.lc.q3(ok: Bool, +nocata: Bool, +cof: Bool, +c: List<&2, U32>, +g: List<&2, U32>, +na: Nat, +xs: List<&2, T.Bt>, +d: List<&2, U32>, +rs: List<&2, Mrch>) -> Maybe<&2, Lc>:
+  match ok:
+    case False{}:
+      None{}
+    case True{}:
+      +txt = P.tpr.t(T.tba.call(T.BtVar{c}, fd.init(xs)), P.TpLoose{}, 0n, Nil{})
+      +n = fd.cat3(d, S.b(".c"), S.b(U32.show(fd.lc.hash(txt, 5381))))
+      fd.lc.q4(cof, List.drop(&2, T.Bt, xs, na), nocata, n, g, fd.lc.untpls(List.take(&2, T.Bt, xs, na)), d, rs)
+
+def fd.lc.q2(z: Maybe<&2, Fz>, ty: Maybe<&2, T.BItem>, +cof: Bool, +c: List<&2, U32>, +g: List<&2, U32>, +xs: List<&2, T.Bt>, +d: List<&2, U32>, +rs: List<&2, Mrch>, +fz: List<&2, Fz>) -> Maybe<&2, Lc>:
+  match z ty:
+    case Some{Fz{+k, b, tvs, +cs}} Some{T.BiType{tn, +ps, kd, tcs, td}}:
+      +na = Nat.sub(List.length(&2, T.BParam, ps), 1n)
+      fd.lc.q3(Nat.is_eq(List.length(&2, T.Bt, xs), Nat.add(na, Bool.pick(Nat, cof, 4n, 3n))), Bool.not(fd.fz.ok(cs, k, fz)), cof, c, g, na, xs, d, rs)
+    case _ _:
+      None{}
+
+def fd.lc.q1(hit: Bool, +cof: Bool, +c: List<&2, U32>, a: T.Bt, +d: List<&2, U32>, +rs: List<&2, Mrch>, +fz: List<&2, Fz>, +tys: List<&2, T.BItem>) -> Maybe<&2, Lc>:
+  match hit:
+    case False{}:
+      None{}
+    case True{}:
+      +g = Bool.pick(List<&2, U32>, cof, fd.lc.cut(c, 12n), fd.lc.cut(c, 5n))
+      fd.lc.q2(fd.lc.fzb(fz, g), fd.dv.find(tys, g), cof, c, g, fd.spine(a), d, rs, fz)
+
+# the call c(a) in the def cx is in, as a local cata when it is one to make
+def fd.lc.q(+c: List<&2, U32>, a: T.Bt, cx: Lcx) -> Maybe<&2, Lc>:
+  match cx:
+    case Lcx{+d, +rs, +fz, +tys}:
+      +cof = S.suffix(c, S.b(".cata.cofree"))
+      fd.lc.q1(Bool.or(cof, S.suffix(c, S.b(".cata"))), cof, c, a, d, rs, fz, tys)
+
+def fd.lc.last(xs: List<&2, T.Bt>) -> T.Bt:
+  match xs:
+    case Nil{}:
+      fd.todo("fold:cata-shape")
+    case h <> Nil{}:
+      h
+    case h <> t:
+      fd.lc.last(t)
+
+# a call, its arguments rewritten (ra): of its local cata's def at the value
+def fd.lc.rw.at(m: Maybe<&2, Lc>, +x: List<&2, U32>, +ra: T.Bt) -> T.Bt:
+  match m:
+    case Some{Lc{n, g, cof, as, w, r, alg}}:
+      T.tba.call(T.BtVar{n}, [fd.lc.last(fd.spine(ra))])
+    case None{}:
+      T.BtApp{T.BtVar{x}, ra}
+
+# t with each local cata's call a call of its def
+def fd.lc.rw(t: T.Bt, +cx: Lcx) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      fd.lc.rw.at(fd.lc.q(x, a, cx), x, fd.lc.rw(a, cx))
+    case T.BtApp{h, a}:
+      T.BtApp{fd.lc.rw(h, cx), fd.lc.rw(a, cx)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.lc.rw(a, cx)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.lc.rw(b, cx)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.lc.rw(a, cx)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.lc.rw(a, cx), fd.lc.rw(b, cx)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.lc.rw(a, cx)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.lc.rw(a, cx), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.lc.rw(cs, cx)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.lc.rw(e, cx)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.lc.rw(e, cx), p, fd.lc.rw(b, cx)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.lc.rw(v, cx), fd.lc.rw(b, cx)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.lc.rw(b, cx), fd.lc.rw(rest, cx)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.lc.rw(a, cx), fd.lc.rw(rest, cx)}
+    case u:
+      u
+
+def fd.lc.put(m: Maybe<&2, Lc>, acc: List<&2, Lc>) -> List<&2, Lc>:
+  match m:
+    case Some{c}:
+      c <> acc
+    case None{}:
+      acc
+
+# the local catas t calls, as fd.lc.rw rewrites them
+def fd.lc.calls(t: T.Bt, +cx: Lcx, acc: List<&2, Lc>) -> List<&2, Lc>:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      fd.lc.put(fd.lc.q(x, a, cx), fd.lc.calls(a, cx, acc))
+    case T.BtApp{h, a}:
+      fd.lc.calls(h, cx, fd.lc.calls(a, cx, acc))
+    case T.BtTplArg{a}:
+      fd.lc.calls(a, cx, acc)
+    case T.BtLam{m, x, b}:
+      fd.lc.calls(b, cx, acc)
+    case T.BtCon{c, a}:
+      fd.lc.calls(a, cx, acc)
+    case T.BtEq{ty, a, b}:
+      fd.lc.calls(a, cx, fd.lc.calls(b, cx, acc))
+    case T.BtSucc{a}:
+      fd.lc.calls(a, cx, acc)
+    case T.BtAnn{a, ty}:
+      fd.lc.calls(a, cx, acc)
+    case T.BtMatch{xs, cs}:
+      fd.lc.calls(cs, cx, acc)
+    case T.BtExpr{e}:
+      fd.lc.calls(e, cx, acc)
+    case T.BtRw{e, p, b}:
+      fd.lc.calls(e, cx, fd.lc.calls(b, cx, acc))
+    case T.BtLet{x, v, b}:
+      fd.lc.calls(v, cx, fd.lc.calls(b, cx, acc))
+    case T.BtCase{p, b, rest}:
+      fd.lc.calls(b, cx, fd.lc.calls(rest, cx, acc))
+    case T.BtArgs{a, rest}:
+      fd.lc.calls(a, cx, fd.lc.calls(rest, cx, acc))
+    case u:
+      acc
+
+def fd.lm.n(m: Lm) -> List<&2, U32>:
+  match m:
+    case Lm{n, d, cof, alg, ps, src, dst, fz, tys}:
+      n
+
+def fd.lm.fz(m: Lm) -> List<&2, Fz>:
+  match m:
+    case Lm{n, d, cof, alg, ps, src, dst, fz, tys}:
+      fz
+
+def fd.lm.tys(m: Lm) -> List<&2, T.BItem>:
+  match m:
+    case Lm{n, d, cof, alg, ps, src, dst, fz, tys}:
+      tys
+
+def fd.lc.path(+p: List<&2, U32>, +j: Nat) -> List<&2, U32>:
+  fd.cat3(p, S.b("_"), fd.nshow(j))
+
+def fd.lc.hname(+m: Lm, +p: List<&2, U32>) -> List<&2, U32>:
+  fd.cat3(fd.lm.n(m), S.b(".h"), p)
+
+# a field's value: itself (copied), the cata's call (recursive), else its
+# mapping def's call
+def fd.lc.term(r: Fr, +z: List<&2, U32>, +m: Lm, +p: List<&2, U32>) -> T.Bt:
+  match r:
+    case FrCopy{}:
+      T.BtVar{z}
+    case FrRec{}:
+      T.tba.call(T.BtVar{fd.lm.n(m)}, [T.BtVar{z}])
+    case _:
+      T.tba.call(T.BtVar{fd.lc.hname(m, p)}, [T.BtVar{z}])
+
+def fd.lc.terms(rs: List<&2, Fr>, zs: List<&2, List<&2, U32>>, +m: Lm, +p: List<&2, U32>, +j: Nat) -> List<&2, T.Bt>:
+  match rs zs:
+    case r <> t z <> u:
+      fd.lc.term(r, z, m, fd.lc.path(p, j)) <> fd.lc.terms(t, u, m, p, 1n+j)
+    case _ _:
+      Nil{}
+
+# the algebra at a layer v
+def fd.lc.alg(m: Lm, v: T.Bt) -> T.Bt:
+  match m:
+    case Lm{n, d, True{}, alg, ps, src, dst, fz, tys}:
+      T.tba.call(alg, [T.BtCon{S.b("HsPrelude.CofreeF.CofreeF"), T.tba.args([T.BtVar{S.b("w0")}, v])}])
+    case Lm{n, d, False{}, alg, ps, src, dst, fz, tys}:
+      T.tba.call(alg, [v])
+
+# the cases at the layer: each constructor's fields mapped, the algebra
+# applied (top) or the constructor built (a functor inside it)
+def fd.lc.cases(cs: List<&2, Fc>, +top: Bool, +m: Lm, +p: List<&2, U32>, +i: Nat) -> T.Bt:
+  match cs:
+    case Fc{+c, +rs} <> t:
+      +zs = fd.cg.ys(List.length(&2, Fr, rs), 1n)
+      +v = {T.BtCon{c, T.tba.args(fd.lc.terms(rs, zs, m, fd.lc.path(p, i), 0n))} : T.Bt}
+      T.BtCase{T.tba.args([T.BtCon{c, T.tba.args(fd.cg.pvs(zs))}]), T.BtExpr{Bool.pick(T.Bt, top, fd.lc.alg(m, v), v)}, fd.lc.cases(t, top, m, p, 1n+i)}
+    case Nil{}:
+      T.BtCEnd{}
+
+# the i-th type argument of a type named n
+def fd.lc.arg(ty: T.Bt, s: String, i: Nat) -> T.Bt:
+  match ty:
+    case T.BtTyApp{+n, a}:
+      Bool.pick(T.Bt, fd.is(n, s), Maybe.default(&2, T.Bt, List.get(&2, T.Bt, fd.spine(a), i), fd.todo("fold:cata-field-type")), fd.todo("fold:cata-field-type"))
+    case _:
+      fd.todo("fold:cata-field-type")
+
+# B of Sigma<&2, &2, A, (_ => B)>
+def fd.lc.lamb(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtLam{m, x, b}:
+      b
+    case _:
+      fd.todo("fold:cata-field-type")
+
+def fd.lc.sig2(ty: T.Bt) -> T.Bt:
+  fd.lc.lamb(fd.lc.arg(ty, "Sigma", 3n))
+
+def fd.lc.targs(ty: T.Bt) -> T.Bt:
+  match ty:
+    case T.BtTyApp{n, a}:
+      a
+    case _:
+      T.BtANil{}
+
+def fd.lc.mk(+m: Lm, +p: List<&2, U32>, +ty: T.Bt, b: T.Bt) -> T.BItem:
+  match m:
+    case Lm{+n, +d, cof, alg, +ps, +src, +dst, fz, tys}:
+      T.BiDef{fd.cat3(n, S.b(".h"), p), [T.BParam{T.BmLive{}, S.b("v"), fd.dv.sub(ps, src, ty)}], fd.dv.sub(ps, dst, ty), b, [fd.cat(S.b("generated: lifted out of "), d)]}
+
+def fd.lc.pv(s: String) -> T.Bt:
+  T.BtPv{T.BmLive{}, S.b(s)}
+
+def fd.lc.v(b: T.Bt) -> T.Bt:
+  T.BtMatch{T.tba.args([T.BtVar{S.b("v")}]), b}
+
+# the mapping def of a list, a Maybe, a pair
+def fd.lc.list(+e: Fr, +m: Lm, +p: List<&2, U32>) -> T.Bt:
+  fd.lc.v(T.BtCase{T.tba.args([fd.con0("Nil")]), T.BtExpr{fd.con0("Nil")}, T.BtCase{T.tba.args([T.BtCon{S.b("Con"), T.tba.args([fd.lc.pv("h"), fd.lc.pv("t")])}]), T.BtExpr{T.BtCon{S.b("Con"), T.tba.args([fd.lc.term(e, S.b("h"), m, fd.lc.path(p, 0n)), T.tba.call(T.BtVar{fd.lc.hname(m, p)}, [fd.v("t")])])}}, T.BtCEnd{}}})
+
+def fd.lc.maybe(+e: Fr, +m: Lm, +p: List<&2, U32>) -> T.Bt:
+  fd.lc.v(T.BtCase{T.tba.args([fd.con0("None")]), T.BtExpr{fd.con0("None")}, T.BtCase{T.tba.args([T.BtCon{S.b("Some"), T.tba.args([fd.lc.pv("a")])}]), T.BtExpr{T.BtCon{S.b("Some"), T.tba.args([fd.lc.term(e, S.b("a"), m, fd.lc.path(p, 0n))])}}, T.BtCEnd{}}})
+
+def fd.lc.pair(+a: Fr, +b: Fr, +m: Lm, +p: List<&2, U32>) -> T.Bt:
+  fd.lc.v(T.BtCase{T.tba.args([T.BtCon{S.b("Tuple"), T.tba.args([fd.lc.pv("a"), fd.lc.pv("b")])}]), T.BtExpr{T.BtCon{S.b("Tuple"), T.tba.args([fd.lc.term(a, S.b("a"), m, fd.lc.path(p, 0n)), fd.lc.term(b, S.b("b"), m, fd.lc.path(p, 1n))])}}, T.BtCEnd{}})
+
+# the fields still to write for, of the constructors cs (their types tcs in
+# the parameters hps, given hargs)
+def fd.lc.fws(rs: List<&2, Fr>, fs: List<&2, T.BField>, +hps: List<&2, T.BParam>, +hargs: T.Bt, +p: List<&2, U32>, +j: Nat) -> List<&2, Lw>:
+  match rs fs:
+    case r <> t T.BField{x, ty} <> u:
+      Lw{r, fd.dv.sub(hps, hargs, ty), fd.lc.path(p, j)} <> fd.lc.fws(t, u, hps, hargs, p, 1n+j)
+    case _ _:
+      Nil{}
+
+def fd.lc.cws(cs: List<&2, Fc>, tcs: List<&2, T.BCtor>, +hps: List<&2, T.BParam>, +hargs: T.Bt, +p: List<&2, U32>, +i: Nat) -> List<&2, Lw>:
+  match cs tcs:
+    case Fc{c, rs} <> t T.BCtor{tc, fs} <> u:
+      List.append(&2, Lw, fd.lc.fws(rs, fs, hps, hargs, fd.lc.path(p, i), 0n), fd.lc.cws(t, u, hps, hargs, p, 1n+i))
+    case _ _:
+      Nil{}
+
+def fd.lc.in.ws(z: Maybe<&2, Fz>, t: Maybe<&2, T.BItem>, +hargs: T.Bt, +p: List<&2, U32>) -> List<&2, Lw>:
+  match z t:
+    case Some{Fz{k, b, tvs, cs}} Some{T.BiType{tn, hps, kd, tcs, td}}:
+      fd.lc.cws(cs, tcs, hps, hargs, p, 0n)
+    case _ _:
+      Nil{}
+
+def fd.lc.in.body(z: Maybe<&2, Fz>, +m: Lm, +p: List<&2, U32>) -> T.Bt:
+  match z:
+    case Some{Fz{k, b, tvs, cs}}:
+      fd.lc.v(fd.lc.cases(cs, False{}, m, p, 0n))
+    case None{}:
+      T.BtExpr{fd.todo("fold:cata-functor")}
+
+def fd.lc.fzbn(z: Maybe<&2, Fz>) -> List<&2, U32>:
+  match z:
+    case Some{Fz{k, b, tvs, cs}}:
+      b
+    case None{}:
+      Nil{}
+
+# the mapping defs of the fields still to write for (one each for a list,
+# Maybe, pair or functor inside, its parts' after it)
+def fd.lc.work(fuel: Nat, ws: List<&2, Lw>, +m: Lm) -> List<&2, T.BItem>:
+  match fuel ws:
+    case 0n _:
+      Nil{}
+    case 1n+f Nil{}:
+      Nil{}
+    case 1n+f Lw{FrCopy{}, ty, p} <> t:
+      fd.lc.work(f, t, m)
+    case 1n+f Lw{FrRec{}, ty, p} <> t:
+      fd.lc.work(f, t, m)
+    case 1n+f Lw{FrList{+e}, +ty, +p} <> t:
+      fd.lc.mk(m, p, ty, fd.lc.list(e, m, p)) <> fd.lc.work(f, Lw{e, fd.lc.arg(ty, "List", 1n), fd.lc.path(p, 0n)} <> t, m)
+    case 1n+f Lw{FrMaybe{+e}, +ty, +p} <> t:
+      fd.lc.mk(m, p, ty, fd.lc.maybe(e, m, p)) <> fd.lc.work(f, Lw{e, fd.lc.arg(ty, "Maybe", 1n), fd.lc.path(p, 0n)} <> t, m)
+    case 1n+f Lw{FrPair{+a, +b}, +ty, +p} <> t:
+      fd.lc.mk(m, p, ty, fd.lc.pair(a, b, m, p)) <> fd.lc.work(f, Lw{a, fd.lc.arg(ty, "Sigma", 2n), fd.lc.path(p, 0n)} <> Lw{b, fd.lc.sig2(ty), fd.lc.path(p, 1n)} <> t, m)
+    case 1n+f Lw{FrIn{+k}, +ty, +p} <> t:
+      +z = fd.lc.fzk(fd.lm.fz(m), k)
+      fd.lc.mk(m, p, ty, fd.lc.in.body(z, m, p)) <> fd.lc.work(f, List.append(&2, Lw, fd.lc.in.ws(z, fd.dv.find(fd.lm.tys(m), fd.lc.fzbn(z)), fd.lc.targs(ty), p), t), m)
+    case 1n+f Lw{r, +ty, +p} <> t:
+      fd.lc.mk(m, p, ty, T.BtExpr{fd.todo("fold:cata-field")}) <> fd.lc.work(f, t, m)
+
+def fd.lc.gen(z: Maybe<&2, Fz>, ty: Maybe<&2, T.BItem>, +n: List<&2, U32>, +d: List<&2, U32>, +cof: Bool, +as: List<&2, T.Bt>, +w: T.Bt, +r: T.Bt, alg: T.Bt, +fz: List<&2, Fz>, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match z ty:
+    case Some{Fz{k, +g, tvs, +cs}} Some{T.BiType{tn, +ps, kd, tcs, td}}:
+      +lam = {T.BtLam{T.BmLive{}, fd.rv(), T.BtTyApp{g, T.tba.args(List.append(&2, T.Bt, as, T.BtVar{fd.rv()} <> Nil{}))}} : T.Bt}
+      +xty = Bool.pick(T.Bt, cof, T.BtTyApp{S.b("HsPrelude.Cofree"), T.tba.args([lam, w])}, T.BtTyApp{S.b("HsPrelude.Fix"), T.tba.args([lam])})
+      +m = {Lm{n, d, cof, alg, ps, T.tba.args(List.append(&2, T.Bt, as, [xty])), T.tba.args(List.append(&2, T.Bt, as, [r])), fz, tys} : Lm}
+      +pat = Bool.pick(T.Bt, cof, T.BtCon{S.b("HsPrelude.Cofree.Cofree"), T.tba.args([fd.lc.pv("w0"), fd.lc.pv("y0")])}, T.BtCon{S.b("HsPrelude.Fix.Fix"), T.tba.args([fd.lc.pv("y0")])})
+      +body = {T.BtMatch{T.tba.args([fd.v("x")]), T.BtCase{T.tba.args([pat]), T.BtMatch{T.tba.args([fd.v("y0")]), fd.lc.cases(cs, True{}, m, Nil{}, 0n)}, T.BtCEnd{}}} : T.Bt}
+      T.BiDef{n, [T.BParam{T.BmLive{}, S.b("x"), xty}], r, body, [fd.cat(S.b("generated: lifted out of "), d), fd.cat(S.b("generated: the cata at "), g)]} <> fd.lc.work(4096n, fd.lc.cws(cs, tcs, Nil{}, T.BtANil{}, Nil{}, 0n), m)
+    case _ _:
+      Nil{}
+
+def fd.lc.defs(c: Lc, cx: Lcx) -> List<&2, T.BItem>:
+  match c cx:
+    case Lc{+n, +g, cof, as, w, r, alg} Lcx{d, rs, +fz, +tys}:
+      fd.lc.gen(fd.lc.fzb(fz, g), fd.dv.find(tys, g), n, d, cof, as, w, r, alg, fz, tys)
+
+def fd.lc.gen1(dup: Bool, c: Lc, cx: Lcx, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match dup:
+    case True{}:
+      rest
+    case False{}:
+      List.append(&2, T.BItem, fd.lc.defs(c, cx), rest)
+
+# the defs of the local catas, each once
+def fd.lc.gens(cs: List<&2, Lc>, +cx: Lcx, +seen: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case Lc{+n, g, cof, as, w, r, alg} <> t:
+      fd.lc.gen1(S.mem(n, seen), Lc{n, g, cof, as, w, r, alg}, cx, fd.lc.gens(t, cx, n <> seen))
+
+def fd.lc.item2(ok: Bool, +n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +cx: Lcx) -> List<&2, T.BItem>:
+  match ok:
+    case False{}:
+      [T.BiDef{n, ps, r, b, d}]
+    case True{}:
+      T.BiDef{n, ps, r, fd.lc.rw(b, cx), d} <> fd.lc.gens(fd.lc.calls(b, cx, Nil{}), cx, Nil{})
+
+def fd.lc.item(it: T.BItem, +rs: List<&2, Mrch>, +fz: List<&2, Fz>, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match it:
+    case T.BiDef{+n, +ps, r, b, d}:
+      fd.lc.item2(Bool.and(Nat.is_eq(fd.fu.lead(ps), 0n), Bool.not(fd.mu.anytpl(ps))), n, ps, r, b, d, Lcx{n, rs, fz, tys})
+    case other:
+      [other]
+
+def fd.lc.items(its: List<&2, T.BItem>, +rs: List<&2, Mrch>, +fz: List<&2, Fz>, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      List.append(&2, T.BItem, fd.lc.item(h, rs, fz, tys), fd.lc.items(t, rs, fz, tys))
+
+# the module's items with each local cata written (fz: the functors, own
+# and the package's earlier ones; dt: the earlier modules' types)
+def fd.lc.all(+its: List<&2, T.BItem>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ns = fd.mu.names(its)
+  +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
+  +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
+  fd.lc.items(its, rs, fz, List.append(&2, T.BItem, its, dt))
+
+# a module's items as written, before the gate: local catas written, then
+# groups merged (Law.bend's lw.module writes them so too)
+def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
+  fd.mu.all(fd.lc.all(fd.eta.all(fd.got.items(gs)), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)), fd.px.dt(px))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
@@ -8518,7 +9168,7 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +env = fd.syns(Nat.add(fd.nsyn(xs), List.length(&2, Sy, fd.px.sy(px))), xs, fd.env0(m, cs, ds, px))
   +g2 = fd.tpl.settle(fd.allgots(xs, tbs, env), fd.px.tfs(px))
   +gs = fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), fd.px.tfs(px)))
-  +its = fd.mu.all(fd.eta.all(fd.got.items(gs)), fd.px.dt(px))
+  +its = fd.mod.its(gs, xs, m, env, px)
   +ims = fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"

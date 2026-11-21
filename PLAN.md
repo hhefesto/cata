@@ -1521,3 +1521,42 @@ parameters whose cata takes the group's algebra as a template naming the
 fuel, which Bend refuses (law: "expected a term, observed '~'"). Next: a
 group member that is a cata at the group's algebra is a member of its
 own, the cata's recursion written with the fuel.
+
+## Telomare's rules, 25: local catas, a group's point-free members (2026-11-21)
+
+- **Local catas** (`fd.lc.*`, Fold.bend): a cata whose algebra calls back
+  the def it is in, or at a functor with a list of its recursive variable
+  (EF's `[(Fix PF, r)]`, UnprocessedParsedTermF's LetUPF, ListUPF and
+  CaseNodeUPF, which have no `G.cata`: the role `FrList`), is a def of
+  its own at the call, `D.cH` (H a hash of the call's functor, types and
+  algebra; ledger ok-gen): matches at Fix or Cofree and the functor's
+  constructors, the algebra applied to the layer, recursive fields calls
+  of `D.cH`, a list, Maybe, pair or other functor of them a call of a
+  def `D.cH.hP` mapping it. They join D's group, so the algebra is
+  applied, not handed over as a template naming the fuel ("expected a
+  term, observed '~'" before).
+- **A group's point-free members** (`fd.mu.ab*`, `fd.mu.sat`): a member
+  whose answer is a function (`freeVarsDeep = cata alg`, `patternRefs =
+  cata palg`) takes its arguments as parameters in the group (g.Out's
+  fields are data: "expected Data, observed Type" before), its calls in
+  the group given the arguments they are applied to (else eta-expanded),
+  the lambda again outside the group.
+- Fold's module items are written once, `fd.mod.its`, for Fold.bend's
+  fd.module and Law.bend's lw.module (Law's had its own copy, which the
+  first build missed). Bend checks a def's calls only against defs above
+  it ("an unfilled law is a dead claim" for one below).
+- **Tests**: `tests/hs/FreeDeep.hs`: ex1, ex2 ok-law (were out), freeD
+  ok-check. The 27 other sets against their last ledgers: no moves,
+  nothing lost.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 24 (spec49, law49, 1303 s) | 443 | 98 | 288 | 113 |
+| after rule 25 (spec49, law50, 1351 s) | 440 | 99 | 290 | 113 |
+
+Own: Resolve's pruneBindings out -> ok-law, freeVarsDeep and Fast's
+findAbort out -> ok-check; nothing lost. Copies: 969 -> 1006 ok-check,
+360 -> 323 out (39 out -> ok-check, 1 -> ok-law), nothing lost. Out
+reasons left (own and copies): survey 510 (partial functions first:
+`error`, Map's `!`), dep 117, fold 109 (recursive-local 21, show-at-type
+20, closure-argument 11, monad-at-type 10, local-patbind 9).

@@ -74,6 +74,20 @@ at `Cofree G w`, as nested matches through the fields (a Maybe, a pair, or
 another, flat functor of the package such as `StuckExprB (BasicExprF f)`),
 which Bend sees shrink.
 
+Two catas are written instead as a def of their own at the call, `D.cH`
+in the def `D` (H a hash of the call's functor, types and algebra), the
+ledger's `ok-gen`: one whose algebra calls back `D` (they are a group,
+one def with fuel once merged, and `G.cata`'s template argument would hold
+the fuel, which Bend refuses: `freeVarsDeep = cata alg`, whose `alg` calls
+`patternRefs`, whose own cata's algebra calls `freeVarsDeep`), and one at a
+functor with a list of its recursive variable (`[(Pattern, r)]`), which has
+no `G.cata`, since Bend sees no list shrink. `D.cH` matches the value at
+`Fix` or `Cofree` and its layer at the functor's constructors, and applies
+the algebra to the layer; a recursive field is a call of `D.cH`, a list,
+`Maybe`, pair or other functor of them a call of a def `D.cH.hP` mapping
+it (P its path: constructor, field, part). They call each other, and so
+are a group with fuel (see below), with `D`'s when it has one.
+
 A layer of a monad's actions is a layer of functions (a cata at Reader or
 State hands its algebra one, and `sequence` takes one), and Bend's Data
 holds no function. So each of the package's types with type variables has
@@ -109,7 +123,12 @@ and so does cata, never with `@unsafe`:
   it, else `HEAD.mu.Out`'s constructor for the member (`HEAD.mu.outK`
   takes it out). Each member is a call of `HEAD.mu` at its constructor. A
   group whose members take type or template parameters, or do not fold
-  whole, is left as it was.
+  whole, is left as it was. A member whose answer is a function (written
+  point-free, `freeD = cata alg`) takes its arguments as parameters of
+  its own in the group (`HEAD.mu.Out`'s fields are data, and a function
+  is not): its body is applied to them, its calls in the group are given
+  the arguments they are applied to (else eta-expanded), and outside the
+  group it is the lambda again.
 
 The survey no longer puts a def out for either. Still out (`rec-value`):
 recursion through a function value (`map f xs` inside `f`), as Bend's

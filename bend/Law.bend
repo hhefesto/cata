@@ -1557,7 +1557,7 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
   +env = F.fd.syns(Nat.add(F.fd.nsyn(xs), List.length(&2, F.Sy, F.fd.px.sy(px))), xs, F.fd.env0(m, cs, ds, px))
   +g2 = F.fd.tpl.settle(F.fd.allgots(xs, tbs, env), F.fd.px.tfs(px))
   +gs = F.fd.tpl.fin(g2, List.append(&2, F.Tf, F.fd.tfs(g2), F.fd.px.tfs(px)))
-  +its = F.fd.mu.all(F.fd.eta.all(F.fd.got.items(gs)), F.fd.px.dt(px))
+  +its = F.fd.mod.its(gs, xs, m, env, px)
   +ims = F.fd.ims(px)
   +path = out ++ "/" ++ S.str(base) ++ ".bend"
   +try = out ++ "/" ++ S.str(base) ++ "_try.bend"
