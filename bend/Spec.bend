@@ -1289,11 +1289,11 @@ def sp.pc.btab() -> List<&2, Pcr>:
   [Pcr{S.b(fo ++ "foldr"), S.b("foldr"), 1n}, Pcr{S.b(fo ++ "foldl"), S.b("foldl"), 1n}, Pcr{S.b(fo ++ "foldl'"), S.b("foldl'"), 1n}, Pcr{S.b(fo ++ "concatMap"), S.b("concatMap"), 1n}]
 
 # base's functions that are the model's at any type (Control.Monad's
-# Kleisli compositions <=< and >=>: kleisliR, kleisliL), at their own types
-# (d is how many to drop: none)
+# Kleisli compositions <=< and >=>: kleisliR, kleisliL; GHC.Base's until),
+# at their own types (d is how many to drop: none)
 def sp.pc.ktab() -> List<&2, Pcr>:
   +cm = {"GHC.Internal.Control.Monad." : String}
-  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}]
+  [Pcr{S.b(cm ++ "<=<"), S.b("kleisliR"), 0n}, Pcr{S.b(cm ++ ">=>"), S.b("kleisliL"), 0n}, Pcr{S.b("GHC.Internal.Base.until"), S.b("until"), 0n}]
 
 def sp.pc.atlist(+tys: List<&2, X.Sx>) -> Bool:
   sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")
@@ -1433,7 +1433,7 @@ def sp.pc.pmodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
 # (sequence and sequenceA the model's traverse id)
 def sp.pc.ctab() -> List<&2, Pcr>:
   +tr = {"GHC.Internal.Data.Traversable." : String}
-  [Pcr{S.b("GHC.Internal.Base.fmap"), S.b("cofreeFFmap"), 0n}, Pcr{S.b("GHC.Internal.Data.Functor.<$>"), S.b("cofreeFFmap"), 0n}, Pcr{S.b(tr ++ "traverse"), S.b("cofreeFTraverse"), 0n}, Pcr{S.b(tr ++ "mapM"), S.b("cofreeFTraverse"), 0n}, Pcr{S.b(tr ++ "sequence"), S.b("cofreeFSequence"), 0n}, Pcr{S.b(tr ++ "sequenceA"), S.b("cofreeFSequence"), 0n}]
+  [Pcr{S.b("GHC.Internal.Base.fmap"), S.b("cofreeFFmap"), 0n}, Pcr{S.b("GHC.Internal.Data.Functor.<$>"), S.b("cofreeFFmap"), 0n}, Pcr{S.b(tr ++ "traverse"), S.b("cofreeFTraverse"), 0n}, Pcr{S.b(tr ++ "mapM"), S.b("cofreeFTraverse"), 0n}, Pcr{S.b(tr ++ "sequence"), S.b("cofreeFSequence"), 0n}, Pcr{S.b(tr ++ "sequenceA"), S.b("cofreeFSequence"), 0n}, Pcr{S.b("GHC.Internal.Data.Foldable.foldr"), S.b("cofreeFFoldr"), 0n}]
 
 def sp.pc.atcofreef(+tys: List<&2, X.Sx>) -> Bool:
   +t = sp.first(tys)
@@ -1444,6 +1444,18 @@ def sp.pc.cmodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
     case Some{Pcr{k, n, d}}:
       +t = sp.first(tys)
       sp.pc.tyapps(sp.at(t, 3n) <> sp.at(t, 4n) <> sp.pc.drop(1n, tys), sp.g(S.b("Cata.Base"), n, "var"))
+    case None{}:
+      x
+
+# Data.Foldable's fold at any container is Base's model's foldMonoid (foldr
+# (<>) mempty) at the container and the Monoid, its dictionaries dropped
+def sp.pc.mtab() -> List<&2, Pcr>:
+  [Pcr{S.b("GHC.Internal.Data.Foldable.fold"), S.b("foldMonoid"), 0n}]
+
+def sp.pc.amodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
+  match m:
+    case Some{Pcr{k, n, d}}:
+      sp.pc.tyapps(tys, sp.g(S.b("Cata.Base"), n, "var"))
     case None{}:
       x
 
@@ -1505,8 +1517,10 @@ def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb
   +isc = Bool.and(hb, Bool.and(chain, Bool.and(Maybe.is_some(&2, Pcr, mc), sp.pc.atcofreef(tys))))
   +mf = sp.pc.find(sp.pc.ftab(), sp.pc.key(p))
   +isf = Bool.and(hb, Bool.and(chain, sp.if(Bool, Maybe.is_some(&2, Pcr, mf), _ => sp.pc.atfix(sp.norms(tys, ix)), _ => False{})))
+  +mm = sp.pc.find(sp.pc.mtab(), sp.pc.key(p))
+  +ism = Bool.and(hb, Bool.and(chain, Maybe.is_some(&2, Pcr, mm)))
   +x2 = {X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}} : X.Sx}
-  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, isc, _ => sp.pc.cmodel(mc, tys, x), _ => sp.if(X.Sx, isf, _ => sp.pc.fmodel(mf, sp.norms(tys, ix), x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.pc.app(f2, e2))), _ => x2)))))))
+  sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, isc, _ => sp.pc.cmodel(mc, tys, x), _ => sp.if(X.Sx, isf, _ => sp.pc.fmodel(mf, sp.norms(tys, ix), x), _ => sp.if(X.Sx, ism, _ => sp.pc.amodel(mm, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.pc.app(f2, e2))), _ => x2))))))))
 
 # (hb: whether the package exports Base's model, Cata.Base, before the
 # module; without it a call stays base's)
@@ -2328,7 +2342,9 @@ def sp.rw.p7(r: Rw, +ix: Ix) -> Rw:
 # parameter's place, NAME__fHASH. The argument's free locals become the
 # copy's first parameters (fv_0, fv_1, .., in the order the arguments name
 # them), so a recursive call of the def with the same argument, inside the
-# copy, is a call of the copy. Bend calls a closure at most once and takes a
+# copy, is a call of the copy (the name's hash is of the arguments, their
+# types normal: a String the original's lambda says and the copy's List
+# Char are one). Bend calls a closure at most once and takes a
 # template only closed: a function the def runs again (a parser, under
 # many), or one recursion goes through (a grammar's, through many and
 # sepBy), is then code in a first-order def, and the fold's fuel and groups
@@ -2564,7 +2580,7 @@ def sp.fa.at(m: Maybe<&2, X.Sx>, +h: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur: L
       +fvt = sp.fa.tys(frees, env)
       +fas = sp.fa.canon(fas0, sp.fa.canon.map(frees, 0n))
       +base = sp.cat(sp.name(sp.sat(h, 2n), tys), S.b("_f"))
-      +n = sp.cat(base, S.b(U32.show(sp.fa.hash(X.tsx.show(sp.fa.key(fas)), 5381))))
+      +n = sp.cat(base, S.b(U32.show(sp.fa.hash(X.tsx.show(sp.norm(sp.fa.key(fas), ix)), 5381))))
       +inself = Bool.or(S.eq(me, sp.sat(h, 2n)), Bool.and(S.prefix(me, base), Bool.not(S.eq(me, n))))
       +ok = Bool.and(tyok, Bool.and(Bool.not(List.is_empty(&2, Fa, fas0)), Bool.and(sp.fa.tys.ok(fvt), Bool.not(Bool.or(inself, sp.fa.hasev(sp.fa.fn(x)))))))
       +hd = sp.fa.apps(frees, sp.g(cur, n, "var"))

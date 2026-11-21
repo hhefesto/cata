@@ -348,7 +348,10 @@ Data.Sequence's `Seq a` is a list (front first) and `ViewL a` too
 `iterate f x !! n` is Base's model's `iterateIndex f x n` (the
 specialiser's rewrite): f applied n times to x, the endless list never
 built, a negative n `(!!)`'s error (so a partial function, out with the
-others until they have a rule). Alternative's `<|>` and `empty` at Maybe:
+others until they have a rule). `until p f x` is Base's model's `until`,
+base's definition, copied at its known p and f and written with fuel (see
+"Recursion Bend refuses: fuel"; a fixpoint loop, as Resolve's
+`pruneBindings`). Alternative's `<|>` and `empty` at Maybe:
 the first `Just`, the second argument a thunk (Haskell's `<|>` is lazy in
 it), and `Nothing`. base's instances at pairs, `(,) w`, are Base's model's
 defs, the specialiser's rewrite of a method whose class type is `(,) w`:
@@ -360,8 +363,14 @@ package's instance, as Resolve's `DeferMap`), as any def with a class is.
 free's instances at `CofreeF f a` (a Cofree's layer) are Base's model's
 defs the same way, at f and a then the method's types: `fmap` and `<$>`
 (`cofreeFFmap`), `traverse` and `mapM` (`cofreeFTraverse`), `sequence` and
-`sequenceA` (`cofreeFSequence`, free's `traverse id`), the layer's own
-`traverse` the package's instance.
+`sequenceA` (`cofreeFSequence`, free's `traverse id`), `foldr`
+(`cofreeFFoldr`), the layer's own `traverse` and `foldr` the package's
+instance. Data.Foldable's `fold` at any container is Base's model's
+`foldMonoid`, `foldr (<>) mempty` (the same value at a lawful Monoid), at
+the container and the Monoid: `foldr` at a list, a Map, CofreeF or a
+package's instance (a derived one's own; base's default `foldr`, which
+GHC derives at a type whose variable is phantom, is out), `<>` and
+`mempty` at lists, Maps and Sets.
 
 A view pattern `(f -> p)` is a plain pattern when f is known (the
 specialiser's `sp.p3`): `id`, a constructor, `pure` at Maybe, a

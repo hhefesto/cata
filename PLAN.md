@@ -1393,7 +1393,7 @@ LamBase's pattern synonyms and Cofree's `unwrap`/`embed`.
   `restrictKeys`, `withoutKeys`, `fromSet`, `unionWithKey` (with
   `insertWithKey`), `unionsWith` (of a list; IntMap's has its key second
   in Data.Map's order, Spec's `sp.p5.second`), `split`, and Set's
-  `intersection`; each checked by 9 closed laws in Bend.
+  `intersection`; checked by 9 closed laws in Bend (one or two each).
 - **Tests**: `tests/hs/ShowFix.hs` (telomare's Show1 shapes, one that
   reads the precedence, `show` at a class's type variable copied at Fix):
   ex1..ex5, ex7 ok-law (8, 8, 8, 5, 8, 8 laws), ex6 out (Show at a list of
@@ -1415,3 +1415,42 @@ Size's `error` message, a local generalised over its type: Spec's
 `sp.pl` runs after `sp.pc`). What is left is led by the partial
 functions: `error` 24, Map's `!` 18, `minimum`/`minimumBy` 2, `!!` 1;
 across telomare 61 of the 488 out functions wait only on them.
+
+## Telomare's rules, 23: fold, until, copies' names (2026-11-21)
+
+- **Data.Foldable's `fold`** at any container (Resolve's freeVarsDeep,
+  pruneBindings, validateVariables; Surface's patternBinders; Size's
+  buildUnsizedLocMap): Base's model's `foldMonoid`, `foldr (<>) mempty`
+  (the same value at a lawful Monoid), at the container and the Monoid
+  (Spec's `sp.pc.mtab`); free's `foldr` at CofreeF is the model's
+  `cofreeFFoldr`, as its fmap and traverse are.
+- **`until`** (pruneBindings' fixpoint): Base's model's, base's
+  definition, copied at its known p and f and written with fuel.
+- **Copies' names**: a copy at known arguments is `NAME__..._fHASH`, the
+  hash now of the arguments with their types normal, so a recursive call
+  inside the copy, whose lambda's types the copy has normal (`List Char`
+  where the original said `String`), is the copy's own (until's was
+  not). Copies whose arguments name a synonym are renamed;
+  `help/LedgerN.hs` compares ledgers without the hash.
+- **Tests**: `tests/hs/FoldM.hs` (patternBinders', freeVarsDeep's,
+  buildUnsizedLocMap's and validateVariables' shapes): ex1..ex5 ok-law (8
+  laws each). `tests/hs/Until.hs`: ex2 ok-law (until at Int, fuel), the
+  copy at pruneBindings' shape ok-check, ex1 out: `reach` is
+  `fold:closure-argument`, its `until`'s arguments name a local function
+  (`expand`, a where function over a local Map), which the copy takes as a
+  parameter and Bend takes only closed. The 17 earlier sets, ShowFix,
+  Maps, Writer, Reader: no def moved.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 22 (spec36, law49) | 445 | 98 | 286 | 113 |
+| after rule 23 (spec38, law49, 1073 s) | 445 | 98 | 286 | 113 |
+
+No def lost its verdict; copies 941 -> 960 ok-check, 19 new (the model's
+copies at telomare's containers). The defs `fold` blocked now wait on
+others: freeVarsDeep on `foldMap` with a lambda over a local function
+(patternRefs), pruneBindings on until's arguments naming a local function
+(the same: a closure over a local function, next), buildUnsizedLocMap on
+AbortableF's derived `foldr`, base's default (GHC derives it at a type
+whose variable is phantom), patternBinders on its type variable. Still
+first on the path: the partial functions (`error` 24, Map's `!` 18).

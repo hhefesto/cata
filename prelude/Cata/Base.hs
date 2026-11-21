@@ -13,9 +13,10 @@
 -- Bend is strict, so foldl' is foldl.
 module Cata.Base where
 
-import Prelude hiding (concatMap, foldl, foldl', foldr)
+import Prelude hiding (concatMap, foldl, foldl', foldr, until)
 
 import Control.Comonad.Trans.Cofree (CofreeF (..))
+import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Show1 (..))
 import Data.Functor.Foldable (cata)
@@ -97,6 +98,17 @@ cofreeFTraverse h (a :< fb) = fmap (a :<) (traverse h fb)
 cofreeFSequence :: forall f a g b. (Traversable f, Applicative g) => CofreeF f a (g b) -> g (CofreeF f a b)
 cofreeFSequence (a :< fgb) = fmap (a :<) (traverse id fgb)
 
+-- | free's Foldable at CofreeF f a: foldr over the layer, the annotation
+-- left out (Spec writes foldr at CofreeF f a as this def)
+cofreeFFoldr :: forall f a b c. Foldable f => (b -> c -> c) -> c -> CofreeF f a b -> c
+cofreeFFoldr g z (_ :< fb) = F.foldr g z fb
+
+-- | Data.Foldable's fold (foldMap id) at any Foldable t: foldr (<>) mempty,
+-- the same value at a lawful Monoid (Spec writes fold as this def, at t and
+-- the Monoid)
+foldMonoid :: forall t m. (Foldable t, Monoid m) => t m -> m
+foldMonoid xs = F.foldr (<>) mempty xs
+
 -- | data-fix's Show instance at Fix f, through f's Show1: showsPrec d (Fix
 -- a) is showParen (d >= 11) (showString "Fix " . liftShowsPrec showsPrec
 -- showList 11 a), showList base's default (showList__ (showsPrec 0)). Spec
@@ -123,3 +135,10 @@ fixShows x = showString (cata fixShowAlg x)
 
 fixShowList :: forall f. (Functor f, Show1 f) => [Fix f] -> ShowS
 fixShowList xs = showList__ showString (map (cata fixShowAlg) xs)
+
+-- | base's until (GHC.Base's definition): f applied until p holds. Spec
+-- writes until as this def; Bend sees no argument shrink, so the fold
+-- writes it with fuel, as the bend branch writes such loops (README,
+-- "Recursion Bend refuses: fuel").
+until :: forall a. (a -> Bool) -> (a -> a) -> a -> a
+until p f x = if p x then x else until p f (f x)
