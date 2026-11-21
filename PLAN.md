@@ -1560,3 +1560,58 @@ findAbort out -> ok-check; nothing lost. Copies: 969 -> 1006 ok-check,
 reasons left (own and copies): survey 510 (partial functions first:
 `error`, Map's `!`), dep 117, fold 109 (recursive-local 21, show-at-type
 20, closure-argument 11, monad-at-type 10, local-patbind 9).
+
+## Telomare's rules, 26: a local named as a def, lets and ifs out of tuples, C {}, maybe at a function (2026-11-21)
+
+- **A local named as one of the module's defs** its top refers to is
+  renamed NAME_ID (`sp.lr`, Spec.bend): GHC's record update binds the
+  new value to a local named as the field, then calls the selector
+  (freshInt: "expected a function type, observed HsInt" before).
+- **Lets and ifs out of a tuple's element** (`sp.ifl.tup`, depth 8): a
+  record update in a pair (Fast's tickApply, tickGate).
+- **`C {}` at a constructor without field names**: a wildcard per field
+  (`fd.pfields.n`; IC's valueKind: "a ICKind.ICRef pattern with 2 fields").
+- **`hs.maybe`/`hs.either` take a Type answer** (a monad's action):
+  EAL's walkTau ("expected Data, observed Type").
+- **Tests**: `tests/hs/RecUp.hs` (help/ru): bump, tick, isRef, adder,
+  ex1..ex4 ok-law (were out: let-in-argument, the pattern, Data vs Type).
+  The other 28 sets: rv 1 out -> ok-check, 1 -> ok-law; IfArg's `both`
+  and ex3 out -> ok-law (an if in a tuple); nothing lost.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 25 (spec49, law50, 1351 s) | 440 | 99 | 290 | 113 |
+| after rule 26 (spec50, law51, 1335 s) | 423 | 100 | 306 | 113 |
+
+Own out -> ok-check: EAL's freshInt, freshB, freshTau, freshCode,
+freshSigma, bottomSigma, builtinCode, exposedClasses, occurs,
+packageClass, shapeOfSigma, walkTau; Fast's tickApply, tickGate; IC's
+dupPlanFor, materialValue; valueKind out -> ok-law. Copies 1006 -> 1008
+ok-check. Nothing lost.
+
+## Partial functions: the user's answer (2026-11-21), the plan
+
+"As a failure value, as the bend branch does (Crash/SErr): the function
+returns Either String a, callers pass it on, and the tests check GHC's
+error message too." The plan, first order first:
+
+1. The survey takes `error`, `errorWithoutStackTrace`, `undefined`,
+   Data.Map's `!`, `!!`, `head`, `tail`, `last`, `init`, `fromJust` as
+   cata's (info `partial:NAME`, not out).
+2. The fold writes each as an Either: `hs.fail(A, msg)` is `Inl{msg}`,
+   `HsMap.at` is Map's `!` ("Map.!: given key is not an element in the
+   map"), the list ones with GHC's messages.
+3. A pass over the module's items (after local catas, before groups): a
+   def that calls one of them, or a def that does, answers
+   `Either<String, R>`; in each answer (a body's or a case's) its partial
+   calls are bound innermost first with `hs.either.bind` (the callee's
+   answer type from its signature, its type arguments put in), an `if`
+   with a partial branch is an Either itself, a let's value is bound
+   before its body. A partial call under a user's lambda is out
+   (`fold:partial-in-lambda`) for now: a monad's continuation is one,
+   so monadic code comes after, as the error layer under the monad.
+   Groups and local catas need nothing more: their members are defs.
+   Later modules learn which defs are partial with the types.
+4. Law: a partial def's GHCi line runs it under `lawRunE`, GHC's
+   `ErrorCall` message becoming `Inl{msg}` and an answer `Inr{v}`, so
+   the laws check the message.

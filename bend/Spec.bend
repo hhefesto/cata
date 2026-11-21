@@ -1803,7 +1803,8 @@ def sp.beta(x: X.Sx) -> X.Sx:
 # captured; the values are the same). The fold writes an if where its type
 # is known, a body's or a branch's (an argument's is fold:if-in-argument),
 # and a let there too (fold:let-in-argument). Not out over && and ||,
-# lazy in their second argument; not out of a lambda, a case or a tuple.
+# lazy in their second argument; not out of a lambda or a case. Out of a
+# tuple's element too (sp.ifl.tup).
 # Bend sees no subterm shrink here, so the depth is fuel (32).
 
 def sp.ifl.lazy(+f: X.Sx) -> Bool:
@@ -1824,13 +1825,31 @@ def sp.ifl.app(fuel: Nat, +a: List<&2, U32>, +f: X.Sx, +e: X.Sx) -> X.Sx:
       +lz = sp.ifl.lazy(f)
       sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "if", 4n)), _ => sp.l([sp.a("if"), sp.at(se, 1n), sp.ifl.app(p, a, f, sp.at(se, 2n)), sp.ifl.app(p, a, f, sp.at(se, 3n))]), _ => sp.if(X.Sx, sp.ifl.is(sf, "if", 4n), _ => sp.l([sp.a("if"), sp.at(sf, 1n), sp.ifl.app(p, a, sp.at(sf, 2n), e), sp.ifl.app(p, a, sp.at(sf, 3n), e)]), _ => sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "let", 3n)), _ => sp.l([sp.a("let"), sp.at(se, 1n), sp.ifl.app(p, a, f, sp.at(se, 2n))]), _ => sp.if(X.Sx, sp.ifl.is(sf, "let", 3n), _ => sp.l([sp.a("let"), sp.at(sf, 1n), sp.ifl.app(p, a, sp.at(sf, 2n), e)]), _ => sp.l([X.SxAtom{a}, f, e])))))
 
-# bottom up: (app F A), its parts done
+# a tuple's elements (pre done, xs to go): the first let or if among them
+# goes out over the tuple, (.., let ds in e, ..) as let ds in (.., e, ..),
+# (.., if c then a else b, ..) as if c then (.., a, ..) else (.., b, ..);
+# Bend builds a tuple's elements when it builds the tuple, so this is the
+# same (depth 8: an if doubles the rest)
+def sp.ifl.tup(fuel: Nat, +pre: List<&2, X.Sx>, xs: List<&2, X.Sx>) -> X.Sx:
+  match fuel xs:
+    case 0n _:
+      sp.l(sp.a("tuple") <> List.append(&2, X.Sx, pre, xs))
+    case 1n+p Nil{}:
+      sp.l(sp.a("tuple") <> pre)
+    case 1n+(+p) +e <> +t:
+      +se = sp.pc.strip(e)
+      sp.if(X.Sx, sp.ifl.is(se, "let", 3n), _ => sp.l([sp.a("let"), sp.at(se, 1n), sp.ifl.tup(p, Nil{}, List.append(&2, X.Sx, pre, sp.at(se, 2n) <> t))]), _ => sp.if(X.Sx, sp.ifl.is(se, "if", 4n), _ => sp.l([sp.a("if"), sp.at(se, 1n), sp.ifl.tup(p, Nil{}, List.append(&2, X.Sx, pre, sp.at(se, 2n) <> t)), sp.ifl.tup(p, Nil{}, List.append(&2, X.Sx, pre, sp.at(se, 3n) <> t))]), _ => sp.ifl.tup(p, List.append(&2, X.Sx, pre, [e]), t)))
+
+# bottom up: (app F A) and (tuple E..), their parts done
 def sp.ifl(x: X.Sx) -> X.Sx:
   match x:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
       +f2 = sp.ifl(f)
       +e2 = sp.ifl(e)
-      sp.if(X.Sx, sp.is(a, "app"), _ => sp.ifl.app(32n, a, f2, e2), _ => X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}})
+      sp.if(X.Sx, sp.is(a, "app"), _ => sp.ifl.app(32n, a, f2, e2), _ => sp.if(X.Sx, sp.is(a, "tuple"), _ => sp.ifl.tup(8n, Nil{}, [f2, e2]), _ => X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}}))
+    case X.SxCons{X.SxAtom{+a}, t}:
+      +t2 = sp.ifl(t)
+      sp.if(X.Sx, sp.is(a, "tuple"), _ => sp.ifl.tup(8n, Nil{}, sp.els(t2)), _ => X.SxCons{X.SxAtom{a}, t2})
     case X.SxCons{h, t}:
       X.SxCons{sp.ifl(h), sp.ifl(t)}
     case y:
@@ -3148,8 +3167,46 @@ def sp.lc(x: X.Sx, +env: List<&2, Asb>) -> X.Sx:
 
 # a binding's passes: pattern synonyms, views, copies' calls, normal type
 # arguments
+# A local named as one of the module's own defs that its top refers to
+# (GHC's record update binds the new field's value to a local named as the
+# field: freshInt's `st { esNextVar = esNextVar st + 1 }` then calls the
+# selector esNextVar), which Bend would read as the local: renamed
+# NAME_ID, its GHC unique after it, at each of its (l NAME ID).
+
+# the names of cur's defs x refers to, (g CUR NAME ...)
+def sp.lr.gs(x: X.Sx, +cur: List<&2, U32>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+m}, X.SxCons{X.SxStr{+n}, rest}}}:
+      +acc2 = sp.lr.gs(rest, cur, acc)
+      Bool.pick(List<&2, List<&2, U32>>, Bool.and(sp.is(a, "g"), S.eq(m, cur)), n <> acc2, acc2)
+    case X.SxCons{h, t}:
+      sp.lr.gs(h, cur, sp.lr.gs(t, cur, acc))
+    case _:
+      acc
+
+def sp.lr.id(i: X.Sx) -> List<&2, U32>:
+  match i:
+    case X.SxAtom{d}:
+      d
+    case _:
+      S.b("l")
+
+# x with each (l NAME ID) whose NAME is one of ns as (l NAME_ID ID)
+def sp.lr.rn(x: X.Sx, +ns: List<&2, List<&2, U32>>) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+n}, X.SxCons{+i, X.SxNil{}}}}:
+      Bool.pick(X.Sx, Bool.and(sp.is(a, "l"), S.mem(n, ns)), sp.l([X.SxAtom{a}, X.SxStr{List.concat(&2, U32, [n, S.b("_"), sp.lr.id(i)])}, i]), sp.l([X.SxAtom{a}, X.SxStr{n}, i]))
+    case X.SxCons{h, t}:
+      X.SxCons{sp.lr.rn(h, ns), sp.lr.rn(t, ns)}
+    case u:
+      u
+
+def sp.lr(+x: X.Sx, +cur: List<&2, U32>) -> X.Sx:
+  sp.lr.rn(x, sp.lr.gs(x, cur, Nil{}))
+
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix) -> Rw:
-  +xp = sp.ifl(sp.beta(sp.pl(sp.pc(sp.lc(x, sp.fa.binds(x, Nil{})), sp.ix.hasbase(ix), ix), ix)))
+  +xr = sp.lr(x, cur)
+  +xp = sp.ifl(sp.beta(sp.pl(sp.pc(sp.lc(xr, sp.fa.binds(xr, Nil{})), sp.ix.hasbase(ix), ix), ix)))
   +x0 = sp.p0(xp, sp.isfun(xp))
   +y = sp.p1.go(12n, x0, sp.has.str(x0, S.b("PatSynCon")), ix)
   sp.rw.p10(sp.rw.p9(sp.rw.p7(sp.p4(sp.p8(sp.p3(y, sp.ispv(y), ix), False{}), True{}, cur, ix), ix)), cur, ix)

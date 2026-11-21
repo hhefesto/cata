@@ -469,8 +469,25 @@ b)` is `if c then f a else f b` and `f (let ds in e)` is `let ds in f e`
 (the locals are numbered apart; the values are the same), so that the if
 is where its type is known, a body's or a branch's (EAL's `mergeClasses`:
 `pure $ if la >= lb then a else b`). Not over `&&` and `||`, lazy in
-their second argument, and not out of a lambda, a `case` or a tuple (an
-if there is still `fold:if-in-argument`).
+their second argument, and not out of a lambda or a `case` (an if there
+is still `fold:if-in-argument`). Out of a tuple's element too
+(`sp.ifl.tup`): `(.., let ds in e, ..)` is `let ds in (.., e, ..)` and
+`(.., if c then a else b, ..)` is `if c then (.., a, ..) else (.., b,
+..)` (Bend builds a tuple's elements with the tuple), as a record update
+in a pair is (Fast's `tickApply`: `(m { fmApplies = .. }, f)`).
+
+A local named as one of its module's own defs that its top-level binding
+refers to is renamed `NAME_ID` (its GHC unique; `sp.lr`): GHC's record
+update binds the new field's value to a local named as the field, and
+the update's right side then calls the field's selector (EAL's
+`freshInt`: `st { esNextVar = esNextVar st + 1 }`), which Bend would read
+as the local.
+
+A record pattern `C {}` at a constructor without field names is `C{_,
+..}`, a wildcard for each field (IC's `valueKind`: `ICRef {}`). The
+prelude's `hs.maybe` and `hs.either` take their answer's type as a
+`Type`, so a monad's action (a function) is one (EAL's `walkTau`:
+`maybe (pure t) walkTau`).
 
 ## Equality
 

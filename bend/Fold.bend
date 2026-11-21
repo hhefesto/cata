@@ -3544,10 +3544,27 @@ def fd.pfields(fs: List<&2, List<&2, U32>>, +xs: List<&2, R>) -> List<&2, T.Bt>:
     case +f <> t:
       fd.pfield(fd.field.find(xs, f)) <> fd.pfields(t, xs)
 
+# n wildcards (a record pattern C {} at a constructor without field names)
+def fd.wilds(n: Nat) -> List<&2, T.Bt>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      T.BtWild{} <> fd.wilds(p)
+
+# a record pattern's patterns: by field name, or n wildcards when the
+# constructor has none (C {})
+def fd.pfields.n(fs: List<&2, List<&2, U32>>, n: Nat, +xs: List<&2, R>) -> List<&2, T.Bt>:
+  match fs:
+    case Nil{}:
+      fd.wilds(n)
+    case +f <> t:
+      fd.pfields(f <> t, xs)
+
 def fd.pconf.of(own: Bool, m: Maybe<&2, Ctr>, +xs: List<&2, R>) -> T.Bt:
   match own m:
     case True{} Some{Ctr{+c, +t, n, fs}}:
-      T.BtCon{fd.cname(t, c), T.tba.args(fd.pfields(fs, xs))}
+      T.BtCon{fd.cname(t, c), T.tba.args(fd.pfields.n(fs, n, xs))}
     case True{} None{}:
       fd.todo("fold:unknown-constructor")
     case False{} _:
@@ -3556,7 +3573,7 @@ def fd.pconf.of(own: Bool, m: Maybe<&2, Ctr>, +xs: List<&2, R>) -> T.Bt:
 def fd.pconf.imp(found: Maybe<&2, Ix>, +xs: List<&2, R>) -> T.Bt:
   match found:
     case Some{IxCon{k, b, n, fs}}:
-      T.BtCon{b, T.tba.args(fd.pfields(fs, xs))}
+      T.BtCon{b, T.tba.args(fd.pfields.n(fs, n, xs))}
     case _:
       fd.todo("fold:unknown-constructor")
 
@@ -4431,13 +4448,6 @@ def fd.ecasec(e: R, r: R, +env: Env) -> R:
 # arguments (ARITY: a spine as long as its parameters; a use with fewer is
 # eta-expanded).  A recursive local (a rec group of one binding) calls its own
 # def the same way.
-def fd.wilds(n: Nat) -> List<&2, T.Bt>:
-  match n:
-    case 0n:
-      Nil{}
-    case 1n+p:
-      T.BtWild{} <> fd.wilds(p)
-
 def fd.ldef.of(+x: List<&2, U32>, +tys: List<&2, T.Bt>, res: T.Bt, +cls: List<&2, R>, +env: Env) -> T.Bt:
   +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
   fd.callS("%ldef", [T.tba.args(fd.lift.lts(fd.lt.zip(fd.pm.names(pms), tys))), res, fd.body.of(fd.anysplit(pms), pms, cls), T.BtVar{x}, T.tba.args(fd.wilds(List.length(&2, T.Bt, tys))), fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))])
@@ -6318,10 +6328,10 @@ def fd.pre.maybe.alt() -> String:
   "# Maybe's <|> (Alternative): the first Just, the second a thunk\ndef hs.maybe.alt(-A: Data, x: Maybe<&2, A>, y: Unit -> Maybe<&2, A>) -> Maybe<&2, A>:\n  match x:\n    case None{}:\n      y(Unit{})\n    case Some{a}:\n      Some{a}\n\n"
 
 def fd.pre.maybe() -> String:
-  "# Haskell's maybe\ndef hs.maybe(-A: Data, -B: Data, d: B, f: A -> B, m: Maybe<&2, A>) -> B:\n  match m:\n    case None{}:\n      d\n    case Some{x}:\n      f(x)\n\n"
+  "# Haskell's maybe (B a Type: a monad's action, a function, is one)\ndef hs.maybe(-A: Data, -B: Type, d: B, f: A -> B, m: Maybe<&2, A>) -> B:\n  match m:\n    case None{}:\n      d\n    case Some{x}:\n      f(x)\n\n"
 
 def fd.pre.either() -> String:
-  "# Haskell's either\ndef hs.either(-A: Data, -B: Data, -C: Data, f: A -> C, g: B -> C, e: Either<&2, &2, A, B>) -> C:\n  match e:\n    case Inl{a}:\n      f(a)\n    case Inr{b}:\n      g(b)\n\n"
+  "# Haskell's either (C a Type: a function is one)\ndef hs.either(-A: Data, -B: Data, -C: Type, f: A -> C, g: B -> C, e: Either<&2, &2, A, B>) -> C:\n  match e:\n    case Inl{a}:\n      f(a)\n    case Inr{b}:\n      g(b)\n\n"
 
 def fd.pre.state() -> String:
   "# State s a (Control.Monad.Trans.State): S -> A & S, a function of the\n# state to a result and the next state; mtl's MonadState methods at it\ndef hs.state.bind.go(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, A, _ => S>, f: A -> S -> Sigma<&1, &1, B, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (a, s) = p\n  f(a)(s)\n\ndef hs.state.bind(-S: Data, -A: Type, -B: Type, m: S -> Sigma<&1, &1, A, _ => S>, f: A -> S -> Sigma<&1, &1, B, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.bind.go(S, A, B, m(s), f)\n\ndef hs.state.pure(-S: Data, -A: Type, a: A) -> S -> Sigma<&1, &1, A, _ => S>:\n  s => (a, s)\n\ndef hs.state.map.go(-S: Data, -A: Type, -B: Type, f: A -> B, p: Sigma<&1, &1, A, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (a, s) = p\n  (f(a), s)\n\ndef hs.state.map(-S: Data, -A: Type, -B: Type, f: A -> B, m: S -> Sigma<&1, &1, A, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.map.go(S, A, B, f, m(s))\n\ndef hs.state.ap.go(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, (A -> B), _ => S>, m: S -> Sigma<&1, &1, A, _ => S>) -> Sigma<&1, &1, B, _ => S>:\n  (f, s) = p\n  hs.state.map.go(S, A, B, f, m(s))\n\ndef hs.state.ap(-S: Data, -A: Type, -B: Type, mf: S -> Sigma<&1, &1, (A -> B), _ => S>, m: S -> Sigma<&1, &1, A, _ => S>) -> S -> Sigma<&1, &1, B, _ => S>:\n  s => hs.state.ap.go(S, A, B, mf(s), m)\n\ndef hs.state.dup(-S: Data, +s: S) -> Sigma<&1, &1, S, _ => S>:\n  (s, s)\n\ndef hs.state.get(-S: Data) -> S -> Sigma<&1, &1, S, _ => S>:\n  s => hs.state.dup(S, s)\n\ndef hs.state.put(-S: Data, s: S) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  _ => (Unit{}, s)\n\ndef hs.state.modify(-S: Data, f: S -> S) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  s => (Unit{}, f(s))\n\ndef hs.state.gets.go(-S: Data, -A: Type, f: S -> A, +s: S) -> Sigma<&1, &1, A, _ => S>:\n  (f(s), s)\n\ndef hs.state.gets(-S: Data, -A: Type, f: S -> A) -> S -> Sigma<&1, &1, A, _ => S>:\n  s => hs.state.gets.go(S, A, f, s)\n\ndef hs.state.fst(-S: Data, -A: Type, p: Sigma<&1, &1, A, _ => S>) -> A:\n  (a, s) = p\n  a\n\ndef hs.state.snd(-S: Data, -A: Type, p: Sigma<&1, &1, A, _ => S>) -> S:\n  (a, s) = p\n  s\n\ndef hs.state.re(-S: Data, -A: Data, p: Sigma<&1, &1, A, _ => S>) -> Sigma<&2, &2, A, _ => S>:\n  (a, s) = p\n  (a, s)\n\ndef hs.state.eval(-S: Data, -A: Type, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> A:\n  hs.state.fst(S, A, m(s))\n\ndef hs.state.exec(-S: Data, -A: Type, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> S:\n  hs.state.snd(S, A, m(s))\n\ndef hs.state.run(-S: Data, -A: Data, m: S -> Sigma<&1, &1, A, _ => S>, s: S) -> Sigma<&2, &2, A, _ => S>:\n  hs.state.re(S, A, m(s))\n\n# mapM_ / forM_, mapM / forM / traverse and foldM at a list\ndef hs.state.mapm_(~S: Data, ~A: Data, ~B: Type, ~f: A -> S -> Sigma<&1, &1, B, _ => S>, xs: List<&2, A>) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.state.pure(S, Unit, Unit{})\n    case h <> t:\n      hs.state.bind(S, B, Unit, f(h), _ => hs.state.mapm_(~S, ~A, ~B, ~f, t))\n\ndef hs.state.mapm(~S: Data, ~A: Data, ~B: Data, ~f: A -> S -> Sigma<&1, &1, B, _ => S>, xs: List<&2, A>) -> S -> Sigma<&1, &1, List<&2, B>, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.state.pure(S, List<&2, B>, Nil{})\n    case h <> t:\n      hs.state.bind(S, B, List<&2, B>, f(h), b => hs.state.map(S, List<&2, B>, List<&2, B>, bs => b <> bs, hs.state.mapm(~S, ~A, ~B, ~f, t)))\n\ndef hs.state.foldm(~S: Data, ~A: Data, ~B: Type, ~f: B -> A -> S -> Sigma<&1, &1, B, _ => S>, xs: List<&2, A>, z: B) -> S -> Sigma<&1, &1, B, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.state.pure(S, B, z)\n    case h <> t:\n      hs.state.bind(S, B, B, f(z)(h), y => hs.state.foldm(~S, ~A, ~B, ~f, t, y))\n\n"
