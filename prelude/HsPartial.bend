@@ -85,3 +85,78 @@ def HsMap.at(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, m: HsMap<K, V>, +k: K) -> 
       Inl{String.to_list("Map.!: given key is not an element in the map")}
     case HsMap.Bin{+k2, +v2, +t}:
       HsCmp.on(Either<&2, &2, List<&2, Char>, V>, cmp(k, k2), _ => Inl{String.to_list("Map.!: given key is not an element in the map")}, _ => Inr{v2}, _ => HsMap.at(~K, ~V, ~cmp, t, k))
+
+# maximum and minimum (Foldable's, at a list): Ord's max and min, so of two
+# equal elements maximum keeps the later one and minimum the earlier one.
+# Foldable's maximumBy and minimumBy keep the same ones, with their own
+# message.
+def HsList.maximum.go(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>, +x: A) -> A:
+  match xs:
+    case Nil{}:
+      x
+    case +y <> t:
+      HsList.maximum.go(~A, ~cmp, t, HsCmp.on(A, cmp(x)(y), _ => y, _ => y, _ => x))
+
+def HsList.minimum.go(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>, +x: A) -> A:
+  match xs:
+    case Nil{}:
+      x
+    case +y <> t:
+      HsList.minimum.go(~A, ~cmp, t, HsCmp.on(A, cmp(x)(y), _ => x, _ => x, _ => y))
+
+def HsList.maximum(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  match xs:
+    case Nil{}:
+      Inl{String.to_list("Prelude.maximum: empty list")}
+    case x <> t:
+      Inr{HsList.maximum.go(~A, ~cmp, t, x)}
+
+def HsList.minimum(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  match xs:
+    case Nil{}:
+      Inl{String.to_list("Prelude.minimum: empty list")}
+    case x <> t:
+      Inr{HsList.minimum.go(~A, ~cmp, t, x)}
+
+def HsList.maximumBy(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  match xs:
+    case Nil{}:
+      Inl{String.to_list("maximumBy: empty structure")}
+    case x <> t:
+      Inr{HsList.maximum.go(~A, ~cmp, t, x)}
+
+def HsList.minimumBy(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  match xs:
+    case Nil{}:
+      Inl{String.to_list("minimumBy: empty structure")}
+    case x <> t:
+      Inr{HsList.minimum.go(~A, ~cmp, t, x)}
+
+# foldr1 and foldl1 (Foldable's, at a list)
+def HsList.foldr1.go(~A: Data, ~f: A -> A -> A, xs: List<&2, A>, x: A) -> A:
+  match xs:
+    case Nil{}:
+      x
+    case y <> t:
+      f(x, HsList.foldr1.go(~A, ~f, t, y))
+
+def HsList.foldl1.go(~A: Data, ~f: A -> A -> A, xs: List<&2, A>, acc: A) -> A:
+  match xs:
+    case Nil{}:
+      acc
+    case y <> t:
+      HsList.foldl1.go(~A, ~f, t, f(acc, y))
+
+def HsList.foldr1(~A: Data, ~f: A -> A -> A, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  match xs:
+    case Nil{}:
+      Inl{String.to_list("Prelude.foldr1: empty list")}
+    case x <> t:
+      Inr{HsList.foldr1.go(~A, ~f, t, x)}
+
+def HsList.foldl1(~A: Data, ~f: A -> A -> A, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  match xs:
+    case Nil{}:
+      Inl{String.to_list("Prelude.foldl1: empty list")}
+    case x <> t:
+      Inr{HsList.foldl1.go(~A, ~f, t, x)}

@@ -94,3 +94,10 @@ def HsSet.intersection(~K: Data, ~cmp: K -> K -> Cmp, a: HsSet<K>, +b: HsSet<K>)
       HsSet.Tip{}
     case HsSet.Bin{+k, +t}:
       HsBool.if(HsSet<K>, HsSet.member(~K, ~cmp, k, b), _ => HsSet.Bin{k, HsSet.intersection(~K, ~cmp, t, b)}, _ => HsSet.intersection(~K, ~cmp, t, b))
+
+# Data.Map's and Data.Set's size: an Int, which is HsInt (Spec's rewrite)
+def HsMap.isize(~K: Data, ~V: Data, m: HsMap<K, V>) -> HsInt:
+  HsInt.Pos{HsMap.size(~K, ~V, m)}
+
+def HsSet.isize(~K: Data, s: HsSet<K>) -> HsInt:
+  HsInt.Pos{HsSet.size(~K, s)}

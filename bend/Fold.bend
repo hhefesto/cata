@@ -1437,6 +1437,8 @@ type Bf is Data:
   BfForM{}
   BfMapM{}
   BfFoldM{}
+  BfFilterM{}
+  BfZipWithM_{}
   BfDm{d: String, r: String, p: String, nt: Nat, n: Nat}
   BfAbsurd{}
   BfNeg{op: String}
@@ -1447,6 +1449,7 @@ type Bf is Data:
   BfZ{op: String}
   BfRange{}
   BfOne{f: String}
+  BfParity{op: String}
   BfDmF{d: String, r: String, p: String, nt: Nat, n: Nat}
   BfBi{op: String}
   BfFlip{}
@@ -1487,7 +1490,7 @@ def fd.dm.specs.map2() -> List<&2, DmS>:
   [DmS{"adjust", "HsMap.adjust", "KV", "V", "KVc", 1n, 3n}, DmS{"toList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"toAscList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"assocs", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"fromList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromDistinctAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromListWith", "HsMap.fromListWith", "KV", "V", "KVc", 1n, 2n}, DmS{"elems", "HsMap.elems", "KV", "V", "KV", 0n, 1n}]
 
 def fd.dm.specs.map3() -> List<&2, DmS>:
-  [DmS{"keys", "HsMap.keys", "KV", "V", "KV", 0n, 1n}, DmS{"keysSet", "HsMap.keysSet", "KV", "V", "KV", 0n, 1n}, DmS{"size", "HsMap.size", "KV", "V", "KV", 0n, 1n}, DmS{"null", "HsMap.null", "KV", "V", "KV", 0n, 1n}, DmS{"union", "HsMap.union", "KV", "V", "KVc", 0n, 2n}, DmS{"unionWith", "HsMap.unionWith", "KV", "V", "KVc", 1n, 3n}, DmS{"difference", "HsMap.difference", "KVW", "VW", "KVWc", 0n, 2n}, DmS{"map", "HsMap.map", "VWK", "VW", "KVW", 1n, 2n}, DmS{"mapWithKey", "HsMap.mapWithKey", "KVW", "VW", "KVW", 1n, 2n}]
+  [DmS{"keys", "HsMap.keys", "KV", "V", "KV", 0n, 1n}, DmS{"keysSet", "HsMap.keysSet", "KV", "V", "KV", 0n, 1n}, DmS{"size", "HsMap.isize", "KV", "V", "KV", 0n, 1n}, DmS{"null", "HsMap.null", "KV", "V", "KV", 0n, 1n}, DmS{"union", "HsMap.union", "KV", "V", "KVc", 0n, 2n}, DmS{"unionWith", "HsMap.unionWith", "KV", "V", "KVc", 1n, 3n}, DmS{"difference", "HsMap.difference", "KVW", "VW", "KVWc", 0n, 2n}, DmS{"map", "HsMap.map", "VWK", "VW", "KVW", 1n, 2n}, DmS{"mapWithKey", "HsMap.mapWithKey", "KVW", "VW", "KVW", 1n, 2n}]
 
 def fd.dm.specs.map4() -> List<&2, DmS>:
   [DmS{"filter", "HsMap.filter", "VK", "V", "KV", 1n, 2n}, DmS{"filterWithKey", "HsMap.filterWithKey", "KV", "V", "KV", 1n, 2n}, DmS{"foldr", "HsMap.foldr", "VBK", "VB", "KVB", 1n, 3n}, DmS{"foldrWithKey", "HsMap.foldrWithKey", "KVB", "VB", "KVB", 1n, 3n}]
@@ -1496,7 +1499,7 @@ def fd.dm.specs.set1() -> List<&2, DmS>:
   [DmS{"empty", "HsSet.empty", "K", "", "K", 0n, 0n}, DmS{"singleton", "HsSet.singleton", "K", "", "K", 0n, 1n}, DmS{"insert", "HsSet.insert", "K", "", "Kc", 0n, 2n}, DmS{"member", "HsSet.member", "K", "", "Kc", 0n, 2n}, DmS{"notMember", "HsSet.notMember", "K", "", "Kc", 0n, 2n}, DmS{"delete", "HsSet.delete", "K", "", "Kc", 0n, 2n}, DmS{"toList", "HsSet.toList", "K", "", "K", 0n, 1n}, DmS{"toAscList", "HsSet.toList", "K", "", "K", 0n, 1n}, DmS{"elems", "HsSet.toList", "K", "", "K", 0n, 1n}]
 
 def fd.dm.specs.set2() -> List<&2, DmS>:
-  [DmS{"fromList", "HsSet.fromList", "K", "", "Kc", 0n, 1n}, DmS{"union", "HsSet.union", "K", "", "Kc", 0n, 2n}, DmS{"difference", "HsSet.difference", "K", "", "Kc", 0n, 2n}, DmS{"\\\\", "HsSet.difference", "K", "", "Kc", 0n, 2n}, DmS{"filter", "HsSet.filter", "K", "", "K", 1n, 2n}, DmS{"size", "HsSet.size", "K", "", "K", 0n, 1n}, DmS{"null", "HsSet.null", "K", "", "K", 0n, 1n}, DmS{"unions", "HsSet.unions", "XK", "X", "Kc", 0n, 1n}]
+  [DmS{"fromList", "HsSet.fromList", "K", "", "Kc", 0n, 1n}, DmS{"union", "HsSet.union", "K", "", "Kc", 0n, 2n}, DmS{"difference", "HsSet.difference", "K", "", "Kc", 0n, 2n}, DmS{"\\\\", "HsSet.difference", "K", "", "Kc", 0n, 2n}, DmS{"filter", "HsSet.filter", "K", "", "K", 1n, 2n}, DmS{"size", "HsSet.isize", "K", "", "K", 0n, 1n}, DmS{"null", "HsSet.null", "K", "", "K", 0n, 1n}, DmS{"unions", "HsSet.unions", "XK", "X", "Kc", 0n, 1n}]
 
 # (map5 and set3: prelude/HsMapMore.bend's; unionsWith's Foldable a list)
 def fd.dm.specs.map5() -> List<&2, DmS>:
@@ -1572,10 +1575,18 @@ def fd.bftab2.show() -> List<&2, BfE>:
 # partial pass (fd.pt) binds: error's and undefined's first type argument
 # their representation
 def fd.bftab2.pt() -> List<&2, BfE>:
-  [BfE{"GHC.Internal.Err.error", BfDm{"HsList.error", "rA", "A", 0n, 1n}}, BfE{"GHC.Internal.Err.errorWithoutStackTrace", BfDm{"HsList.error", "rA", "A", 0n, 1n}}, BfE{"GHC.Internal.Err.undefined", BfDm{"HsList.undefined", "rA", "A", 0n, 0n}}, BfE{"GHC.Internal.List.head", BfDm{"HsList.head", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.tail", BfDm{"HsList.tail", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.last", BfDm{"HsList.last", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.init", BfDm{"HsList.init", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.!!", BfDm{"HsList.index", "A", "A", 0n, 2n}}, BfE{"GHC.Internal.Data.Maybe.fromJust", BfDm{"HsList.fromJust", "A", "A", 0n, 1n}}]
+  [BfE{"GHC.Internal.Err.error", BfDm{"HsList.error", "rA", "A", 0n, 1n}}, BfE{"GHC.Internal.Err.errorWithoutStackTrace", BfDm{"HsList.error", "rA", "A", 0n, 1n}}, BfE{"GHC.Internal.Err.undefined", BfDm{"HsList.undefined", "rA", "A", 0n, 0n}}, BfE{"GHC.Internal.List.head", BfDm{"HsList.head", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.tail", BfDm{"HsList.tail", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.last", BfDm{"HsList.last", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.init", BfDm{"HsList.init", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.List.!!", BfDm{"HsList.index", "A", "A", 0n, 2n}}, BfE{"GHC.Internal.Data.Maybe.fromJust", BfDm{"HsList.fromJust", "A", "A", 0n, 1n}}, BfE{"GHC.Internal.Data.Foldable.maximum", BfDmF{"HsList.maximum", "TK", "Kc", 0n, 1n}}, BfE{"GHC.Internal.Data.Foldable.minimum", BfDmF{"HsList.minimum", "TK", "Kc", 0n, 1n}}, BfE{"GHC.Internal.Data.Foldable.maximumBy", BfDmF{"HsList.maximumBy", "TK", "K", 1n, 2n}}, BfE{"GHC.Internal.Data.Foldable.minimumBy", BfDmF{"HsList.minimumBy", "TK", "K", 1n, 2n}}, BfE{"GHC.Internal.Data.Foldable.foldr1", BfDmF{"HsList.foldr1", "TK", "K", 1n, 2n}}, BfE{"GHC.Internal.Data.Foldable.foldl1", BfDmF{"HsList.foldl1", "TK", "K", 1n, 2n}}]
+
+# base functions of an Ord (prelude/HsOrd.bend)
+def fd.bftab2.ord() -> List<&2, BfE>:
+  [BfE{"GHC.Internal.Data.Ord.comparing", BfDm{"HsList.comparing", "KA", "KAc", 1n, 3n}}, BfE{"GHC.Internal.Real.even", BfParity{"even"}}, BfE{"GHC.Internal.Real.odd", BfParity{"odd"}}]
+
+# Control.Monad's list functions at a monad (see fd.mapm.at, fd.mlist.at)
+def fd.bftab2.mlist() -> List<&2, BfE>:
+  [BfE{"GHC.Internal.Data.Foldable.traverse_", BfMapM_{}}, BfE{"GHC.Internal.Data.Foldable.for_", BfForM_{}}, BfE{"GHC.Internal.Control.Monad.filterM", BfFilterM{}}, BfE{"GHC.Internal.Control.Monad.zipWithM_", BfZipWithM_{}}]
 
 def fd.bftab2() -> List<&2, BfE>:
-  List.concat(&2, BfE, [fd.bftab2.pt(), fd.bftab2.show(), fd.bftab2.seq(), fd.bftab2.a(), fd.bftab2.b(), fd.bftab2.c(), fd.bftab2.d(), fd.bftab2.e(), fd.bftab2.f(), fd.bftab2.g()])
+  List.concat(&2, BfE, [fd.bftab2.pt(), fd.bftab2.ord(), fd.bftab2.mlist(), fd.bftab2.show(), fd.bftab2.seq(), fd.bftab2.a(), fd.bftab2.b(), fd.bftab2.c(), fd.bftab2.d(), fd.bftab2.e(), fd.bftab2.f(), fd.bftab2.g()])
 
 # megaparsec's and parser-combinators' functions that run a parser once,
 # HsPrelude's HsPc (prelude/HsPc.bend): its def, the leading type arguments
@@ -1652,6 +1663,10 @@ def fd.bf.n(f: Bf) -> Nat:
       1n
     case BfFoldM{}:
       3n
+    case BfFilterM{}:
+      2n
+    case BfZipWithM_{}:
+      3n
     case BfDm{d, r, p, nt, n}:
       n
     case BfAbsurd{}:
@@ -1665,6 +1680,8 @@ def fd.bf.n(f: Bf) -> Nat:
     case BfLift2{}:
       3n
     case BfOne{f}:
+      1n
+    case BfParity{op}:
       1n
     case BfDmF{d, r, p, nt, n}:
       n
@@ -1776,8 +1793,9 @@ def fd.eq.targs(ts: List<&2, T.Bt>) -> List<&2, T.Bt>:
   match ts:
     case Nil{}:
       Nil{}
-    case T.BtVar{+x} <> +t:
-      Bool.pick(List<&2, T.Bt>, S.prefix(x, S.b("&")), fd.eq.targs(t), T.BtVar{x} <> fd.eq.targs(t))
+    case T.BtVar{+x} <> t:
+      +rest = fd.eq.targs(t)
+      Bool.pick(List<&2, T.Bt>, S.prefix(x, S.b("&")), rest, T.BtVar{x} <> rest)
     case T.BtLam{m, x, b} <> t:
       b <> fd.eq.targs(t)
     case h <> t:
@@ -2585,6 +2603,41 @@ def fd.mapm.at(k: Mk, f: String, a: T.Bt, b: T.Bt, xs: List<&2, T.Bt>) -> T.Bt:
       fd.callS("hs.state." ++ f, List.append(&2, T.Bt, [fd.tpl0(s), fd.tpl0(a), fd.tpl0(b)], xs))
     case MkExS{e, s}:
       fd.callS("hs.exs." ++ f, List.append(&2, T.Bt, [fd.tpl0(e), fd.tpl0(s), fd.tpl0(a), fd.tpl0(b)], xs))
+    case MkEither{e}:
+      fd.callS("HsPrelude.HsList.either." ++ f, List.append(&2, T.Bt, [fd.tpl0(e), fd.tpl0(a), fd.tpl0(b)], xs))
+    case MkMaybe{}:
+      fd.callS("HsPrelude.HsList.maybe." ++ f, List.append(&2, T.Bt, [fd.tpl0(a), fd.tpl0(b)], xs))
+    case _:
+      fd.todo("fold:monad-at-type")
+
+# Integral's even and odd at Int (prelude/HsOrd.bend)
+def fd.parity(q: Tq, op: String, x: T.Bt) -> T.Bt:
+  match q:
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt." ++ op, [x])
+    case _:
+      fd.todo("fold:parity-at-type")
+
+# filterM (tys: the element) and zipWithM_ (the two elements and the
+# answer) at a list, at State, ExceptT over State (each module's prelude),
+# Either and Maybe (prelude/HsMonad.bend)
+def fd.tpl0s(ts: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match ts:
+    case Nil{}:
+      Nil{}
+    case t <> r:
+      fd.tpl0(t) <> fd.tpl0s(r)
+
+def fd.mlist.at(k: Mk, f: String, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>) -> T.Bt:
+  match k:
+    case MkState{s}:
+      fd.callS("hs.state." ++ f, List.append(&2, T.Bt, fd.tpl0(s) <> fd.tpl0s(tys), xs))
+    case MkExS{e, s}:
+      fd.callS("hs.exs." ++ f, List.append(&2, T.Bt, fd.tpl0(e) <> fd.tpl0(s) <> fd.tpl0s(tys), xs))
+    case MkEither{e}:
+      fd.callS("HsPrelude.HsList.either." ++ f, List.append(&2, T.Bt, fd.tpl0(e) <> fd.tpl0s(tys), xs))
+    case MkMaybe{}:
+      fd.callS("HsPrelude.HsList.maybe." ++ f, List.append(&2, T.Bt, fd.tpl0s(tys), xs))
     case _:
       fd.todo("fold:monad-at-type")
 
@@ -2993,6 +3046,10 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.foldable(c, fd.mapm.at(fd.mk(m), "mapm_", a, b, [fd.tpl(ls, f), fd.fl(c, a, l)]))
     case BfMapM_{} +c <> m <> +a <> b <> _ f <> l <> _:
       fd.foldable(c, fd.mapm.at(fd.mk(m), "mapm_", a, b, [fd.tpl(ls, f), fd.fl(c, a, l)]))
+    case BfFilterM{} m <> a <> _ p <> l <> _:
+      fd.mlist.at(fd.mk(m), "filterm", [a], [fd.tpl(ls, p), l])
+    case BfZipWithM_{} m <> a <> b <> c <> _ f <> x <> y <> _:
+      fd.mlist.at(fd.mk(m), "zipwithm_", [a, b, c], [fd.tpl(ls, f), x, y])
     case BfForM{} c <> m <> a <> b <> _ l <> f <> _:
       fd.foldable(c, fd.mapm.at(fd.mk(m), "mapm", a, b, [fd.tpl(ls, f), l]))
     case BfMapM{} c <> m <> a <> b <> _ f <> l <> _:
@@ -3019,6 +3076,8 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.range(fd.tq(t), a, b)
     case BfOne{f} _ x <> _:
       fd.one(S.b(f), x)
+    case BfParity{op} t <> _ x <> _:
+      fd.parity(fd.tq(t), op, x)
     case BfDmF{d, r, p, nt, n} tys xs:
       fd.dmf(d, S.b(r), S.b(p), nt, tys, xs, ls)
     case BfBi{op} tys xs:
@@ -6319,7 +6378,7 @@ def fd.hsprelude.lists() -> String:
   fd.hsprelude.l1() ++ fd.hsprelude.l2() ++ fd.hsprelude.l3() ++ fd.hsprelude.l4() ++ fd.hsprelude.l5() ++ fd.hsprelude.l6() ++ fd.hsprelude.l7() ++ fd.hsprelude.l8() ++ fd.hsprelude.l9()
 
 def fd.hsprelude.write(+out: String) -> IO(Unit):
-  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc() ++ PR.pre.HsRational() ++ PR.pre.HsMapMore() ++ PR.pre.HsPartial()))
+  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc() ++ PR.pre.HsRational() ++ PR.pre.HsMapMore() ++ PR.pre.HsPartial() ++ PR.pre.HsOrd() ++ PR.pre.HsMonad()))
 
 # the files a module's text may name: HsPrelude's and the package's
 # earlier modules'
@@ -6350,6 +6409,13 @@ def fd.pre.state() -> String:
 # MonadError methods at it, and mapM_/mapM/foldM
 def fd.pre.exs() -> String:
   "# ExceptT e (State s) a (Control.Monad.Trans.Except over\n# Control.Monad.Trans.State): S -> Either E A & S, a State whose result is an\n# Either (ExceptT's newtype: m (Either e a)); mtl's MonadState and\n# MonadError methods at it\ndef hs.exs.bind.go(-E: Data, -S: Data, -A: Data, -B: Data, r: Either<&2, &2, E, A>, f: A -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>, s: S) -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>:\n  match r:\n    case Inl{e}:\n      (Inl{e}, s)\n    case Inr{a}:\n      f(a)(s)\n\ndef hs.exs.bind.p(-E: Data, -S: Data, -A: Data, -B: Data, p: Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>, f: A -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>) -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>:\n  (r, s) = p\n  hs.exs.bind.go(E, S, A, B, r, f, s)\n\ndef hs.exs.bind(-E: Data, -S: Data, -A: Data, -B: Data, m: S -> Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>, f: A -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>) -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>:\n  s => hs.exs.bind.p(E, S, A, B, m(s), f)\n\ndef hs.exs.pure(-E: Data, -S: Data, -A: Data, a: A) -> S -> Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>:\n  s => (Inr{a}, s)\n\ndef hs.exs.throw(-E: Data, -S: Data, -A: Data, e: E) -> S -> Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>:\n  s => (Inl{e}, s)\n\ndef hs.exs.map.r(-E: Data, -A: Data, -B: Data, f: A -> B, r: Either<&2, &2, E, A>) -> Either<&2, &2, E, B>:\n  match r:\n    case Inl{e}:\n      Inl{e}\n    case Inr{a}:\n      Inr{f(a)}\n\ndef hs.exs.map.go(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> B, p: Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>) -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>:\n  (r, s) = p\n  (hs.exs.map.r(E, A, B, f, r), s)\n\ndef hs.exs.map(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> B, m: S -> Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>) -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>:\n  s => hs.exs.map.go(E, S, A, B, f, m(s))\n\ndef hs.exs.dup(-E: Data, -S: Data, +s: S) -> Sigma<&1, &1, Either<&2, &2, E, S>, _ => S>:\n  (Inr{s}, s)\n\ndef hs.exs.get(-E: Data, -S: Data) -> S -> Sigma<&1, &1, Either<&2, &2, E, S>, _ => S>:\n  s => hs.exs.dup(E, S, s)\n\ndef hs.exs.put(-E: Data, -S: Data, s: S) -> S -> Sigma<&1, &1, Either<&2, &2, E, Unit>, _ => S>:\n  _ => (Inr{Unit{}}, s)\n\ndef hs.exs.modify(-E: Data, -S: Data, f: S -> S) -> S -> Sigma<&1, &1, Either<&2, &2, E, Unit>, _ => S>:\n  s => (Inr{Unit{}}, f(s))\n\ndef hs.exs.gets.go(-E: Data, -S: Data, -A: Data, f: S -> A, +s: S) -> Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>:\n  (Inr{f(s)}, s)\n\ndef hs.exs.gets(-E: Data, -S: Data, -A: Data, f: S -> A) -> S -> Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>:\n  s => hs.exs.gets.go(E, S, A, f, s)\n\n# mapM_ / forM_, mapM / forM / traverse and foldM at a list\ndef hs.exs.mapm_(~E: Data, ~S: Data, ~A: Data, ~B: Data, ~f: A -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>, xs: List<&2, A>) -> S -> Sigma<&1, &1, Either<&2, &2, E, Unit>, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.exs.pure(E, S, Unit, Unit{})\n    case h <> t:\n      hs.exs.bind(E, S, B, Unit, f(h), _ => hs.exs.mapm_(~E, ~S, ~A, ~B, ~f, t))\n\ndef hs.exs.mapm(~E: Data, ~S: Data, ~A: Data, ~B: Data, ~f: A -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>, xs: List<&2, A>) -> S -> Sigma<&1, &1, Either<&2, &2, E, List<&2, B>>, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.exs.pure(E, S, List<&2, B>, Nil{})\n    case h <> t:\n      hs.exs.bind(E, S, B, List<&2, B>, f(h), b => hs.exs.map(E, S, List<&2, B>, List<&2, B>, bs => b <> bs, hs.exs.mapm(~E, ~S, ~A, ~B, ~f, t)))\n\ndef hs.exs.foldm(~E: Data, ~S: Data, ~A: Data, ~B: Data, ~f: B -> A -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>, xs: List<&2, A>, z: B) -> S -> Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.exs.pure(E, S, B, z)\n    case h <> t:\n      hs.exs.bind(E, S, B, B, f(z)(h), y => hs.exs.foldm(~E, ~S, ~A, ~B, ~f, t, y))\n\n"
+
+# filterM and zipWithM_ at State and at ExceptT over State (see fd.mlist.at)
+def fd.pre.statem() -> String:
+  "# filterM and zipWithM_ at a list (State)\ndef hs.state.keep(-A: Data, k: Bool, x: A, ys: List<&2, A>) -> List<&2, A>:\n  match k:\n    case True{}:\n      x <> ys\n    case False{}:\n      ys\n\ndef hs.state.filterm(~S: Data, ~A: Data, ~p: A -> S -> Sigma<&1, &1, Bool, _ => S>, xs: List<&2, A>) -> S -> Sigma<&1, &1, List<&2, A>, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.state.pure(S, List<&2, A>, Nil{})\n    case +h <> t:\n      hs.state.bind(S, Bool, List<&2, A>, p(h), k => hs.state.map(S, List<&2, A>, List<&2, A>, ys => hs.state.keep(A, k, h, ys), hs.state.filterm(~S, ~A, ~p, t)))\n\ndef hs.state.zipwithm_(~S: Data, ~A: Data, ~B: Data, ~C: Type, ~f: A -> B -> S -> Sigma<&1, &1, C, _ => S>, xs: List<&2, A>, ys: List<&2, B>) -> S -> Sigma<&1, &1, Unit, _ => S>:\n  match xs ys:\n    case x <> xt y <> yt:\n      hs.state.bind(S, C, Unit, f(x)(y), _ => hs.state.zipwithm_(~S, ~A, ~B, ~C, ~f, xt, yt))\n    case _ _:\n      hs.state.pure(S, Unit, Unit{})\n\n"
+
+def fd.pre.exsm() -> String:
+  "# filterM and zipWithM_ at a list (ExceptT over State)\ndef hs.exs.keep(-A: Data, k: Bool, x: A, ys: List<&2, A>) -> List<&2, A>:\n  match k:\n    case True{}:\n      x <> ys\n    case False{}:\n      ys\n\ndef hs.exs.filterm(~E: Data, ~S: Data, ~A: Data, ~p: A -> S -> Sigma<&1, &1, Either<&2, &2, E, Bool>, _ => S>, xs: List<&2, A>) -> S -> Sigma<&1, &1, Either<&2, &2, E, List<&2, A>>, _ => S>:\n  match xs:\n    case Nil{}:\n      hs.exs.pure(E, S, List<&2, A>, Nil{})\n    case +h <> t:\n      hs.exs.bind(E, S, Bool, List<&2, A>, p(h), k => hs.exs.map(E, S, List<&2, A>, List<&2, A>, ys => hs.exs.keep(A, k, h, ys), hs.exs.filterm(~E, ~S, ~A, ~p, t)))\n\ndef hs.exs.zipwithm_(~E: Data, ~S: Data, ~A: Data, ~B: Data, ~C: Data, ~f: A -> B -> S -> Sigma<&1, &1, Either<&2, &2, E, C>, _ => S>, xs: List<&2, A>, ys: List<&2, B>) -> S -> Sigma<&1, &1, Either<&2, &2, E, Unit>, _ => S>:\n  match xs ys:\n    case x <> xt y <> yt:\n      hs.exs.bind(E, S, C, Unit, f(x)(y), _ => hs.exs.zipwithm_(~E, ~S, ~A, ~B, ~C, ~f, xt, yt))\n    case _ _:\n      hs.exs.pure(E, S, Unit, Unit{})\n\n"
 
 def fd.pre.eq.list() -> String:
   "# Haskell's == at lists, given == at the elements\ndef hs.eq.list(~A: Data, ~eq: A -> A -> Bool, xs: List<&2, A>, ys: List<&2, A>) -> Bool:\n  match xs ys:\n    case Nil{} Nil{}:\n      True{}\n    case x <> xt y <> yt:\n      Bool.and(eq(x, y), hs.eq.list(~A, ~eq, xt, yt))\n    case _ _:\n      False{}\n\n"
@@ -6398,7 +6464,7 @@ def fd.pre.one(+its: List<&2, T.BItem>, n: String, text: String) -> List<&2, U32
   fd.bpick(fd.uses.name(its, S.b(n)), S.b(text), Nil{})
 
 def fd.prelude(+its: List<&2, T.BItem>) -> List<&2, U32>:
-  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.maybe.alt", fd.pre.maybe.alt()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.pre.one(its, "hs.eq.list", fd.pre.eq.list()), fd.pre.one(its, "hs.eq.maybe", fd.pre.eq.maybe()), fd.pre.one(its, "hs.eq.either", fd.pre.eq.either()), fd.pre.one(its, "hs.eq.pair", fd.pre.eq.pair()), fd.pre.one(its, "hs.eq.unit", fd.pre.eq.unit()), fd.pre.one(its, "hs.eq.cmp", fd.pre.eq.cmp()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run", "hs.state.mapm_", "hs.state.mapm", "hs.state.foldm"]), S.b(fd.pre.state()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.exs.bind", "hs.exs.pure", "hs.exs.throw", "hs.exs.map", "hs.exs.get", "hs.exs.put", "hs.exs.modify", "hs.exs.gets", "hs.exs.mapm_", "hs.exs.mapm", "hs.exs.foldm"]), S.b(fd.pre.exs()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.rd.bind", "hs.rd.pure", "hs.rd.map", "hs.rd.ask", "hs.rd.local", "hs.rd.asks"]), S.b(fd.pre.rd()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.rde.bind", "hs.rde.pure", "hs.rde.throw", "hs.rde.lift", "hs.rde.map", "hs.rde.ask", "hs.rde.local", "hs.rde.asks"]), S.b(fd.pre.rde()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.wr.bind", "hs.wr.pure", "hs.wr.map"]), S.b(fd.pre.wr()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.wre.bind", "hs.wre.pure", "hs.wre.map"]), S.b(fd.pre.wre()), Nil{})])
+  List.concat(&2, U32, [fd.pre.one(its, "Bool.if", fd.pre.if()), fd.pre.one(its, "hs.map", fd.pre.map()), fd.pre.one(its, "hs.either.bind", fd.pre.either.bind()), fd.pre.one(its, "hs.either.map", fd.pre.either.map()), fd.pre.one(its, "hs.maybe", fd.pre.maybe()), fd.pre.one(its, "hs.maybe.alt", fd.pre.maybe.alt()), fd.pre.one(its, "hs.either", fd.pre.either()), fd.pre.one(its, "hs.eq.list", fd.pre.eq.list()), fd.pre.one(its, "hs.eq.maybe", fd.pre.eq.maybe()), fd.pre.one(its, "hs.eq.either", fd.pre.eq.either()), fd.pre.one(its, "hs.eq.pair", fd.pre.eq.pair()), fd.pre.one(its, "hs.eq.unit", fd.pre.eq.unit()), fd.pre.one(its, "hs.eq.cmp", fd.pre.eq.cmp()), fd.bpick(fd.uses.any(its, ["hs.state.bind", "hs.state.pure", "hs.state.map", "hs.state.ap", "hs.state.get", "hs.state.put", "hs.state.modify", "hs.state.gets", "hs.state.eval", "hs.state.exec", "hs.state.run", "hs.state.mapm_", "hs.state.mapm", "hs.state.foldm", "hs.state.filterm", "hs.state.zipwithm_"]), S.b(fd.pre.state()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.state.filterm", "hs.state.zipwithm_"]), S.b(fd.pre.statem()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.exs.bind", "hs.exs.pure", "hs.exs.throw", "hs.exs.map", "hs.exs.get", "hs.exs.put", "hs.exs.modify", "hs.exs.gets", "hs.exs.mapm_", "hs.exs.mapm", "hs.exs.foldm", "hs.exs.filterm", "hs.exs.zipwithm_"]), S.b(fd.pre.exs()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.exs.filterm", "hs.exs.zipwithm_"]), S.b(fd.pre.exsm()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.rd.bind", "hs.rd.pure", "hs.rd.map", "hs.rd.ask", "hs.rd.local", "hs.rd.asks"]), S.b(fd.pre.rd()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.rde.bind", "hs.rde.pure", "hs.rde.throw", "hs.rde.lift", "hs.rde.map", "hs.rde.ask", "hs.rde.local", "hs.rde.asks"]), S.b(fd.pre.rde()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.wr.bind", "hs.wr.pure", "hs.wr.map"]), S.b(fd.pre.wr()), Nil{}), fd.bpick(fd.uses.any(its, ["hs.wre.bind", "hs.wre.pure", "hs.wre.map"]), S.b(fd.pre.wre()), Nil{})])
 
 # The file -------------------------------------------------------------------------
 
@@ -8467,6 +8533,351 @@ def fd.lc.all(+its: List<&2, T.BItem>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>
   +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
   fd.lc.items(its, rs, fz, List.append(&2, T.BItem, its, dt))
 
+# Template copies ---------------------------------------------------------------
+#
+# A call of a module def at template arguments that name a def reaching
+# back to the caller: Machine's transformNoDefer maps its own recursion
+# over a layer, `fmap c x`, which the fold writes as the derived Functor's
+# copy at a lambda, cfmap(~(eta_0 => c(eta_0)), x), c calling back the def
+# the call is in. Once that group is merged (the fold's .mu, below) the
+# template argument would hold the group's fuel, which Bend's templates
+# refuse (they take only closed arguments). Such a call is a call of a
+# copy of the def, D.tH (H a hash of the arguments), its template
+# parameters replaced by the arguments: the copy names the group's defs
+# itself, so it is one of the group, and the merge takes it in. Only
+# arguments whose names are all the module's defs or qualified ones (no
+# local of the caller) are copied in, at defs the merge could take (no
+# type or template parameter of their own).
+
+# a template copy: its name, the def, its template parameters' count, the
+# arguments
+type Ti is Data:
+  Ti{n: List<&2, U32>, d: List<&2, U32>, k: Nat, as: List<&2, T.Bt>}
+
+# what the rewrite of a def knows: its name, what each def reaches, the
+# module's def names, the module's items
+type Tix is Data:
+  Tix{m: List<&2, U32>, rs: List<&2, Mrch>, ns: List<&2, List<&2, U32>>, its: List<&2, T.BItem>}
+
+# whether a name is qualified (has a dot)
+def fd.ti.dot(s: List<&2, U32>) -> Bool:
+  match s:
+    case Nil{}:
+      False{}
+    case c <> t:
+      Bool.or(U32.is_eq(c, 46), fd.ti.dot(t))
+
+# the names t uses that it does not bind, in front of acc
+def fd.ti.free(t: T.Bt, +bs: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtVar{+x}:
+      T.tba.keep(S.mem(x, bs), x, acc)
+    case T.BtApp{f, a}:
+      fd.ti.free(f, bs, fd.ti.free(a, bs, acc))
+    case T.BtTplArg{a}:
+      fd.ti.free(a, bs, acc)
+    case T.BtLam{m, x, b}:
+      fd.ti.free(b, x <> bs, acc)
+    case T.BtCon{c, a}:
+      fd.ti.free(a, bs, acc)
+    case T.BtEq{ty, a, b}:
+      fd.ti.free(a, bs, fd.ti.free(b, bs, acc))
+    case T.BtSucc{a}:
+      fd.ti.free(a, bs, acc)
+    case T.BtAnn{a, ty}:
+      fd.ti.free(a, bs, acc)
+    case T.BtMatch{xs, cs}:
+      fd.ti.free(xs, bs, fd.ti.free(cs, bs, acc))
+    case T.BtExpr{e}:
+      fd.ti.free(e, bs, acc)
+    case T.BtRw{e, p, b}:
+      fd.ti.free(e, bs, fd.ti.free(b, bs, acc))
+    case T.BtLet{x, v, b}:
+      fd.ti.free(v, bs, fd.ti.free(b, x <> bs, acc))
+    case T.BtCase{+p, b, rest}:
+      fd.ti.free(b, List.append(&2, List<&2, U32>, T.tba.pvars(p, Nil{}), bs), fd.ti.free(rest, bs, acc))
+    case T.BtArgs{a, rest}:
+      fd.ti.free(a, bs, fd.ti.free(rest, bs, acc))
+    case _:
+      acc
+
+# whether each name is the module's def or qualified
+def fd.ti.globals(xs: List<&2, List<&2, U32>>, +ns: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case +x <> t:
+      Bool.and(Bool.or(S.mem(x, ns), fd.ti.dot(x)), fd.ti.globals(t, ns))
+
+# whether each of xs is a template argument
+def fd.ti.tpls(xs: List<&2, T.Bt>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case T.BtTplArg{a} <> t:
+      fd.ti.tpls(t)
+    case _ <> t:
+      False{}
+
+def fd.ti.refs(xs: List<&2, T.Bt>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      acc
+    case h <> t:
+      T.tba.refs(h, fd.ti.refs(t, acc))
+
+def fd.ti.frees(xs: List<&2, T.Bt>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      acc
+    case h <> t:
+      fd.ti.free(h, Nil{}, fd.ti.frees(t, acc))
+
+def fd.ti.q3(ok: Bool, +x: List<&2, U32>, +k: Nat, +as: List<&2, T.Bt>) -> Maybe<&2, Ti>:
+  match ok:
+    case False{}:
+      None{}
+    case True{}:
+      +txt = P.tpr.t(T.tba.call(T.BtVar{x}, as), P.TpLoose{}, 0n, Nil{})
+      Some{Ti{fd.cat3(x, S.b(".t"), S.b(U32.show(fd.lc.hash(txt, 5381)))), x, k, fd.lc.untpls(as)}}
+
+def fd.ti.q2(m: Maybe<&2, T.BItem>, +x: List<&2, U32>, +xs: List<&2, T.Bt>, +cx: Tix) -> Maybe<&2, Ti>:
+  match m cx:
+    case Some{T.BiDef{n, +ps, r, b, d}} Tix{c, +rs, +ns, its}:
+      +k = fd.fu.lead(ps)
+      +as = List.take(&2, T.Bt, xs, k)
+      +more = Nat.is_gt(List.length(&2, T.BParam, ps), k)
+      +back = fd.lc.back(fd.ti.refs(as, Nil{}), rs, c)
+      fd.ti.q3(Bool.and(Bool.and(Nat.is_gt(k, 0n), more), Bool.and(Bool.and(Nat.is_gt(List.length(&2, T.Bt, xs), k), fd.ti.tpls(as)), Bool.and(back, fd.ti.globals(fd.ti.frees(as, Nil{}), ns)))), x, k, as)
+    case _ _:
+      None{}
+
+# a call of x at the arguments a that is to be a template copy's
+def fd.ti.q(+x: List<&2, U32>, +a: T.Bt, +cx: Tix) -> Maybe<&2, Ti>:
+  match cx:
+    case Tix{+c, rs, ns, +its}:
+      Bool.pick(Maybe<&2, Ti>, S.eq(x, c), None{}, fd.ti.q2(fd.mu.get(its, x), x, fd.spine(a), Tix{c, rs, ns, its}))
+
+def fd.ti.rw.at(m: Maybe<&2, Ti>, +x: List<&2, U32>, +ra: T.Bt) -> T.Bt:
+  match m:
+    case Some{Ti{n, d, k, as}}:
+      T.tba.call(T.BtVar{n}, List.drop(&2, T.Bt, fd.spine(ra), k))
+    case None{}:
+      T.BtApp{T.BtVar{x}, ra}
+
+# t with each such call a call of its copy
+def fd.ti.rw(t: T.Bt, +cx: Tix) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, a}:
+      +ra = fd.ti.rw(a, cx)
+      fd.ti.rw.at(fd.ti.q(x, ra, cx), x, ra)
+    case T.BtApp{h, a}:
+      T.BtApp{fd.ti.rw(h, cx), fd.ti.rw(a, cx)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.ti.rw(a, cx)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.ti.rw(b, cx)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.ti.rw(a, cx)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.ti.rw(a, cx), fd.ti.rw(b, cx)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.ti.rw(a, cx)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.ti.rw(a, cx), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.ti.rw(cs, cx)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.ti.rw(e, cx)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.ti.rw(e, cx), p, fd.ti.rw(b, cx)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.ti.rw(v, cx), fd.ti.rw(b, cx)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.ti.rw(b, cx), fd.ti.rw(rest, cx)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.ti.rw(a, cx), fd.ti.rw(rest, cx)}
+    case u:
+      u
+
+def fd.ti.put(m: Maybe<&2, Ti>, acc: List<&2, Ti>) -> List<&2, Ti>:
+  match m:
+    case Some{c}:
+      c <> acc
+    case None{}:
+      acc
+
+# the template copies t calls, as fd.ti.rw rewrites them
+def fd.ti.calls(t: T.Bt, +cx: Tix, acc: List<&2, Ti>) -> List<&2, Ti>:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      +ra = fd.ti.rw(a, cx)
+      fd.ti.put(fd.ti.q(x, ra, cx), fd.ti.calls(a, cx, acc))
+    case T.BtApp{h, a}:
+      fd.ti.calls(h, cx, fd.ti.calls(a, cx, acc))
+    case T.BtTplArg{a}:
+      fd.ti.calls(a, cx, acc)
+    case T.BtLam{m, x, b}:
+      fd.ti.calls(b, cx, acc)
+    case T.BtCon{c, a}:
+      fd.ti.calls(a, cx, acc)
+    case T.BtEq{ty, a, b}:
+      fd.ti.calls(a, cx, fd.ti.calls(b, cx, acc))
+    case T.BtSucc{a}:
+      fd.ti.calls(a, cx, acc)
+    case T.BtAnn{a, ty}:
+      fd.ti.calls(a, cx, acc)
+    case T.BtMatch{xs, cs}:
+      fd.ti.calls(cs, cx, acc)
+    case T.BtExpr{e}:
+      fd.ti.calls(e, cx, acc)
+    case T.BtRw{e, p, b}:
+      fd.ti.calls(e, cx, fd.ti.calls(b, cx, acc))
+    case T.BtLet{x, v, b}:
+      fd.ti.calls(v, cx, fd.ti.calls(b, cx, acc))
+    case T.BtCase{p, b, rest}:
+      fd.ti.calls(b, cx, fd.ti.calls(rest, cx, acc))
+    case T.BtArgs{a, rest}:
+      fd.ti.calls(a, cx, fd.ti.calls(rest, cx, acc))
+    case u:
+      acc
+
+# t with x replaced by v (closed: nothing it names is bound on the way)
+def fd.ti.sub(t: T.Bt, +x: List<&2, U32>, +v: T.Bt) -> T.Bt:
+  match t:
+    case T.BtVar{+y}:
+      Bool.pick(T.Bt, S.eq(y, x), v, T.BtVar{y})
+    case T.BtApp{f, a}:
+      T.BtApp{fd.ti.sub(f, x, v), fd.ti.sub(a, x, v)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.ti.sub(a, x, v)}
+    case T.BtLam{m, +y, +b}:
+      T.BtLam{m, y, Bool.pick(T.Bt, S.eq(y, x), b, fd.ti.sub(b, x, v))}
+    case T.BtPi{m, +y, dep, a, +b}:
+      T.BtPi{m, y, dep, fd.ti.sub(a, x, v), Bool.pick(T.Bt, S.eq(y, x), b, fd.ti.sub(b, x, v))}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.ti.sub(a, x, v)}
+    case T.BtTyApp{n, a}:
+      T.BtTyApp{n, fd.ti.sub(a, x, v)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{fd.ti.sub(ty, x, v), fd.ti.sub(a, x, v), fd.ti.sub(b, x, v)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.ti.sub(a, x, v)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.ti.sub(a, x, v), fd.ti.sub(ty, x, v)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{fd.ti.sub(xs, x, v), fd.ti.sub(cs, x, v)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.ti.sub(e, x, v)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.ti.sub(e, x, v), p, fd.ti.sub(b, x, v)}
+    case T.BtLet{+y, a, +b}:
+      T.BtLet{y, fd.ti.sub(a, x, v), Bool.pick(T.Bt, S.eq(y, x), b, fd.ti.sub(b, x, v))}
+    case T.BtCase{+p, +b, rest}:
+      T.BtCase{p, Bool.pick(T.Bt, S.mem(x, T.tba.pvars(p, Nil{})), b, fd.ti.sub(b, x, v)), fd.ti.sub(rest, x, v)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.ti.sub(a, x, v), fd.ti.sub(rest, x, v)}
+    case u:
+      u
+
+# t with each of the parameters replaced by its argument
+def fd.ti.subs(ps: List<&2, T.BParam>, as: List<&2, T.Bt>, t: T.Bt) -> T.Bt:
+  match ps as:
+    case T.BParam{m, x, ty} <> u a <> w:
+      fd.ti.subs(u, w, fd.ti.sub(t, x, a))
+    case _ _:
+      t
+
+def fd.ti.psubs(qs: List<&2, T.BParam>, +ps: List<&2, T.BParam>, +as: List<&2, T.Bt>) -> List<&2, T.BParam>:
+  match qs:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, ty} <> t:
+      T.BParam{m, x, fd.ti.subs(ps, as, ty)} <> fd.ti.psubs(t, ps, as)
+
+# a copy's def: the def's, its first k parameters replaced by the arguments
+def fd.ti.def(m: Maybe<&2, T.BItem>, +n: List<&2, U32>, +k: Nat, +as: List<&2, T.Bt>) -> List<&2, T.BItem>:
+  match m:
+    case Some{T.BiDef{d, +ps, r, b, doc}}:
+      +lead = List.take(&2, T.BParam, ps, k)
+      [T.BiDef{n, fd.ti.psubs(List.drop(&2, T.BParam, ps, k), lead, as), fd.ti.subs(lead, as, r), fd.ti.subs(lead, as, b), [fd.cat(S.b("generated: a copy of "), d), S.b("at its template arguments (a group's def in them)")]}]
+    case _:
+      Nil{}
+
+# the copies to write, each once, none the module has
+def fd.ti.gens(cs: List<&2, Ti>, +its: List<&2, T.BItem>, +seen: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case Ti{+n, +d, +k, +as} <> t:
+      +skip = Bool.or(S.mem(n, seen), Maybe.is_some(&2, T.BItem, fd.mu.get(its, n)))
+      List.append(&2, T.BItem, Bool.pick(List<&2, T.BItem>, skip, Nil{}, fd.ti.def(fd.mu.get(its, d), n, k, as)), fd.ti.gens(t, its, n <> seen))
+
+# the caller named in what the rewrite knows
+def fd.ti.at(cx: Tix, +n: List<&2, U32>) -> Tix:
+  match cx:
+    case Tix{c, rs, ns, its}:
+      Tix{n, rs, ns, its}
+
+# a def the merge could take (no type or template parameter)
+def fd.ti.ok(+ps: List<&2, T.BParam>) -> Bool:
+  Bool.and(Nat.is_eq(fd.fu.lead(ps), 0n), Bool.not(fd.mu.anytpl(ps)))
+
+def fd.ti.item2(ok: Bool, +n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +cx: Tix) -> T.BItem:
+  match ok:
+    case True{}:
+      T.BiDef{n, ps, r, fd.ti.rw(b, fd.ti.at(cx, n)), d}
+    case False{}:
+      T.BiDef{n, ps, r, b, d}
+
+def fd.ti.item(it: T.BItem, +cx: Tix) -> T.BItem:
+  match it:
+    case T.BiDef{n, +ps, r, b, d}:
+      fd.ti.item2(fd.ti.ok(ps), n, ps, r, b, d, cx)
+    case other:
+      other
+
+def fd.ti.callsof2(ok: Bool, +n: List<&2, U32>, b: T.Bt, +cx: Tix) -> List<&2, Ti>:
+  match ok:
+    case True{}:
+      fd.ti.calls(b, fd.ti.at(cx, n), Nil{})
+    case False{}:
+      Nil{}
+
+def fd.ti.callsof(it: T.BItem, +cx: Tix) -> List<&2, Ti>:
+  match it:
+    case T.BiDef{n, +ps, r, b, d}:
+      fd.ti.callsof2(fd.ti.ok(ps), n, b, cx)
+    case _:
+      Nil{}
+
+def fd.ti.items(its: List<&2, T.BItem>, +cx: Tix) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      fd.ti.item(h, cx) <> fd.ti.items(t, cx)
+
+def fd.ti.allcalls(its: List<&2, T.BItem>, +cx: Tix) -> List<&2, Ti>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      List.append(&2, Ti, fd.ti.callsof(h, cx), fd.ti.allcalls(t, cx))
+
+# one round: the calls rewritten, the copies written
+def fd.ti.round(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ns = fd.mu.names(its)
+  +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
+  +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
+  +cx = {Tix{Nil{}, rs, ns, its} : Tix}
+  List.append(&2, T.BItem, fd.ti.items(its, cx), fd.ti.gens(fd.ti.allcalls(its, cx), its, Nil{}))
+
+# the module's items with each such call a copy's (two rounds: a copy's own
+# body may call another def so)
+def fd.ti.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.ti.round(fd.ti.round(its))
+
 # a module's items as written, before the gate: local catas written, then
 # groups merged (Law.bend's lw.module writes them so too)
 # Partial functions -------------------------------------------------------------
@@ -8554,7 +8965,7 @@ type Pp is Data:
   Pp{n: String, k: Nat}
 
 def fd.pt.pres() -> List<&2, Pp>:
-  [Pp{"HsPrelude.HsList.error", 1n}, Pp{"HsPrelude.HsList.undefined", 1n}, Pp{"HsPrelude.HsList.head", 1n}, Pp{"HsPrelude.HsList.last", 1n}, Pp{"HsPrelude.HsList.index", 1n}, Pp{"HsPrelude.HsList.fromJust", 1n}, Pp{"HsPrelude.HsList.tail", 2n}, Pp{"HsPrelude.HsList.init", 2n}, Pp{"HsPrelude.HsMap.at", 3n}]
+  [Pp{"HsPrelude.HsList.error", 1n}, Pp{"HsPrelude.HsList.undefined", 1n}, Pp{"HsPrelude.HsList.head", 1n}, Pp{"HsPrelude.HsList.last", 1n}, Pp{"HsPrelude.HsList.index", 1n}, Pp{"HsPrelude.HsList.fromJust", 1n}, Pp{"HsPrelude.HsList.tail", 2n}, Pp{"HsPrelude.HsList.init", 2n}, Pp{"HsPrelude.HsMap.at", 3n}, Pp{"HsPrelude.HsList.maximum", 1n}, Pp{"HsPrelude.HsList.minimum", 1n}, Pp{"HsPrelude.HsList.maximumBy", 1n}, Pp{"HsPrelude.HsList.minimumBy", 1n}, Pp{"HsPrelude.HsList.foldr1", 1n}, Pp{"HsPrelude.HsList.foldl1", 1n}]
 
 def fd.pt.pre.find(xs: List<&2, Pp>, +f: List<&2, U32>) -> Nat:
   match xs:
@@ -8978,7 +9389,7 @@ def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   fd.pt.items(its, fd.pt.fix(List.length(&2, Pr, rs), False{}, rs, fd.pt.imported(dt)))
 
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.mu.all(fd.pt.all(fd.lc.all(fd.eta.all(fd.got.items(gs)), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)), fd.px.dt(px)), fd.px.dt(px))
+  fd.mu.all(fd.ti.all(fd.pt.all(fd.lc.all(fd.eta.all(fd.got.items(gs)), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)), fd.px.dt(px))), fd.px.dt(px))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:

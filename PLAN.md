@@ -1667,3 +1667,47 @@ Next for the partial functions: a partial call under a lambda, a cata's
 algebra first (term3ToUnsizedExpr, convertPT, getInputLimits: an Either
 cata, each layer's children bound before the algebra), then monadic code
 (the error under the monad).
+
+## Telomare's rules, 28: Control.Monad at Either and Maybe, Foldable's partial functions, a faster specialiser (2026-11-21)
+
+- **Control.Monad's list functions** at Either e and at Maybe
+  (prelude/HsMonad.bend, Fold.bend's fd.mapm.at and fd.mlist.at):
+  `mapM_`/`forM_`/`traverse_`/`for_`, `mapM`/`forM`/`traverse` at a list,
+  `foldM`, `filterM` and `zipWithM_`, GHC's answer (the first Left or
+  Nothing in the list's order, else the values); `filterM` and
+  `zipWithM_` at State and at ExceptT over State too (each module's
+  prelude). Tests: `tests/hs/MonadList.hs`.
+- **Foldable's partial functions at a list** (prelude/HsPartial.bend):
+  `maximum`, `minimum`, `maximumBy`, `minimumBy`, `foldr1`, `foldl1`,
+  failure values with GHC's messages (rule 27). Where two partial calls
+  of a def both fail, GHC may throw either and cata gives the first it
+  binds, so such a def can be out on a law (`tests/hs/PartialFold.hs`'s
+  `range`).
+- **prelude/HsOrd.bend**: Data.Ord's `comparing`, Integral's `even` and
+  `odd` at Int.
+- **Comprehensions** whose generator's pattern can fail inside a tuple
+  skip the elements it does not match (`tests/hs/LcPat.hs`, Driver's
+  `[(h, g) | (h, Right g) <- ..]`); `tests/hs/NoDefer.hs` is Machine's
+  transformNoDefer in its shape.
+- **The specialiser, fast**: three walks were exponential in a term's
+  depth: `sp.fa.unself` walked the V of each `(A V)` twice, and
+  `sp.fnp.has` and Fold's `fd.eq.targs` called themselves twice on the
+  same rest (each now binds the one walk). A known function argument
+  (`sp.fa.at`) is taken only where the parameter is a function and the
+  clauses' patterns there are variables or wildcards. Spec on telomare's
+  30 modules: 2,903 s -> 181 s; 28 of the 30 outputs the same, Driver's
+  and Eval_Reference's differ (their copies' inlining).
+- **Check against GHC**: `tests/telomare/run.sh` on law's lps58 package:
+  13 files, the same skeleton as GHC's.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| before (tsp45, law59, lps57) | 418 | 103 | 308 | 113 |
+| after rule 28 (tsp49, law61, lps58, 1750 s) | 416 | 103 | 310 | 113 |
+
+Own out -> ok-check: EAL's refsOf, PrettyPrint's showInternalP. Copies
+out -> ok-check: transformNoDefer at CompiledExprF (Driver,
+Eval_Reference), StuckExprF, InputSizingExprF, StaticCheckExprF and
+UnsizedExprF; forget at four types; cshow at PrettyPartialType;
+isGateSelector and removeRefinementWrappers at UnsizedExprF. Copies 1039
+-> 1053 ok-check, 292 -> 278 out. Nothing lost.

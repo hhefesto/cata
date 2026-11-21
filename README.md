@@ -213,9 +213,12 @@ logs `mempty`, `>>=` joins the two logs with `<>`. `writer` is `pure` at
 the inner monad of the pair, `lift` at `WriterT w` is `fmap` at the
 inner monad of a pair with `mempty`, and the constructor `WriterT`,
 `runWriterT` and `runWriter` are the term itself (a pattern `WriterT p`
-is `p`). At State and at ExceptT over State, Control.Monad's `mapM_`/`forM_`,
-`mapM`/`forM`/`traverse` (at a list) and `foldM` are the prelude's (the
-function a template, so a closed one), and at any of these monads `when`,
+is `p`). At State, at ExceptT over State, at Either and at Maybe,
+Control.Monad's `mapM_`/`forM_`/`traverse_`/`for_`, `mapM`/`forM`/`traverse`
+(at a list), `foldM`, `filterM` and `zipWithM_` are the prelude's (the
+function a template, so a closed one): State's and ExceptT's in the
+module's prelude, Either's and Maybe's prelude/HsMonad.bend's, which walk
+the whole list and answer its first Left (Nothing), GHC's answer, and at any of these monads `when`,
 `unless`, `void`, `=<<` and `*>` are written with their `>>=`, `pure` and
 `fmap`. At `ParsecT`, see "Parsers". Other monads (`ExceptT` over
 anything else, `IO`, a type variable) and `<*>` at ExceptT are out.
@@ -493,9 +496,10 @@ prelude's `hs.maybe` and `hs.either` take their answer's type as a
 
 Haskell's partial functions are failure values, as telomare's bend
 branch writes its crashes: `error`, `errorWithoutStackTrace`,
-`undefined`, `head`, `tail`, `last`, `init`, `!!`, `fromJust` and
-Data.Map's `!` are prelude/HsPartial.bend's `HsList.error`, ...,
-`HsMap.at`, each answering `Either<&2, &2, String, A>`: `Inl{GHC's
+`undefined`, `head`, `tail`, `last`, `init`, `!!`, `fromJust`,
+Data.Map's `!`, and Foldable's `maximum`, `minimum`, `maximumBy`,
+`minimumBy`, `foldr1` and `foldl1` at a list are prelude/HsPartial.bend's
+`HsList.error`, ..., `HsMap.at`, `HsList.maximum`, ..., each answering `Either<&2, &2, String, A>`: `Inl{GHC's
 message}` where GHC throws its `ErrorCall` (the message alone, as
 `ErrorCall m` matches it: "Prelude.head: empty list", "Map.!: given key
 is not an element in the map"), `Inr{the answer}` else. The survey takes
@@ -515,6 +519,10 @@ the answer). A let's partial calls are bound before it, the let then a
 parenthesized body inside the last bind's lambda. Bend is strict, so a
 partial call's error is the def's even where Haskell's laziness would
 never force it (an unused let); the laws compare.
+Where two partial calls of one def both fail on an input, GHC may throw
+either (its exceptions are imprecise) and cata gives the first it binds:
+the laws compare messages, so such a def can be out on a law
+(tests/hs/PartialFold.hs's `range`).
 
 A partial call under a lambda (a monad's continuation, a function
 argument, a cata's algebra) is out for now (`fold:partial-in-lambda`).
