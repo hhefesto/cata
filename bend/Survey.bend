@@ -334,10 +334,22 @@ def sv.base.lazy(lazy: Bool, +t: Tb, +n: List<&2, U32>, r: Rs) -> Rs:
     case False{}:
       sv.base.io(S.mem(n, sv.io(t)), n, r)
 
+# the partial functions cata writes as a failure value (PLAN.md, "Partial
+# functions": an Either, prelude/HsPartial.bend): info, not out
+def sv.pok() -> List<&2, List<&2, U32>>:
+  sv.strs(["error", "errorWithoutStackTrace", "undefined", "!", "!!", "head", "tail", "last", "init", "fromJust"])
+
+def sv.base.pok(ok: Bool, +n: List<&2, U32>, r: Rs) -> Rs:
+  match ok:
+    case True{}:
+      sv.info(r, sv.cat(S.b("partial:"), n))
+    case False{}:
+      sv.why(r, sv.cat(S.b("partial:"), n))
+
 def sv.base.part(part: Bool, +t: Tb, +n: List<&2, U32>, r: Rs) -> Rs:
   match part:
     case True{}:
-      sv.why(r, sv.cat(S.b("partial:"), n))
+      sv.base.pok(S.mem(n, sv.pok()), n, r)
     case False{}:
       sv.base.lazy(S.mem(n, sv.lazy(t)), t, n, r)
 
@@ -347,7 +359,7 @@ def sv.base.fn(ok: Bool, +t: Tb, +n: List<&2, U32>, r: Rs) -> Rs:
     case True{}:
       r
     case False{}:
-      sv.base.part(S.mem(n, sv.part(t)), t, n, r)
+      sv.base.part(Bool.or(S.mem(n, sv.part(t)), sv.is(n, "!")), t, n, r)
 
 def sv.own.if(var: Bool, dollar: Bool, +n: List<&2, U32>, r: Rs) -> Rs:
   match var dollar:

@@ -996,11 +996,28 @@ def lw.plan.why(+h: Hy, +ks: List<&2, Bool>) -> List<&2, U32>:
   +nr = lw.notype(lw.res(h))
   lw.first(lw.first(F.fd.bpick(List.is_empty(&2, U32, nt), Nil{}, lw.cat(S.b("nolaw:argument-"), nt)), F.fd.bpick(List.is_empty(&2, U32, nr), Nil{}, lw.cat(S.b("nolaw:result-"), nr))), F.fd.bpick(Nat.is_gt(lw.nvals(ks), lw.nargs(lw.args(h))), S.b("nolaw:arity"), Nil{}))
 
-def lw.plan.of(why: List<&2, U32>, +b: List<&2, U32>, +h: Hy, +m: List<&2, U32>, +hsn: List<&2, U32>, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>) -> Pl:
+# a partial def (Fold's fd.pt: its answer an Either, Inl{GHC's error}): its
+# GHCi line wraps the call in LawEw, which answers GHC's ErrorCall as Inl
+def lw.pt.open(pt: Bool) -> List<&2, U32>:
+  F.fd.bpick(pt, S.b("(LawEw LawP.$ ("), S.b("(("))
+
+def lw.pt.ret(pt: Bool, +r: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, pt, F.fd.pt.ety(r), r)
+
+def lw.kept.pt(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
+  match its:
+    case T.BiDef{k, ps, r, b, d} <> t:
+      Bool.or(Bool.and(S.eq(k, n), S.mem(S.b(F.fd.pt.doc()), d)), lw.kept.pt(t, n))
+    case _ <> t:
+      lw.kept.pt(t, n)
+    case Nil{}:
+      False{}
+
+def lw.plan.of(why: List<&2, U32>, +b: List<&2, U32>, +h: Hy, +m: List<&2, U32>, +hsn: List<&2, U32>, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>, +pt: Bool) -> Pl:
   match why:
     case Nil{}:
-      +f = lw.cat3(S.b("(("), lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41]))
-      lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(h)}), 8n), b, f, lw.kinds(ps), lw.tpls(ps), lw.bty(lw.res(h)))
+      +f = lw.cat3(lw.pt.open(pt), lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41]))
+      lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(h)}), 8n), b, f, lw.kinds(ps), lw.tpls(ps), lw.pt.ret(pt, lw.bty(lw.res(h))))
     case w:
       PlNo{b, w}
 
@@ -1015,18 +1032,18 @@ def lw.kept(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, List<&2, T.B
       None{}
 
 # (fun VAR TYPE SPAN MATCHES): the def's plan, if the gate kept it
-def lw.plan.tb(found: Maybe<&2, List<&2, T.BParam>>, +n: List<&2, U32>, +f: X.Sx, +le: Le, +dds: List<&2, Dd>, +m: List<&2, U32>) -> List<&2, Pl>:
+def lw.plan.tb(found: Maybe<&2, List<&2, T.BParam>>, +n: List<&2, U32>, +f: X.Sx, +le: Le, +dds: List<&2, Dd>, +m: List<&2, U32>, pt: Bool) -> List<&2, Pl>:
   match found:
     case Some{+ps}:
       +h = lw.ty(le, V.sv.at(f, 2n))
-      [lw.plan.of(lw.plan.why(h, lw.kinds(ps)), F.fd.vname(n), h, m, n, le, dds, ps)]
+      [lw.plan.of(lw.plan.why(h, lw.kinds(ps)), F.fd.vname(n), h, m, n, le, dds, ps, pt)]
     case None{}:
       Nil{}
 
 def lw.plans(tbs: List<&2, F.Tb>, +its: List<&2, T.BItem>, +le: Le, +dds: List<&2, Dd>, +m: List<&2, U32>) -> List<&2, Pl>:
   match tbs:
     case F.TbFun{+n, tvs, +f} <> t:
-      List.append(&2, Pl, lw.plan.tb(lw.kept(its, F.fd.vname(n)), n, f, le, dds, m), lw.plans(t, its, le, dds, m))
+      List.append(&2, Pl, lw.plan.tb(lw.kept(its, F.fd.vname(n)), n, f, le, dds, m, lw.kept.pt(its, F.fd.vname(n))), lw.plans(t, its, le, dds, m))
     case _ <> t:
       lw.plans(t, its, le, dds, m)
     case Nil{}:
@@ -1048,7 +1065,7 @@ def lw.any.pl(ps: List<&2, Pl>) -> Bool:
 # nothing here.  Each answer is printed with lawSx; lawRun gives each call
 # 2 s and turns an exception (error, a failed pattern) into `err`.
 def lw.ghci.pre() -> String:
-  ":set -XScopedTypeVariables -XFlexibleInstances -XFlexibleContexts\nimport qualified Prelude as LawP\nimport qualified System.Timeout as LawT\nimport qualified Control.Exception as LawE\nimport qualified System.IO as LawIO\nimport qualified Numeric.Natural as LawN\n:{\nclass LawSx a where\n  lawSx :: a -> LawP.String\n:}\n:{\nlawI :: LawP.Integer -> LawP.String\nlawI n = if n LawP.< 0 then \"(neg \" LawP.++ LawP.show (LawP.negate n) LawP.++ \")\" else \"(nat \" LawP.++ LawP.show n LawP.++ \")\"\n:}\n:{\nlawC :: LawP.String -> [LawP.String] -> LawP.String\nlawC c xs = \"(con \\\"\" LawP.++ c LawP.++ \"\\\"\" LawP.++ LawP.concatMap (\\x -> ' ' : x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx LawP.Int where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Integer where\n  lawSx n = lawI n\n:}\n:{\ninstance LawSx LawN.Natural where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Bool where\n  lawSx b = if b then lawC \"True\" [] else lawC \"False\" []\n:}\n:{\ninstance LawSx LawP.Char where\n  lawSx c = \"(char \" LawP.++ LawP.show (LawP.fromEnum c) LawP.++ \")\"\n:}\n:{\ninstance LawSx () where\n  lawSx _ = lawC \"Unit\" []\n:}\n:{\ninstance LawSx LawP.Ordering where\n  lawSx o = case o of { LawP.LT -> lawC \"LT\" []; LawP.EQ -> lawC \"EQ\" []; LawP.GT -> lawC \"GT\" [] }\n:}\n:{\ninstance LawSx a => LawSx [a] where\n  lawSx xs = \"(list\" LawP.++ LawP.concatMap (\\x -> ' ' : lawSx x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx a => LawSx (LawP.Maybe a) where\n  lawSx m = case m of { LawP.Nothing -> lawC \"None\" []; LawP.Just x -> lawC \"Some\" [lawSx x] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (LawP.Either a b) where\n  lawSx e = case e of { LawP.Left x -> lawC \"Inl\" [lawSx x]; LawP.Right y -> lawC \"Inr\" [lawSx y] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (a, b) where\n  lawSx (a, b) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \")\"\n:}\n:{\ninstance (LawSx a, LawSx b, LawSx c) => LawSx (a, b, c) where\n  lawSx (a, b, c) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \" \" LawP.++ lawSx c LawP.++ \")\"\n:}\n:{\nlawRun :: LawSx b => LawP.String -> LawP.Int -> b -> LawP.IO ()\nlawRun n k v = do\n  r <- LawE.try (LawT.timeout 2000000 (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s))\n  case r of\n    LawP.Left (e :: LawE.SomeException) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" err\")\n    LawP.Right LawP.Nothing -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" timeout\")\n    LawP.Right (LawP.Just s) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" ok \" LawP.++ s)\n  LawIO.hFlush LawIO.stdout\n:}\n"
+  ":set -XScopedTypeVariables -XFlexibleInstances -XFlexibleContexts\nimport qualified Prelude as LawP\nimport qualified System.Timeout as LawT\nimport qualified Control.Exception as LawE\nimport qualified System.IO as LawIO\nimport qualified Numeric.Natural as LawN\nimport qualified System.IO.Unsafe as LawU\n:{\nclass LawSx a where\n  lawSx :: a -> LawP.String\n:}\n:{\nlawI :: LawP.Integer -> LawP.String\nlawI n = if n LawP.< 0 then \"(neg \" LawP.++ LawP.show (LawP.negate n) LawP.++ \")\" else \"(nat \" LawP.++ LawP.show n LawP.++ \")\"\n:}\n:{\nlawC :: LawP.String -> [LawP.String] -> LawP.String\nlawC c xs = \"(con \\\"\" LawP.++ c LawP.++ \"\\\"\" LawP.++ LawP.concatMap (\\x -> ' ' : x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx LawP.Int where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Integer where\n  lawSx n = lawI n\n:}\n:{\ninstance LawSx LawN.Natural where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Bool where\n  lawSx b = if b then lawC \"True\" [] else lawC \"False\" []\n:}\n:{\ninstance LawSx LawP.Char where\n  lawSx c = \"(char \" LawP.++ LawP.show (LawP.fromEnum c) LawP.++ \")\"\n:}\n:{\ninstance LawSx () where\n  lawSx _ = lawC \"Unit\" []\n:}\n:{\ninstance LawSx LawP.Ordering where\n  lawSx o = case o of { LawP.LT -> lawC \"LT\" []; LawP.EQ -> lawC \"EQ\" []; LawP.GT -> lawC \"GT\" [] }\n:}\n:{\ninstance LawSx a => LawSx [a] where\n  lawSx xs = \"(list\" LawP.++ LawP.concatMap (\\x -> ' ' : lawSx x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx a => LawSx (LawP.Maybe a) where\n  lawSx m = case m of { LawP.Nothing -> lawC \"None\" []; LawP.Just x -> lawC \"Some\" [lawSx x] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (LawP.Either a b) where\n  lawSx e = case e of { LawP.Left x -> lawC \"Inl\" [lawSx x]; LawP.Right y -> lawC \"Inr\" [lawSx y] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (a, b) where\n  lawSx (a, b) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \")\"\n:}\n:{\ninstance (LawSx a, LawSx b, LawSx c) => LawSx (a, b, c) where\n  lawSx (a, b, c) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \" \" LawP.++ lawSx c LawP.++ \")\"\n:}\n:{\nlawRun :: LawSx b => LawP.String -> LawP.Int -> b -> LawP.IO ()\nlawRun n k v = do\n  r <- LawE.try (LawT.timeout 2000000 (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s))\n  case r of\n    LawP.Left (e :: LawE.SomeException) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" err\")\n    LawP.Right LawP.Nothing -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" timeout\")\n    LawP.Right (LawP.Just s) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" ok \" LawP.++ s)\n  LawIO.hFlush LawIO.stdout\n:}\n:{\nnewtype LawEw a = LawEw a\n:}\n:{\ninstance LawSx a => LawSx (LawEw a) where\n  lawSx (LawEw v) = LawU.unsafePerformIO (LawE.try (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s) LawP.>>= \\r -> case r of { LawP.Left (e :: LawE.SomeException) -> case LawE.fromException e of { LawP.Just (LawE.ErrorCall m) -> LawP.return (lawC \"Inl\" [lawSx m]); LawP.Nothing -> LawE.throwIO e }; LawP.Right s -> LawP.return (lawC \"Inr\" [s]) })\n:}\n"
 
 # x0 x1 ..: a constructor's fields in a pattern
 def lw.vars(n: Nat, +i: Nat) -> List<&2, List<&2, U32>>:

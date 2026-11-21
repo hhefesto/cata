@@ -1615,3 +1615,55 @@ error message too." The plan, first order first:
 4. Law: a partial def's GHCi line runs it under `lawRunE`, GHC's
    `ErrorCall` message becoming `Inl{msg}` and an answer `Inr{v}`, so
    the laws check the message.
+
+## Telomare's rules, 27: partial functions as failure values (2026-11-21)
+
+The plan above, its first part (plain code), built:
+
+- **The survey** takes `error`, `errorWithoutStackTrace`, `undefined`,
+  `head`, `tail`, `last`, `init`, `!!`, `fromJust` and Map's `!` (info
+  `partial:NAME`, not out); the other partial ones (`foldr1`,
+  `maximum` at a list, `minimumBy`, ...) stay out.
+- **prelude/HsPartial.bend**: each as an Either, GHC's messages
+  (`HsList.error`, `HsList.head`, ..., `HsList.index`, `HsMap.at`), the
+  fold's tables (fd.bftab2.pt, fd.dm.specs.map6) writing them.
+- **The partial pass** (Fold.bend's `fd.pt`, after the local catas,
+  before the groups; README's "Partial functions"): the partial defs to a
+  fixed point, their answers Eithers, the calls bound innermost first; a
+  lambda applied at once (a comprehension's copy) whose body is a partial
+  call is that call; a partial call under any other lambda is out,
+  `fold:partial-in-lambda`. A later module learns an earlier one's
+  partial defs from the package's exports (fd.dt.export: the signature).
+- **Out before the first check**: a def a pass after the fold left a
+  `BtTodo` in goes out with its reason (fd.predrop; before, its ?TODO
+  failed the whole module's check, 239 defs "check:raw" in the first run).
+- **Print** (agda2bend's ToBend/Print.bend, 644ea88): a let inside a
+  term is a parenthesized body, `(x = v; b)` (it was ?TODO).
+- **Law**: a partial def's GHCi call is under `LawEw`, whose `lawSx`
+  answers GHC's `ErrorCall m` as `Inl m`, an answer as `Inr`.
+- **Tests**: `tests/hs/Partial.hs` (help/pt): width, half, ex1..ex9,
+  offAt, firstOr ok-law (GHC's messages checked: 26 Inl answers), look
+  ok-check (no law at a Map argument), ex10 (`map half`) out
+  fold:partial-in-lambda. The 28 other sets: nothing lost; Base's model's
+  iterateIndex out -> ok-check in each, Iter.hs 8 out -> ok-law, 4 ->
+  ok-check.
+
+| telomare's own defs (not the model's) | out | ok-law | ok-check | types |
+|---|---|---|---|---|
+| after rule 26 (spec50, law51, 1335 s) | 423 | 100 | 306 | 113 |
+| after rule 27 (spec50, law54, 1542 s) | 420 | 102 | 307 | 113 |
+
+Own out -> ok-law: Levels' offAt, Indent's indentSansFirstLine; out ->
+ok-check: Expand's accessAt. Copies 1008 -> 1026 ok-check (EAL's
+simplex comprehensions with Map's `!`, the iterateIndex copies,
+foldGateResult, unsizedTestSuper, sizedRecursionChain, varB). Nothing
+lost. 53 defs the survey left out for a partial function now reach the
+fold and are out for other rules: local-patbind 8, closure-argument 6,
+guard-falls-through 5, partial-in-lambda 4, if-in-argument 4, law's
+"expected Data, observed Type" 4. Survey: compileModules' frontier 188
+reached / 186 no -> 127 / 125 (partial:error and base:! gone from it).
+
+Next for the partial functions: a partial call under a lambda, a cata's
+algebra first (term3ToUnsizedExpr, convertPT, getInputLimits: an Either
+cata, each layer's children bound before the algebra), then monadic code
+(the error under the monad).

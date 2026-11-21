@@ -377,8 +377,8 @@ Data.Sequence's `Seq a` is a list (front first) and `ViewL a` too
 
 `iterate f x !! n` is Base's model's `iterateIndex f x n` (the
 specialiser's rewrite): f applied n times to x, the endless list never
-built, a negative n `(!!)`'s error (so a partial function, out with the
-others until they have a rule). `until p f x` is Base's model's `until`,
+built, a negative n `(!!)`'s error (a partial function: see "Partial
+functions"). `until p f x` is Base's model's `until`,
 base's definition, copied at its known p and f and written with fuel (see
 "Recursion Bend refuses: fuel"; a fixpoint loop, as Resolve's
 `pruneBindings`). Alternative's `<|>` and `empty` at Maybe:
@@ -488,6 +488,40 @@ A record pattern `C {}` at a constructor without field names is `C{_,
 prelude's `hs.maybe` and `hs.either` take their answer's type as a
 `Type`, so a monad's action (a function) is one (EAL's `walkTau`:
 `maybe (pure t) walkTau`).
+
+## Partial functions
+
+Haskell's partial functions are failure values, as telomare's bend
+branch writes its crashes: `error`, `errorWithoutStackTrace`,
+`undefined`, `head`, `tail`, `last`, `init`, `!!`, `fromJust` and
+Data.Map's `!` are prelude/HsPartial.bend's `HsList.error`, ...,
+`HsMap.at`, each answering `Either<&2, &2, String, A>`: `Inl{GHC's
+message}` where GHC throws its `ErrorCall` (the message alone, as
+`ErrorCall m` matches it: "Prelude.head: empty list", "Map.!: given key
+is not an element in the map"), `Inr{the answer}` else. The survey takes
+them (info `partial:NAME`, not out).
+
+A def that calls one, or calls a def that does (the module's items to a
+fixed point, then the later modules' through the package's exports), is
+partial (Fold.bend's pass `fd.pt`, after the local catas, before the
+groups): its answer type is the Either, and its doc says so. In each
+answer, a body's, a case's or an if's thunk's, its partial calls are
+bound innermost first with `hs.either.bind(String, A, R, call, x =>
+...)`, A the callee's answer read off its signature with the call's type
+arguments put in, and the answer is `Inr{..}`; an answer that is itself
+a partial call is that call, and an if (a compare's three ways) with a
+partial branch is an if of Eithers (bound as one call where it is not
+the answer). A let's partial calls are bound before it, the let then a
+parenthesized body inside the last bind's lambda. Bend is strict, so a
+partial call's error is the def's even where Haskell's laziness would
+never force it (an unused let); the laws compare.
+
+A partial call under a lambda (a monad's continuation, a function
+argument, a cata's algebra) is out for now (`fold:partial-in-lambda`).
+
+A partial def's law runs GHC's call under `LawEw`, whose `lawSx` turns
+an `ErrorCall m` into `Inl m` and an answer into `Inr`, so the laws check
+GHC's message too (tests/hs/Partial.hs).
 
 ## Equality
 
