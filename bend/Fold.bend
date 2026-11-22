@@ -188,12 +188,18 @@ def fd.tvtpls(tvs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
 def fd.bpicks(c: Bool, a: List<&2, List<&2, U32>>, b: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   Bool.pick(List<&2, List<&2, U32>>, c, a, b)
 
-def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
-  match its:
-    case +h <> t:
-      Bool.or(S.mem(n, T.tba.item.fold(~T.tba.refs, h, Nil{})), fd.uses.name(t, n))
-    case Nil{}:
+# (a walk that stops at the first item naming n; Bool.or went on to the end)
+def fd.uses.go(its: List<&2, T.BItem>, +n: List<&2, U32>, hit: Bool) -> Bool:
+  match its hit:
+    case _ True{}:
+      True{}
+    case Nil{} False{}:
       False{}
+    case +h <> t False{}:
+      fd.uses.go(t, n, S.mem(n, T.tba.item.fold(~T.tba.refs, h, Nil{})))
+
+def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
+  fd.uses.go(its, n, False{})
 
 # List<&2, A>
 def fd.list(a: T.Bt) -> T.Bt:
@@ -298,12 +304,19 @@ type TkE is Data:
 def fd.tktab() -> List<&2, TkE>:
   [TkE{"GHC.Types.Int", TkNat{}}, TkE{"GHC.Num.Integer.Integer", TkNat{}}, TkE{"GHC.Num.Natural.Natural", TkNat{}}, TkE{"GHC.Types.Bool", TkBool{}}, TkE{"GHC.Types.Char", TkChar{}}, TkE{"GHC.Types.Float", TkF32{}}, TkE{"GHC.Types.List", TkList{}}, TkE{"GHC.Internal.Base.String", TkStr{}}, TkE{"GHC.Internal.Show.ShowS", TkShowS{}}, TkE{"GHC.Internal.IO.FilePath", TkStr{}}, TkE{"GHC.Internal.Maybe.Maybe", TkMaybe{}}, TkE{"GHC.Internal.Data.Either.Either", TkEither{}}, TkE{"GHC.Tuple.Tuple2", TkT2{}}, TkE{"GHC.Tuple.Tuple3", TkT3{}}, TkE{"GHC.Tuple.Unit", TkUnit{}}, TkE{"GHC.Types.Ordering", TkCmp{}}, TkE{"Data.Fix.Fix", TkFix{}}, TkE{"Control.Comonad.Cofree.Cofree", TkCofree{}}, TkE{"Control.Comonad.Trans.Cofree.CofreeF", TkCofreeF{}}, TkE{"Data.Functor.Foldable.Base", TkBase{}}, TkE{"Control.Monad.Trans.State.Lazy.State", TkState{}}, TkE{"Control.Monad.Trans.State.Strict.State", TkState{}}, TkE{"Control.Monad.Trans.State.Lazy.StateT", TkStateT{}}, TkE{"Control.Monad.Trans.State.Strict.StateT", TkStateT{}}, TkE{"GHC.Internal.Data.Functor.Identity.Identity", TkIdentity{}}, TkE{"Control.Monad.Trans.Except.ExceptT", TkExceptT{}}, TkE{"Control.Monad.Trans.Reader.ReaderT", TkReaderT{}}, TkE{"Control.Monad.Trans.Reader.Reader", TkReader{}}, TkE{"Control.Monad.Trans.Writer.Strict.WriterT", TkWriterT{}}, TkE{"Control.Monad.Trans.Writer.Lazy.WriterT", TkWriterT{}}, TkE{"Control.Monad.Trans.Writer.Strict.Writer", TkWriter{}}, TkE{"Control.Monad.Trans.Writer.Lazy.Writer", TkWriter{}}, TkE{"Data.Map.Internal.Map", TkMap{}}, TkE{"Data.Set.Internal.Set", TkSet{}}, TkE{"Data.IntMap.Internal.IntMap", TkIntMap{}}, TkE{"Data.IntSet.Internal.IntSet", TkIntSet{}}, TkE{"Data.IntSet.Internal.Key", TkNat{}}, TkE{"Data.IntMap.Internal.Key", TkNat{}}, TkE{"GHC.Internal.Base.Void", TkEmpty{}}, TkE{"HsPrelude.HsInt", TkHsInt{}}, TkE{"HsPrelude.HsInteger", TkHsInt{}}, TkE{"HsPrelude.HsDigest", TkDigest{}}, TkE{"HsPrelude.HsRational", TkRat{}}, TkE{"GHC.Internal.Word.Word8", TkU32{}}, TkE{"Data.Sequence.Internal.Seq", TkList{}}, TkE{"Data.Sequence.Internal.ViewL", TkList{}}, TkE{"Text.Megaparsec.Internal.ParsecT", TkParsecT{}}, TkE{"Text.Megaparsec.Parsec", TkParsec{}}, TkE{"Text.Megaparsec.Error.ParseErrorBundle", TkPeb{}}, TkE{"Text.Megaparsec.Pos.SourcePos", TkSPos{}}, TkE{"Text.Megaparsec.Pos.Pos", TkPos{}}, TkE{"Text.Megaparsec.Stream.Token", TkToken{}}, TkE{"Text.Megaparsec.Stream.Tokens", TkTokens{}}]
 
-def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
-  match xs:
-    case Nil{}:
+# (a walk that stops at its hit, cur the entry's kind; it went on to the
+# table's end, making each entry's name bytes)
+def fd.tk.go(xs: List<&2, TkE>, +k: List<&2, U32>, hit: Bool, cur: Tk) -> Tk:
+  match xs hit:
+    case _ True{}:
+      cur
+    case Nil{} False{}:
       TkNone{}
-    case TkE{s, v} <> t:
-      Bool.pick(Tk, S.eq(S.b(s), k), v, fd.tk.find(t, k))
+    case TkE{+s, v} <> t False{}:
+      fd.tk.go(t, k, V.sv.is(k, s), v)
+
+def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
+  fd.tk.go(xs, k, False{}, TkNone{})
 
 # a list type; a list with no element is Foldable's container, the marker
 # List (Base's list functions are written for it)
@@ -1110,42 +1123,44 @@ type Tf is Data:
 # A package so far: its modules, the aliases of those that wrote a file,
 # what they have in, their synonyms, and their defs' template flags.  A
 # module alone has fd.px0().
+# (im: ix as a map, each key's entries in ix's order: a lookup's walk of ix
+# compared every key, their long common prefixes too, a fifth of the fold)
 type Px is Data:
-  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>, dt: List<&2, T.BItem>}
+  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>, dt: List<&2, T.BItem>, im: Map<&2, List<&2, Ix>>}
 
 def fd.px0() -> Px:
-  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
+  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Map.new(&2, List<&2, Ix>)}
 
 def fd.px.home(p: Px) -> List<&2, List<&2, U32>>:
   match p:
-    case Px{h, f, i, s, t, z}:
+    case Px{h, f, i, s, t, z, w}:
       h
 
 def fd.px.files(p: Px) -> List<&2, List<&2, U32>>:
   match p:
-    case Px{h, f, i, s, t, z}:
+    case Px{h, f, i, s, t, z, w}:
       f
 
 def fd.px.ix(p: Px) -> List<&2, Ix>:
   match p:
-    case Px{h, f, i, s, t, z}:
+    case Px{h, f, i, s, t, z, w}:
       i
 
 def fd.px.sy(p: Px) -> List<&2, Sy>:
   match p:
-    case Px{h, f, i, s, t, z}:
+    case Px{h, f, i, s, t, z, w}:
       s
 
 def fd.px.tfs(p: Px) -> List<&2, Tf>:
   match p:
-    case Px{h, f, i, s, t, z}:
+    case Px{h, f, i, s, t, z, w}:
       t
 
 # the data types of the modules before, written as this module names them
 # (Alias.T, Alias.T.C): the fuel's defaults take theirs
 def fd.px.dt(p: Px) -> List<&2, T.BItem>:
   match p:
-    case Px{h, f, i, s, t, z}:
+    case Px{h, f, i, s, t, z, w}:
       z
 
 def fd.ix.key(i: Ix) -> List<&2, U32>:
@@ -1207,6 +1222,29 @@ def fd.ix.gov(xs: List<&2, Ix>, +k: List<&2, U32>, +ty: Bool, hit: Bool) -> Mayb
 def fd.ix.findv(+xs: List<&2, Ix>, +k: List<&2, U32>, +ty: Bool) -> Maybe<&2, Ix>:
   fd.ix.gov(xs, k, ty, fd.ix.hitv(xs, k, ty))
 
+# the index as a map (Px's im): an entry put in front of its key's
+def fd.ixm.put(+h: Ix, r: Map<&2, List<&2, Ix>> & List<&2, Ix>) -> Map<&2, List<&2, Ix>>:
+  match r:
+    case Tuple{m, old}:
+      Map.set(&2, List<&2, Ix>, m, S.str(fd.ix.key(h)), h <> old)
+
+# the entries put, the last first (xs reversed: each key's in xs's order)
+def fd.ixm.puts(xs: List<&2, Ix>, m: Map<&2, List<&2, Ix>>) -> Map<&2, List<&2, Ix>>:
+  match xs:
+    case Nil{}:
+      m
+    case +h <> t:
+      fd.ixm.puts(t, fd.ixm.put(h, Map.get(List<&2, Ix>, Nil{}, m, S.str(fd.ix.key(h)))))
+
+def fd.ixm.at(r: Map<&2, List<&2, Ix>> & List<&2, Ix>, +k: List<&2, U32>, +ty: Bool) -> Maybe<&2, Ix>:
+  match r:
+    case Tuple{m, xs}:
+      fd.ix.findv(xs, k, ty)
+
+# fd.ix.findv over the index, by its map: the same entry
+def fd.ix.findm(+im: Map<&2, List<&2, Ix>>, +k: List<&2, U32>, +ty: Bool) -> Maybe<&2, Ix>:
+  fd.ixm.at(Map.get(List<&2, Ix>, Nil{}, im, S.str(k)), k, ty)
+
 def fd.ix.keys(xs: List<&2, Ix>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   match xs:
     case h <> t:
@@ -1223,7 +1261,7 @@ def fd.sy.keys(xs: List<&2, Sy>, acc: List<&2, List<&2, U32>>) -> List<&2, List<
 
 # the survey's view of the package: its modules, and every key it has in
 def fd.px.imp(+p: Px) -> V.Imp:
-  V.Imp{fd.px.home(p), fd.ix.keys(fd.px.ix(p), fd.sy.keys(fd.px.sy(p), Nil{}))}
+  V.Imp{fd.px.home(p), V.sv.kset(fd.ix.keys(fd.px.ix(p), fd.sy.keys(fd.px.sy(p), Nil{})), Map.new(&2, Bool))}
 
 # What the fold knows where it is: the module's name, constructors and
 # defs, the type of the right-hand side it is in (None in an argument),
@@ -1288,6 +1326,14 @@ def fd.env.home(e: Env) -> List<&2, List<&2, U32>>:
 
 def fd.env.ix(e: Env) -> List<&2, Ix>:
   fd.px.ix(fd.env.px(e))
+
+def fd.px.im(p: Px) -> Map<&2, List<&2, Ix>>:
+  match p:
+    case Px{h, f, i, s, t, z, w}:
+      w
+
+def fd.env.ixm(e: Env) -> Map<&2, List<&2, Ix>>:
+  fd.px.im(fd.env.px(e))
 
 def fd.withsyn(e: Env, ys: List<&2, Syn>) -> Env:
   match e:
@@ -3404,7 +3450,7 @@ def fd.imp.g(found: Maybe<&2, Ix>, +key: List<&2, U32>, +tys: List<&2, T.Bt>, +a
 def fd.hglobal(home: Bool, +key: List<&2, U32>, +k: List<&2, U32>, +tys: List<&2, T.Bt>, +all: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match home:
     case True{}:
-      fd.imp.g(fd.ix.findv(fd.env.ix(env), key, False{}), key, tys, all)
+      fd.imp.g(fd.ix.findm(fd.env.ixm(env), key, False{}), key, tys, all)
     case False{}:
       fd.bglobal(fd.is(k, "con"), key, tys, all, env)
 
@@ -3585,7 +3631,7 @@ def fd.pcon.imp(found: Maybe<&2, Ix>, +key: List<&2, U32>, ps: List<&2, T.Bt>) -
 def fd.pcon.other(home: Bool, +key: List<&2, U32>, ps: List<&2, T.Bt>, +env: Env) -> T.Bt:
   match home:
     case True{}:
-      fd.pcon.imp(fd.ix.findv(fd.env.ix(env), key, False{}), key, ps)
+      fd.pcon.imp(fd.ix.findm(fd.env.ixm(env), key, False{}), key, ps)
     case False{}:
       fd.pcon.base(fd.cb.find(fd.cbtab(), key), key, ps)
 
@@ -3708,7 +3754,7 @@ def fd.pconf.at(own: Bool, home: Bool, +g: X.Sx, +xs: List<&2, R>, +env: Env) ->
     case True{} _:
       fd.pconf.of(True{}, fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), xs)
     case False{} True{}:
-      fd.pconf.imp(fd.ix.findv(fd.env.ix(env), fd.gkey(g), False{}), xs)
+      fd.pconf.imp(fd.ix.findm(fd.env.ixm(env), fd.gkey(g), False{}), xs)
     case False{} False{}:
       fd.todo("fold:record-pattern-base")
 
@@ -3763,7 +3809,7 @@ def fd.reccon.at(own: Bool, home: Bool, +g: X.Sx, +xs: List<&2, R>, +env: Env) -
     case True{} _:
       fd.reccon.of(True{}, fd.ctr.find(fd.env.cons(env), V.sv.str(g, 2n)), xs, env)
     case False{} True{}:
-      fd.reccon.imp(fd.ix.findv(fd.env.ix(env), fd.gkey(g), False{}), xs, env)
+      fd.reccon.imp(fd.ix.findm(fd.env.ixm(env), fd.gkey(g), False{}), xs, env)
     case False{} False{}:
       fd.todo("fold:record-base")
 
@@ -4965,7 +5011,7 @@ def fd.tc.name(own: Bool, home: Bool, +n: List<&2, U32>, +key: List<&2, U32>, +e
     case True{} _:
       Some{fd.tyname(n)}
     case False{} True{}:
-      fd.tc.imp(fd.ix.findv(fd.env.ix(env), key, True{}))
+      fd.tc.imp(fd.ix.findm(fd.env.ixm(env), key, True{}))
     case False{} False{}:
       None{}
 
@@ -6503,10 +6549,19 @@ def fd.ix.defs(xs: List<&2, Ix>) -> List<&2, List<&2, U32>>:
 # an == (some T.eq) the item calls that is neither the module's nor an
 # earlier module's (that module's T.eq is out) nor HsPrelude's: its name,
 # or none
+# (have, the module's and the package's defs, looked through only for an
+# == it may lack: Bool.and took it for every name the item names)
+def fd.eq.lacks(cand: Bool, +r: List<&2, U32>, +have: List<&2, List<&2, U32>>) -> Bool:
+  match cand:
+    case True{}:
+      Bool.not(S.mem(r, have))
+    case False{}:
+      False{}
+
 def fd.eq.missing(rs: List<&2, List<&2, U32>>, +have: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   match rs:
     case +r <> t:
-      +miss = Bool.and(S.suffix(r, S.b(".eq")), Bool.and(Bool.not(Bool.or(S.prefix(r, S.b("hs.eq.")), S.prefix(r, S.b("HsPrelude.")))), Bool.not(S.mem(r, have))))
+      +miss = fd.eq.lacks(Bool.and(S.suffix(r, S.b(".eq")), Bool.not(Bool.or(S.prefix(r, S.b("hs.eq.")), S.prefix(r, S.b("HsPrelude."))))), r, have)
       fd.bpicks(miss, [r], fd.eq.missing(t, have))
     case Nil{}:
       Nil{}
@@ -6753,18 +6808,20 @@ def fd.imports(ims: List<&2, List<&2, U32>>, +text: List<&2, U32>) -> List<&2, T
     case Nil{}:
       Nil{}
 
-def fd.text.ims(ims: List<&2, List<&2, U32>>, +ord: List<&2, T.BItem>) -> List<&2, T.BImport>:
+def fd.text.ims(ims: List<&2, List<&2, U32>>, +body: List<&2, U32>) -> List<&2, T.BImport>:
   match ims:
     case Nil{}:
       Nil{}
     case +a <> t:
-      fd.imports(a <> t, P.tpr.file(T.BFile{Nil{}, Nil{}, ord}))
+      fd.imports(a <> t, body)
 
 # the file: its header, the earlier modules of its package it names (ims:
-# their aliases), its items in order
+# their aliases), its items in order. Print's tpr.file, its items printed
+# once (body), the imports found in them (they were printed twice, the
+# first time inside a whole file with none, only to be searched)
 def fd.text(+file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>) -> List<&2, U32>:
-  +ord = O.tor.order(its)
-  P.tpr.file(T.BFile{fd.header(file, m), fd.text.ims(ims, ord), ord})
+  +body = P.tpr.items(O.tor.order(its), Nil{})
+  P.tpr.doc(fd.header(file, m), P.tpr.s("import Base\n", P.tpr.imports(fd.text.ims(ims, body), body)))
 
 def fd.splice.at(hit: Bool, h: List<&2, U32>, t: List<&2, List<&2, U32>>, pre: List<&2, U32>) -> List<&2, List<&2, U32>>:
   match hit:
@@ -9955,12 +10012,18 @@ def fd.setp(ps: List<&2, T.BParam>, fl: List<&2, Bool>) -> List<&2, T.BParam>:
     case qs _:
       qs
 
-def fd.tf.find(ts: List<&2, Tf>, +n: List<&2, U32>) -> Maybe<&2, List<&2, Bool>>:
-  match ts:
-    case Tf{+k, fl} <> t:
-      Bool.pick(Maybe<&2, List<&2, Bool>>, S.eq(k, n), Some{fl}, fd.tf.find(t, n))
-    case Nil{}:
+# (a walk that stops at its hit, cur the entry's flags; it went on to the end)
+def fd.tf.go(ts: List<&2, Tf>, +n: List<&2, U32>, hit: Bool, cur: List<&2, Bool>) -> Maybe<&2, List<&2, Bool>>:
+  match ts hit:
+    case _ True{}:
+      Some{cur}
+    case Nil{} False{}:
       None{}
+    case Tf{+k, fl} <> t False{}:
+      fd.tf.go(t, n, S.eq(k, n), fl)
+
+def fd.tf.find(ts: List<&2, Tf>, +n: List<&2, U32>) -> Maybe<&2, List<&2, Bool>>:
+  fd.tf.go(ts, n, False{}, Nil{})
 
 def fd.tplarg(x: T.Bt) -> T.Bt:
   match x:
@@ -10314,10 +10377,10 @@ def fd.iface.fzs(zs: List<&2, Fz>, +alias: List<&2, U32>, +kept: List<&2, List<&
       Nil{}
 
 # the package after the module m (alias: its file's base name) kept the items kept
-def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>, dt: List<&2, T.BItem>) -> Px:
+def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, +ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>, dt: List<&2, T.BItem>) -> Px:
   match p:
-    case Px{h, f, i, s, t, z}:
-      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t), List.append(&2, T.BItem, dt, z)}
+    case Px{h, f, i, s, t, z, w}:
+      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t), List.append(&2, T.BItem, dt, z), fd.ixm.puts(List.reverse(&2, Ix, ix), w)}
 
 # A kept data type as a later module names it: Alias.T, its constructors
 # Alias.T.C, the types of the module in its fields Alias.U

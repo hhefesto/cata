@@ -306,12 +306,30 @@ def sv.info.if(b: Bool, r: Rs, +w: List<&2, U32>) -> Rs:
 # What the modules of a package before this one gave (package mode): the
 # package's modules so far, and the key M.NAME of each binding,
 # constructor, type and synonym of theirs that is in.  Outside a package
-# both are empty: a module stands alone.
+# both are empty: a module stands alone. (ok: a set, the keys made
+# strings: a lookup walked the list, every key's long common prefix too)
 type Imp is Data:
-  Imp{home: List<&2, List<&2, U32>>, ok: List<&2, List<&2, U32>>}
+  Imp{home: List<&2, List<&2, U32>>, ok: Map<&2, Bool>}
 
 def sv.imp0() -> Imp:
-  Imp{Nil{}, Nil{}}
+  Imp{Nil{}, Map.new(&2, Bool)}
+
+def sv.kgot(r: Map<&2, Bool> & Bool) -> Bool:
+  match r:
+    case Tuple{m, b}:
+      b
+
+# whether the key k is in the set s
+def sv.kin(+s: Map<&2, Bool>, +k: List<&2, U32>) -> Bool:
+  sv.kgot(Map.has(&2, Bool, s, S.str(k)))
+
+# the keys put in the set s
+def sv.kset(ks: List<&2, List<&2, U32>>, s: Map<&2, Bool>) -> Map<&2, Bool>:
+  match ks:
+    case Nil{}:
+      s
+    case k <> t:
+      sv.kset(t, Map.set(&2, Bool, s, S.str(k), True{}))
 
 # The module being read: its name, the tables, its own types and classes
 # the first version cannot take (bad), and what its package gave before it.
@@ -338,7 +356,7 @@ def sv.home(+e: Env) -> List<&2, List<&2, U32>>:
     case Env{m, t, b, Imp{h, o}}:
       h
 
-def sv.imp.ok(+e: Env) -> List<&2, List<&2, U32>>:
+def sv.imp.ok(+e: Env) -> Map<&2, Bool>:
   match e:
     case Env{m, t, b, Imp{h, o}}:
       o
@@ -428,7 +446,7 @@ def sv.imported.if(ok: Bool, +key: List<&2, U32>, r: Rs) -> Rs:
 def sv.imported.k(named: Bool, +kind: X.Sx, +m: List<&2, U32>, +n: List<&2, U32>, +e: Env, r: Rs) -> Rs:
   match named:
     case True{}:
-      sv.imported.if(S.mem(sv.key(m, n), sv.imp.ok(e)), sv.key(m, n), r)
+      sv.imported.if(sv.kin(sv.imp.ok(e), sv.key(m, n)), sv.key(m, n), r)
     case False{}:
       sv.other(kind, n, e, r)
 
@@ -547,7 +565,7 @@ def sv.tycon.if(own: Bool, home: Bool, +m: List<&2, U32>, +n: List<&2, U32>, +e:
     case True{} _:
       sv.why.if(S.mem(n, sv.bad(e)), r, sv.cat(S.b("type:"), n))
     case False{} True{}:
-      sv.why.if(Bool.not(S.mem(sv.key(m, n), sv.imp.ok(e))), r, sv.cat(S.b("import:"), sv.key(m, n)))
+      sv.why.if(Bool.not(sv.kin(sv.imp.ok(e), sv.key(m, n))), r, sv.cat(S.b("import:"), sv.key(m, n)))
     case False{} False{}:
       sv.why.if(Bool.not(Bool.or(S.mem(n, sv.okt(sv.tbl(e))), S.mem(n, sv.cls(sv.tbl(e))))), r, sv.tycon.why.io(sv.is(n, "IO"), n))
 
@@ -1427,10 +1445,10 @@ def sv.modname(+xs: List<&2, X.Sx>) -> List<&2, U32>:
 # Package mode ---------------------------------------------------------------
 
 # M.N for each N of ns, onto acc
-def sv.keys(+m: List<&2, U32>, ns: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+def sv.keys(+m: List<&2, U32>, ns: List<&2, List<&2, U32>>, acc: Map<&2, Bool>) -> Map<&2, Bool>:
   match ns:
     case h <> t:
-      sv.keys(m, t, sv.key(m, h) <> acc)
+      sv.keys(m, t, Map.set(&2, Bool, acc, S.str(sv.key(m, h)), True{}))
     case Nil{}:
       acc
 
