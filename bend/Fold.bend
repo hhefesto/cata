@@ -232,13 +232,15 @@ def fd.stmt(t: T.Bt) -> T.Bt:
       T.BtExpr{e}
 
 # a statement where only an expression may stand (a thunk's body, a let's
-# value): a match or a let there is out
+# value): a match there is out; a let is the parenthesized body Bend takes
+# inside a term, (x = v; b), its body an expression in turn (Print.bend's
+# tpr.t prints a BtLet off a statement's line so)
 def fd.expr(t: T.Bt) -> T.Bt:
   match t:
     case T.BtMatch{xs, cs}:
       fd.todo("fold:match-in-expression")
     case T.BtLet{x, v, b}:
-      fd.todo("fold:let-in-expression")
+      T.BtLet{x, v, fd.expr(b)}
     case T.BtExpr{e}:
       e
     case e:
