@@ -7828,27 +7828,48 @@ def fd.mu.cg(its: List<&2, T.BItem>, +ns: Map<&2, Bool>) -> List<&2, Mcg>:
     case +h <> t:
       fd.mu.cgput(fd.mu.isdef(h), Mcg{fd.item.name(h), fd.mu.keep(T.tba.item.refs(h), ns)}, fd.mu.cg(t, ns))
 
-def fd.mu.calls(cg: List<&2, Mcg>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
+# Speed (the user, 11-22: "Improve the speed of cata's checks too"): the
+# fold of Telomare.Size took 20 minutes, most of it here, in names turned
+# to strings (S.str) for map keys: fd.mu.calls walked the whole call graph
+# for each name it was asked (Bool.pick takes both its arms evaluated), and
+# a cycle's search asked fd.mu.reaches, itself a walk of every def with a
+# map lookup at each, for every pair of defs: n^3 lookups. Now the calls
+# are a map, a walk stops where it finds its name, and a cycle's search
+# reads the defs' reaches in their order: n^2.
+
+# the call graph as a map (the first of a name, as fd.mu.calls's walk took)
+def fd.mu.cgm(cg: List<&2, Mcg>, acc: Map<&2, List<&2, List<&2, U32>>>) -> Map<&2, List<&2, List<&2, U32>>>:
   match cg:
     case Nil{}:
-      Nil{}
-    case Mcg{+k, +cs} <> t:
-      Bool.pick(List<&2, List<&2, U32>>, S.eq(k, n), cs, fd.mu.calls(t, n))
+      acc
+    case Mcg{k, cs} <> t:
+      fd.mu.cgm(t, Map.set(&2, List<&2, List<&2, U32>>, acc, S.str(k), cs))
 
-def fd.mu.visit(seen: Bool, +h: List<&2, U32>, t: List<&2, List<&2, U32>>, s: Map<&2, Bool>, +cg: List<&2, Mcg>) -> List<&2, List<&2, U32>> & Map<&2, Bool>:
+def fd.mu.cgmap(cg: List<&2, Mcg>) -> Map<&2, List<&2, List<&2, U32>>>:
+  fd.mu.cgm(List.reverse(&2, Mcg, cg), Map.new(&2, List<&2, List<&2, U32>>))
+
+def fd.mu.got(r: Map<&2, List<&2, List<&2, U32>>> & List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match r:
+    case Tuple{m, v}:
+      v
+
+def fd.mu.calls(+cm: Map<&2, List<&2, List<&2, U32>>>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  fd.mu.got(Map.get(List<&2, List<&2, U32>>, Nil{}, cm, S.str(n)))
+
+def fd.mu.visit(seen: Bool, +h: List<&2, U32>, t: List<&2, List<&2, U32>>, s: Map<&2, Bool>, +cm: Map<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, U32>> & Map<&2, Bool>:
   match seen:
     case True{}:
       (t, s)
     case False{}:
-      (List.append(&2, List<&2, U32>, fd.mu.calls(cg, h), t), Map.set(&2, Bool, s, S.str(h), True{}))
+      (List.append(&2, List<&2, U32>, fd.mu.calls(cm, h), t), Map.set(&2, Bool, s, S.str(h), True{}))
 
-def fd.mu.step(r: Map<&2, Bool> & Bool, +h: List<&2, U32>, t: List<&2, List<&2, U32>>, +cg: List<&2, Mcg>) -> List<&2, List<&2, U32>> & Map<&2, Bool>:
+def fd.mu.step(r: Map<&2, Bool> & Bool, +h: List<&2, U32>, t: List<&2, List<&2, U32>>, +cm: Map<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, U32>> & Map<&2, Bool>:
   match r:
     case Tuple{s1, b}:
-      fd.mu.visit(b, h, t, s1, cg)
+      fd.mu.visit(b, h, t, s1, cm)
 
 # the defs reached from the todo list (a walk; seen, the map)
-def fd.mu.reach(fuel: Nat, st: List<&2, List<&2, U32>> & Map<&2, Bool>, +cg: List<&2, Mcg>) -> Map<&2, Bool>:
+def fd.mu.reach(fuel: Nat, st: List<&2, List<&2, U32>> & Map<&2, Bool>, +cm: Map<&2, List<&2, List<&2, U32>>>) -> Map<&2, Bool>:
   match fuel:
     case 0n:
       match st:
@@ -7859,7 +7880,7 @@ def fd.mu.reach(fuel: Nat, st: List<&2, List<&2, U32>> & Map<&2, Bool>, +cg: Lis
         case Tuple{todo, s}:
           match todo:
             case +h <> t:
-              fd.mu.reach(p, fd.mu.step(Map.has(&2, Bool, s, S.str(h)), h, t, cg), cg)
+              fd.mu.reach(p, fd.mu.step(Map.has(&2, Bool, s, S.str(h)), h, t, cm), cm)
             case Nil{}:
               s
 
@@ -7870,28 +7891,43 @@ def fd.mu.edges(cg: List<&2, Mcg>) -> Nat:
     case Mcg{k, cs} <> t:
       Nat.add(1n+List.length(&2, List<&2, U32>, cs), fd.mu.edges(t))
 
-def fd.mu.rchs(ns: List<&2, List<&2, U32>>, +cg: List<&2, Mcg>, +fuel: Nat) -> List<&2, Mrch>:
+def fd.mu.rchs.go(ns: List<&2, List<&2, U32>>, +cm: Map<&2, List<&2, List<&2, U32>>>, +fuel: Nat) -> List<&2, Mrch>:
   match ns:
     case Nil{}:
       Nil{}
     case +n <> t:
-      Mrch{n, fd.mu.reach(fuel, (fd.mu.calls(cg, n), Map.new(&2, Bool)), cg)} <> fd.mu.rchs(t, cg, fuel)
+      Mrch{n, fd.mu.reach(fuel, (fd.mu.calls(cm, n), Map.new(&2, Bool)), cm)} <> fd.mu.rchs.go(t, cm, fuel)
 
-# whether a reaches b
+def fd.mu.rchs(ns: List<&2, List<&2, U32>>, +cg: List<&2, Mcg>, +fuel: Nat) -> List<&2, Mrch>:
+  fd.mu.rchs.go(ns, fd.mu.cgmap(cg), fuel)
+
+# what the first def named n reaches (none: nothing); hit: the def before
+# was n, cur its reach (a walk that stops there)
+def fd.mu.rof.go(rs: List<&2, Mrch>, +n: List<&2, U32>, hit: Bool, cur: Map<&2, Bool>) -> Map<&2, Bool>:
+  match rs hit:
+    case _ True{}:
+      cur
+    case Nil{} False{}:
+      Map.new(&2, Bool)
+    case Mrch{+k, r} <> t False{}:
+      fd.mu.rof.go(t, n, S.eq(k, n), r)
+
+def fd.mu.rof(rs: List<&2, Mrch>, +n: List<&2, U32>) -> Map<&2, Bool>:
+  fd.mu.rof.go(rs, n, False{}, Map.new(&2, Bool))
+
+# whether a reaches b (the first def named a; none: no)
 def fd.mu.reaches(rs: List<&2, Mrch>, +a: List<&2, U32>, +b: List<&2, U32>) -> Bool:
+  T.tba.has.got(Map.has(&2, Bool, fd.mu.rof(rs, a), S.str(b)))
+
+# the defs of n's cycle: those n reaches (rn) that reach n (sn, its key),
+# in rs's order (rs: each def's reach, in the defs' order, as fd.mu.rchs
+# gives them; a name twice has the same reach twice)
+def fd.mu.group(rs: List<&2, Mrch>, +rn: Map<&2, Bool>, +sn: String) -> List<&2, List<&2, U32>>:
   match rs:
     case Nil{}:
-      False{}
-    case Mrch{+k, +r} <> t:
-      Bool.pick(Bool, S.eq(k, a), T.tba.has.got(Map.has(&2, Bool, r, S.str(b))), fd.mu.reaches(t, a, b))
-
-# the defs of n's cycle: those n reaches that reach n
-def fd.mu.group(ns: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
-  match ns:
-    case Nil{}:
       Nil{}
-    case +m <> t:
-      T.tba.keep(Bool.not(Bool.and(fd.mu.reaches(rs, n, m), fd.mu.reaches(rs, m, n))), m, fd.mu.group(t, rs, n))
+    case Mrch{+m, +rm} <> t:
+      T.tba.keep(Bool.not(Bool.and(T.tba.has.got(Map.has(&2, Bool, rn, S.str(m))), T.tba.has.got(Map.has(&2, Bool, rm, sn)))), m, fd.mu.group(t, rn, sn))
 
 def fd.mu.put(fresh: Bool, g: List<&2, List<&2, U32>>, gs: List<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, List<&2, U32>>>:
   match fresh:
@@ -7908,13 +7944,13 @@ def fd.mu.inany(gs: List<&2, List<&2, List<&2, U32>>>, +n: List<&2, U32>) -> Boo
       Bool.or(S.mem(n, g), fd.mu.inany(t, n))
 
 # the cycles of two defs or more, each once
-def fd.mu.groups(ns: List<&2, List<&2, U32>>, +all: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +acc: List<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, List<&2, U32>>>:
+def fd.mu.groups(ns: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +acc: List<&2, List<&2, List<&2, U32>>>) -> List<&2, List<&2, List<&2, U32>>>:
   match ns:
     case Nil{}:
       acc
     case +n <> t:
-      +g = fd.mu.group(all, rs, n)
-      fd.mu.groups(t, all, rs, fd.mu.put(Bool.and(Nat.is_gt(List.length(&2, List<&2, U32>, g), 1n), Bool.not(fd.mu.inany(acc, n))), g, acc))
+      +g = fd.mu.group(rs, fd.mu.rof(rs, n), S.str(n))
+      fd.mu.groups(t, rs, fd.mu.put(Bool.and(Nat.is_gt(List.length(&2, List<&2, U32>, g), 1n), Bool.not(fd.mu.inany(acc, n))), g, acc))
 
 # the def named n
 def fd.mu.get(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.BItem>:
@@ -8336,7 +8372,7 @@ def fd.mu.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   +ns = fd.mu.names(its)
   +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
   +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
-  fd.mu.each(fd.mu.groups(ns, ns, rs, Nil{}), its, dt)
+  fd.mu.each(fd.mu.groups(ns, rs, Nil{}), its, dt)
 
 # Local catas -----------------------------------------------------------------
 #
