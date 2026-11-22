@@ -3,11 +3,11 @@
     "agda2bend": {
       "flake": false,
       "locked": {
-        "lastModified": 1794093774,
-        "narHash": "sha256-uD0VWzs0mZHouYsak+Oyncxf/QeSCV8LMSmT9qi71F8=",
+        "lastModified": 1795268383,
+        "narHash": "sha256-lrjq35nF911k1vLqpVv4Gt+DQX4zavl/HUKU5ovSfx8=",
         "owner": "hhefesto",
         "repo": "agda2bend",
-        "rev": "9fb230dc66fc4f13bc1764126adeae726ef42260",
+        "rev": "644ea88e980abeff2b1cf94c24b483a31ddab2eb",
         "type": "github"
       },
       "original": {

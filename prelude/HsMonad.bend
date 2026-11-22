@@ -1,7 +1,8 @@
 # Control.Monad's list functions at Either e and at Maybe (Fold.bend's
 # fd.mapm.at and fd.mlist.at; State's and ExceptT-over-State's are in each
 # module's prelude, fd.pre.state and fd.pre.exs): mapM_ (forM_, traverse_),
-# mapM (forM, traverse), foldM, filterM and zipWithM_ at a list. The answer
+# mapM (forM, traverse), sequence (sequenceA), foldM, filterM and zipWithM_
+# at a list. The answer
 # is GHC's: the first Left (Nothing) in the list's order, else the values.
 # Bend computes a call's arguments first, so the rest of the list is walked
 # even after a Left (a match takes no computed value): the same answer,
@@ -53,6 +54,14 @@ def HsList.either.mapm(~E: Data, ~A: Data, ~B: Data, ~f: A -> Either<&2, &2, E, 
       Inr{Nil{}}
     case h <> t:
       HsList.either.cons(~E, ~B, f(h), HsList.either.mapm(~E, ~A, ~B, ~f, t))
+
+# sequence (sequenceA) at a list: mapM id
+def HsList.either.seq(~E: Data, ~B: Data, xs: List<&2, Either<&2, &2, E, B>>) -> Either<&2, &2, E, List<&2, B>>:
+  match xs:
+    case Nil{}:
+      Inr{Nil{}}
+    case h <> t:
+      HsList.either.cons(~E, ~B, h, HsList.either.seq(~E, ~B, t))
 
 def HsList.either.step(~E: Data, ~A: Data, ~B: Data, ~f: B -> A -> Either<&2, &2, E, B>, acc: Either<&2, &2, E, B>, h: A) -> Either<&2, &2, E, B>:
   match acc:
@@ -124,6 +133,14 @@ def HsList.maybe.mapm(~A: Data, ~B: Data, ~f: A -> Maybe<&2, B>, xs: List<&2, A>
       Some{Nil{}}
     case h <> t:
       HsList.maybe.cons(~B, f(h), HsList.maybe.mapm(~A, ~B, ~f, t))
+
+# sequence (sequenceA) at a list: mapM id
+def HsList.maybe.seq(~B: Data, xs: List<&2, Maybe<&2, B>>) -> Maybe<&2, List<&2, B>>:
+  match xs:
+    case Nil{}:
+      Some{Nil{}}
+    case h <> t:
+      HsList.maybe.cons(~B, h, HsList.maybe.seq(~B, t))
 
 def HsList.maybe.step(~A: Data, ~B: Data, ~f: B -> A -> Maybe<&2, B>, acc: Maybe<&2, B>, h: A) -> Maybe<&2, B>:
   match acc:
