@@ -115,6 +115,42 @@
               free
             ]
           );
+          # The same GHC with xmonad's and xmobar's library dependencies
+          # (xmonad.cabal, xmobar.cabal's default flags plus X11-xft) and
+          # QuickCheck for xmonad's properties: the -package-db and law's GHC
+          # when they go through cata as packages (tests/xmonad/run.zsh).
+          ghc-xmonad = pkgs.haskellPackages.ghcWithPackages (
+            p: with p; [
+              X11
+              X11-xft
+              containers
+              data-default-class
+              directory
+              filepath
+              mtl
+              process
+              setlocale
+              time
+              transformers
+              unix
+              QuickCheck
+              quickcheck-classes
+              aeson
+              async
+              bytestring
+              cairo
+              colour
+              extra
+              extensible-exceptions
+              old-locale
+              pango
+              parsec
+              parsec-numbers
+              regex-compat
+              stm
+              utf8-string
+            ]
+          );
           default = self.packages.${system}.hs-export;
         }
       );
