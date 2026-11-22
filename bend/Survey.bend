@@ -38,8 +38,37 @@ import ./a2b/ToBend/Sexp.bend as X
 
 # Text ---------------------------------------------------------------------
 
-def sv.is(+x: List<&2, U32>, s: String) -> Bool:
-  S.eq(x, S.b(s))
+# whether every char of s is below 128
+def sv.ascii(+s: String) -> Bool:
+  match s:
+    case SNil{}:
+      True{}
+    case SCon{Chr{c}, t}:
+      Bool.and(U32.is_lt(c, 128), sv.ascii(t))
+
+# the bytes x are the ASCII string s (ok: so far)
+def sv.is.go(x: List<&2, U32>, s: String, ok: Bool) -> Bool:
+  match x s ok:
+    case _ _ False{}:
+      False{}
+    case Nil{} SNil{} True{}:
+      True{}
+    case b <> xt SCon{Chr{c}, st} True{}:
+      sv.is.go(xt, st, U32.is_eq(b, c))
+    case _ _ True{}:
+      False{}
+
+def sv.is.at(asc: Bool, +x: List<&2, U32>, s: String) -> Bool:
+  match asc:
+    case True{}:
+      sv.is.go(x, s, True{})
+    case False{}:
+      S.eq(x, S.b(s))
+
+# x is s's bytes: an ASCII s read beside them, a char a byte, any other
+# made bytes (S.b at every call was a third of Spec's time: Spec's sp.is)
+def sv.is(+x: List<&2, U32>, +s: String) -> Bool:
+  sv.is.at(sv.ascii(s), x, s)
 
 def sv.cat(a: List<&2, U32>, b: List<&2, U32>) -> List<&2, U32>:
   List.append(&2, U32, a, b)

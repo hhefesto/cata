@@ -46,8 +46,40 @@ def sp.l(xs: List<&2, X.Sx>) -> X.Sx:
     case h <> t:
       X.SxCons{h, sp.l(t)}
 
-def sp.is(+x: List<&2, U32>, s: String) -> Bool:
-  S.eq(x, S.b(s))
+# Speed (the user, 11-22: "Improve the speed of cata's checks too"): sp.is
+# made its string bytes (S.b) at every call, a third of spec's time, the
+# names it tells apart being many and long. An ASCII string is now read
+# beside the bytes, a char a byte; any other is made bytes as before.
+
+# whether every char of s is below 128
+def sp.ascii(+s: String) -> Bool:
+  match s:
+    case SNil{}:
+      True{}
+    case SCon{Chr{c}, t}:
+      Bool.and(U32.is_lt(c, 128), sp.ascii(t))
+
+# the bytes x are the ASCII string s (ok: so far)
+def sp.is.go(x: List<&2, U32>, s: String, ok: Bool) -> Bool:
+  match x s ok:
+    case _ _ False{}:
+      False{}
+    case Nil{} SNil{} True{}:
+      True{}
+    case b <> xt SCon{Chr{c}, st} True{}:
+      sp.is.go(xt, st, U32.is_eq(b, c))
+    case _ _ True{}:
+      False{}
+
+def sp.is.at(asc: Bool, +x: List<&2, U32>, s: String) -> Bool:
+  match asc:
+    case True{}:
+      sp.is.go(x, s, True{})
+    case False{}:
+      S.eq(x, S.b(s))
+
+def sp.is(+x: List<&2, U32>, +s: String) -> Bool:
+  sp.is.at(sp.ascii(s), x, s)
 
 def sp.hd(+x: X.Sx) -> List<&2, U32>:
   X.tsx.head(x)

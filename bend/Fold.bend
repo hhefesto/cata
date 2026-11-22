@@ -52,8 +52,8 @@ import ./Prelude.bend as PR
 
 # Text ---------------------------------------------------------------------
 
-def fd.is(+x: List<&2, U32>, s: String) -> Bool:
-  S.eq(x, S.b(s))
+def fd.is(+x: List<&2, U32>, +s: String) -> Bool:
+  V.sv.is(x, s)
 
 def fd.cat(a: List<&2, U32>, b: List<&2, U32>) -> List<&2, U32>:
   List.append(&2, U32, a, b)
@@ -6729,11 +6729,27 @@ def fd.import.if(use: Bool, +a: List<&2, U32>, acc: List<&2, T.BImport>) -> List
     case False{}:
       acc
 
+# whether p is in xs (hit: xs starts with p): S.infix, but it stops at the
+# first hit and reads xs as it is (S.infix took Bool.or's both arms and
+# built each position's list again, a cell for every byte of a module's
+# text, for each alias, at each render)
+def fd.infix.go(xs: List<&2, U32>, +p: List<&2, U32>, hit: Bool) -> Bool:
+  match xs hit:
+    case _ True{}:
+      True{}
+    case Nil{} False{}:
+      False{}
+    case h <> +t False{}:
+      fd.infix.go(t, p, S.prefix(t, p))
+
+def fd.infix(+xs: List<&2, U32>, +p: List<&2, U32>) -> Bool:
+  fd.infix.go(xs, p, S.prefix(xs, p))
+
 # the package's files (by alias) that the text names, ALIAS.x, as imports
 def fd.imports(ims: List<&2, List<&2, U32>>, +text: List<&2, U32>) -> List<&2, T.BImport>:
   match ims:
     case +a <> t:
-      fd.import.if(S.infix(text, fd.cat(a, S.b("."))), a, fd.imports(t, text))
+      fd.import.if(fd.infix(text, fd.cat(a, S.b("."))), a, fd.imports(t, text))
     case Nil{}:
       Nil{}
 
