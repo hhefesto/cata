@@ -200,7 +200,8 @@ law sq.swapUp:
   for s: F.StackSet<I, L, A, S, D>
   {phi.ss(I, L, A, S, D, F.swapUp(I, L, A, S, D)(s)) == W.swapUp(I, L, A, S, D, phi.ss(I, L, A, S, D, s)) : W.StackSet<I, L, A, S, D>}
 
-# workspaces: F maps workspace over the visible screens and appends the
+# workspaces: F maps workspace over the visible screens (by its copy of map
+# at workspace, workspaces.map109199767: Fold's fd.hm) and appends the
 # hidden ones; W walks the screens. The lemma by induction on the screens.
 law sq.wss.lemma:
   for -I: Data
@@ -210,7 +211,7 @@ law sq.wss.lemma:
   for -D: Data
   for v: List<&2, F.Screen<I, L, A, S, D>>
   for h: List<&2, F.Workspace<I, L, A>>
-  {phi.wss(I, L, A, List.append(&2, F.Workspace<I, L, A>, F.hs.map(~F.Screen<I, L, A, S, D>, ~F.Workspace<I, L, A>, ~x_1 => F.workspace(I, L, A, S, D, x_1), v), h)) == W.Screen.workspaces(I, L, A, S, D, phi.scrs(I, L, A, S, D, v), phi.wss(I, L, A, h)) : List<&2, W.Workspace<I, L, A>>}
+  {phi.wss(I, L, A, List.append(&2, F.Workspace<I, L, A>, F.workspaces.map109199767(I, L, A, S, D, v), h)) == W.Screen.workspaces(I, L, A, S, D, phi.scrs(I, L, A, S, D, v), phi.wss(I, L, A, h)) : List<&2, W.Workspace<I, L, A>>}
 
 law sq.workspaces:
   for -I: Data
@@ -219,5 +220,5 @@ law sq.workspaces:
   for -S: Data
   for -D: Data
   for s: F.StackSet<I, L, A, S, D>
-  {phi.wss(I, L, A, F.workspaces(~I, ~L, ~A, ~S, ~D, s)) == W.workspaces(I, L, A, S, D, phi.ss(I, L, A, S, D, s)) : List<&2, W.Workspace<I, L, A>>}
+  {phi.wss(I, L, A, F.workspaces(I, L, A, S, D, s)) == W.workspaces(I, L, A, S, D, phi.ss(I, L, A, S, D, s)) : List<&2, W.Workspace<I, L, A>>}
 

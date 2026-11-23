@@ -141,7 +141,7 @@ def Proposed.sq.wss.lemma(I, L, A, S, D, v, h):
     case c <> t:
       match c:
         case F.Screen.Screen{w, sid, sd}:
-          %Proposed.sq.wss.lemma(I, L, A, S, D, t, h) : {Proposed.phi.ws(I, L, A, w) <> Proposed.phi.wss(I, L, A, List.append(&2, F.Workspace<I, L, A>, F.hs.map(~F.Screen<I, L, A, S, D>, ~F.Workspace<I, L, A>, ~x_1 => F.workspace(I, L, A, S, D, x_1), t), h)) == Proposed.phi.ws(I, L, A, w) <> _ : List<&2, W.Workspace<I, L, A>>}
+          %Proposed.sq.wss.lemma(I, L, A, S, D, t, h) : {Proposed.phi.ws(I, L, A, w) <> Proposed.phi.wss(I, L, A, List.append(&2, F.Workspace<I, L, A>, F.workspaces.map109199767(I, L, A, S, D, t), h)) == Proposed.phi.ws(I, L, A, w) <> _ : List<&2, W.Workspace<I, L, A>>}
           {==}
 
 def Proposed.sq.workspaces(I, L, A, S, D, s):
@@ -149,5 +149,5 @@ def Proposed.sq.workspaces(I, L, A, S, D, s):
     case F.StackSet.StackSet{c, v, h, f}:
       match c:
         case F.Screen.Screen{w, sid, sd}:
-          %Proposed.sq.wss.lemma(I, L, A, S, D, v, h) : {Proposed.phi.ws(I, L, A, w) <> Proposed.phi.wss(I, L, A, List.append(&2, F.Workspace<I, L, A>, F.hs.map(~F.Screen<I, L, A, S, D>, ~F.Workspace<I, L, A>, ~x_1 => F.workspace(I, L, A, S, D, x_1), v), h)) == Proposed.phi.ws(I, L, A, w) <> _ : List<&2, W.Workspace<I, L, A>>}
+          %Proposed.sq.wss.lemma(I, L, A, S, D, v, h) : {Proposed.phi.ws(I, L, A, w) <> Proposed.phi.wss(I, L, A, List.append(&2, F.Workspace<I, L, A>, F.workspaces.map109199767(I, L, A, S, D, v), h)) == Proposed.phi.ws(I, L, A, w) <> _ : List<&2, W.Workspace<I, L, A>>}
           {==}

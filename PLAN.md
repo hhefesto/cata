@@ -1919,9 +1919,29 @@ F.workspace over the screens as `hs.map(~.., ~x_1 => F.workspace(..), v)`,
 a lambda as a template argument. With a first-order copy of hs.map at that
 function (`wsmap`, as the specialiser's rule 15 copies foldr and concatMap
 at their known functions) and workspaces' type parameters erased, all 17
-squares pass `--verdict`. So they need that rule in cata (not made: it
-changes master's output) or a kernel that takes a lambda as a template
-argument.
+squares pass `--verdict`. So they need that rule in cata or a kernel that
+takes a lambda as a template argument.
+
+**The rule, made (Fold's fd.hm, 11-23; HardCobra's draft, finished).** A
+call of hs.map whose function names only globals and the def's type
+parameters is a call of a copy of map at that function, D.mapH (H a hash
+of A, B and f), hs.map's own definition with f in its place, lifted out of
+D (it goes when D does), as rule 15 copies a package def at its known
+function argument. XMonad.StackSet's workspaces now calls
+workspaces.map109199767, and tests/adjoint/run.zsh on tests/square/xmonad
+(xmonad 0.18.1 through this spec and law, xmonad-bend 1372ad9's
+StackSet): 17 squares, `--check-only` and `--verdict` ALL PROOFS CHECK,
+none out of the kernel's scope; 23 instances at GHC's answers, all check,
+verdict too; mutants as before (PROPOSED.bend's two squares name the copy
+where they named hs.map at workspace: the same equation). On the corpora:
+xmonad's ledger the same line for line; telomare's the same line for line
+(24 of its .bend files differ: 36 copies, hs.map calls 31 -> 6), G's 420
+laws the same; hs1003 one def more (00165's sumDigits out -> ok-law, 8
+laws: its hs.map was a template at a run-time value), none less, 5 out
+defs with another first reason (00198's validHand now reaches the gate
+and its law refuses it: GHC errs on head [], F(h) answers False), and
+G's round trip 6,690 laws: 6,679 the same, 11 more defined, 0 differ, 0
+missing.
 
 The general checker (4db79d0): tests/adjoint/run.zsh SQDIR LAWOUT MOD WORK
 DIR=PATH takes any pairing, squares in SQDIR/PROPOSED.bend and their
@@ -1936,7 +1956,7 @@ one shape with their b's swapped, at GHC's answers and in PROOF.bend.
 
 | pairing | squares | verdict | instances at GHC's answers | mutants killed: at GHC's answers / by PROOF.bend |
 |---|---|---|---|---|
-| XMonad.StackSet, xmonad-bend 1372ad9's StackSet | 17 | 15 in scope (17 with wsmap) | 23 of 23 check, verdict too | 0 / 2 of 2 |
+| XMonad.StackSet, xmonad-bend 1372ad9's StackSet | 17 | 17 (15 before fd.hm) | 23 of 23 check, verdict too | 0 / 2 of 2 |
 | XMonad.Config, xmonad-bend 551bdaf's Core cfg.* | 5 | 5 | 5 of 5 | 6 / 6 of 8 |
 | hs1003 00038 ChapterExercises, a hand-written list W (tests/square/list, e8d6caf) | 3 | 3 | 21 of 21 | 2 / 2 of 2 |
 

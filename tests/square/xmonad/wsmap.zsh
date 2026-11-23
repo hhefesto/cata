@@ -12,6 +12,11 @@
 # --check-only and --verdict on all 17 squares.  Nothing is written to
 # LAWOUT or XMONAD_BEND.  BEND names the bend; LEAN a directory holding
 # Lean 4.34.0's lean.  Prints the two answers and PASS when both check.
+# Since Fold's fd.hm (map at a known function) cata writes the copy
+# itself, and PROPOSED.bend names it: this script is the record of the
+# experiment that led there, on a law run from before the rule (law80's
+# /tmp/xm/x11/l), with the squares as they were then (PROPOSED.bend and
+# PROOF.bend at 4db79d0, read from git).
 set -u
 here=${0:A:h}
 lawout=${1:A} xb=${2:A} work=${3:A}
@@ -21,7 +26,7 @@ export BEND_NO_TELEMETRY=1
 mkdir -p $work/l $work/xb
 cp $lawout/*.bend $work/l/
 cp $xb/*.bend $work/xb/
-cp $here/PROPOSED.bend $here/PROOF.bend $work/
+for f in PROPOSED PROOF; do git -C $here show 4db79d0:tests/square/xmonad/$f.bend > $work/$f.bend; done
 f=$work/l/XMonad_StackSet.bend
 perl -0pi -e 's/def workspaces\(~I: Data, ~L: Data, ~A: Data, ~S: Data, ~Sd: Data, (\+s: StackSet<I, L, A, S, Sd>\) -> List<&2, Workspace<I, L, A>>:\n  Con\{workspace\(I, L, A, S, Sd, current\(I, L, A, S, Sd, s\)\), List\.append\(&2, Workspace<I, L, A>, )hs\.map\(~Screen<I, L, A, S, Sd>, ~Workspace<I, L, A>, ~x_1 => workspace\(I, L, A, S, Sd, x_1\), visible\(I, L, A, S, Sd, s\)\)/def wsmap(-I: Data, -L: Data, -A: Data, -S: Data, -Sd: Data, xs: List<&2, Screen<I, L, A, S, Sd>>) -> List<&2, Workspace<I, L, A>>:\n  match xs:\n    case Nil{}:\n      Nil{}\n    case h <> t:\n      workspace(I, L, A, S, Sd, h) <> wsmap(I, L, A, S, Sd, t)\n\ndef workspaces(-I: Data, -L: Data, -A: Data, -S: Data, -Sd: Data, $1wsmap(I, L, A, S, Sd, visible(I, L, A, S, Sd, s))/s' $f
 grep -q '^def wsmap' $f || { print "the copy was not made: $f has another workspaces"; exit 1 }

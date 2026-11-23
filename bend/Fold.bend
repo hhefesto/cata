@@ -7422,8 +7422,11 @@ type Da is Data:
   DaOne{m: Maybe<&2, T.Bt>}
   DaMany{m: Maybe<&2, List<&2, T.Bt>>}
 
+# a base type's default, as a term: a Nat's is the literal 0n, a
+# constructor's is a constructor (Bend prints them as the text it had;
+# bend/Back.bend prints them as Haskell's: 0, not the name 0n)
 type DfB is Data:
-  DfB{n: String, v: String}
+  DfB{n: String, v: T.Bt}
 
 type Dk is Data:
   DkSigma{}
@@ -7433,15 +7436,27 @@ type Dk is Data:
   DkCofreeF{}
   DkOwn{}
 
+def fd.dv.nat(n: String) -> T.Bt:
+  T.BtNat{S.b(n)}
+
+def fd.dv.c0(c: String) -> T.Bt:
+  T.BtCon{S.b(c), T.BtANil{}}
+
+def fd.dv.cn(c: String, xs: List<&2, T.Bt>) -> T.Bt:
+  T.BtCon{S.b(c), T.tba.args(xs)}
+
+def fd.dv.txt(v: String) -> T.Bt:
+  T.BtVar{S.b(v)}
+
 def fd.dv.bases() -> List<&2, DfB>:
-  [DfB{"Nat", "0n"}, DfB{"U32", "0"}, DfB{"Char", "' '"}, DfB{"Bool", "False{}"}, DfB{"Unit", "Unit{}"}, DfB{"F32", "0.0"}, DfB{"Cmp", "EQ{}"}, DfB{"List", "[]"}, DfB{"Maybe", "None{}"}, DfB{"HsPrelude.HsInt", "HsPrelude.HsInt.Pos{0n}"}, DfB{"HsPrelude.HsRational", "HsPrelude.HsRational{HsPrelude.HsInt.Pos{0n}, 1n}"}, DfB{"HsPrelude.HsMap", "HsPrelude.HsMap.Tip{}"}, DfB{"HsPrelude.HsSet", "HsPrelude.HsSet.Tip{}"}, DfB{"HsPrelude.HsPcRep", "HsPrelude.HsPcRep{False{}, HsPrelude.HsPcRes.Bad{HsPrelude.HsPcError.Fancy{0n, []}, HsPrelude.HsPcSt{[], 0n, 1n, 1n, []}}}"}, DfB{"HsPrelude.HsPcPos", "HsPrelude.HsPcPos{[], 1n, 1n}"}]
+  [DfB{"Nat", fd.dv.nat("0")}, DfB{"U32", fd.dv.txt("0")}, DfB{"Char", fd.dv.txt("' '")}, DfB{"Bool", fd.dv.c0("False")}, DfB{"Unit", fd.dv.c0("Unit")}, DfB{"F32", fd.dv.txt("0.0")}, DfB{"Cmp", fd.dv.c0("EQ")}, DfB{"List", fd.dv.txt("[]")}, DfB{"Maybe", fd.dv.c0("None")}, DfB{"HsPrelude.HsInt", fd.dv.cn("HsPrelude.HsInt.Pos", [fd.dv.nat("0")])}, DfB{"HsPrelude.HsRational", fd.dv.cn("HsPrelude.HsRational", [fd.dv.cn("HsPrelude.HsInt.Pos", [fd.dv.nat("0")]), fd.dv.nat("1")])}, DfB{"HsPrelude.HsMap", fd.dv.c0("HsPrelude.HsMap.Tip")}, DfB{"HsPrelude.HsSet", fd.dv.c0("HsPrelude.HsSet.Tip")}, DfB{"HsPrelude.HsPcRep", fd.dv.cn("HsPrelude.HsPcRep", [fd.dv.c0("False"), fd.dv.cn("HsPrelude.HsPcRes.Bad", [fd.dv.cn("HsPrelude.HsPcError.Fancy", [fd.dv.nat("0"), fd.dv.txt("[]")]), fd.dv.cn("HsPrelude.HsPcSt", [fd.dv.txt("[]"), fd.dv.nat("0"), fd.dv.nat("1"), fd.dv.nat("1"), fd.dv.txt("[]")])])])}, DfB{"HsPrelude.HsPcPos", fd.dv.cn("HsPrelude.HsPcPos", [fd.dv.txt("[]"), fd.dv.nat("1"), fd.dv.nat("1")])}]
 
 def fd.dv.base(xs: List<&2, DfB>, +n: List<&2, U32>) -> Maybe<&2, T.Bt>:
   match xs:
     case Nil{}:
       None{}
     case DfB{k, v} <> t:
-      Bool.pick(Maybe<&2, T.Bt>, S.eq(S.b(k), n), Some{T.BtVar{S.b(v)}}, fd.dv.base(t, n))
+      Bool.pick(Maybe<&2, T.Bt>, S.eq(S.b(k), n), Some{v}, fd.dv.base(t, n))
 
 # a type function applied, reduced: (r => B)(X) is B with X for r
 def fd.dv.beta(t: T.Bt) -> T.Bt:
@@ -10881,6 +10896,280 @@ def fd.predrop(+its: List<&2, T.BItem>, +outs: List<&2, Dr>) -> Gs:
   +s = fd.closure(List.length(&2, T.BItem, ki), fd.split(ki, fd.dr.names(os), S.b("dep")), S.b("dep"), os)
   Gs{Split.keep(s), Split.out(s), List.is_empty(&2, T.BItem, Split.keep(s))}
 
+# Map at a known function -------------------------------------------------------
+#
+# The fold writes base's map (and fmap at a list, and concatMap's map) as
+# the prelude's hs.map(~A, ~B, ~f, l), f a template argument: Bend inlines
+# it, so f may be a lambda.  A template argument that names the def's type
+# parameters makes them templates too (fd.tpl.def), and BendTT's kernel
+# takes no template argument that depends on a run-time value: xmonad's
+# workspaces maps workspace over the screens, and its squares were out of
+# the kernel's scope (tests/square/xmonad/wsmap.zsh).  So a call of hs.map
+# whose f names only globals (the module's defs, qualified names, types,
+# quantities) and the def's type parameters, none of them a name the def
+# binds, is a call of a copy of map at f, as rule 15 copies a package def
+# at its known function argument:
+#
+#   def D.mapH(-T..: Data, hm_l: List<&2, A>) -> List<&2, B>:
+#     match hm_l:
+#       case Nil{}:
+#         Nil{}
+#       case hm_x <> hm_xs:
+#         F <> D.mapH(T.., hm_xs)
+#
+# D the def the call is in, H a hash of the call's A, B and f, T.. the def's
+# type parameters that A, B or f name (in the def's order), F f's body with
+# hm_x for its variable (f a lambda) or f(hm_x).  The copy is hs.map's own
+# definition with f in its place, so it computes what the call did.  The
+# calls are rewritten innermost first (a lambda whose body maps at a known
+# function names that copy, a qualified name), at the end of fd.allgots'
+# items, before the templates are settled.  The copy's doc says it is
+# lifted out of D, so it goes when D does (fd.split), as a lifted def.
+
+type Hmx is Data:
+  Hmx{d: List<&2, U32>, tps: List<&2, List<&2, U32>>, glob: List<&2, List<&2, U32>>, locs: List<&2, List<&2, U32>>}
+
+# a copy: its name, its type parameters, A, B and f (rewritten)
+type Hm is Data:
+  Hm{n: List<&2, U32>, tvs: List<&2, List<&2, U32>>, a: T.Bt, b: T.Bt, f: T.Bt}
+
+# the def's type parameters (a parameter whose type is Data or Type), and
+# its other parameters' names
+def fd.hm.tps(ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, +x, +ty} <> t:
+      +r = fd.hm.tps(t)
+      Bool.pick(List<&2, List<&2, U32>>, fd.rt.istype(ty), x <> r, r)
+
+def fd.hm.vps(ps: List<&2, T.BParam>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case Nil{}:
+      acc
+    case T.BParam{m, +x, +ty} <> t:
+      +r = fd.hm.vps(t, acc)
+      Bool.pick(List<&2, List<&2, U32>>, fd.rt.istype(ty), r, x <> r)
+
+# the names the copy's own binders take
+def fd.hm.mine() -> List<&2, List<&2, U32>>:
+  [S.b("hm_l"), S.b("hm_x"), S.b("hm_xs")]
+
+# whether f's free name x may be in a copy: one of the def's type
+# parameters, or a global (qualified, the module's def, a quantity, a type)
+# that the def does not bind
+def fd.hm.ok1(+x: List<&2, U32>, +cx: Hmx) -> Bool:
+  match cx:
+    case Hmx{d, +tps, +glob, +locs}:
+      +g = Bool.or(Bool.or(fd.ti.dot(x), S.mem(x, glob)), Bool.or(S.head.is(x, 38), fd.rt.upper(x)))
+      Bool.and(Bool.not(S.mem(x, fd.hm.mine())), Bool.or(S.mem(x, tps), Bool.and(g, Bool.not(S.mem(x, locs)))))
+
+def fd.hm.ok(xs: List<&2, List<&2, U32>>, +cx: Hmx) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case +x <> t:
+      Bool.and(fd.hm.ok1(x, cx), fd.hm.ok(t, cx))
+
+# the def's type parameters a term names, in the def's order
+def fd.hm.used(tps: List<&2, List<&2, U32>>, +ns: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match tps:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      +r = fd.hm.used(t, ns)
+      Bool.pick(List<&2, List<&2, U32>>, S.mem(x, ns), x <> r, r)
+
+def fd.hm.tps.of(+cx: Hmx) -> List<&2, List<&2, U32>>:
+  match cx:
+    case Hmx{d, tps, g, l}:
+      tps
+
+def fd.hm.d(+cx: Hmx) -> List<&2, U32>:
+  match cx:
+    case Hmx{d, tps, g, l}:
+      d
+
+def fd.hm.mk(ok: Bool, +a: T.Bt, +b: T.Bt, +f: T.Bt, +cx: Hmx) -> Maybe<&2, Hm>:
+  match ok:
+    case False{}:
+      None{}
+    case True{}:
+      +txt = P.tpr.t(T.tba.call(T.BtVar{S.b("hs.map")}, [T.BtTplArg{a}, T.BtTplArg{b}, T.BtTplArg{f}]), P.TpLoose{}, 0n, Nil{})
+      +ns = T.tba.refs(a, T.tba.refs(b, T.tba.refs(f, Nil{})))
+      Some{Hm{fd.cat3(fd.hm.d(cx), S.b(".map"), S.b(U32.show(fd.lc.hash(txt, 5381)))), fd.hm.used(fd.hm.tps.of(cx), ns), a, b, f}}
+
+# a call of hs.map (hit) at the arguments xs (rewritten) that is to be a
+# copy's
+def fd.hm.q2(hit: Bool, xs: List<&2, T.Bt>, +cx: Hmx) -> Maybe<&2, Hm>:
+  match hit xs:
+    case True{} a <> b <> f <> l <> Nil{}:
+      +g = fd.untpl(f)
+      +free = fd.ti.free(g, Nil{}, Nil{})
+      +clash = fd.anyin(fd.binds(g, Nil{}), fd.hm.mine())
+      fd.hm.mk(Bool.and(Bool.not(clash), fd.hm.ok(free, cx)), fd.untpl(a), fd.untpl(b), g, cx)
+    case _ _:
+      None{}
+
+def fd.hm.q(+x: List<&2, U32>, +ra: T.Bt, +cx: Hmx) -> Maybe<&2, Hm>:
+  fd.hm.q2(S.eq(x, S.b("hs.map")), fd.spine(ra), cx)
+
+def fd.hm.tvars(xs: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      T.BtVar{x} <> fd.hm.tvars(t)
+
+def fd.hm.at(m: Maybe<&2, Hm>, +x: List<&2, U32>, +ra: T.Bt) -> T.Bt:
+  match m:
+    case Some{Hm{n, tvs, a, b, f}}:
+      T.tba.call(T.BtVar{n}, List.append(&2, T.Bt, fd.hm.tvars(tvs), List.drop(&2, T.Bt, fd.spine(ra), 3n)))
+    case None{}:
+      T.BtApp{T.BtVar{x}, ra}
+
+# t with each such call a call of its copy (its arguments first)
+def fd.hm.rw(t: T.Bt, +cx: Hmx) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, a}:
+      +ra = fd.hm.rw(a, cx)
+      fd.hm.at(fd.hm.q(x, ra, cx), x, ra)
+    case T.BtApp{h, a}:
+      T.BtApp{fd.hm.rw(h, cx), fd.hm.rw(a, cx)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.hm.rw(a, cx)}
+    case T.BtDead{a}:
+      T.BtDead{fd.hm.rw(a, cx)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.hm.rw(b, cx)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.hm.rw(a, cx)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.hm.rw(a, cx), fd.hm.rw(b, cx)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.hm.rw(a, cx)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.hm.rw(a, cx), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.hm.rw(cs, cx)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.hm.rw(e, cx)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.hm.rw(e, cx), p, fd.hm.rw(b, cx)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.hm.rw(v, cx), fd.hm.rw(b, cx)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.hm.rw(b, cx), fd.hm.rw(rest, cx)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.hm.rw(a, cx), fd.hm.rw(rest, cx)}
+    case u:
+      u
+
+def fd.hm.put(m: Maybe<&2, Hm>, acc: List<&2, Hm>) -> List<&2, Hm>:
+  match m:
+    case Some{c}:
+      c <> acc
+    case None{}:
+      acc
+
+# the copies t calls, as fd.hm.rw rewrites them
+def fd.hm.calls(t: T.Bt, +cx: Hmx, acc: List<&2, Hm>) -> List<&2, Hm>:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      +ra = fd.hm.rw(a, cx)
+      fd.hm.put(fd.hm.q(x, ra, cx), fd.hm.calls(a, cx, acc))
+    case T.BtApp{h, a}:
+      fd.hm.calls(h, cx, fd.hm.calls(a, cx, acc))
+    case T.BtTplArg{a}:
+      fd.hm.calls(a, cx, acc)
+    case T.BtDead{a}:
+      fd.hm.calls(a, cx, acc)
+    case T.BtLam{m, x, b}:
+      fd.hm.calls(b, cx, acc)
+    case T.BtCon{c, a}:
+      fd.hm.calls(a, cx, acc)
+    case T.BtEq{ty, a, b}:
+      fd.hm.calls(a, cx, fd.hm.calls(b, cx, acc))
+    case T.BtSucc{a}:
+      fd.hm.calls(a, cx, acc)
+    case T.BtAnn{a, ty}:
+      fd.hm.calls(a, cx, acc)
+    case T.BtMatch{xs, cs}:
+      fd.hm.calls(cs, cx, acc)
+    case T.BtExpr{e}:
+      fd.hm.calls(e, cx, acc)
+    case T.BtRw{e, p, b}:
+      fd.hm.calls(e, cx, fd.hm.calls(b, cx, acc))
+    case T.BtLet{x, v, b}:
+      fd.hm.calls(v, cx, fd.hm.calls(b, cx, acc))
+    case T.BtCase{p, b, rest}:
+      fd.hm.calls(b, cx, fd.hm.calls(rest, cx, acc))
+    case T.BtArgs{a, rest}:
+      fd.hm.calls(a, cx, fd.hm.calls(rest, cx, acc))
+    case u:
+      acc
+
+# f at the list's head: a lambda's body with hm_x for its variable, else
+# f(hm_x)
+def fd.hm.app(+f: T.Bt) -> T.Bt:
+  match f:
+    case T.BtLam{m, +y, e}:
+      fd.ti.sub(e, y, T.BtVar{S.b("hm_x")})
+    case g:
+      T.BtApp{g, T.tba.args([T.BtVar{S.b("hm_x")}])}
+
+def fd.hm.tparams(xs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      T.BParam{T.BmErased{}, x, fd.v("Data")} <> fd.hm.tparams(t)
+
+# the copy's def, its doc that it is lifted out of d (so it goes when d
+# does, fd.split) and why
+def fd.hm.def(+c: Hm, +d: List<&2, U32>) -> T.BItem:
+  match c:
+    case Hm{+n, +tvs, +a, +b, +f}:
+      +fx = fd.hm.app(f)
+      +x = {T.BtPv{fd.mode(fd.uses(fx, S.b("hm_x"))), S.b("hm_x")} : T.Bt}
+      +rec = {T.tba.call(T.BtVar{n}, List.append(&2, T.Bt, fd.hm.tvars(tvs), [T.BtVar{S.b("hm_xs")}])) : T.Bt}
+      +cons = {T.BtCase{T.tba.args([T.BtCon{S.b("Con"), T.tba.args([x, T.BtPv{T.BmLive{}, S.b("hm_xs")}])}]), T.BtExpr{T.BtCon{S.b("Con"), T.tba.args([fx, rec])}}, T.BtCEnd{}} : T.Bt}
+      +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("hm_l")}]), T.BtCase{T.tba.args([fd.con0("Nil")]), T.BtExpr{fd.con0("Nil")}, cons}} : T.Bt}
+      T.BiDef{n, List.append(&2, T.BParam, fd.hm.tparams(tvs), [T.BParam{T.BmLive{}, S.b("hm_l"), fd.list(a)}]), fd.list(b), body, [fd.cat(S.b("generated: lifted out of "), d), S.b("generated: map at a known function (a copy of hs.map)")]}
+
+# the copies, each once, none of them a name the module has
+def fd.hm.gens(cs: List<&2, Hm>, +d: List<&2, U32>, +have: List<&2, List<&2, U32>>, +seen: List<&2, List<&2, U32>>) -> List<&2, Got>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case Hm{+n, tvs, a, b, f} <> t:
+      +skip = Bool.or(S.mem(n, seen), S.mem(n, have))
+      +r = fd.hm.gens(t, d, have, n <> seen)
+      Bool.pick(List<&2, Got>, skip, r, GotDef{n, fd.hm.def(Hm{n, tvs, a, b, f}, d)} <> r)
+
+def fd.hm.cx(+n: List<&2, U32>, +ps: List<&2, T.BParam>, +b: T.Bt, +glob: List<&2, List<&2, U32>>) -> Hmx:
+  Hmx{n, fd.hm.tps(ps), glob, fd.hm.vps(ps, fd.binds(b, Nil{}))}
+
+def fd.hm.got(g: Got, +glob: List<&2, List<&2, U32>>) -> List<&2, Got>:
+  match g:
+    case GotDef{k, T.BiDef{+n, +ps, r, +b, d}}:
+      +cx = fd.hm.cx(n, ps, b, glob)
+      GotDef{k, T.BiDef{n, ps, r, fd.hm.rw(b, cx), d}} <> fd.hm.gens(List.reverse(&2, Hm, fd.hm.calls(b, cx, Nil{})), n, glob, Nil{})
+    case u:
+      [u]
+
+def fd.hm.gots(gs: List<&2, Got>, +glob: List<&2, List<&2, U32>>) -> List<&2, Got>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case g <> t:
+      List.append(&2, Got, fd.hm.got(g, glob), fd.hm.gots(t, glob))
+
+# the module's Gots with each call of hs.map at a known function a call of
+# its copy, the copy after the def it is out of
+def fd.hm.all(+gs: List<&2, Got>) -> List<&2, Got>:
+  fd.hm.gots(gs, fd.its.names(fd.got.items(gs)))
+
 # a module: fold its bindings, gate them, write OUT/BASE.bend and the ledger
 # a module of a package (px: what the modules before it gave, fd.px0() for
 # a module alone); the package after it
@@ -10891,7 +11180,7 @@ def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +
   +cs = fd.ctrs(xs)
   +ds = fd.dfs(tbs)
   +env = fd.syns(Nat.add(fd.nsyn(xs), List.length(&2, Sy, fd.px.sy(px))), xs, fd.env0(m, cs, ds, px))
-  +g2 = fd.tpl.settle(fd.allgots(xs, tbs, env), fd.px.tfs(px))
+  +g2 = fd.tpl.settle(fd.hm.all(fd.allgots(xs, tbs, env)), fd.px.tfs(px))
   +gs = fd.tpl.fin(g2, List.append(&2, Tf, fd.tfs(g2), fd.px.tfs(px)))
   +its = fd.mod.its(gs, xs, m, env, px)
   +ims = fd.ims(px)
