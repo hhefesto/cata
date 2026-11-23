@@ -153,12 +153,20 @@ def bk.hss(ps: List<&2, BkA>) -> List<&2, List<&2, U32>>:
     case BkA{h, b} <> t:
       h <> bk.hss(t)
 
-# the names the module gets: its Haskell name, its defs' Haskell names
-# (as), its types' (tn) and its constructors' (cn)
-type BkN is Data:
-  BkN{m: List<&2, U32>, as: List<&2, BkA>, tn: List<&2, BkA>, cn: List<&2, BkA>, pd: List<&2, U32>}
+# a constructor's fields' Haskell number types, by its Bend name: each
+# field's h type when it is Int, Integer or Natural (all Nat in Bend: F is
+# not one to one on types, so G takes h's back from the export), else
+# empty
+type BkF is Data:
+  BkF{c: List<&2, U32>, fs: List<&2, List<&2, U32>>}
 
-# a partial def (its doc line is pd, Fold's fd.pt.doc: it answers
+# the names the module gets: its Haskell name, its defs' Haskell names
+# (as), its types' (tn) and its constructors' (cn), its partial defs'
+# Bend names (pd), and its constructors' number fields (nf)
+type BkN is Data:
+  BkN{m: List<&2, U32>, as: List<&2, BkA>, tn: List<&2, BkA>, cn: List<&2, BkA>, pd: List<&2, List<&2, U32>>, nf: List<&2, BkF>}
+
+# a partial def (pd: their Bend names; Fold's fd.pt: it answers
 # Either<String, A>, h's error as Inl): its Bend name and its value
 # parameters' count
 type BkP is Data:
@@ -166,52 +174,65 @@ type BkP is Data:
 
 def bk.nm.m(+nm: BkN) -> List<&2, U32>:
   match nm:
-    case BkN{m, as, tn, cn, pd}:
+    case BkN{m, as, tn, cn, pd, nf}:
       m
 
 def bk.nm.as(+nm: BkN) -> List<&2, BkA>:
   match nm:
-    case BkN{m, as, tn, cn, pd}:
+    case BkN{m, as, tn, cn, pd, nf}:
       as
 
-def bk.nm.pd(+nm: BkN) -> List<&2, U32>:
+def bk.nm.pd(+nm: BkN) -> List<&2, List<&2, U32>>:
   match nm:
-    case BkN{m, as, tn, cn, pd}:
+    case BkN{m, as, tn, cn, pd, nf}:
       pd
 
 # what the module defines: its Haskell name, its defs' and its types' Bend
 # names, its types' and constructors' Haskell names
 type Bk is Data:
-  Bk{m: List<&2, U32>, defs: List<&2, List<&2, U32>>, tys: List<&2, List<&2, U32>>, tn: List<&2, BkA>, cn: List<&2, BkA>, pt: List<&2, BkP>}
+  Bk{m: List<&2, U32>, defs: List<&2, List<&2, U32>>, tys: List<&2, List<&2, U32>>, tn: List<&2, BkA>, cn: List<&2, BkA>, pt: List<&2, BkP>, nf: List<&2, BkF>}
+
+def bk.nf(+e: Bk) -> List<&2, BkF>:
+  match e:
+    case Bk{m, d, t, tn, cn, pt, nf}:
+      nf
+
+# a constructor's number fields (none: Nil)
+def bk.nf.find(fs: List<&2, BkF>, +c: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case BkF{+c2, ns} <> t:
+      Bool.pick(List<&2, List<&2, U32>>, S.eq(c2, c), ns, bk.nf.find(t, c))
 
 def bk.pt(+e: Bk) -> List<&2, BkP>:
   match e:
-    case Bk{m, d, t, tn, cn, pt}:
+    case Bk{m, d, t, tn, cn, pt, nf}:
       pt
 
 def bk.m(+e: Bk) -> List<&2, U32>:
   match e:
-    case Bk{m, d, t, tn, cn, pt}:
+    case Bk{m, d, t, tn, cn, pt, nf}:
       m
 
 def bk.defs(+e: Bk) -> List<&2, List<&2, U32>>:
   match e:
-    case Bk{m, d, t, tn, cn, pt}:
+    case Bk{m, d, t, tn, cn, pt, nf}:
       d
 
 def bk.tys(+e: Bk) -> List<&2, List<&2, U32>>:
   match e:
-    case Bk{m, d, t, tn, cn, pt}:
+    case Bk{m, d, t, tn, cn, pt, nf}:
       t
 
 def bk.tn(+e: Bk) -> List<&2, BkA>:
   match e:
-    case Bk{m, d, t, tn, cn, pt}:
+    case Bk{m, d, t, tn, cn, pt, nf}:
       tn
 
 def bk.cn(+e: Bk) -> List<&2, BkA>:
   match e:
-    case Bk{m, d, t, tn, cn, pt}:
+    case Bk{m, d, t, tn, cn, pt, nf}:
       cn
 
 def bk.dname(+x: List<&2, U32>) -> List<&2, U32>:
@@ -697,21 +718,47 @@ def bk.tvs.text(xs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32
     case x <> t:
       32 <> bk.b(bk.lower1(x), bk.tvs.text(t, acc))
 
-def bk.fields(fs: List<&2, T.BField>, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+def bk.isnat(+t: T.Bt) -> Bool:
+  match t:
+    case T.BtVar{+x}:
+      S.eq(x, S.b("Nat"))
+    case T.BtTyApp{+x, T.BtANil{}}:
+      S.eq(x, S.b("Nat"))
+    case _:
+      False{}
+
+def bk.hd.or(xs: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match xs:
+    case h <> t:
+      h
+    case Nil{}:
+      Nil{}
+
+# a field's type: h's number type n where Bend's is Nat (num), else G's
+def bk.field.at(num: Bool, +n: List<&2, U32>, ty: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match num:
+    case True{}:
+      bk.b(n, acc)
+    case False{}:
+      bk.ty(ty, BkYTop{}, e, tvs, acc)
+
+# the fields (ns: h's number types, by field)
+def bk.fields(fs: List<&2, T.BField>, +ns: List<&2, List<&2, U32>>, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
   match fs:
     case Nil{}:
       acc
-    case T.BField{x, ty} <> t:
-      32 <> bk.ty(ty, BkYTop{}, e, tvs, bk.fields(t, e, tvs, acc))
+    case T.BField{x, +ty} <> t:
+      +n = bk.hd.or(ns)
+      32 <> bk.field.at(Bool.and(Bool.not(List.is_empty(&2, U32, n)), bk.isnat(ty)), n, ty, e, tvs, bk.fields(t, List.drop(&2, List<&2, U32>, ns, 1n), e, tvs, acc))
 
 def bk.ctors(cs: List<&2, T.BCtor>, first: Bool, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
   match cs first:
     case Nil{} _:
       acc
     case T.BCtor{+c, fs} <> t True{}:
-      bk.s(" = ", bk.b(bk.con.h(True{}, e, c), bk.fields(fs, e, tvs, bk.ctors(t, False{}, e, tvs, acc))))
+      bk.s(" = ", bk.b(bk.con.h(True{}, e, c), bk.fields(fs, bk.nf.find(bk.nf(e), c), e, tvs, bk.ctors(t, False{}, e, tvs, acc))))
     case T.BCtor{+c, fs} <> t False{}:
-      bk.s(" | ", bk.b(bk.con.h(True{}, e, c), bk.fields(fs, e, tvs, bk.ctors(t, False{}, e, tvs, acc))))
+      bk.s(" | ", bk.b(bk.con.h(True{}, e, c), bk.fields(fs, bk.nf.find(bk.nf(e), c), e, tvs, bk.ctors(t, False{}, e, tvs, acc))))
 
 def bk.def(islaw: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, body: T.Bt, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
   match islaw:
@@ -766,10 +813,10 @@ def bk.env.go(its: List<&2, T.BItem>, ds: List<&2, List<&2, U32>>, ts: List<&2, 
   match its:
     case Nil{}:
       match nm:
-        case BkN{m, as, tn, cn, pd}:
-          Bk{m, ds, ts, tn, cn, pt}
+        case BkN{m, as, tn, cn, pd, nf}:
+          Bk{m, ds, ts, tn, cn, pt, nf}
     case T.BiDef{+n, ps, r, b, d} <> t:
-      bk.env.go(t, n <> ds, ts, bk.pt.add(S.mem(bk.nm.pd(nm), d), n, ps, pt), nm)
+      bk.env.go(t, n <> ds, ts, bk.pt.add(S.mem(n, bk.nm.pd(nm)), n, ps, pt), nm)
     case T.BiType{n, ps, k, cs, d} <> t:
       bk.env.go(t, ds, n <> ts, pt, nm)
     case _ <> t:

@@ -11,12 +11,13 @@
 {-# LANGUAGE NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
 module BendRt
   ( module BendRt
-  , Bool (..), Maybe (..), Either (..), Ordering (..), Int, Char, String, Float, IO
+  , Bool (..), Maybe (..), Either (..), Ordering (..), Int, Integer, Natural, Char, String, Float, IO
   , (.), ($)
   ) where
 
 import Prelude
 import qualified Data.Char as DC
+import Numeric.Natural (Natural)
 import Data.List (genericLength, genericTake, genericDrop, genericReplicate, sortBy, nubBy, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, groupBy, insertBy, tails, inits, partition, stripPrefix)
 import Data.Maybe (mapMaybe, catMaybes, isJust, isNothing, listToMaybe, maybeToList)
 import Data.Either (lefts, rights, partitionEithers, isLeft, isRight, fromLeft, fromRight)

@@ -1917,8 +1917,62 @@ def lw.back.cn(ds: List<&2, Dd>) -> List<&2, K.BkA>:
     case Dd{+n, tvs, cs} <> t:
       List.append(&2, K.BkA, lw.back.cs(n, cs), lw.back.cn(t))
 
-def lw.back.nm(+m: List<&2, U32>, tbs: List<&2, F.Tb>, +dds: List<&2, Dd>) -> K.BkN:
-  K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), S.b(F.fd.pt.doc())}
+# the partial defs (Fold's fd.pt: Either<String, A>, h's error as Inl), by
+# their Bend names, as the laws' script has them (lw.kept.pt, before the
+# gate: a def the fuel rule wraps keeps its name)
+def lw.back.pt.if(p: Bool, +b: List<&2, U32>, rest: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match p:
+    case True{}:
+      b <> rest
+    case False{}:
+      rest
+
+def lw.back.pts(tbs: List<&2, F.Tb>, +its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match tbs:
+    case F.TbFun{+n, tvs, f} <> t:
+      +b = F.fd.vname(n)
+      lw.back.pt.if(lw.kept.pt(its, b), b, lw.back.pts(t, its))
+    case _ <> t:
+      lw.back.pts(t, its)
+    case Nil{}:
+      Nil{}
+
+# a field's type, when h's is a number (Int, Integer, Natural: each Nat in
+# Bend), as G prints it; else empty
+def lw.back.num.at(tc: Bool, +k: List<&2, U32>) -> List<&2, U32>:
+  match tc:
+    case True{}:
+      F.fd.bpick(S.eq(k, S.b("GHC.Types.Int")), S.b("Int"), F.fd.bpick(S.eq(k, S.b("GHC.Num.Integer.Integer")), S.b("Integer"), F.fd.bpick(S.eq(k, S.b("GHC.Num.Natural.Natural")), S.b("Natural"), Nil{})))
+    case False{}:
+      Nil{}
+
+def lw.back.num(+t: X.Sx) -> List<&2, U32>:
+  lw.back.num.at(Bool.and(V.sv.is(V.sv.hd(t), "tc"), Nat.is_eq(X.tsx.len(t), 3n)), lw.cat3(V.sv.str(t, 1n), [46], V.sv.str(t, 2n)))
+
+def lw.back.nums(tys: X.Sx) -> List<&2, List<&2, U32>>:
+  match tys:
+    case X.SxCons{+t, r}:
+      lw.back.num(t) <> lw.back.nums(r)
+    case _:
+      Nil{}
+
+# a type's constructors' number fields, (con NAME FIELDS TYPES EX) each
+def lw.back.cf(+ty: List<&2, U32>, cs: X.Sx) -> List<&2, K.BkF>:
+  match cs:
+    case X.SxCons{+c, t}:
+      K.BkF{F.fd.cname(ty, V.sv.str(c, 1n)), lw.back.nums(V.sv.at(c, 3n))} <> lw.back.cf(ty, t)
+    case _:
+      Nil{}
+
+def lw.back.nf(ds: List<&2, Dd>) -> List<&2, K.BkF>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Dd{+n, tvs, cs} <> t:
+      List.append(&2, K.BkF, lw.back.cf(n, cs), lw.back.nf(t))
+
+def lw.back.nm(+m: List<&2, U32>, +tbs: List<&2, F.Tb>, +dds: List<&2, Dd>, +its: List<&2, T.BItem>) -> K.BkN:
+  K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(dds)}
 
 def lw.fin(+ck: Kc, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +fb: Bool, +g: F.Gs, +ps: List<&2, Pl>, +nm: K.BkN) -> IO(Lk):
   +its = lw.gs.its(g)
@@ -1970,7 +2024,7 @@ def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +f
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<Lk>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(m, tbs, dds))
+    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(m, tbs, dds, lw.gs.its(g0)))
 
 # the items before the gate, and the ones it drops before its first check
 # (dep: what they use that is out), as OUT/NAME_all.bend and
