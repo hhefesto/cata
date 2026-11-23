@@ -1744,3 +1744,133 @@ Not freed yet: Driver's evaluator chain. The survey now takes
 `evalLoop`, `evalLoopCore` and their copies are still out on the survey.
 Telomare's own out by first reason: survey 411, dep 138, fold 130, law
 21, check 15, type 5, base 2 (copies included).
+
+## cata as a functor (the user's view, 2026-11-22; branch ct)
+
+Haskell and Bend as categories: types are the objects, programs (up to the
+same meaning) the arrows. hs2bend is F, bend2hs (bend/Back.bend) is G. The
+user's five flavours, weakest first, and what each one is in cata now. The
+numbers are from olimpo's CPU; each names its run, and nothing here is a
+proof unless it says `--verdict`.
+
+### 1. F is a functor: compositional, so its checks can be cached
+
+F(g . f) = F(g) . F(f) at the level cata works at: a module's Bend is a
+function of its own export and of what its imports kept, so bend's check of
+a file is a function of the file and its imports' files. bend/Cache.bend
+keys each check by a Merkle digest (SHA-256 of the file's text and its
+imports' digests) and each of GHC's answers by its script and the digest of
+the sources it reads (`CATA_CACHE=DIR`). Telomare (tsp60, 31 modules):
+no cache 168 s, empty cache 171 s, warm 104 s (bend 0 calls, GHC 1: the
+script that timed out is not kept); xmonad 10 s, warm 4 s; every file the
+same, byte for byte, with and without a cache (commits 0fc4a33, 77b22ce).
+A cache filled by older rules (537a919, 2886 s) used by newer ones: 99 s
+against 155 s without it, 201 files, 0 differ (tests/cache/cross.zsh). The
+two files the rules changed are a ledger and a drops list, which no check
+reads, so 0 bend calls there was right (29ced62). What does not hold yet:
+compositionality below the module. A def's check is its module's check
+(Bend checks a file), so one changed def costs its module's check, not its
+own.
+
+### 2. Commuting squares with meanings
+
+[[F h]]_Bend = [[h]]_Haskell is what the example laws sample: at each input
+GHC answers, `def f.exK() -> {F.f(x) == v : R}: {==}` (Bend computes both
+sides). That is the square at the sampled points, not for every x; for every
+x, only the squares below (4).
+
+### 3. The way back, G, and the round trip G(F(h)) against h
+
+bend/Back.bend prints a law run's kept items as Haskell; tests/back/run.zsh
+runs each module's laws' GHCi script against G(F(h)), GHC the oracle. On
+hs1003 (643 exports, 401 with laws):
+
+| G | modules that load in GHC | laws: same | more defined | differ | missing |
+|---|---|---|---|---|---|
+| ProudFalcon's (da0e3dd) | 218 of 401 | 4,079 of 6,682 | (not told apart) | 19 | 2,584 |
+| locals, strings, names (e100709) | 376 | 5,689 | 11 | 0 | 982 |
+| the iso b'up, partial defs (bb64880) | 401 | 6,594 | 11 | 7 | 70 |
+| h's number types from the export, partial defs by the laws' list (3c0ee35) | 401 | 6,624 | 11 | 7 | 40 |
+
+What this says about F and G:
+
+- **F is not one to one on objects.** Int, Integer and Natural are all Nat;
+  (a, b, c) and (a, (b, c)) are the same nested Sigma; a partial h's A is
+  Either<String, A>. So G alone cannot give h's type back: G(F(t)) is t
+  only up to an iso, and the round trip needs h's type as a witness.
+  BendRt's `B'G t` is G(F(t)) as a closed type family (lists, Maybe,
+  Either, tuples, functions; any other type its own image), `b'up :: B'G t
+  -> t` the iso, chosen by the type the laws' script names at each call;
+  G's arithmetic is any Num's, and G takes a data type's number fields' h
+  types from the export. At a module's own type `b'up` is the identity, so
+  a triple inside one (00379's Zipper) stays a nested pair: its 7 answers
+  differ from h's only by that iso, and are counted as different.
+- **"More defined" is the order of flavour 4.** h errs where F(h) answers
+  (``x `mod` 0`` errs, Bend's `Nat.mod(x, 0n)` is x): h is below G(F(h))
+  in the definedness order, never above it (no law where h answers and
+  G(F(h)) errs). F is not an iso there; h ⊑ G(F(h)) is the shape of an
+  adjunction's unit in that order, seen on the laws' inputs, not proved.
+- **Partial h** is a total F(h) answering Either; G unwraps it
+  (`b'unfail`: Inl m is h's error m again), so the script's LawEw shows
+  both alike.
+- **Not checked:** F(G(F(h))) = F(h) (the prism's other law, hs2bend after
+  bend2hs: G's modules through hs-export and law again); G on Bend cata did
+  not write (G reads the fold's syntax tree, not Bend's text).
+
+### 4. An adjunction: "b correctly implements h", on either side
+
+For a hand-written Bend b (xmonad-bend's StackSet.bend) and a Haskell h,
+the squares phi(F.h(x)) == W.b(phi(x)) (tests/square, 7f11e3b): 17
+proposed; `bend --check-only` ALL PROOFS CHECK; `--verdict` takes 15 and
+checks them (ALL PROOFS CHECK), and calls 2 out of its scope (wss.lemma
+and workspaces: "a template argument that depends on a run-time value",
+which BendTT says its kernel does not take yet); the mutant (swapUp' paired
+with focusUp) fails. Rerun 2026-11-22 against xmonad-bend 1372ad9: the
+same. The two need either that kernel update, or F not to pass a lambda as
+a template argument there: cata's XMonad.StackSet maps F.workspace over the
+screens as `hs.map(~.., ~x_1 => F.workspace(..), v)`, and a copy of
+hs.map at that function (as the specialiser's rule 15 copies foldr and
+concatMap at telomare's) would be a plain recursive def (untested). The
+GHC side of the same check (G(b) against h, differential) needs G on
+hand-written Bend, which it does not read (3). A general checker over any
+pairing: not done.
+
+### 5. Not an isomorphism; an equivalence on a fragment
+
+What F leaves out is the ledger's `out`; what it changes is (3)'s list:
+numbers' types, tuples, partiality (total where h errs), and Bend's
+strictness (a partial call's error is the def's even where Haskell would
+never force it). On the fragment the laws reach, the round trip is the
+identity up to (3)'s iso: of hs1003's 6,682 laws, 6,624 agree, 11 are more
+defined, 7 agree up to the pair iso, and GHC refuses the line of 40 (a
+number type behind a synonym, a type parameter G drops, a triple inside a
+module's type).
+
+### Naturality: the specialiser's copies
+
+The specialiser (bend/Spec.bend) copies a def at each type it is used at
+(`f__TYPES`), with the class methods it calls resolved to their copies.
+tests/natural/Copies.hs groups the copies in G's modules, where every type
+is erased. Telomare (law at bb64880 with CATA_BEND2HS=1 on tsp60, 178 s):
+165 defs copied, 808 copies by name (1,188 counting each module's own), 199
+of them fixing a function argument; erased, 727 distinct programs; with the
+copies they call named by their def alone (a dictionary's methods), 563. So
+at least 245 of the 808 copies are another copy's program at another type:
+components of one natural transformation, where one polymorphic def and one
+law would do (taking the dictionary as arguments where they call methods).
+The count is an upper bound on what is distinct (a constructor of another
+module prints qualified); whether Bend takes each merged def polymorphically
+is not checked.
+
+tests/natural/PROPOSED.bend and PROOF.bend show the mechanism on one def,
+telomare's bBasicEE (9 copies by name, one program up to the copies it
+calls): written once, `basicEE(T, L, ee, fw, x) = ee(fw(x))`, its
+dictionary its arguments; a law proved once for every F (unFix after Fix's
+embed is fw); Telomare.Size.IR's copy as its instance; and the law at that
+copy by the instance and the law proved once. tests/natural/run.zsh:
+`--verdict` ALL PROOFS CHECK (3 laws). The kernel cannot take
+Telomare.Size's two copies: a module importing
+Telomare.PrettyPrint.Indent overflows bend's machine stack in the kernel's
+translation, and one importing Telomare.Machine fails the kernel on an
+example law bend --check-only accepts (decendant.ex1: out of fuel), so
+cata's `ok-law` is a --check-only label, not a verdict, as rule 3 says.

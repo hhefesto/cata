@@ -547,6 +547,37 @@ other's (`fold:eq-mutual`); a type of an earlier module whose T.eq is out
 (`fold:eq-imported:NAME`); `==` at a type variable (`fold:eq-at-tyvar`) and
 `<`, `compare`, `max`... at any of these types (`fold:ord-at-type`).
 
+## cata as a functor: the cache, the way back, the squares
+
+PLAN.md's "cata as a functor" says what holds and what does not, with
+numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
+
+- **The cache** (`bend/Cache.bend`, `CATA_CACHE=DIR`): F is compositional
+  over a package's modules, so law keeps each of bend's checks under the
+  SHA-256 digest of the file and of its imports (a Merkle DAG over the
+  package) and each of GHC's answers under the digest of its script and
+  the sources it reads; a run checks again only what changed. With
+  `CATA_CACHE` unset law is as it was (`tests/cache/run.zsh`,
+  `tests/cache/cross.zsh`: the same files byte for byte, with and without a
+  cache, and with a cache another version of the rules filled).
+- **The way back** (`bend/Back.bend`, G, bend2hs; `CATA_BEND2HS=1`): law
+  also writes each module's kept items as Haskell, `OUT/hs/NAME.hs`, with
+  prelude/Back/BendRt.hs giving Base's and the prelude's names their
+  Haskell meaning. `tests/back/run.zsh LAW WORK FILE...` runs each module's
+  laws' GHCi script against G(F(h)) and compares, law by law, with h's
+  answers: the same, more defined (h errs, G(F(h)) answers: F makes a
+  partial h total: ``x `mod` 0`` errs, Bend's `Nat.mod(x, 0n)` is x),
+  different, or missing.
+  G(F(t)) is t only up to an iso (h's triple is G's nested pair, a partial
+  h's answer an Either), which BendRt's `b'up` undoes at h's type.
+- **Naturality** (`tests/natural`): the specialiser's copies of a def at
+  several types, counted once their types are erased (`Copies.hs`), and a
+  copied def written once, with a law proved once and a copy as its
+  instance (`bend --verdict`).
+- **Squares** (`tests/square`): a hand-written Bend function against F of
+  the Haskell one, `phi(F.h(x)) == W.b(phi(x))` proved for every x
+  (xmonad-bend's StackSet against cata's XMonad.StackSet).
+
 ## Build
 
     nix build .#hs-export .#survey .#fold .#law .#ghc
