@@ -1870,17 +1870,17 @@ def lw.lk.mk(+k: Lk) -> List<&2, Mk>:
 # of its package's earlier files, which it may import; fb: its laws were
 # set aside, see lw.lost)
 # bend2hs (Back.bend), with CATA_BEND2HS set: the module's kept items as
-# Haskell, OUT/hs/NAME.hs, its module named as the Haskell module (as: the
-# Haskell names of its defs), for tests/back/run.zsh to run the laws'
-# GHCi script against
-def lw.back(on: Bool, +out: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +its: List<&2, T.BItem>, +as: List<&2, K.BkA>) -> IO(Unit):
+# Haskell, OUT/hs/NAME.hs, its module named as the Haskell module (nm: its
+# Haskell name and its defs', types' and constructors'), for
+# tests/back/run.zsh to run the laws' GHCi script against
+def lw.back(on: Bool, +out: String, +path: String, +file: List<&2, U32>, +m: List<&2, U32>, +its: List<&2, T.BItem>, +nm: K.BkN) -> IO(Unit):
   match on:
     case False{}:
       IO.pure(Unit, Unit{})
     case True{}:
       do IO<Unit>:
         S.mkdir(out ++ "/hs")
-        S.write(out ++ "/hs/" ++ S.str(S.until(S.b(S.base(path)), 46)) ++ ".hs", K.bk.module(m, file, its, as))
+        S.write(out ++ "/hs/" ++ S.str(S.until(S.b(S.base(path)), 46)) ++ ".hs", K.bk.module(file, its, nm))
 
 # the module's defs by their Haskell names (each TbFun's), for bend2hs
 def lw.back.as(tbs: List<&2, F.Tb>) -> List<&2, K.BkA>:
@@ -1892,14 +1892,42 @@ def lw.back.as(tbs: List<&2, F.Tb>) -> List<&2, K.BkA>:
     case Nil{}:
       Nil{}
 
-def lw.fin(+ck: Kc, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +fb: Bool, +g: F.Gs, +ps: List<&2, Pl>, +as: List<&2, K.BkA>) -> IO(Lk):
+# a type's constructors by their Haskell names, (con NAME ...) each
+def lw.back.cs(+ty: List<&2, U32>, cs: X.Sx) -> List<&2, K.BkA>:
+  match cs:
+    case X.SxCons{+c, t}:
+      +n = V.sv.str(c, 1n)
+      K.BkA{n, F.fd.cname(ty, n)} <> lw.back.cs(ty, t)
+    case _:
+      Nil{}
+
+# the module's types by their Haskell names
+def lw.back.tn(ds: List<&2, Dd>) -> List<&2, K.BkA>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Dd{+n, tvs, cs} <> t:
+      K.BkA{n, F.fd.tyname(n)} <> lw.back.tn(t)
+
+# the module's constructors by their Haskell names
+def lw.back.cn(ds: List<&2, Dd>) -> List<&2, K.BkA>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Dd{+n, tvs, cs} <> t:
+      List.append(&2, K.BkA, lw.back.cs(n, cs), lw.back.cn(t))
+
+def lw.back.nm(+m: List<&2, U32>, tbs: List<&2, F.Tb>, +dds: List<&2, Dd>) -> K.BkN:
+  K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds)}
+
+def lw.fin(+ck: Kc, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +fb: Bool, +g: F.Gs, +ps: List<&2, Pl>, +nm: K.BkN) -> IO(Lk):
   +its = lw.gs.its(g)
   +wrote = F.fd.wrote(pkg, its)
   +text = F.fd.render(file, m, ims, its)
   do IO<Lk>:
     F.fd.module.write(wrote, path, text)
     S.add(out ++ "/ledger.tsv", lw.cat(lw.ledger.ok(its, its, file, ps, F.fd.bpick(fb, S.b("nolaw:law-gate-failed"), Nil{})), lw.ledger.out(lw.gs.out(g), file)))
-    lw.back(lw.kc.back(ck), out, path, file, m, its, as)
+    lw.back(lw.kc.back(ck), out, path, file, m, its, nm)
     return Lk{its, lw.kc.wrote(wrote, ck, S.until(S.b(S.base(path)), 46), text)}
 
 def lw.start(g: F.Gs, laws: List<&2, T.BItem>, +bad: List<&2, F.Dr>) -> F.Gs:
@@ -1914,26 +1942,26 @@ def lw.start(g: F.Gs, laws: List<&2, T.BItem>, +bad: List<&2, F.Dr>) -> F.Gs:
 def lw.lost(+laws: Bool, +g0: F.Gs, +g2: F.Gs) -> Bool:
   Bool.and(laws, Bool.and(F.fd.hasdef(lw.gs.its(g0)), Bool.not(F.fd.hasdef(lw.gs.its(g2)))))
 
-def lw.after(lost: Bool, +ck: Kc, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>, +dt: List<&2, T.BItem>, +as: List<&2, K.BkA>) -> IO(Lk):
+def lw.after(lost: Bool, +ck: Kc, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>, +dt: List<&2, T.BItem>, +nm: K.BkN) -> IO(Lk):
   match lost:
     case True{}:
       do IO<Lk>:
         g1 : F.Gs <- F.fd.gate(Nat.mul(3n, 1n+List.length(&2, T.BItem, lw.gs.its(g0))), g0, bend, try, file, m, ims, dt)
-        lw.fin(ck, out, file, m, ims, pkg, path, True{}, g1, ps, as)
+        lw.fin(ck, out, file, m, ims, pkg, path, True{}, g1, ps, nm)
     case False{}:
-      lw.fin(ck, out, file, m, ims, pkg, path, False{}, g2, ps, as)
+      lw.fin(ck, out, file, m, ims, pkg, path, False{}, g2, ps, nm)
 
 # The gate, once: the fold's defs (g0, before any check) and the laws GHC's
 # answers give, together.  A def Bend refuses goes with its laws and what
 # uses it; a law Bend refuses takes its def out (law:).  So a module whose
 # defs and laws all hold costs one check.
-def lw.laws2(+rounds: Nat, +ck: Kc, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +ps: List<&2, Pl>, +laws: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +as: List<&2, K.BkA>) -> IO(Lk):
+def lw.laws2(+rounds: Nat, +ck: Kc, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +ps: List<&2, Pl>, +laws: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +nm: K.BkN) -> IO(Lk):
   +good = lw.good(laws)
   +g1 = lw.start(g0, good, lw.bad(laws))
   +n = List.length(&2, T.BItem, lw.gs.its(g1))
   do IO<Lk>:
     +g2 : F.Gs <- lw.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), Nat.mul(3n, 1n+n), rounds), lw.done.if(Nat.is_eq(n, 0n), g1), ck, bend, try, file, m, ims, dt)
-    lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), ck, bend, out, file, m, ims, pkg, path, try, g0, g2, ps, dt, as)
+    lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), ck, bend, out, file, m, ims, pkg, path, try, g0, g2, ps, dt, nm)
 
 # GHC's answers for the fold's defs (g0, before any check), then the gate
 def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +xs: List<&2, X.Sx>, +tbs: List<&2, F.Tb>, +path: String, +try: String, +g0: F.Gs, +dt: List<&2, T.BItem>) -> IO(Lk):
@@ -1942,7 +1970,7 @@ def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +f
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<Lk>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.as(tbs))
+    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(m, tbs, dds))
 
 # the items before the gate, and the ones it drops before its first check
 # (dep: what they use that is out), as OUT/NAME_all.bend and

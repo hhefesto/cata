@@ -8,50 +8,74 @@
 # GHC then runs the same script against hs/NAME.hs (WORK/l/hs/NAME.ghc,
 # with prelude/Back/BendRt.hs), and each law of a def law kept (ok-law in
 # the ledger) is compared, answer for answer, with h's.
-#   GHC: the ghc (law's oracle, .#ghc); HSX: hs-export; BEND: bend
-# Prints, by module: whether G(F(h)) loads in GHC, and its laws the same,
-# different, or missing; then the totals.  Exits 1 when an answer differs.
+#   GHC: the ghc (law's oracle, .#ghc); HSX: hs-export; BEND: bend;
+#   JOBS: GHC sessions at once (4); LAWOUT: a law run's WORK/l to reuse
+#   (law is not run again)
+# A module loads when GHC reports no error in hs/NAME.hs or BendRt (an
+# error of the script's own lines, at a def law dropped, is not one).  A
+# law is the same (G's answer is h's), more defined (h errs or runs out of
+# time, G(F(h)) answers: F made a partial h total, as Bend's defs are),
+# different (any other pair), or missing: its module does not load, or it
+# loads but GHC refuses the law's line (G's types are not h's there).
+# Prints, by module: whether G(F(h)) loads, its laws by kind; then the
+# totals.  Exits 1 when an answer differs.
 set -u
+zmodload zsh/parameter
 law=${1:A} work=${2:A}
 shift 2
 here=${0:A:h}
 rt=${here:h:h}/prelude/Back
 ghc=${GHC:-ghc}
 hsx=${HSX:-hs-export}
-rm -rf $work/ex $work/l
-mkdir -p $work/ex $work/l
-sexps=()
-for f in "$@"; do
-  if [[ $f == *.sexp ]]; then
-    ln -s ${f:A} $work/ex/${f:t}; sexps+=($work/ex/${f:t}); continue
-  fi
-  n=${${f:t}%.hs}
-  $hsx $work/ex/$n.sexp ${f:A} > $work/ex/$n.log 2>&1 && sexps+=($work/ex/$n.sexp) || print "$n: hs-export failed"
-done
-(cd $work && CATA_BEND2HS=1 nice -n 10 $law l $sexps > l.log 2>&1) || { print "law failed: $work/l.log"; exit 1 }
-T=0 S=0 D=0 M=0 L=0 N=0
+jobs=${JOBS:-4}
+if [[ -n ${LAWOUT:-} ]]; then
+  mkdir -p $work
+  [[ $work/l -ef ${LAWOUT:A} ]] || { rm -rf $work/l; ln -s ${LAWOUT:A} $work/l }
+else
+  rm -rf $work/ex $work/l
+  mkdir -p $work/ex $work/l
+  sexps=()
+  for f in "$@"; do
+    if [[ $f == *.sexp ]]; then
+      ln -s ${f:A} $work/ex/${f:t}; sexps+=($work/ex/${f:t}); continue
+    fi
+    n=${${f:t}%.hs}
+    $hsx $work/ex/$n.sexp ${f:A} > $work/ex/$n.log 2>&1 && sexps+=($work/ex/$n.sexp) || print "$n: hs-export failed"
+  done
+  (cd $work && CATA_BEND2HS=1 nice -n 10 $law l $sexps > l.log 2>&1) || { print "law failed: $work/l.log"; exit 1 }
+fi
+# GHC on each G(F(h)), JOBS at a time
+names=()
 for g in $work/l/*.ghci(N); do
   n=${${g:t}%.ghci}
-  h=$work/l/hs/$n.hs
-  [[ -f $h ]] || continue
+  [[ -f $work/l/hs/$n.hs ]] && names+=($n)
+done
+for n in $names; do
+  while (( ${#jobstates} >= jobs )); do sleep 0.2; done
+  nice -n 10 ${=ghc} --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/l/hs "*$work/l/hs/$n.hs" +RTS -M2g -RTS < $work/l/$n.ghci > $work/l/hs/$n.ghc 2>&1 &
+done
+wait
+T=0 S=0 R=0 D=0 M=0 X=0 L=0 N=0
+for n in $names; do
   N=$((N + 1))
-  ${=ghc} --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/l/hs "*$h" +RTS -M2g -RTS < $g > $work/l/hs/$n.ghc 2>&1
-  # the module loads when GHC says nothing before its first answer
-  if grep -q "^@law " $work/l/hs/$n.ghc && ! sed '/^@law /,$d' $work/l/hs/$n.ghc | grep -q "rror"; then ld=loads; L=$((L + 1)); else ld="does not load"; fi
+  out=$work/l/hs/$n.ghc
+  if grep -q -e "$n\.hs:[0-9]*:[0-9]*: error" -e "BendRt\.hs:[0-9]*:[0-9]*: error" $out; then ld="does not load"; else ld=loads; L=$((L + 1)); fi
   oks=(${(f)"$(awk -F'\t' -v f="ex/$n.sexp" '$1 ~ f"$" && $3 == "ok-law" {print $2}' $work/l/ledger.tsv)"})
-  t=0 s=0 d=0 m=0
+  t=0 s=0 r=0 d=0 m=0 x=0
   while IFS= read -r line; do
     set -- ${=line}
     (( ${oks[(Ie)$2]} )) || continue
     t=$((t + 1))
-    other=$(grep -F -m1 -- "@law $2 $3 " $work/l/hs/$n.ghc)
-    if [[ -z $other ]]; then m=$((m + 1))
+    other=$(grep -F -m1 -- "@law $2 $3 " $out)
+    if [[ -z $other ]]; then
+      if [[ $ld == loads ]]; then x=$((x + 1)); else m=$((m + 1)); fi
     elif [[ $other == $line ]]; then s=$((s + 1))
+    elif [[ ( $4 == err || $4 == timeout ) && $other == "@law $2 $3 ok "* ]]; then r=$((r + 1)); print "  more defined: $line | G: $other"
     else d=$((d + 1)); print "  differs: $line | G: $other"
     fi
   done < <(grep "^@law " $work/l/$n.ghc)
-  print "$n: G(F(h)) $ld; ok-law defs ${#oks}, laws $t: same $s, differ $d, missing $m"
-  T=$((T + t)) S=$((S + s)) D=$((D + d)) M=$((M + m))
+  print "$n: G(F(h)) $ld; ok-law defs ${#oks}, laws $t: same $s, more defined $r, differ $d, missing $((m + x)) (script $x)"
+  T=$((T + t)) S=$((S + s)) R=$((R + r)) D=$((D + d)) M=$((M + m)) X=$((X + x))
 done
-print "modules with laws: $N, G(F(h)) loads in GHC: $L; laws $T: same $S, differ $D, missing $M"
+print "modules with laws: $N, G(F(h)) loads in GHC: $L; laws $T: same $S, more defined $R, differ $D, missing $((M + X)) (in modules that do not load $M, refused by GHC in modules that load $X)"
 (( D == 0 ))
