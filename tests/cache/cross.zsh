@@ -7,6 +7,9 @@
 # OLD wrote differently is checked again, a file it wrote the same is an
 # answer kept), and the calls NEW made with the cache are what the rules'
 # change cost.  LAW-ARGS as tests/cache/run.zsh's; BEND and GHC too.
+# The files OLD and NEW wrote differently are named: when bend made no call
+# with the cache although some differ, they must be files no check reads
+# (a ledger, a drops list), never a .bend file bend checked.
 set -u
 old=${1:A} new=${2:A} work=${3:A}
 shift 3
@@ -48,7 +51,7 @@ for f in $(cd $work/u && find . -type f); do
 done
 d=0
 for f in $(cd $work/u && find . -type f); do
-  cmp -s $work/u/$f $work/o/$f || d=$((d + 1))
+  cmp -s $work/u/$f $work/o/$f || { (( d < 5 )) && print "rules changed: $f"; d=$((d + 1)) }
 done
 print "OLD vs NEW (no cache): $d of $nf files differ (what the rules changed)"
 print "NEW with OLD's cache vs NEW without: $nf files, $n differ"
