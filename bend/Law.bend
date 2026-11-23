@@ -2241,6 +2241,16 @@ def lw.lm.ck(+r: Lm) -> Kc:
     case Lm{px, ck}:
       ck
 
+# the module BendRt (prelude/Back/BendRt.hs, in F(G(b))'s package: tests/
+# back/round.zsh): its kept items and its wrappers' rewrites as laws
+# (Fold's fd.rt.laws), OUT/BendRt_rt.bend.  Any other module: nothing.
+def lw.rt.write(isrt: Bool, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>) -> IO(Unit):
+  match isrt:
+    case True{}:
+      S.write(out ++ "/BendRt_rt.bend", F.fd.render(file, m, ims, List.append(&2, T.BItem, its, F.fd.rt.laws(its))))
+    case False{}:
+      IO.pure(Unit, Unit{})
+
 # a module: fold it as Fold.bend does, ask GHC for its defs' laws, and gate
 # the defs and laws together (px: what its package's modules before it
 # gave, F.fd.px0() for a module alone); the package after it
@@ -2264,6 +2274,7 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
     +g0 : F.Gs <- IO.pure(F.Gs, F.fd.predrop(its, F.fd.got.outs(gs)))
     S.write(out ++ "/" ++ S.str(base) ++ "_drops.tsv", lw.drs.text(lw.gs.drs(g0)))
     +kept : Lk <- lw.laws(rounds, ck1, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, g0, F.fd.px.dt(px))
+    lw.rt.write(F.fd.is(m, "BendRt"), out, file, m, ims, lw.lk.its(kept))
     return Lm{F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, lw.lk.its(kept)), lw.kc.with.mk(ck1, lw.lk.mk(kept))}
 
 def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px, +ck: Kc) -> IO(Unit):

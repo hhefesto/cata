@@ -1126,41 +1126,41 @@ type Tf is Data:
 # (im: ix as a map, each key's entries in ix's order: a lookup's walk of ix
 # compared every key, their long common prefixes too, a fifth of the fold)
 type Px is Data:
-  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>, dt: List<&2, T.BItem>, im: Map<&2, List<&2, Ix>>}
+  Px{home: List<&2, List<&2, U32>>, files: List<&2, List<&2, U32>>, ix: List<&2, Ix>, sy: List<&2, Sy>, tfs: List<&2, Tf>, dt: List<&2, T.BItem>, im: Map<&2, List<&2, Ix>>, rw: List<&2, T.BItem>}
 
 def fd.px0() -> Px:
-  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Map.new(&2, List<&2, Ix>)}
+  Px{Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Map.new(&2, List<&2, Ix>), Nil{}}
 
 def fd.px.home(p: Px) -> List<&2, List<&2, U32>>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       h
 
 def fd.px.files(p: Px) -> List<&2, List<&2, U32>>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       f
 
 def fd.px.ix(p: Px) -> List<&2, Ix>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       i
 
 def fd.px.sy(p: Px) -> List<&2, Sy>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       s
 
 def fd.px.tfs(p: Px) -> List<&2, Tf>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       t
 
 # the data types of the modules before, written as this module names them
 # (Alias.T, Alias.T.C): the fuel's defaults take theirs
 def fd.px.dt(p: Px) -> List<&2, T.BItem>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       z
 
 def fd.ix.key(i: Ix) -> List<&2, U32>:
@@ -1327,9 +1327,15 @@ def fd.env.home(e: Env) -> List<&2, List<&2, U32>>:
 def fd.env.ix(e: Env) -> List<&2, Ix>:
   fd.px.ix(fd.env.px(e))
 
+# the way back's runtime's wrappers (fd.rt.*): the module BendRt's
+def fd.px.rt(p: Px) -> List<&2, T.BItem>:
+  match p:
+    case Px{h, f, i, s, t, z, w, rw}:
+      rw
+
 def fd.px.im(p: Px) -> Map<&2, List<&2, Ix>>:
   match p:
-    case Px{h, f, i, s, t, z, w}:
+    case Px{h, f, i, s, t, z, w, rw}:
       w
 
 def fd.env.ixm(e: Env) -> Map<&2, List<&2, Ix>>:
@@ -9747,8 +9753,393 @@ def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   +rs = fd.pt.prs(its)
   fd.pt.items(its, fd.pt.fix(List.length(&2, Pr, rs), False{}, rs, fd.pt.imported(dt)))
 
+# The way back's runtime (bend/Back.bend, prelude/Back/BendRt.hs) ----------------
+#
+# G, the way back, writes Base's and the prelude's names as BendRt's
+# (List.append as b'List'append), and BendRt.hs gives each its Haskell
+# meaning.  F of G's Haskell (tests/back/round.zsh) takes BendRt.hs as a
+# module of the package and folds it like any other: b'List'append xs ys =
+# xs ++ ys is def b_qList_qappend(-A: Data, xs, ys): List.append(&2, A, xs,
+# ys).  A def of the module BendRt is a wrapper when its body is one of its
+# parameters, or one call of a name that is not BendRt's (it has a dot and
+# is no b_q.. of BendRt's) whose arguments are its parameters and closed
+# terms, each value parameter once (or a lambda over such a call, its
+# variable once).  A later module's call of a wrapper at all its parameters
+# is the wrapper's body with the call's arguments in its parameters' places,
+# all at once (an argument may name another parameter's name), and not where
+# a binder of the body would capture a name an argument names; a wrapper's
+# lambda applied to one argument, that argument in the lambda's variable's
+# place.  Each rewrite is an instance of the wrapper's own definition,
+# Bend's definitional equality: the law N.rt, {N(ps) == BODY : R}, holds by
+# {==} (fd.rt.laws; Law writes them after BendRt's items as
+# OUT/BendRt_rt.bend, to be checked with --verdict).  Only the module named
+# BendRt gives wrappers; any other package's has none, and then the pass
+# leaves every item as it is (fd.akey and fd.its.names moved up here from
+# Package mode, unchanged, for the wrappers' names).
+
+def fd.akey(+alias: List<&2, U32>, +b: List<&2, U32>) -> List<&2, U32>:
+  fd.cat3(alias, S.b("."), b)
+
+def fd.its.names(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case h <> t:
+      fd.item.name(h) <> fd.its.names(t)
+    case Nil{}:
+      Nil{}
+
+# a parameter that is a type (Data, Type)
+def fd.rt.istype(+t: T.Bt) -> Bool:
+  match t:
+    case T.BtVar{+x}:
+      Bool.or(S.eq(x, S.b("Data")), S.eq(x, S.b("Type")))
+    case T.BtType{}:
+      True{}
+    case _:
+      False{}
+
+def fd.rt.pnames(ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, ty} <> t:
+      x <> fd.rt.pnames(t)
+
+# each value parameter used once in b
+def fd.rt.once(ps: List<&2, T.BParam>, +b: T.Bt) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case T.BParam{m, +x, +ty} <> t:
+      Bool.and(Bool.or(fd.rt.istype(ty), Nat.is_eq(fd.uses(b, x), 1n)), fd.rt.once(t, b))
+
+def fd.rt.upper(xs: List<&2, U32>) -> Bool:
+  match xs:
+    case +c <> t:
+      Bool.and(U32.is_ge(c, 65), U32.is_le(c, 90))
+    case Nil{}:
+      False{}
+
+# a name a wrapper's argument may hold: a parameter, a qualified name (not
+# BendRt's own), a quantity or a type
+def fd.rt.free.ok(xs: List<&2, List<&2, U32>>, +pn: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case +x <> t:
+      +q = Bool.and(fd.ti.dot(x), Bool.not(Bool.or(S.prefix(x, S.b("b_q")), S.mem(x, own))))
+      Bool.and(Bool.or(S.mem(x, pn), Bool.or(q, Bool.or(S.head.is(x, 38), fd.rt.upper(x)))), fd.rt.free.ok(t, pn, own))
+
+# a call of a name that is not BendRt's, its arguments' names all fine
+def fd.rt.call.ok(+b: T.Bt, +pn: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+  match b:
+    case T.BtApp{T.BtVar{+g}, +a}:
+      Bool.and(fd.rt.free.ok([g], Nil{}, own), fd.rt.free.ok(fd.ti.free(a, Nil{}, Nil{}), pn, own))
+    case _:
+      False{}
+
+def fd.rt.strip(b: T.Bt) -> T.Bt:
+  match b:
+    case T.BtExpr{e}:
+      e
+    case u:
+      u
+
+# whether a body (stripped) is a wrapper's: a parameter, a call, a lambda
+# over a call (its variable once)
+def fd.rt.shape(+b: T.Bt, +pn: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+  match b:
+    case T.BtVar{+x}:
+      S.mem(x, pn)
+    case T.BtLam{m, +x, +e}:
+      Bool.and(Nat.is_eq(fd.uses(e, x), 1n), fd.rt.call.ok(e, x <> pn, own))
+    case u:
+      fd.rt.call.ok(u, pn, own)
+
+def fd.rt.def(ok: Bool, +n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match ok:
+    case True{}:
+      T.BiDef{n, ps, r, b, [S.b("bendrt-wrapper")]} <> rest
+    case False{}:
+      rest
+
+def fd.rt.defs(its: List<&2, T.BItem>, +a: List<&2, U32>, +own: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      +e = fd.rt.strip(b)
+      fd.rt.def(Bool.and(fd.rt.shape(e, fd.rt.pnames(ps), own), fd.rt.once(ps, e)), fd.akey(a, n), ps, r, e, fd.rt.defs(t, a, own))
+    case _ <> t:
+      fd.rt.defs(t, a, own)
+
+# Each wrapper's rewrite as a law, for BendRt's own file: N.rt, at its
+# parameters, {N(ps) == BODY : R}, proved by {==} (the def's own body).
+# Law writes them after BendRt's kept items as OUT/BendRt_rt.bend
+# (lw.rt.write), to be checked with --check-only and --verdict.
+def fd.rt.arg(+p: T.BParam) -> T.Bt:
+  match p:
+    case T.BParam{T.BmTpl{}, x, ty}:
+      T.BtTplArg{T.BtVar{x}}
+    case T.BParam{m, x, ty}:
+      T.BtVar{x}
+
+def fd.rt.args(ps: List<&2, T.BParam>) -> List<&2, T.Bt>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case +p <> t:
+      fd.rt.arg(p) <> fd.rt.args(t)
+
+def fd.rt.law(ok: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, r: T.Bt, e: T.Bt, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match ok:
+    case True{}:
+      T.BiDef{fd.cat(n, S.b(".rt")), ps, T.BtEq{r, T.tba.call(T.BtVar{n}, fd.rt.args(ps)), e}, T.BtRefl{}, [S.b("fd.rt's rewrite of a call of this wrapper: its own definition")]} <> rest
+    case False{}:
+      rest
+
+def fd.rt.laws.go(its: List<&2, T.BItem>, +own: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, r, b, d} <> t:
+      +e = fd.rt.strip(b)
+      fd.rt.law(Bool.and(fd.rt.shape(e, fd.rt.pnames(ps), own), fd.rt.once(ps, e)), n, ps, r, e, fd.rt.laws.go(t, own))
+    case _ <> t:
+      fd.rt.laws.go(t, own)
+
+def fd.rt.laws(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.rt.laws.go(its, fd.its.names(its))
+
+# the module BendRt's wrappers (is: it is BendRt), named as later modules
+# call them (a: its alias)
+def fd.rt.wrappers(isrt: Bool, +a: List<&2, U32>, +kept: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match isrt:
+    case True{}:
+      fd.rt.defs(kept, a, fd.its.names(kept))
+    case False{}:
+      Nil{}
+
+def fd.rt.find(ws: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.BItem>:
+  match ws:
+    case Nil{}:
+      None{}
+    case T.BiDef{+k, ps, r, b, d} <> t:
+      Bool.pick(Maybe<&2, T.BItem>, S.eq(k, n), Some{T.BiDef{k, ps, r, b, d}}, fd.rt.find(t, n))
+    case _ <> t:
+      fd.rt.find(t, n)
+
+def fd.rt.uns(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      fd.pt.un(h) <> fd.rt.uns(t)
+
+# A wrapper's parameters bound to a call's arguments (simultaneously: an
+# argument may name a variable that is another parameter's name, as
+# b_qBool_qand(b_qBool_qor(a, b), ..) does at b_qBool_qand's own a, b)
+type Rb is Data:
+  Rb{x: List<&2, U32>, v: T.Bt}
+
+def fd.rt.look(bs: List<&2, Rb>, +x: List<&2, U32>) -> Maybe<&2, T.Bt>:
+  match bs:
+    case Nil{}:
+      None{}
+    case Rb{+k, v} <> t:
+      Bool.pick(Maybe<&2, T.Bt>, S.eq(k, x), Some{v}, fd.rt.look(t, x))
+
+# the bindings without those of the names a binder hides
+def fd.rt.hide(bs: List<&2, Rb>, +ys: List<&2, List<&2, U32>>) -> List<&2, Rb>:
+  match bs:
+    case Nil{}:
+      Nil{}
+    case Rb{+k, v} <> t:
+      +r = fd.rt.hide(t, ys)
+      Bool.pick(List<&2, Rb>, S.mem(k, ys), r, Rb{k, v} <> r)
+
+# the names a term binds (a lambda's, a Pi's), and those its arguments name
+def fd.rt.bound(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtLam{m, x, b}:
+      x <> fd.rt.bound(b, acc)
+    case T.BtPi{m, x, d, a, b}:
+      x <> fd.rt.bound(a, fd.rt.bound(b, acc))
+    case T.BtApp{f, a}:
+      fd.rt.bound(f, fd.rt.bound(a, acc))
+    case T.BtArgs{a, rest}:
+      fd.rt.bound(a, fd.rt.bound(rest, acc))
+    case T.BtTplArg{a}:
+      fd.rt.bound(a, acc)
+    case T.BtDead{a}:
+      fd.rt.bound(a, acc)
+    case T.BtCon{c, a}:
+      fd.rt.bound(a, acc)
+    case T.BtTyApp{n, a}:
+      fd.rt.bound(a, acc)
+    case T.BtAnn{a, ty}:
+      fd.rt.bound(a, acc)
+    case T.BtSucc{a}:
+      fd.rt.bound(a, acc)
+    case _:
+      acc
+
+def fd.anyin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case +h <> t:
+      Bool.or(S.mem(h, ys), fd.anyin(t, ys))
+    case Nil{}:
+      False{}
+
+# where t applies a parameter to one argument and its value is a lambda
+# (a thunk BendRt's def forces: Bool.if's t(Unit{})), the lambda's body
+# with that argument in its variable's place
+def fd.rt.beta(+f: T.Bt, a: T.Bt) -> T.Bt:
+  match f a:
+    case T.BtLam{m, +y, +e} T.BtArgs{+w, T.BtANil{}}:
+      Bool.pick(T.Bt, fd.anyin(fd.rt.bound(e, Nil{}), fd.ti.free(w, Nil{}, Nil{})), T.BtApp{T.BtLam{m, y, e}, T.BtArgs{w, T.BtANil{}}}, fd.ti.sub(e, y, w))
+    case _ _:
+      T.BtApp{f, a}
+
+def fd.rt.app(m: Maybe<&2, T.Bt>, +y: List<&2, U32>, ra: T.Bt) -> T.Bt:
+  match m:
+    case Some{v}:
+      fd.rt.beta(v, ra)
+    case None{}:
+      T.BtApp{T.BtVar{y}, ra}
+
+def fd.rt.var(m: Maybe<&2, T.Bt>, +y: List<&2, U32>) -> T.Bt:
+  match m:
+    case Some{v}:
+      v
+    case None{}:
+      T.BtVar{y}
+
+# t with each bound name its value, all at once
+def fd.rt.sub(t: T.Bt, +bs: List<&2, Rb>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+y}, a}:
+      fd.rt.app(fd.rt.look(bs, y), y, fd.rt.sub(a, bs))
+    case T.BtVar{+y}:
+      fd.rt.var(fd.rt.look(bs, y), y)
+    case T.BtApp{f, a}:
+      T.BtApp{fd.rt.sub(f, bs), fd.rt.sub(a, bs)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.rt.sub(a, bs)}
+    case T.BtDead{a}:
+      T.BtDead{fd.rt.sub(a, bs)}
+    case T.BtLam{m, +y, b}:
+      T.BtLam{m, y, fd.rt.sub(b, fd.rt.hide(bs, [y]))}
+    case T.BtPi{m, +y, dep, a, b}:
+      T.BtPi{m, y, dep, fd.rt.sub(a, bs), fd.rt.sub(b, fd.rt.hide(bs, [y]))}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.rt.sub(a, bs)}
+    case T.BtTyApp{n, a}:
+      T.BtTyApp{n, fd.rt.sub(a, bs)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.rt.sub(a, bs), fd.rt.sub(ty, bs)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.rt.sub(a, bs)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.rt.sub(a, bs), fd.rt.sub(rest, bs)}
+    case u:
+      u
+
+def fd.rt.binds(ps: List<&2, T.BParam>, as: List<&2, T.Bt>) -> List<&2, Rb>:
+  match ps as:
+    case T.BParam{m, x, ty} <> u a <> w:
+      Rb{x, a} <> fd.rt.binds(u, w)
+    case _ _:
+      Nil{}
+
+def fd.rt.frees(as: List<&2, T.Bt>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match as:
+    case Nil{}:
+      acc
+    case a <> t:
+      fd.ti.free(a, Nil{}, fd.rt.frees(t, acc))
+
+# whether the body may take the arguments: all its parameters given, and
+# no binder of the body is a name an argument names (it would capture it)
+def fd.rt.fits(+ps: List<&2, T.BParam>, +b: T.Bt, +as: List<&2, T.Bt>) -> Bool:
+  Bool.and(Nat.is_eq(List.length(&2, T.BParam, ps), List.length(&2, T.Bt, as)), Bool.not(fd.anyin(fd.rt.bound(b, Nil{}), fd.rt.frees(as, Nil{}))))
+
+# a call of x at ra: of a wrapper at all its parameters, its body there
+def fd.rt.at(m: Maybe<&2, T.BItem>, +x: List<&2, U32>, +ra: T.Bt) -> T.Bt:
+  match m:
+    case Some{T.BiDef{n, +ps, r, +b, d}}:
+      +as = fd.rt.uns(fd.spine(ra))
+      Bool.pick(T.Bt, fd.rt.fits(ps, b, as), fd.rt.sub(b, fd.rt.binds(ps, as)), T.BtApp{T.BtVar{x}, ra})
+    case _:
+      T.BtApp{T.BtVar{x}, ra}
+
+# x()(v), x a wrapper with no parameters whose body is a lambda: the
+# lambda's body, v in its variable's place
+def fd.rt.at2(m: Maybe<&2, T.BItem>, +x: List<&2, U32>, +ra: T.Bt) -> T.Bt:
+  match m ra:
+    case Some{T.BiDef{n, Nil{}, r, T.BtLam{lm, +y, +e}, d}} T.BtArgs{v, T.BtANil{}}:
+      +w = fd.pt.un(v)
+      Bool.pick(T.Bt, fd.anyin(fd.rt.bound(e, Nil{}), fd.ti.free(w, Nil{}, Nil{})), T.BtApp{T.BtApp{T.BtVar{x}, T.BtANil{}}, T.BtArgs{w, T.BtANil{}}}, fd.rt.sub(e, [Rb{y, w}]))
+    case _ _:
+      T.BtApp{T.BtApp{T.BtVar{x}, T.BtANil{}}, ra}
+
+# t with each call of a wrapper its body
+def fd.rt.rw(t: T.Bt, +ws: List<&2, T.BItem>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtApp{T.BtVar{+x}, T.BtANil{}}, a}:
+      fd.rt.at2(fd.rt.find(ws, x), x, fd.rt.rw(a, ws))
+    case T.BtApp{T.BtVar{+x}, a}:
+      fd.rt.at(fd.rt.find(ws, x), x, fd.rt.rw(a, ws))
+    case T.BtApp{h, a}:
+      T.BtApp{fd.rt.rw(h, ws), fd.rt.rw(a, ws)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.rt.rw(a, ws)}
+    case T.BtDead{a}:
+      T.BtDead{fd.rt.rw(a, ws)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.rt.rw(b, ws)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.rt.rw(a, ws)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.rt.rw(a, ws), fd.rt.rw(b, ws)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.rt.rw(a, ws)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.rt.rw(a, ws), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.rt.rw(cs, ws)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.rt.rw(e, ws)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.rt.rw(e, ws), p, fd.rt.rw(b, ws)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.rt.rw(v, ws), fd.rt.rw(b, ws)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.rt.rw(b, ws), fd.rt.rw(rest, ws)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.rt.rw(a, ws), fd.rt.rw(rest, ws)}
+    case u:
+      u
+
+def fd.rt.items(its: List<&2, T.BItem>, +ws: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, ps, r, fd.rt.rw(b, ws), d} <> fd.rt.items(t, ws)
+    case h <> t:
+      h <> fd.rt.items(t, ws)
+
+# the module's items with each call of a BendRt wrapper its body (no
+# wrappers: the items as they are)
+def fd.rt.all(its: List<&2, T.BItem>, ws: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match ws:
+    case Nil{}:
+      its
+    case +w <> t:
+      fd.rt.items(its, w <> t)
+
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.mu.all(fd.ti.all(fd.pt.all(fd.lc.all(fd.eta.all(fd.got.items(gs)), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)), fd.px.dt(px))), fd.px.dt(px))
+  fd.mu.all(fd.ti.all(fd.pt.all(fd.lc.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)), fd.px.dt(px))), fd.px.dt(px))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
@@ -9938,13 +10329,6 @@ def fd.binds(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
       fd.binds(a, fd.binds(rest, acc))
     case _:
       acc
-
-def fd.anyin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
-  match xs:
-    case +h <> t:
-      Bool.or(S.mem(h, ys), fd.anyin(t, ys))
-    case Nil{}:
-      False{}
 
 def fd.ispi(t: T.Bt) -> Bool:
   match t:
@@ -10264,9 +10648,6 @@ def fd.templates(+gs: List<&2, Got>, +itfs: List<&2, Tf>) -> List<&2, Got>:
 
 # Package mode: what a module gives the modules after it ----------------------
 
-def fd.akey(+alias: List<&2, U32>, +b: List<&2, U32>) -> List<&2, U32>:
-  fd.cat3(alias, S.b("."), b)
-
 def fd.iface.con(same: Bool, +c: List<&2, U32>, +t: List<&2, U32>, n: Nat, fs: List<&2, List<&2, U32>>, +m: List<&2, U32>, +alias: List<&2, U32>, acc: List<&2, Ix>) -> List<&2, Ix>:
   match same:
     case True{}:
@@ -10339,13 +10720,6 @@ def fd.iface.tfs(ts: List<&2, Tf>, +alias: List<&2, U32>, +kept: List<&2, List<&
     case Nil{}:
       Nil{}
 
-def fd.its.names(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
-  match its:
-    case h <> t:
-      fd.item.name(h) <> fd.its.names(t)
-    case Nil{}:
-      Nil{}
-
 def fd.files.if(wrote: Bool, +a: List<&2, U32>, fs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
   match wrote:
     case True{}:
@@ -10377,10 +10751,10 @@ def fd.iface.fzs(zs: List<&2, Fz>, +alias: List<&2, U32>, +kept: List<&2, List<&
       Nil{}
 
 # the package after the module m (alias: its file's base name) kept the items kept
-def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, +ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>, dt: List<&2, T.BItem>) -> Px:
+def fd.px.add(p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, wrote: Bool, +ix: List<&2, Ix>, sy: List<&2, Sy>, tf: List<&2, Tf>, dt: List<&2, T.BItem>, rws: List<&2, T.BItem>) -> Px:
   match p:
-    case Px{h, f, i, s, t, z, w}:
-      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t), List.append(&2, T.BItem, dt, z), fd.ixm.puts(List.reverse(&2, Ix, ix), w)}
+    case Px{h, f, i, s, t, z, w, rw}:
+      Px{m <> h, fd.files.if(wrote, alias, f), List.append(&2, Ix, ix, i), List.append(&2, Sy, sy, s), List.append(&2, Tf, tf, t), List.append(&2, T.BItem, dt, z), fd.ixm.puts(List.reverse(&2, Ix, ix), w), List.append(&2, T.BItem, rws, rw)}
 
 # A kept data type as a later module names it: Alias.T, its constructors
 # Alias.T.C, the types of the module in its fields Alias.U
@@ -10463,7 +10837,7 @@ def fd.px.next(pkg: Bool, +p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, +xs:
   match pkg:
     case True{}:
       +names = fd.its.names(kept)
-      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), fd.dt.export(kept, alias, fd.dt.tnames(kept)))
+      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), fd.dt.export(kept, alias, fd.dt.tnames(kept)), fd.rt.wrappers(fd.is(m, "BendRt"), alias, kept))
     case False{}:
       p
 
