@@ -132,3 +132,44 @@ law tot.below:
 law tot.not:
   for le: Le.b(C.F.tot(h0()), b7())
   Empty
+
+# 5. Int and Integer, which F takes to Nat as it takes Natural (the user,
+# 11-23: keep Nat, so only G -| F at those types).  h at Int means hz, on
+# Int's values (Core.bend's ZV); where F's Nat is right, h means at a
+# Natural value what it means at Natural, its answer Natural: Agree.  (The
+# survey takes Int to Nat only where nothing subtracts, so every number h
+# makes from non-negative ones is non-negative; that is the claim Agree
+# states, not proved here.)  G's program used at Int is gz (fromIntegral,
+# an underflow error at a negative number, in front of it).
+
+def Agree(+h: C.HTm, hz: C.ZV -> Maybe<&2, C.ZV>) -> Type:
+  @x: C.HV -> {hz(C.up(x)) == C.upM(C.eval.h(h, x)) : Maybe<&2, C.ZV>}
+
+def Le.z(p: C.ZV -> Maybe<&2, C.ZV>, q: C.ZV -> Maybe<&2, C.ZV>) -> Type:
+  @z: C.ZV -> @u: C.ZV -> {p(z) == Some{u} : Maybe<&2, C.ZV>} -> {q(z) == Some{u} : Maybe<&2, C.ZV>}
+
+# G -| F at Int: G b <= h exactly when b <= F h
+law adj.GF.int.l:
+  for +h: C.HTm
+  for +b: C.BTm
+  for hz: C.ZV -> Maybe<&2, C.ZV>
+  for ag: Agree(h, hz)
+  for le: Le.z(z => C.gz(b, z), hz)
+  Le.b(b, C.F(h))
+
+law adj.GF.int.r:
+  for +h: C.HTm
+  for +b: C.BTm
+  for hz: C.ZV -> Maybe<&2, C.ZV>
+  for ag: Agree(h, hz)
+  for le: Le.b(b, C.F(h))
+  Le.z(z => C.gz(b, z), hz)
+
+# and F -| G fails there: its one way, F h <= b giving h <= G b, does not
+# hold at Int (h the identity answers -1 at -1, where G's program errs)
+def FG.int() -> Type:
+  @h: C.HTm -> @b: C.BTm -> @hz: (C.ZV -> Maybe<&2, C.ZV>) -> Agree(h, hz) -> Le.b(C.F(h), b) -> Le.z(hz, z => C.gz(b, z))
+
+law adj.FG.int.not:
+  for adj: FG.int()
+  Empty

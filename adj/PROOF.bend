@@ -686,3 +686,197 @@ def L.is7(m: Maybe<&2, C.BV>) -> Type:
 def P.tot.not(le):
   %le(C.BvNat{0n}, C.BvNat{0n}, {==}) : L.is7(_)
   Unit{}
+
+# 5. Int and Integer
+
+def L.bt(b: Bool) -> Type:
+  match b:
+    case False{}:
+      Unit
+    case True{}:
+      Empty
+
+def L.ft(e: {False{} == True{} : Bool}) -> Empty:
+  %e : L.bt(_)
+  Unit{}
+
+def L.some.z(m: Maybe<&2, C.ZV>) -> Type:
+  match m:
+    case None{}:
+      Unit
+    case Some{v}:
+      Empty
+
+def L.none.some.z(-v: C.ZV, e: {None{} == Some{v} : Maybe<&2, C.ZV>}) -> Empty:
+  %e : L.some.z(_)
+  Unit{}
+
+def L.and.tt(p: Bool, q: Bool, ep: {p == True{} : Bool}, eq: {q == True{} : Bool}) -> {Bool.and(p, q) == True{} : Bool}:
+  match p:
+    case True{}:
+      eq
+    case False{}:
+      Empty.absurd({False{} == True{} : Bool}, L.ft(ep))
+
+def L.and.l(p: Bool, q: Bool, e: {Bool.and(p, q) == True{} : Bool}) -> {p == True{} : Bool}:
+  match p:
+    case True{}:
+      {==}
+    case False{}:
+      Empty.absurd({False{} == True{} : Bool}, L.ft(e))
+
+def L.and.r(p: Bool, q: Bool, e: {Bool.and(p, q) == True{} : Bool}) -> {q == True{} : Bool}:
+  match p:
+    case True{}:
+      e
+    case False{}:
+      Empty.absurd({q == True{} : Bool}, L.ft(e))
+
+# a Natural value at Int has no negative number, and ofz gives it back
+def L.nonneg.up(+x: C.HV) -> {C.nonneg(C.up(x)) == True{} : Bool}:
+  match x:
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvPair{a, b}:
+      L.and.tt(C.nonneg(C.up(a)), C.nonneg(C.up(b)), L.nonneg.up(a), L.nonneg.up(b))
+    case C.HvInl{a}:
+      L.nonneg.up(a)
+    case C.HvInr{b}:
+      L.nonneg.up(b)
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      L.and.tt(C.nonneg(C.up(h)), C.nonneg(C.up(t)), L.nonneg.up(h), L.nonneg.up(t))
+
+def L.ofz.up(x: C.HV) -> {C.ofz(C.up(x)) == x : C.HV}:
+  match x:
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvPair{a, b}:
+      %L.ofz.up(a) : {C.HvPair{C.ofz(C.up(a)), C.ofz(C.up(b))} == C.HvPair{_, b} : C.HV}
+      %L.ofz.up(b) : {C.HvPair{C.ofz(C.up(a)), C.ofz(C.up(b))} == C.HvPair{C.ofz(C.up(a)), _} : C.HV}
+      {==}
+    case C.HvInl{a}:
+      %L.ofz.up(a) : {C.HvInl{C.ofz(C.up(a))} == C.HvInl{_} : C.HV}
+      {==}
+    case C.HvInr{b}:
+      %L.ofz.up(b) : {C.HvInr{C.ofz(C.up(b))} == C.HvInr{_} : C.HV}
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      %L.ofz.up(h) : {C.HvCons{C.ofz(C.up(h)), C.ofz(C.up(t))} == C.HvCons{_, t} : C.HV}
+      %L.ofz.up(t) : {C.HvCons{C.ofz(C.up(h)), C.ofz(C.up(t))} == C.HvCons{C.ofz(C.up(h)), _} : C.HV}
+      {==}
+
+# fromIntegral after toInteger is the value again
+def L.down.up(+x: C.HV) -> {C.down(C.up(x)) == Some{x} : Maybe<&2, C.HV>}:
+  %Equal.sym(Bool, C.nonneg(C.up(x)), True{}, L.nonneg.up(x)) : {C.down.at(_, C.up(x)) == Some{x} : Maybe<&2, C.HV>}
+  %Equal.sym(C.HV, C.ofz(C.up(x)), x, L.ofz.up(x)) : {Some{_} == Some{x} : Maybe<&2, C.HV>}
+  {==}
+
+# an Int value with no negative number is a Natural one's
+def L.up.ofz(+z: C.ZV, +e: {C.nonneg(z) == True{} : Bool}) -> {C.up(C.ofz(z)) == z : C.ZV}:
+  match z:
+    case C.ZvNat{n}:
+      {==}
+    case C.ZvNeg{n}:
+      Empty.absurd({C.up(C.ofz(C.ZvNeg{n})) == C.ZvNeg{n} : C.ZV}, L.ft(e))
+    case C.ZvBool{b}:
+      {==}
+    case C.ZvUnit{}:
+      {==}
+    case C.ZvPair{a, b}:
+      %L.up.ofz(a, L.and.l(C.nonneg(a), C.nonneg(b), e)) : {C.ZvPair{C.up(C.ofz(a)), C.up(C.ofz(b))} == C.ZvPair{_, b} : C.ZV}
+      %L.up.ofz(b, L.and.r(C.nonneg(a), C.nonneg(b), e)) : {C.ZvPair{C.up(C.ofz(a)), C.up(C.ofz(b))} == C.ZvPair{C.up(C.ofz(a)), _} : C.ZV}
+      {==}
+    case C.ZvInl{a}:
+      %L.up.ofz(a, e) : {C.ZvInl{C.up(C.ofz(a))} == C.ZvInl{_} : C.ZV}
+      {==}
+    case C.ZvInr{b}:
+      %L.up.ofz(b, e) : {C.ZvInr{C.up(C.ofz(b))} == C.ZvInr{_} : C.ZV}
+      {==}
+    case C.ZvNil{}:
+      {==}
+    case C.ZvCons{h, t}:
+      %L.up.ofz(h, L.and.l(C.nonneg(h), C.nonneg(t), e)) : {C.ZvCons{C.up(C.ofz(h)), C.up(C.ofz(t))} == C.ZvCons{_, t} : C.ZV}
+      %L.up.ofz(t, L.and.r(C.nonneg(h), C.nonneg(t), e)) : {C.ZvCons{C.up(C.ofz(h)), C.up(C.ofz(t))} == C.ZvCons{C.up(C.ofz(h)), _} : C.ZV}
+      {==}
+
+def L.downM(m: Maybe<&2, C.ZV>) -> Maybe<&2, C.HV>:
+  match m:
+    case None{}:
+      None{}
+    case Some{z}:
+      C.down(z)
+
+# an answer through toInteger is the answer's
+def L.upM.inj(r: Maybe<&2, C.HV>, +v: C.HV, e: {C.upM(r) == Some{C.up(v)} : Maybe<&2, C.ZV>}) -> {r == Some{v} : Maybe<&2, C.HV>}:
+  match r:
+    case None{}:
+      Empty.absurd({None{} == Some{v} : Maybe<&2, C.HV>}, L.none.some.z(C.up(v), e))
+    case Some{u}:
+      %L.down.up(u) : {_ == Some{v} : Maybe<&2, C.HV>}
+      %L.down.up(v) : {C.down(C.up(u)) == _ : Maybe<&2, C.HV>}
+      Equal.cong(Maybe<&2, C.ZV>, Maybe<&2, C.HV>, L.downM, Some{C.up(u)}, Some{C.up(v)}, e)
+
+# G's program at Int, at a Natural value: G's answer there
+def L.gz.at(+b: C.BTm, +x: C.HV, -v: C.HV, e: {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.gz(b, C.up(x)) == Some{C.up(v)} : Maybe<&2, C.ZV>}:
+  %Equal.sym(Maybe<&2, C.HV>, C.down(C.up(x)), Some{x}, L.down.up(x)) : {Maybe.bind(&2, C.HV, C.ZV, _, x2 => C.upM(C.eval.h(C.G(b), x2))) == Some{C.up(v)} : Maybe<&2, C.ZV>}
+  %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.G(b), x), Some{v}, e) : {C.upM(_) == Some{C.up(v)} : Maybe<&2, C.ZV>}
+  {==}
+
+def L.int.l(+h: C.HTm, +b: C.BTm, -hz: C.ZV -> Maybe<&2, C.ZV>, ag: P.Agree(h, hz), le: P.Le.z(z => C.gz(b, z), hz), +y: C.BV, +w: C.BV, e: {C.eval.b(b, y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.b(C.F(h), y) == Some{w} : Maybe<&2, C.BV>}:
+  %P.enc.dec(y) : {C.eval.b(C.F(h), _) == Some{w} : Maybe<&2, C.BV>}
+  %P.enc.dec(w) : {C.eval.b(C.F(h), C.enc(C.dec(y))) == Some{_} : Maybe<&2, C.BV>}
+  L.F.at(h, C.dec(y), C.dec(w), L.upM.inj(C.eval.h(h, C.dec(y)), C.dec(w), Equal.trans(Maybe<&2, C.ZV>, C.upM(C.eval.h(h, C.dec(y))), hz(C.up(C.dec(y))), Some{C.up(C.dec(w))}, Equal.sym(Maybe<&2, C.ZV>, hz(C.up(C.dec(y))), C.upM(C.eval.h(h, C.dec(y))), ag(C.dec(y))), le(C.up(C.dec(y)), C.up(C.dec(w)), L.gz.at(b, C.dec(y), C.dec(w), L.G.at(b, y, w, e))))))
+
+def P.adj.GF.int.l(h, b, hz, ag, le):
+  y => w => e => L.int.l(h, b, hz, ag, le, y, w, e)
+
+def L.int.r2(+h: C.HTm, +b: C.BTm, -hz: C.ZV -> Maybe<&2, C.ZV>, ag: P.Agree(h, hz), le: P.Le.b(b, C.F(h)), -z: C.ZV, -u: C.ZV, +x: C.HV, zx: {C.up(x) == z : C.ZV}, r: Maybe<&2, C.HV>, er: {C.eval.h(C.G(b), x) == r : Maybe<&2, C.HV>}, e: {C.upM(r) == Some{u} : Maybe<&2, C.ZV>}) -> {hz(z) == Some{u} : Maybe<&2, C.ZV>}:
+  match r:
+    case None{}:
+      Empty.absurd({hz(z) == Some{u} : Maybe<&2, C.ZV>}, L.none.some.z(u, e))
+    case Some{v}:
+      %zx : {hz(_) == Some{u} : Maybe<&2, C.ZV>}
+      %e : {hz(C.up(x)) == _ : Maybe<&2, C.ZV>}
+      %Equal.sym(Maybe<&2, C.ZV>, hz(C.up(x)), C.upM(C.eval.h(h, x)), ag(x)) : {_ == Some{C.up(v)} : Maybe<&2, C.ZV>}
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(h, x), Some{v}, L.adj2.r(h, b, le, x, v, er)) : {C.upM(_) == Some{C.up(v)} : Maybe<&2, C.ZV>}
+      {==}
+
+def L.int.r1(+h: C.HTm, +b: C.BTm, -hz: C.ZV -> Maybe<&2, C.ZV>, ag: P.Agree(h, hz), le: P.Le.b(b, C.F(h)), +z: C.ZV, -u: C.ZV, c: Bool, ec: {C.nonneg(z) == c : Bool}, e: {Maybe.bind(&2, C.HV, C.ZV, C.down.at(c, z), x2 => C.upM(C.eval.h(C.G(b), x2))) == Some{u} : Maybe<&2, C.ZV>}) -> {hz(z) == Some{u} : Maybe<&2, C.ZV>}:
+  match c:
+    case False{}:
+      Empty.absurd({hz(z) == Some{u} : Maybe<&2, C.ZV>}, L.none.some.z(u, e))
+    case True{}:
+      L.int.r2(h, b, hz, ag, le, z, u, C.ofz(z), L.up.ofz(z, ec), C.eval.h(C.G(b), C.ofz(z)), {==}, e)
+
+def L.int.r(+h: C.HTm, +b: C.BTm, -hz: C.ZV -> Maybe<&2, C.ZV>, ag: P.Agree(h, hz), le: P.Le.b(b, C.F(h)), +z: C.ZV, -u: C.ZV, e: {C.gz(b, z) == Some{u} : Maybe<&2, C.ZV>}) -> {hz(z) == Some{u} : Maybe<&2, C.ZV>}:
+  L.int.r1(h, b, hz, ag, le, z, u, C.nonneg(z), {==}, e)
+
+def P.adj.GF.int.r(h, b, hz, ag, le):
+  z => u => e => L.int.r(h, b, hz, ag, le, z, u, e)
+
+# F -| G fails at Int: the identity at Int agrees with HId, F(HId) is BId,
+# and BId's program at Int errs at -1, where the identity answers
+
+def L.idz(z: C.ZV) -> Maybe<&2, C.ZV>:
+  Some{z}
+
+def L.idz.ag(x: C.HV) -> {L.idz(C.up(x)) == C.upM(C.eval.h(C.HId{}, x)) : Maybe<&2, C.ZV>}:
+  {==}
+
+def L.int.not(le: P.Le.z(L.idz, z => C.gz(C.BId{}, z))) -> Empty:
+  L.none.some.z(C.ZvNeg{0n}, le(C.ZvNeg{0n}, C.ZvNeg{0n}, {==}))
+
+def P.adj.FG.int.not(adj):
+  L.int.not(adj(C.HId{}, C.BId{}, L.idz, x => L.idz.ag(x), y => w => e => e))

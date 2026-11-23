@@ -498,3 +498,109 @@ def F.tot(t: HTm) -> BTm:
       BFold{F.tot(z), F.tot(s)}
     case HErr{}:
       BFail{}
+
+# Int and Integer ----------------------------------------------------------------
+
+# F takes Int and Integer to Nat as it takes Natural (Survey.bend: where
+# nothing subtracts), so at those types a Haskell value may be one Bend
+# has not, a negative number.  ZV is Haskell's values there: HV's, and a
+# negative number, ZvNeg{n} = -(n+1), wherever a number goes.
+type ZV is Data:
+  ZvNat{n: Nat}
+  ZvNeg{n: Nat}
+  ZvBool{b: Bool}
+  ZvUnit{}
+  ZvPair{a: ZV, b: ZV}
+  ZvInl{a: ZV}
+  ZvInr{b: ZV}
+  ZvNil{}
+  ZvCons{h: ZV, t: ZV}
+
+# Natural's values among Int's (toInteger)
+def up(x: HV) -> ZV:
+  match x:
+    case HvNat{n}:
+      ZvNat{n}
+    case HvBool{b}:
+      ZvBool{b}
+    case HvUnit{}:
+      ZvUnit{}
+    case HvPair{a, b}:
+      ZvPair{up(a), up(b)}
+    case HvInl{a}:
+      ZvInl{up(a)}
+    case HvInr{b}:
+      ZvInr{up(b)}
+    case HvNil{}:
+      ZvNil{}
+    case HvCons{h, t}:
+      ZvCons{up(h), up(t)}
+
+def upM(r: Maybe<&2, HV>) -> Maybe<&2, ZV>:
+  match r:
+    case None{}:
+      None{}
+    case Some{v}:
+      Some{up(v)}
+
+# whether an Int value is Natural's: no negative number in it
+def nonneg(z: ZV) -> Bool:
+  match z:
+    case ZvNat{n}:
+      True{}
+    case ZvNeg{n}:
+      False{}
+    case ZvBool{b}:
+      True{}
+    case ZvUnit{}:
+      True{}
+    case ZvPair{a, b}:
+      Bool.and(nonneg(a), nonneg(b))
+    case ZvInl{a}:
+      nonneg(a)
+    case ZvInr{b}:
+      nonneg(b)
+    case ZvNil{}:
+      True{}
+    case ZvCons{h, t}:
+      Bool.and(nonneg(h), nonneg(t))
+
+# an Int value as Natural's (a negative number, never asked for, as 0)
+def ofz(z: ZV) -> HV:
+  match z:
+    case ZvNat{n}:
+      HvNat{n}
+    case ZvNeg{n}:
+      HvNat{0n}
+    case ZvBool{b}:
+      HvBool{b}
+    case ZvUnit{}:
+      HvUnit{}
+    case ZvPair{a, b}:
+      HvPair{ofz(a), ofz(b)}
+    case ZvInl{a}:
+      HvInl{ofz(a)}
+    case ZvInr{b}:
+      HvInr{ofz(b)}
+    case ZvNil{}:
+      HvNil{}
+    case ZvCons{h, t}:
+      HvCons{ofz(h), ofz(t)}
+
+def down.at(c: Bool, z: ZV) -> Maybe<&2, HV>:
+  match c:
+    case True{}:
+      Some{ofz(z)}
+    case False{}:
+      None{}
+
+# Int's values to Natural's (fromIntegral): an error, arithmetic
+# underflow, at a negative number
+def down(+z: ZV) -> Maybe<&2, HV>:
+  down.at(nonneg(z), z)
+
+# G's program used at Int: its Haskell is at Natural (Bend's Nat), so its
+# argument passes fromIntegral (an error at a negative number) and its
+# answer toInteger
+def gz(+b: BTm, +z: ZV) -> Maybe<&2, ZV>:
+  Maybe.bind(&2, HV, ZV, down(z), x => upM(eval.h(G(b), x)))
