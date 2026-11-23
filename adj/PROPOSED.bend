@@ -83,22 +83,38 @@ law sq.G:
   for +y: C.BV
   {C.decM(C.eval.b(t, y)) == C.eval.h(C.G(t), C.dec(y)) : Maybe<&2, C.HV>}
 
-# 3. The adjunction F -| G: F h <= b exactly when h <= G b, so "b correctly
-# implements h" is checked on whichever side is easier (Haskell with GHC,
-# Bend with BendTT).  On this fragment it is an equivalence: the other way,
-# G -| F, holds too.
+# 3. The adjunction F -| G: F h <= b exactly when h <= G b (adj.FG.l one
+# way, adj.FG.r the other), so "b correctly implements h" is checked on
+# whichever side is easier (Haskell with GHC, Bend with BendTT).
 
-law adj.F.G:
+law adj.FG.l:
   for +h: C.HTm
   for +b: C.BTm
   for le: Le.b(C.F(h), b)
   Le.h(h, C.G(b))
 
-law adj.G.F:
+law adj.FG.r:
   for +h: C.HTm
   for +b: C.BTm
   for le: Le.h(h, C.G(b))
   Le.b(C.F(h), b)
+
+# and G -| F: G b <= h exactly when b <= F h.  With both, on this fragment
+# (Natural's numbers, where F's values and G's are each other's inverses)
+# F and G are an adjoint equivalence.  At Int and Integer, which F takes
+# to Nat, only G -| F survives: section 5.
+
+law adj.GF.l:
+  for +h: C.HTm
+  for +b: C.BTm
+  for le: Le.h(C.G(b), h)
+  Le.b(b, C.F(h))
+
+law adj.GF.r:
+  for +h: C.HTm
+  for +b: C.BTm
+  for le: Le.b(b, C.F(h))
+  Le.h(C.G(b), h)
 
 # 4. F.tot, F as cata had it, is no left adjoint: h0, x `mod` 0, is an error
 # everywhere, so h0 <= G(b) for every b; but F.tot(h0) answers 0 at 0 (Base's

@@ -596,7 +596,7 @@ def L.adj.l(+h: C.HTm, +b: C.BTm, le: P.Le.b(C.F(h), b), +x: C.HV, +v: C.HV, e: 
   %Equal.sym(C.HV, C.dec(C.enc(v)), v, P.dec.enc(v)) : {Some{_} == Some{v} : Maybe<&2, C.HV>}
   {==}
 
-def P.adj.F.G(h, b, le):
+def P.adj.FG.l(h, b, le):
   x => v => e => L.adj.l(h, b, le, x, v, e)
 
 def L.h.at.enc(+h: C.HTm, +y: C.BV, -w: C.BV, e: {C.eval.b(C.F(h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.encM(C.eval.h(h, C.dec(y))) == Some{w} : Maybe<&2, C.BV>}:
@@ -612,8 +612,40 @@ def L.adj.r(+h: C.HTm, +b: C.BTm, le: P.Le.h(h, C.G(b)), +y: C.BV, +w: C.BV, e: 
   %P.enc.dec(w) : {C.eval.b(b, y) == Some{_} : Maybe<&2, C.BV>}
   L.decM.inj(C.eval.b(b, y), C.dec(w), Equal.trans(Maybe<&2, C.HV>, C.decM(C.eval.b(b, y)), C.eval.h(C.G(b), C.dec(y)), Some{C.dec(w)}, P.sq.G(b, y), le(C.dec(y), C.dec(w), L.h.at(h, y, w, e))))
 
-def P.adj.G.F(h, b, le):
+def P.adj.FG.r(h, b, le):
   y => w => e => L.adj.r(h, b, le, y, w, e)
+
+# G -| F
+
+# G b answers b's answer, through dec
+def L.G.at(+b: C.BTm, +y: C.BV, -w: C.BV, e: {C.eval.b(b, y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.h(C.G(b), C.dec(y)) == Some{C.dec(w)} : Maybe<&2, C.HV>}:
+  %P.sq.G(b, y) : {_ == Some{C.dec(w)} : Maybe<&2, C.HV>}
+  %Equal.sym(Maybe<&2, C.BV>, C.eval.b(b, y), Some{w}, e) : {C.decM(_) == Some{C.dec(w)} : Maybe<&2, C.HV>}
+  {==}
+
+def L.adj2.l(+h: C.HTm, +b: C.BTm, le: P.Le.h(C.G(b), h), +y: C.BV, +w: C.BV, e: {C.eval.b(b, y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.b(C.F(h), y) == Some{w} : Maybe<&2, C.BV>}:
+  %P.enc.dec(y) : {C.eval.b(C.F(h), _) == Some{w} : Maybe<&2, C.BV>}
+  %P.enc.dec(w) : {C.eval.b(C.F(h), C.enc(C.dec(y))) == Some{_} : Maybe<&2, C.BV>}
+  L.F.at(h, C.dec(y), C.dec(w), le(C.dec(y), C.dec(w), L.G.at(b, y, w, e)))
+
+def P.adj.GF.l(h, b, le):
+  y => w => e => L.adj2.l(h, b, le, y, w, e)
+
+# G b's answer at x is its answer at dec (enc x)
+def L.G.x(+b: C.BTm, +x: C.HV, -v: C.HV, e: {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.h(C.G(b), C.dec(C.enc(x))) == Some{v} : Maybe<&2, C.HV>}:
+  %Equal.sym(C.HV, C.dec(C.enc(x)), x, P.dec.enc(x)) : {C.eval.h(C.G(b), _) == Some{v} : Maybe<&2, C.HV>}
+  e
+
+# b answers at enc x what G b answers at x, through enc
+def L.b.at(+b: C.BTm, +x: C.HV, +v: C.HV, e: {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.b(b, C.enc(x)) == Some{C.enc(v)} : Maybe<&2, C.BV>}:
+  L.decM.inj(C.eval.b(b, C.enc(x)), v, Equal.trans(Maybe<&2, C.HV>, C.decM(C.eval.b(b, C.enc(x))), C.eval.h(C.G(b), C.dec(C.enc(x))), Some{v}, P.sq.G(b, C.enc(x)), L.G.x(b, x, v, e)))
+
+def L.adj2.r(+h: C.HTm, +b: C.BTm, le: P.Le.b(b, C.F(h)), +x: C.HV, +v: C.HV, e: {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.h(h, x) == Some{v} : Maybe<&2, C.HV>}:
+  %P.dec.enc(v) : {C.eval.h(h, x) == Some{_} : Maybe<&2, C.HV>}
+  L.encM.inj(C.eval.h(h, x), C.enc(v), Equal.trans(Maybe<&2, C.BV>, C.encM(C.eval.h(h, x)), C.eval.b(C.F(h), C.enc(x)), Some{C.enc(v)}, P.sq.F(h, x), le(C.enc(x), C.enc(v), L.b.at(b, x, v, e))))
+
+def P.adj.GF.r(h, b, le):
+  x => v => e => L.adj2.r(h, b, le, x, v, e)
 
 # 4. F.tot is no left adjoint
 
