@@ -2119,13 +2119,13 @@ def lw.back.kd(ds: List<&2, Dd>, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List
 
 # what G needs of the module (Back.bend's BkN), when CATA_BEND2HS is set
 # (on): nothing is computed when it is not
-def lw.back.nm(on: Bool, +m: List<&2, U32>, +tbs: List<&2, F.Tb>, +dds: List<&2, Dd>, +its: List<&2, T.BItem>, +xs: List<&2, X.Sx>) -> K.BkN:
+def lw.back.nm(on: Bool, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +tbs: List<&2, F.Tb>, +dds: List<&2, Dd>, +its: List<&2, T.BItem>, +xs: List<&2, X.Sx>) -> K.BkN:
   match on:
     case True{}:
       +ss = lw.syns(xs)
-      K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(m, ss, dds), lw.back.kd(dds, xs, m)}
+      K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(m, ss, dds), lw.back.kd(dds, xs, m), ims}
     case False{}:
-      K.BkN{m, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
+      K.BkN{m, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
 
 def lw.fin(+ck: Kc, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +fb: Bool, +g: F.Gs, +ps: List<&2, Pl>, +nm: K.BkN) -> IO(Lk):
   +its = lw.gs.its(g)
@@ -2177,7 +2177,7 @@ def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +f
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<Lk>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(lw.kc.back(ck), m, tbs, dds, lw.gs.its(g0), xs))
+    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(lw.kc.back(ck), m, ims, tbs, dds, lw.gs.its(g0), xs))
 
 # the items before the gate, and the ones it drops before its first check
 # (dep: what they use that is out), as OUT/NAME_all.bend and

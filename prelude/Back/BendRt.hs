@@ -21,6 +21,8 @@ import Numeric.Natural (Natural)
 import Data.List (genericLength, genericTake, genericDrop, genericReplicate, sortBy, nubBy, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, groupBy, insertBy, tails, inits, partition, stripPrefix)
 import Data.Maybe (mapMaybe, catMaybes, isJust, isNothing, listToMaybe, maybeToList)
 import Data.Either (lefts, rights, partitionEithers, isLeft, isRight, fromLeft, fromRight)
+import Data.Bits ((.&.), (.|.), xor, complement, shiftR, shiftL, rotateR)
+import Data.Word (Word32, Word64)
 
 -- Bend's types (G writes B' and the name)
 type B'Nat = Int
@@ -445,3 +447,267 @@ b'cvE :: (a -> c) -> (b -> d) -> Either a b -> Either c d
 b'cvE f g = either (Left . f) (Right . g)
 b'cvF :: (c -> a) -> (b -> d) -> (a -> b) -> c -> d
 b'cvF dn up h = up . h . dn
+
+-- HsPrelude's Map and Set (Fold.bend's prelude: Data.Map's and Data.Set's
+-- operations on a list kept sorted by the compare a call is given, one
+-- constructor per key), as the prelude defines each: same answers, same
+-- shapes
+data B'HsPrelude'HsMap k v = B'HsPrelude'HsMap'Tip | B'HsPrelude'HsMap'Bin k v (B'HsPrelude'HsMap k v)
+data B'HsPrelude'HsSet k = B'HsPrelude'HsSet'Tip | B'HsPrelude'HsSet'Bin k (B'HsPrelude'HsSet k)
+
+b'HsPrelude'HsMap'insert cmp k v m = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Bin k v B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of
+    LT -> B'HsPrelude'HsMap'Bin k v (B'HsPrelude'HsMap'Bin k2 v2 t)
+    EQ -> B'HsPrelude'HsMap'Bin k v t
+    GT -> B'HsPrelude'HsMap'Bin k2 v2 (b'HsPrelude'HsMap'insert cmp k v t)
+b'HsPrelude'HsMap'insertWith cmp f k v m = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Bin k v B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of
+    LT -> B'HsPrelude'HsMap'Bin k v (B'HsPrelude'HsMap'Bin k2 v2 t)
+    EQ -> B'HsPrelude'HsMap'Bin k (f v v2) t
+    GT -> B'HsPrelude'HsMap'Bin k2 v2 (b'HsPrelude'HsMap'insertWith cmp f k v t)
+b'HsPrelude'HsMap'lookup cmp k m = case m of
+  B'HsPrelude'HsMap'Tip -> Nothing
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of { LT -> Nothing; EQ -> Just v2; GT -> b'HsPrelude'HsMap'lookup cmp k t }
+b'HsPrelude'HsMap'member cmp k m = case m of
+  B'HsPrelude'HsMap'Tip -> False
+  B'HsPrelude'HsMap'Bin k2 _ t -> case cmp k k2 of { LT -> False; EQ -> True; GT -> b'HsPrelude'HsMap'member cmp k t }
+b'HsPrelude'HsMap'notMember cmp k m = not (b'HsPrelude'HsMap'member cmp k m)
+b'HsPrelude'HsMap'findWithDefault cmp d k m = case m of
+  B'HsPrelude'HsMap'Tip -> d
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of { LT -> d; EQ -> v2; GT -> b'HsPrelude'HsMap'findWithDefault cmp d k t }
+b'HsPrelude'HsMap'delete cmp k m = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of { LT -> B'HsPrelude'HsMap'Bin k2 v2 t; EQ -> t; GT -> B'HsPrelude'HsMap'Bin k2 v2 (b'HsPrelude'HsMap'delete cmp k t) }
+b'HsPrelude'HsMap'adjust cmp f k m = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of { LT -> B'HsPrelude'HsMap'Bin k2 v2 t; EQ -> B'HsPrelude'HsMap'Bin k2 (f v2) t; GT -> B'HsPrelude'HsMap'Bin k2 v2 (b'HsPrelude'HsMap'adjust cmp f k t) }
+b'HsPrelude'HsMap'toList m = case m of { B'HsPrelude'HsMap'Tip -> []; B'HsPrelude'HsMap'Bin k v t -> (k, v) : b'HsPrelude'HsMap'toList t }
+b'HsPrelude'HsMap'fromList'go cmp xs acc = case xs of { [] -> acc; (k, v) : t -> b'HsPrelude'HsMap'fromList'go cmp t (b'HsPrelude'HsMap'insert cmp k v acc) }
+b'HsPrelude'HsMap'fromList cmp xs = b'HsPrelude'HsMap'fromList'go cmp xs B'HsPrelude'HsMap'Tip
+b'HsPrelude'HsMap'fromListWith'go cmp f xs acc = case xs of { [] -> acc; (k, v) : t -> b'HsPrelude'HsMap'fromListWith'go cmp f t (b'HsPrelude'HsMap'insertWith cmp f k v acc) }
+b'HsPrelude'HsMap'fromListWith cmp f xs = b'HsPrelude'HsMap'fromListWith'go cmp f xs B'HsPrelude'HsMap'Tip
+b'HsPrelude'HsMap'elems m = map snd (b'HsPrelude'HsMap'toList m)
+b'HsPrelude'HsMap'keys m = map fst (b'HsPrelude'HsMap'toList m)
+b'HsPrelude'HsMap'keysSet m = case m of { B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsSet'Tip; B'HsPrelude'HsMap'Bin k _ t -> B'HsPrelude'HsSet'Bin k (b'HsPrelude'HsMap'keysSet t) }
+b'HsPrelude'HsMap'size m = length (b'HsPrelude'HsMap'toList m)
+b'HsPrelude'HsMap'null m = case m of { B'HsPrelude'HsMap'Tip -> True; _ -> False }
+b'HsPrelude'HsMap'union cmp a b = case a of { B'HsPrelude'HsMap'Tip -> b; B'HsPrelude'HsMap'Bin k v t -> b'HsPrelude'HsMap'insert cmp k v (b'HsPrelude'HsMap'union cmp t b) }
+b'HsPrelude'HsMap'unionWith cmp f a b = case a of { B'HsPrelude'HsMap'Tip -> b; B'HsPrelude'HsMap'Bin k v t -> b'HsPrelude'HsMap'insertWith cmp f k v (b'HsPrelude'HsMap'unionWith cmp f t b) }
+b'HsPrelude'HsMap'difference cmp a b = case a of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k v t -> if b'HsPrelude'HsMap'member cmp k b then b'HsPrelude'HsMap'difference cmp t b else B'HsPrelude'HsMap'Bin k v (b'HsPrelude'HsMap'difference cmp t b)
+b'HsPrelude'HsMap'map f m = case m of { B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> B'HsPrelude'HsMap'Bin k (f v) (b'HsPrelude'HsMap'map f t) }
+b'HsPrelude'HsMap'mapWithKey f m = case m of { B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> B'HsPrelude'HsMap'Bin k (f k v) (b'HsPrelude'HsMap'mapWithKey f t) }
+b'HsPrelude'HsMap'filter p m = case m of { B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> if p v then B'HsPrelude'HsMap'Bin k v (b'HsPrelude'HsMap'filter p t) else b'HsPrelude'HsMap'filter p t }
+b'HsPrelude'HsMap'filterWithKey p m = case m of { B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> if p k v then B'HsPrelude'HsMap'Bin k v (b'HsPrelude'HsMap'filterWithKey p t) else b'HsPrelude'HsMap'filterWithKey p t }
+b'HsPrelude'HsMap'foldr f z m = case m of { B'HsPrelude'HsMap'Tip -> z; B'HsPrelude'HsMap'Bin _ v t -> f v (b'HsPrelude'HsMap'foldr f z t) }
+b'HsPrelude'HsMap'foldrWithKey f z m = case m of { B'HsPrelude'HsMap'Tip -> z; B'HsPrelude'HsMap'Bin k v t -> f k v (b'HsPrelude'HsMap'foldrWithKey f z t) }
+b'HsPrelude'HsMap'eq eqk eqv a b = case (a, b) of
+  (B'HsPrelude'HsMap'Tip, B'HsPrelude'HsMap'Tip) -> True
+  (B'HsPrelude'HsMap'Bin k1 v1 t1, B'HsPrelude'HsMap'Bin k2 v2 t2) -> eqk k1 k2 && eqv v1 v2 && b'HsPrelude'HsMap'eq eqk eqv t1 t2
+  _ -> False
+b'HsPrelude'HsMap'empty = B'HsPrelude'HsMap'Tip
+b'HsPrelude'HsMap'singleton k v = B'HsPrelude'HsMap'Bin k v B'HsPrelude'HsMap'Tip
+
+b'HsPrelude'HsSet'insert cmp k s = case s of
+  B'HsPrelude'HsSet'Tip -> B'HsPrelude'HsSet'Bin k B'HsPrelude'HsSet'Tip
+  B'HsPrelude'HsSet'Bin k2 t -> case cmp k k2 of { LT -> B'HsPrelude'HsSet'Bin k (B'HsPrelude'HsSet'Bin k2 t); EQ -> B'HsPrelude'HsSet'Bin k2 t; GT -> B'HsPrelude'HsSet'Bin k2 (b'HsPrelude'HsSet'insert cmp k t) }
+b'HsPrelude'HsSet'member cmp k s = case s of
+  B'HsPrelude'HsSet'Tip -> False
+  B'HsPrelude'HsSet'Bin k2 t -> case cmp k k2 of { LT -> False; EQ -> True; GT -> b'HsPrelude'HsSet'member cmp k t }
+b'HsPrelude'HsSet'notMember cmp k s = not (b'HsPrelude'HsSet'member cmp k s)
+b'HsPrelude'HsSet'delete cmp k s = case s of
+  B'HsPrelude'HsSet'Tip -> B'HsPrelude'HsSet'Tip
+  B'HsPrelude'HsSet'Bin k2 t -> case cmp k k2 of { LT -> B'HsPrelude'HsSet'Bin k2 t; EQ -> t; GT -> B'HsPrelude'HsSet'Bin k2 (b'HsPrelude'HsSet'delete cmp k t) }
+b'HsPrelude'HsSet'toList s = case s of { B'HsPrelude'HsSet'Tip -> []; B'HsPrelude'HsSet'Bin k t -> k : b'HsPrelude'HsSet'toList t }
+b'HsPrelude'HsSet'fromList'go cmp xs acc = case xs of { [] -> acc; k : t -> b'HsPrelude'HsSet'fromList'go cmp t (b'HsPrelude'HsSet'insert cmp k acc) }
+b'HsPrelude'HsSet'fromList cmp xs = b'HsPrelude'HsSet'fromList'go cmp xs B'HsPrelude'HsSet'Tip
+b'HsPrelude'HsSet'union cmp a b = case a of { B'HsPrelude'HsSet'Tip -> b; B'HsPrelude'HsSet'Bin k t -> b'HsPrelude'HsSet'insert cmp k (b'HsPrelude'HsSet'union cmp t b) }
+b'HsPrelude'HsSet'unions cmp xs = case xs of { [] -> B'HsPrelude'HsSet'Tip; s : t -> b'HsPrelude'HsSet'union cmp s (b'HsPrelude'HsSet'unions cmp t) }
+b'HsPrelude'HsSet'difference cmp a b = case a of
+  B'HsPrelude'HsSet'Tip -> B'HsPrelude'HsSet'Tip
+  B'HsPrelude'HsSet'Bin k t -> if b'HsPrelude'HsSet'member cmp k b then b'HsPrelude'HsSet'difference cmp t b else B'HsPrelude'HsSet'Bin k (b'HsPrelude'HsSet'difference cmp t b)
+b'HsPrelude'HsSet'filter p s = case s of { B'HsPrelude'HsSet'Tip -> B'HsPrelude'HsSet'Tip; B'HsPrelude'HsSet'Bin k t -> if p k then B'HsPrelude'HsSet'Bin k (b'HsPrelude'HsSet'filter p t) else b'HsPrelude'HsSet'filter p t }
+b'HsPrelude'HsSet'map'go cmp f s acc = case s of { B'HsPrelude'HsSet'Tip -> acc; B'HsPrelude'HsSet'Bin k t -> b'HsPrelude'HsSet'map'go cmp f t (b'HsPrelude'HsSet'insert cmp (f k) acc) }
+b'HsPrelude'HsSet'map cmp f s = b'HsPrelude'HsSet'map'go cmp f s B'HsPrelude'HsSet'Tip
+b'HsPrelude'HsSet'size s = length (b'HsPrelude'HsSet'toList s)
+b'HsPrelude'HsSet'null s = case s of { B'HsPrelude'HsSet'Tip -> True; _ -> False }
+b'HsPrelude'HsSet'eq eqk a b = case (a, b) of
+  (B'HsPrelude'HsSet'Tip, B'HsPrelude'HsSet'Tip) -> True
+  (B'HsPrelude'HsSet'Bin k1 t1, B'HsPrelude'HsSet'Bin k2 t2) -> eqk k1 k2 && b'HsPrelude'HsSet'eq eqk t1 t2
+  _ -> False
+b'HsPrelude'HsSet'empty = B'HsPrelude'HsSet'Tip
+b'HsPrelude'HsSet'singleton k = B'HsPrelude'HsSet'Bin k B'HsPrelude'HsSet'Tip
+
+-- HsPrelude's digest (crypton's Digest SHA256: its 32 bytes, each an Int
+-- below 256): SHA-256 (FIPS 180-4) of a list of bytes, its hex text, its
+-- order (the bytes', lexicographically), as the prelude's HsSha does it
+data B'HsPrelude'HsDigest = B'HsPrelude'HsDigest'D [Int]
+
+b'sha'k :: [Word32]
+b'sha'k = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]
+
+b'sha'h0 :: [Word32]
+b'sha'h0 = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
+
+b'sha'pad :: [Int] -> [Word32]
+b'sha'pad m = words4 (map fromIntegral m ++ [0x80] ++ replicate z 0 ++ [fromIntegral (bits `shiftR` (8 * i)) .&. 255 | i <- [7, 6 .. 0]])
+  where
+    n = length m
+    z = (55 - n) `mod` 64
+    bits = fromIntegral n * 8 :: Word64
+    words4 (a : b : c : d : r) = (a `shiftL` 24 .|. b `shiftL` 16 .|. c `shiftL` 8 .|. d) : words4 r
+    words4 _ = []
+
+b'sha'block :: [Word32] -> [Word32] -> [Word32]
+b'sha'block hs ws16 = zipWith (+) hs (go 0 hs)
+  where
+    w = take 64 (ws16 ++ [ s1 (w !! (i - 2)) + w !! (i - 7) + s0 (w !! (i - 15)) + w !! (i - 16) | i <- [16 .. 63] ])
+    s0 x = rotateR x 7 `xor` rotateR x 18 `xor` shiftR x 3
+    s1 x = rotateR x 17 `xor` rotateR x 19 `xor` shiftR x 10
+    go 64 v = v
+    go i [a, b, c, d, e, f, g, h] =
+      let t1 = h + (rotateR e 6 `xor` rotateR e 11 `xor` rotateR e 25) + ((e .&. f) `xor` (complement e .&. g)) + b'sha'k !! i + w !! i
+          t2 = (rotateR a 2 `xor` rotateR a 13 `xor` rotateR a 22) + ((a .&. b) `xor` (a .&. c) `xor` (b .&. c))
+      in go (i + 1) [t1 + t2, a, b, c, d + t1, e, f, g]
+    go _ v = v
+
+b'HsPrelude'HsDigest'hash :: [Int] -> B'HsPrelude'HsDigest
+b'HsPrelude'HsDigest'hash m = B'HsPrelude'HsDigest'D (concatMap bytes (foldl b'sha'block b'sha'h0 (chunks (b'sha'pad m))))
+  where
+    chunks [] = []
+    chunks xs = take 16 xs : chunks (drop 16 xs)
+    bytes x = [fromIntegral (x `shiftR` s .&. 255) | s <- [24, 16, 8, 0]]
+
+b'HsPrelude'HsDigest'bytes (B'HsPrelude'HsDigest'D bs) = bs
+b'HsPrelude'HsDigest'hexs d = concatMap (\b -> [hexd (b `div` 16), hexd (b `mod` 16)]) (b'HsPrelude'HsDigest'bytes d)
+  where hexd n = toEnum (if n < 10 then n + 48 else n + 87) :: Char
+b'HsPrelude'HsDigest'cmp a b = compare (b'HsPrelude'HsDigest'bytes a) (b'HsPrelude'HsDigest'bytes b)
+b'HsPrelude'HsDigest'is_eq a b = b'HsPrelude'HsDigest'cmp a b == EQ
+
+-- the prelude's Map and Set functions after the first ones (Prelude.bend)
+b'HsPrelude'HsMap'insertWithKey cmp f k v m = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Bin k v B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of
+    LT -> B'HsPrelude'HsMap'Bin k v (B'HsPrelude'HsMap'Bin k2 v2 t)
+    EQ -> B'HsPrelude'HsMap'Bin k (f k v v2) t
+    GT -> B'HsPrelude'HsMap'Bin k2 v2 (b'HsPrelude'HsMap'insertWithKey cmp f k v t)
+b'HsPrelude'HsMap'unionWithKey cmp f a b = case a of { B'HsPrelude'HsMap'Tip -> b; B'HsPrelude'HsMap'Bin k v t -> b'HsPrelude'HsMap'insertWithKey cmp f k v (b'HsPrelude'HsMap'unionWithKey cmp f t b) }
+b'HsPrelude'HsMap'unionsWith'go cmp f ms acc = case ms of { [] -> acc; m : t -> b'HsPrelude'HsMap'unionsWith'go cmp f t (b'HsPrelude'HsMap'unionWith cmp f acc m) }
+b'HsPrelude'HsMap'unionsWith cmp f ms = case ms of { [] -> B'HsPrelude'HsMap'Tip; m : t -> b'HsPrelude'HsMap'unionsWith'go cmp f t m }
+b'HsPrelude'HsMap'intersectionWith cmp f a b = case a of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k v t -> let r = b'HsPrelude'HsMap'intersectionWith cmp f t b in case b'HsPrelude'HsMap'lookup cmp k b of { Nothing -> r; Just x -> B'HsPrelude'HsMap'Bin k (f v x) r }
+b'HsPrelude'HsMap'restrictKeys cmp m s = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k v t -> if b'HsPrelude'HsSet'member cmp k s then B'HsPrelude'HsMap'Bin k v (b'HsPrelude'HsMap'restrictKeys cmp t s) else b'HsPrelude'HsMap'restrictKeys cmp t s
+b'HsPrelude'HsMap'withoutKeys cmp m s = case m of
+  B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip
+  B'HsPrelude'HsMap'Bin k v t -> if b'HsPrelude'HsSet'member cmp k s then b'HsPrelude'HsMap'withoutKeys cmp t s else B'HsPrelude'HsMap'Bin k v (b'HsPrelude'HsMap'withoutKeys cmp t s)
+b'HsPrelude'HsMap'fromSet f s = case s of { B'HsPrelude'HsSet'Tip -> B'HsPrelude'HsMap'Tip; B'HsPrelude'HsSet'Bin k t -> B'HsPrelude'HsMap'Bin k (f k) (b'HsPrelude'HsMap'fromSet f t) }
+b'HsPrelude'HsMap'split cmp k m = case m of
+  B'HsPrelude'HsMap'Tip -> (B'HsPrelude'HsMap'Tip, B'HsPrelude'HsMap'Tip)
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k2 k of
+    LT -> let (a, b) = b'HsPrelude'HsMap'split cmp k t in (B'HsPrelude'HsMap'Bin k2 v2 a, b)
+    EQ -> (B'HsPrelude'HsMap'Tip, t)
+    GT -> (B'HsPrelude'HsMap'Tip, B'HsPrelude'HsMap'Bin k2 v2 t)
+b'HsPrelude'HsSet'intersection cmp a b = case a of
+  B'HsPrelude'HsSet'Tip -> B'HsPrelude'HsSet'Tip
+  B'HsPrelude'HsSet'Bin k t -> if b'HsPrelude'HsSet'member cmp k b then B'HsPrelude'HsSet'Bin k (b'HsPrelude'HsSet'intersection cmp t b) else b'HsPrelude'HsSet'intersection cmp t b
+b'HsPrelude'HsMap'isize m = b'HsPrelude'HsMap'size m
+b'HsPrelude'HsSet'isize s = b'HsPrelude'HsSet'size s
+-- Map.! as a failure value (the prelude's partial functions answer Either)
+b'HsPrelude'HsMap'at cmp m k = case m of
+  B'HsPrelude'HsMap'Tip -> Left "Map.!: given key is not an element in the map"
+  B'HsPrelude'HsMap'Bin k2 v2 t -> case cmp k k2 of { LT -> Left "Map.!: given key is not an element in the map"; EQ -> Right v2; GT -> b'HsPrelude'HsMap'at cmp t k }
+
+-- HsPrelude's show at Int, a list and Maybe (HsShow.int, .list, .maybe)
+b'HsPrelude'HsShow'int d n r = if n >= 0 then show n ++ r else b'HsPrelude'HsShow'paren (d > 6) (\s -> '-' : show (negate n) ++ s) r
+b'HsPrelude'HsShow'list'rest sh xs r = case xs of { [] -> ']' : r; x : t -> ',' : sh x (b'HsPrelude'HsShow'list'rest sh t r) }
+b'HsPrelude'HsShow'list sh xs r = case xs of { [] -> '[' : ']' : r; x : t -> '[' : sh x (b'HsPrelude'HsShow'list'rest sh t r) }
+b'HsPrelude'HsShow'maybe sh d m r = case m of { Nothing -> "Nothing" ++ r; Just x -> b'HsPrelude'HsShow'paren (d >= 11) (\s -> "Just " ++ sh 11 x s) r }
+
+-- State s a as each module's prelude has it (hs.state.*: s -> (a, s))
+b'hs'state'bind m f = \s -> let (a, s') = m s in f a s'
+b'hs'state'pure a = \s -> (a, s)
+b'hs'state'map f m = \s -> let (a, s') = m s in (f a, s')
+b'hs'state'ap mf m = \s -> let (f, s') = mf s in b'hs'state'map f m s'
+b'hs'state'dup s = (s, s)
+b'hs'state'get = \s -> (s, s)
+b'hs'state'put s = \_ -> ((), s)
+b'hs'state'modify f = \s -> ((), f s)
+b'hs'state'gets f = \s -> (f s, s)
+b'hs'state'fst (a, _) = a
+b'hs'state'snd (_, s) = s
+b'hs'state're p = p
+b'hs'state'eval m s = fst (m s)
+b'hs'state'exec m s = snd (m s)
+b'hs'state'run m s = m s
+b'hs'state'mapm_ f xs = case xs of { [] -> b'hs'state'pure (); h : t -> b'hs'state'bind (f h) (\_ -> b'hs'state'mapm_ f t) }
+b'hs'state'mapm f xs = case xs of { [] -> b'hs'state'pure []; h : t -> b'hs'state'bind (f h) (\b -> b'hs'state'map (b :) (b'hs'state'mapm f t)) }
+b'hs'state'foldm f xs z = case xs of { [] -> b'hs'state'pure z; h : t -> b'hs'state'bind (f z h) (\y -> b'hs'state'foldm f t y) }
+b'hs'state'seq xs = case xs of { [] -> b'hs'state'pure []; h : t -> b'hs'state'bind h (\b -> b'hs'state'map (b :) (b'hs'state'seq t)) }
+b'hs'state'keep k x ys = if k then x : ys else ys
+b'hs'state'filterm p xs = case xs of { [] -> b'hs'state'pure []; h : t -> b'hs'state'bind (p h) (\k -> b'hs'state'map (\ys -> b'hs'state'keep k h ys) (b'hs'state'filterm p t)) }
+b'hs'state'zipwithm_ f xs ys = case (xs, ys) of { (x : xt, y : yt) -> b'hs'state'bind (f x y) (\_ -> b'hs'state'zipwithm_ f xt yt); _ -> b'hs'state'pure () }
+
+-- HsPrelude's show at a pair, a Map, a Set; first at a pair
+b'HsPrelude'HsShow'pair sa sb (a, b) r = '(' : sa 0 a (',' : sb 0 b (')' : r))
+b'HsPrelude'HsShow'map sk sv d m r = b'HsPrelude'HsShow'paren (d >= 11) (\s -> "fromList " ++ b'HsPrelude'HsShow'list (\y t -> b'HsPrelude'HsShow'pair sk sv y t) (b'HsPrelude'HsMap'toList m) s) r
+b'HsPrelude'HsShow'set sk d m r = b'HsPrelude'HsShow'paren (d >= 11) (\s -> "fromList " ++ b'HsPrelude'HsShow'list (\y t -> sk 0 y t) (b'HsPrelude'HsSet'toList m) s) r
+b'HsPrelude'HsList'first'pair f (a, c) = (f a, c)
+
+-- Reader r a, ReaderT r (Either e) a and WriterT w (Either e) a as each
+-- module's prelude has them (hs.rd.*, hs.rde.*, hs.wre.*: the writer's
+-- defs take w's mempty and <> first)
+b'hs'rd'bind'go m f r = f (m r) r
+b'hs'rd'bind m f = \r -> f (m r) r
+b'hs'rd'pure a = \_ -> a
+b'hs'rd'map f m = \r -> f (m r)
+b'hs'rd'ask = \r -> r
+b'hs'rd'local f m = \r -> m (f r)
+b'hs'rd'asks f = \r -> f r
+b'hs'rde'bind'go x f r = case x of { Left e -> Left e; Right a -> f a r }
+b'hs'rde'bind'r m f r = b'hs'rde'bind'go (m r) f r
+b'hs'rde'bind m f = \r -> b'hs'rde'bind'r m f r
+b'hs'rde'pure a = \_ -> Right a
+b'hs'rde'throw e = \_ -> Left e
+b'hs'rde'lift x = \_ -> x
+b'hs'rde'map'e f x = case x of { Left e -> Left e; Right a -> Right (f a) }
+b'hs'rde'map f m = \r -> b'hs'rde'map'e f (m r)
+b'hs'rde'ask = \r -> Right r
+b'hs'rde'local f m = \r -> m (f r)
+b'hs'rde'asks f = \r -> Right (f r)
+b'hs'wre'join app w y = case y of { Left e -> Left e; Right (b, v) -> Right (b, app w v) }
+b'hs'wre'bind mt app x f = case x of { Left e -> Left e; Right (a, w) -> b'hs'wre'join app w (f a) }
+b'hs'wre'pure mt app a = Right (a, mt)
+b'hs'wre'map mt app f x = case x of { Left e -> Left e; Right (a, w) -> Right (f a, w) }
+
+-- ExceptT e (State s) a as each module's prelude has it (hs.exs.*:
+-- s -> (Either e a, s), >>= stops at a Left and keeps the state)
+b'hs'exs'bind m f = \s -> case m s of { (Left e, s') -> (Left e, s'); (Right a, s') -> f a s' }
+b'hs'exs'pure a = \s -> (Right a, s)
+b'hs'exs'throw e = \s -> (Left e, s)
+b'hs'exs'map f m = \s -> let (r, s') = m s in (fmap f r, s')
+b'hs'exs'dup s = (Right s, s)
+b'hs'exs'get = \s -> (Right s, s)
+b'hs'exs'put s = \_ -> (Right (), s)
+b'hs'exs'modify f = \s -> (Right (), f s)
+b'hs'exs'gets f = \s -> (Right (f s), s)
+b'hs'exs'mapm_ f xs = case xs of { [] -> b'hs'exs'pure (); h : t -> b'hs'exs'bind (f h) (\_ -> b'hs'exs'mapm_ f t) }
+b'hs'exs'mapm f xs = case xs of { [] -> b'hs'exs'pure []; h : t -> b'hs'exs'bind (f h) (\b -> b'hs'exs'map (b :) (b'hs'exs'mapm f t)) }
+b'hs'exs'foldm f xs z = case xs of { [] -> b'hs'exs'pure z; h : t -> b'hs'exs'bind (f z h) (\y -> b'hs'exs'foldm f t y) }
+b'hs'exs'seq xs = case xs of { [] -> b'hs'exs'pure []; h : t -> b'hs'exs'bind h (\b -> b'hs'exs'map (b :) (b'hs'exs'seq t)) }
+b'hs'exs'keep k x ys = if k then x : ys else ys
+b'hs'exs'filterm p xs = case xs of { [] -> b'hs'exs'pure []; h : t -> b'hs'exs'bind (p h) (\k -> b'hs'exs'map (\ys -> b'hs'exs'keep k h ys) (b'hs'exs'filterm p t)) }
+b'hs'exs'zipwithm_ f xs ys = case (xs, ys) of { (x : xt, y : yt) -> b'hs'exs'bind (f x y) (\_ -> b'hs'exs'zipwithm_ f xt yt); _ -> b'hs'exs'pure () }
+
+-- zipWith f [n ..] xs at an enumeration's successor, second at a pair,
+-- show by showsPrec 0 (the prelude's HsList.zipWithFrom, .second.pair,
+-- HsShow.via)
+b'HsPrelude'HsList'zipWithFrom'go sc f xs n = case xs of { [] -> []; x : t -> f n x : b'HsPrelude'HsList'zipWithFrom'go sc f t (sc n) }
+b'HsPrelude'HsList'zipWithFrom sc f n xs = b'HsPrelude'HsList'zipWithFrom'go sc f xs n
+b'HsPrelude'HsList'second'pair f (a, b) = (a, f b)
+b'HsPrelude'HsShow'via sp x = sp 0 x []
