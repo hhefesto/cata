@@ -595,8 +595,9 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
   names that one (telomare: 258 copies fewer, the same results).
 - **Squares** (`tests/square`): a hand-written Bend function against F of
   the Haskell one, `phi(F.h(x)) == W.b(phi(x))` proved for every x
-  (xmonad-bend's StackSet against cata's XMonad.StackSet, its Core's
-  default config against XMonad.Config).
+  (xmonad-bend's StackSet against cata's XMonad.StackSet, all 17 squares by
+  `--verdict` since the fold copies map at a known function, fd.hm; its
+  Core's default config against XMonad.Config).
 - **The checker** (`tests/adjoint/run.zsh SQDIR LAWOUT MOD WORK
   DIR=PATH...`, `bend/Adj.bend`): any such pairing, on both sides: the
   squares' proofs (`--check-only`, `--verdict`), and each square at GHC's
