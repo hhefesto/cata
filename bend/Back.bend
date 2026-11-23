@@ -1340,6 +1340,263 @@ def bk.psyns(cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>
     case T.BCtor{+c, fs} <> t:
       bk.psyn(S.mem(c, bk.cvs(e)), c, bk.nf.find(bk.nf(e), c), e, bk.psyns(t, e, acc))
 
+# The round trip's iso at a module's own type with parameters.  BendRt's
+# B'G (D a ..) is D (B'G a) ..: G(F(h)) holds D's values with G's shapes
+# at D's parameters (h's (a, b, c) as (a, (b, c))), so D's B'Up maps
+# each field by its type.  b'map'D takes, for each parameter, a function
+# and its inverse (a field may hold the parameter where a function takes
+# it), and D's B'Up instance is b'map'D at b'up and b'down.  G writes
+# them when D has 1 to 4 parameters, each a Type, and each field's type
+# is one the map follows: none of D's parameters in it, a parameter,
+# List, Maybe, Either, a pair (Sigma, not dependent), a function (not
+# dependent) or D itself (a field G prints as h has it, cv, only without
+# a parameter).  Else D gets none, and is its own image, as before.
+def bk.mp.star(+t: T.Bt) -> Bool:
+  match t:
+    case T.BtType{}:
+      True{}
+    case T.BtVar{+x}:
+      Bool.or(S.eq(x, S.b("Data")), S.eq(x, S.b("Type")))
+    case _:
+      False{}
+
+def bk.mp.stars(ps: List<&2, T.BParam>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case T.BParam{m, x, +ty} <> t:
+      Bool.and(bk.mp.star(ty), bk.mp.stars(t))
+
+def bk.mp.le(n: Nat, m: Nat) -> Bool:
+  match n m:
+    case 0n _:
+      True{}
+    case 1n+p 0n:
+      False{}
+    case 1n+p 1n+q:
+      bk.mp.le(p, q)
+
+# whether t names one of vs (a form the map does not know: as if it did)
+def bk.mp.has(t: T.Bt, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match t:
+    case T.BtVar{x}:
+      S.mem(x, vs)
+    case T.BtTyApp{n, a}:
+      bk.mp.has(a, vs)
+    case T.BtArgs{a, r}:
+      Bool.or(bk.mp.has(a, vs), bk.mp.has(r, vs))
+    case T.BtPi{m, x, d, a, b}:
+      Bool.or(bk.mp.has(a, vs), bk.mp.has(b, vs))
+    case T.BtLam{m, x, b}:
+      bk.mp.has(b, vs)
+    case T.BtANil{}:
+      False{}
+    case T.BtType{}:
+      False{}
+    case _:
+      True{}
+
+def bk.mp.known(+n: List<&2, U32>, +self: List<&2, U32>) -> Bool:
+  Bool.or(S.eq(n, self), Bool.or(S.eq(n, S.b("List")), Bool.or(S.eq(n, S.b("Maybe")), Bool.or(S.eq(n, S.b("Either")), S.eq(n, S.b("Sigma"))))))
+
+# whether the map follows t (k: a type's arguments still to skip, its
+# kind arguments); a type without D's parameters it follows as id
+def bk.mp.ok(t: T.Bt, k: Nat, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match t k:
+    case T.BtArgs{x, r} 1n+p:
+      bk.mp.ok(r, p, self, e, vs)
+    case T.BtArgs{x, r} 0n:
+      Bool.and(bk.mp.ok(x, 0n, self, e, vs), bk.mp.ok(r, 0n, self, e, vs))
+    case T.BtANil{} _:
+      True{}
+    case T.BtType{} _:
+      True{}
+    case T.BtVar{x} _:
+      True{}
+    case T.BtTyApp{+n, +a} _:
+      Bool.or(Bool.not(bk.mp.has(a, vs)), Bool.and(bk.mp.known(n, self), bk.mp.ok(a, bk.kd.find(bk.kd(e), n), self, e, vs)))
+    case T.BtPi{m, x, d, +a, +b} _:
+      Bool.or(Bool.not(Bool.or(bk.mp.has(a, vs), bk.mp.has(b, vs))), Bool.and(Bool.not(d), Bool.and(bk.mp.ok(a, 0n, self, e, vs), bk.mp.ok(b, 0n, self, e, vs))))
+    case T.BtLam{m, +x, +b} _:
+      Bool.or(Bool.not(bk.mp.has(b, vs)), Bool.and(S.eq(x, S.b("_")), bk.mp.ok(b, 0n, self, e, vs)))
+    case _ _:
+      False{}
+
+def bk.mp.field.ok(cv: Bool, +ty: T.Bt, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match cv:
+    case True{}:
+      Bool.not(bk.mp.has(ty, vs))
+    case False{}:
+      bk.mp.ok(ty, 0n, self, e, vs)
+
+def bk.mp.fields.ok(fs: List<&2, T.BField>, +ns: List<&2, BkT>, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match fs:
+    case Nil{}:
+      True{}
+    case T.BField{x, ty} <> t:
+      Bool.and(bk.mp.field.ok(bk.hk.cv(bk.hk.hd(ns)), ty, self, e, vs), bk.mp.fields.ok(t, List.drop(&2, BkT, ns, 1n), self, e, vs))
+
+def bk.mp.ctors.ok(cs: List<&2, T.BCtor>, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match cs:
+    case Nil{}:
+      True{}
+    case T.BCtor{c, fs} <> t:
+      Bool.and(bk.mp.fields.ok(fs, bk.nf.find(bk.nf(e), c), self, e, vs), bk.mp.ctors.ok(t, self, e, vs))
+
+# bf' (the way to) or bg' (the way back)
+def bk.mp.f(dir: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match dir:
+    case True{}:
+      98 <> 102 <> 39 <> acc
+    case False{}:
+      98 <> 103 <> 39 <> acc
+
+def bk.mp.hname(own: Bool, l: Bool, m: Bool, ei: Bool, mn: List<&2, U32>) -> List<&2, U32>:
+  match own l m ei:
+    case True{} _ _ _:
+      mn
+    case False{} True{} _ _:
+      S.b("b'mlist")
+    case False{} False{} True{} _:
+      S.b("b'mmaybe")
+    case False{} False{} False{} True{}:
+      S.b("b'meither")
+    case False{} False{} False{} False{}:
+      S.b("b'mpair")
+
+def bk.mp.head(+n: List<&2, U32>, +self: List<&2, U32>, +mn: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  bk.b(bk.mp.hname(S.eq(n, self), S.eq(n, S.b("List")), S.eq(n, S.b("Maybe")), S.eq(n, S.b("Either")), mn), acc)
+
+# the map at a field's type t, the way dir (k: arguments still to skip;
+# both: t is D's own arguments' spine, each mapped each way; mn: D's
+# map's name); id where t has none of D's parameters
+def bk.mp.fn(t: T.Bt, k: Nat, +both: Bool, +dir: Bool, +self: List<&2, U32>, +mn: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>, +acc: List<&2, U32>) -> List<&2, U32>:
+  match t k:
+    case T.BtArgs{x, r} 1n+p:
+      bk.mp.fn(r, p, both, dir, self, mn, e, vs, acc)
+    case T.BtArgs{+x, r} 0n:
+      +rest = bk.mp.fn(r, 0n, both, dir, self, mn, e, vs, acc)
+      Bool.pick(List<&2, U32>, bk.isq(x), rest, 32 <> bk.mp.fn(x, 0n, False{}, dir, self, mn, e, vs, Bool.pick(List<&2, U32>, both, 32 <> bk.mp.fn(x, 0n, False{}, Bool.not(dir), self, mn, e, vs, rest), rest)))
+    case T.BtANil{} _:
+      acc
+    case T.BtVar{+x} _:
+      Bool.pick(List<&2, U32>, S.mem(x, vs), bk.mp.f(dir, bk.b(bk.lower1(x), acc)), bk.s("b'mid", acc))
+    case T.BtTyApp{+n, +a} _:
+      Bool.pick(List<&2, U32>, bk.mp.has(a, vs), 40 <> bk.mp.head(n, self, mn, bk.mp.fn(a, bk.kd.find(bk.kd(e), n), S.eq(n, self), dir, self, mn, e, vs, 41 <> acc)), bk.s("b'mid", acc))
+    case T.BtPi{m, x, d, +a, +b} _:
+      Bool.pick(List<&2, U32>, Bool.or(bk.mp.has(a, vs), bk.mp.has(b, vs)), bk.s("(b'mfun ", bk.mp.fn(a, 0n, False{}, Bool.not(dir), self, mn, e, vs, 32 <> bk.mp.fn(b, 0n, False{}, dir, self, mn, e, vs, 41 <> acc))), bk.s("b'mid", acc))
+    case T.BtLam{m, x, b} _:
+      bk.mp.fn(b, 0n, False{}, dir, self, mn, e, vs, acc)
+    case _ _:
+      bk.s("b'mid", acc)
+
+def bk.mp.ys(n: Nat, +k: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+  match n:
+    case 0n:
+      acc
+    case 1n+p:
+      32 <> 121 <> bk.b(S.b(Nat.show(k)), bk.mp.ys(p, 1n+k, acc))
+
+def bk.mp.app(fs: List<&2, T.BField>, +i: Nat, +self: List<&2, U32>, +mn: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match fs:
+    case Nil{}:
+      acc
+    case T.BField{x, ty} <> t:
+      32 <> 40 <> bk.mp.fn(ty, 0n, False{}, True{}, self, mn, e, vs, 32 <> 121 <> bk.b(S.b(Nat.show(i)), 41 <> bk.mp.app(t, 1n+i, self, mn, e, vs, acc)))
+
+def bk.mp.alts(cs: List<&2, T.BCtor>, +self: List<&2, U32>, +mn: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      acc
+    case T.BCtor{+c, +fs} <> t:
+      +hc = bk.con.pv(False{}, False{}, e, c, bk.init(c))
+      32 <> bk.b(hc, bk.mp.ys(List.length(&2, T.BField, fs), 1n, bk.s(" -> ", bk.b(hc, bk.mp.app(fs, 1n, self, mn, e, vs, 59 <> bk.mp.alts(t, self, mn, e, vs, acc))))))
+
+def bk.mp.sig(vs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match vs:
+    case Nil{}:
+      acc
+    case v <> t:
+      +l = bk.lower1(v)
+      40 <> bk.b(l, bk.s(" -> ", bk.b(l, 39 <> bk.s(") -> (", bk.b(l, 39 <> bk.s(" -> ", bk.b(l, bk.s(") -> ", bk.mp.sig(t, acc)))))))))
+
+def bk.mp.pr(pr: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match pr:
+    case True{}:
+      39 <> acc
+    case False{}:
+      acc
+
+def bk.mp.tvs(vs: List<&2, List<&2, U32>>, +pr: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match vs:
+    case Nil{}:
+      acc
+    case v <> t:
+      32 <> bk.b(bk.lower1(v), bk.mp.pr(pr, bk.mp.tvs(t, pr, acc)))
+
+def bk.mp.fps(vs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match vs:
+    case Nil{}:
+      acc
+    case v <> t:
+      +l = bk.lower1(v)
+      32 <> bk.mp.f(True{}, bk.b(l, 32 <> bk.mp.f(False{}, bk.b(l, bk.mp.fps(t, acc)))))
+
+def bk.mp.comma(first: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match first:
+    case True{}:
+      acc
+    case False{}:
+      44 <> 32 <> acc
+
+def bk.mp.ctx(vs: List<&2, List<&2, U32>>, first: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match vs:
+    case Nil{}:
+      acc
+    case v <> t:
+      bk.mp.comma(first, bk.s("B'Up ", bk.b(bk.lower1(v), bk.mp.ctx(t, False{}, acc))))
+
+def bk.mp.ud(dir: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match dir:
+    case True{}:
+      bk.s(" b'up b'down", acc)
+    case False{}:
+      bk.s(" b'down b'up", acc)
+
+def bk.mp.ups(vs: List<&2, List<&2, U32>>, +dir: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match vs:
+    case Nil{}:
+      acc
+    case v <> t:
+      bk.mp.ud(dir, bk.mp.ups(t, dir, acc))
+
+def bk.mp.word(+c: U32) -> Bool:
+  Bool.or(Bool.or(bk.upper(c), Bool.and(U32.is_ge(c, 97), U32.is_le(c, 122))), Bool.or(bk.digit(c), Bool.or(U32.is_eq(c, 39), U32.is_eq(c, 95))))
+
+# the map's name from its type's Haskell name: an operator's (00169's <,
+# 00525's :-) parentheses dropped and its symbols as o and their codes
+def bk.mp.mname(xs: List<&2, U32>) -> List<&2, U32>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +c <> t:
+      +r = bk.mp.mname(t)
+      Bool.pick(List<&2, U32>, bk.mp.word(c), c <> r, Bool.pick(List<&2, U32>, Bool.or(U32.is_eq(c, 40), U32.is_eq(c, 41)), r, 111 <> bk.b(S.b(U32.show(c)), r)))
+
+def bk.mp.when(yes: Bool, +tn: List<&2, U32>, +n: List<&2, U32>, +vs: List<&2, List<&2, U32>>, +cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match yes:
+    case False{}:
+      acc
+    case True{}:
+      +mn = bk.s("b'map'", bk.mp.mname(tn))
+      bk.b(mn, bk.s(" :: ", bk.mp.sig(vs, bk.b(tn, bk.mp.tvs(vs, False{}, bk.s(" -> ", bk.b(tn, bk.mp.tvs(vs, True{}, 10 <> bk.b(mn, bk.mp.fps(vs, bk.s(" x0 = case x0 of {", bk.mp.alts(cs, n, mn, e, vs, bk.s(" }", 10 <> 10 <> bk.s("instance (", bk.mp.ctx(vs, True{}, bk.s(") => B'Up (", bk.b(tn, bk.mp.tvs(vs, False{}, bk.s(") where { b'up = ", bk.b(mn, bk.mp.ups(vs, True{}, bk.s("; b'down = ", bk.b(mn, bk.mp.ups(vs, False{}, bk.s(" }", 10 <> 10 <> acc)))))))))))))))))))))))))
+
+def bk.mp.decl(+n: List<&2, U32>, ps: List<&2, T.BParam>, +cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  +qs = List.drop(&2, T.BParam, ps, bk.kd.find(bk.kd(e), n))
+  +vs = bk.tvs(qs)
+  +k = List.length(&2, List<&2, U32>, vs)
+  bk.mp.when(Bool.and(Bool.and(bk.mp.le(1n, k), bk.mp.le(k, 4n)), Bool.and(bk.mp.stars(qs), bk.mp.ctors.ok(cs, n, e, vs))), bk.tname.at(True{}, True{}, e, n), n, vs, cs, e, acc)
+
 def bk.isnat(+t: T.Bt) -> Bool:
   match t:
     case T.BtVar{+x}:
@@ -1379,6 +1636,103 @@ def bk.ctors(cs: List<&2, T.BCtor>, first: Bool, +e: Bk, +tvs: List<&2, List<&2,
     case T.BCtor{+c, fs} <> t False{}:
       bk.s(" | ", bk.b(bk.con.h(True{}, e, c), bk.fields(fs, bk.nf.find(bk.nf(e), c), e, tvs, bk.ctors(t, False{}, e, tvs, acc))))
 
+# The fold's own types for a def's recursion (NAME.mu.In, NAME.mu.Out)
+# hold F's number types where h had Int, Integer or Natural, and G does
+# not know which (they are not in h's export).  So each number in their
+# fields is a type parameter of its own, n'1, n'2, ..., and GHC infers it
+# from the def's use, as it infers a def's number types: h's decendant at
+# Integer and a def at Int both take G's code.  No signature names such a
+# type (bk.sig.name), so its parameters are never written elsewhere.
+def bk.mu.own(+n: List<&2, U32>) -> Bool:
+  Bool.or(S.suffix(n, S.b(".mu.In")), S.suffix(n, S.b(".mu.Out")))
+
+def bk.mu.isnum(+x: List<&2, U32>) -> Bool:
+  Bool.or(S.eq(x, S.b("Nat")), S.eq(x, S.b("HsPrelude.HsInt")))
+
+def bk.mu.var(k: Nat) -> List<&2, U32>:
+  110 <> 39 <> S.b(Nat.show(k))
+
+# how many numbers t holds
+def bk.mu.count(t: T.Bt) -> Nat:
+  match t:
+    case T.BtVar{+x}:
+      Bool.pick(Nat, bk.mu.isnum(x), 1n, 0n)
+    case T.BtTyApp{+n, T.BtANil{}}:
+      Bool.pick(Nat, bk.mu.isnum(n), 1n, 0n)
+    case T.BtTyApp{n, a}:
+      bk.mu.count(a)
+    case T.BtArgs{a, r}:
+      Nat.add(bk.mu.count(a), bk.mu.count(r))
+    case T.BtPi{m, x, d, a, b}:
+      Nat.add(bk.mu.count(a), bk.mu.count(b))
+    case T.BtLam{m, x, b}:
+      bk.mu.count(b)
+    case _:
+      0n
+
+# t with its numbers the parameters n'k, n'(k+1), ...
+def bk.mu.sub(t: T.Bt, +k: Nat) -> T.Bt:
+  match t:
+    case T.BtVar{+x}:
+      Bool.pick(T.Bt, bk.mu.isnum(x), T.BtVar{bk.mu.var(k)}, T.BtVar{x})
+    case T.BtTyApp{+n, T.BtANil{}}:
+      Bool.pick(T.Bt, bk.mu.isnum(n), T.BtVar{bk.mu.var(k)}, T.BtTyApp{n, T.BtANil{}})
+    case T.BtTyApp{n, a}:
+      T.BtTyApp{n, bk.mu.sub(a, k)}
+    case T.BtArgs{+a, r}:
+      T.BtArgs{bk.mu.sub(a, k), bk.mu.sub(r, Nat.add(k, bk.mu.count(a)))}
+    case T.BtPi{m, x, d, +a, b}:
+      T.BtPi{m, x, d, bk.mu.sub(a, k), bk.mu.sub(b, Nat.add(k, bk.mu.count(a)))}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, bk.mu.sub(b, k)}
+    case u:
+      u
+
+def bk.mu.fs.count(fs: List<&2, T.BField>) -> Nat:
+  match fs:
+    case Nil{}:
+      0n
+    case T.BField{x, ty} <> t:
+      Nat.add(bk.mu.count(ty), bk.mu.fs.count(t))
+
+def bk.mu.fs(fs: List<&2, T.BField>, +k: Nat) -> List<&2, T.BField>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case T.BField{x, +ty} <> t:
+      T.BField{x, bk.mu.sub(ty, k)} <> bk.mu.fs(t, Nat.add(k, bk.mu.count(ty)))
+
+def bk.mu.cs.count(cs: List<&2, T.BCtor>) -> Nat:
+  match cs:
+    case Nil{}:
+      0n
+    case T.BCtor{c, fs} <> t:
+      Nat.add(bk.mu.fs.count(fs), bk.mu.cs.count(t))
+
+def bk.mu.cs(cs: List<&2, T.BCtor>, +k: Nat) -> List<&2, T.BCtor>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case T.BCtor{c, +fs} <> t:
+      T.BCtor{c, bk.mu.fs(fs, k)} <> bk.mu.cs(t, Nat.add(k, bk.mu.fs.count(fs)))
+
+# n'k .. n'(k+m-1), before acc
+def bk.mu.vars(m: Nat, +k: Nat, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match m:
+    case 0n:
+      acc
+    case 1n+p:
+      bk.mu.var(k) <> bk.mu.vars(p, 1n+k, acc)
+
+# a data type G declares
+def bk.type(mu: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match mu:
+    case False{}:
+      bk.s("data ", bk.b(bk.tname.at(True{}, True{}, e, n), bk.tvs.text(List.drop(&2, List<&2, U32>, bk.tvs(ps), bk.kd.find(bk.kd(e), n)), bk.ctors(cs, True{}, e, bk.tvs(ps), 10 <> 10 <> bk.psyns(cs, e, bk.mp.decl(n, ps, cs, e, acc))))))
+    case True{}:
+      +vs = bk.mu.vars(bk.mu.cs.count(cs), 1n, Nil{})
+      bk.s("data ", bk.b(bk.tname.at(True{}, True{}, e, n), bk.tvs.text(List.drop(&2, List<&2, U32>, bk.tvs(ps), bk.kd.find(bk.kd(e), n)), bk.tvs.text(vs, bk.ctors(bk.mu.cs(cs, 1n), True{}, e, List.append(&2, List<&2, U32>, bk.tvs(ps), vs), 10 <> 10 <> acc)))))
+
 # A def's signature.  G erases types, and GHC then infers a def's type
 # again, the most general one: a def b gives a type (toList at a list of
 # pairs) is the identity at any type, a def that adds is Num's, and F
@@ -1395,7 +1749,7 @@ def bk.sig.base() -> List<&2, List<&2, U32>>:
   [S.b("List"), S.b("Maybe"), S.b("Either"), S.b("Sigma"), S.b("Bool"), S.b("Char"), S.b("String"), S.b("Unit"), S.b("Cmp"), S.b("HsPrelude.Fix"), S.b("HsPrelude.Cofree"), S.b("HsPrelude.CofreeF"), S.b("HsPrelude.CofreeF.fn")]
 
 def bk.sig.name(+e: Bk, +tvs: List<&2, List<&2, U32>>, +n: List<&2, U32>) -> Bool:
-  Bool.or(S.mem(n, tvs), Bool.or(S.mem(n, bk.tys(e)), S.mem(n, bk.sig.base())))
+  Bool.or(S.mem(n, tvs), Bool.or(Bool.and(S.mem(n, bk.tys(e)), Bool.not(bk.mu.own(n))), S.mem(n, bk.sig.base())))
 
 def bk.sig.ok(t: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>) -> Bool:
   match t:
@@ -1557,7 +1911,7 @@ def bk.item(it: T.BItem, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
     case T.BiDef{+n, ps, +ret, body, doc}:
       bk.def(bk.law(ret), n, ps, ret, body, e, acc)
     case T.BiType{+n, +ps, k, +cs, doc}:
-      bk.s("data ", bk.b(bk.tname.at(True{}, True{}, e, n), bk.tvs.text(List.drop(&2, List<&2, U32>, bk.tvs(ps), bk.kd.find(bk.kd(e), n)), bk.ctors(cs, True{}, e, bk.tvs(ps), 10 <> 10 <> bk.psyns(cs, e, acc)))))
+      bk.type(bk.mu.own(n), n, ps, cs, e, acc)
     case _:
       acc
 

@@ -11,11 +11,14 @@
 {-# LANGUAGE NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
 module BendRt
   ( module BendRt
-  , Bool (..), Maybe (..), Either (..), Ordering (..), Int, Integer, Natural, Char, String, Float, IO
+  , module BendPc
+  , Bool (..), Maybe (..), Either (..), Ordering (..), Int, Integer, Natural, Char, String, Float, IO, Rational
   , (.), ($)
   ) where
 
 import Prelude
+import BendPc
+import Data.Ratio ((%), numerator, denominator)
 import qualified Data.Char as DC
 import Numeric.Natural (Natural)
 import Data.List (genericLength, genericTake, genericDrop, genericReplicate, sortBy, nubBy, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, groupBy, insertBy, tails, inits, partition, stripPrefix)
@@ -394,6 +397,15 @@ type family B'G h where
   B'G (a, b, c, d) = (B'G a, (B'G b, (B'G c, B'G d)))
   B'G (a, b, c, d, e) = (B'G a, (B'G b, (B'G c, (B'G d, B'G e))))
   B'G (a -> b) = B'G a -> B'G b
+  -- a type applied to 1 to 4 types (a module's own D a .., as G declares
+  -- it): D at its arguments' images.  G writes D's B'Up (b'map'D at b'up
+  -- and b'down, Back.bend's bk.mp) where it can follow D's fields; where it
+  -- cannot, D's B'Up is the one below, so only at arguments that are their
+  -- own images (an argument G reshapes, a triple, has no B'Up there)
+  B'G (d a b c e) = d (B'G a) (B'G b) (B'G c) (B'G e)
+  B'G (d a b c) = d (B'G a) (B'G b) (B'G c)
+  B'G (d a b) = d (B'G a) (B'G b)
+  B'G (d a) = d (B'G a)
   B'G a = a
 
 class B'Up h where
@@ -427,6 +439,23 @@ instance (B'Up a, B'Up b) => B'Up (a -> b) where
 instance {-# OVERLAPPABLE #-} (B'G a ~ a) => B'Up a where
   b'up = id
   b'down = id
+
+-- the maps G's b'map'D (a module's own D with parameters, Back.bend's
+-- bk.mp) is made of: a field without D's parameters (b'mid), a list's,
+-- a Maybe's, an Either's, a pair's, and a function's (its argument the
+-- other way)
+b'mid :: a -> a
+b'mid x = x
+b'mlist :: (a -> b) -> [a] -> [b]
+b'mlist = map
+b'mmaybe :: (a -> b) -> Maybe a -> Maybe b
+b'mmaybe = fmap
+b'meither :: (a -> c) -> (b -> d) -> Either a b -> Either c d
+b'meither f g = either (Left . f) (Right . g)
+b'mpair :: (a -> c) -> (b -> d) -> (a, b) -> (c, d)
+b'mpair f g (a, b) = (f a, g b)
+b'mfun :: (c -> a) -> (b -> d) -> (a -> b) -> c -> d
+b'mfun g f h = f . h . g
 
 -- a partial def's answer as h's: Inl{m} is h's error m again (the script's
 -- LawEw answers an ErrorCall m as Inl m, as it does h's)
@@ -711,3 +740,52 @@ b'HsPrelude'HsList'zipWithFrom'go sc f xs n = case xs of { [] -> []; x : t -> f 
 b'HsPrelude'HsList'zipWithFrom sc f n xs = b'HsPrelude'HsList'zipWithFrom'go sc f xs n
 b'HsPrelude'HsList'second'pair f (a, b) = (a, f b)
 b'HsPrelude'HsShow'via sp x = sp 0 x []
+
+-- HsPrelude's Rational (prelude/HsRational.bend: Data.Ratio's Ratio Integer
+-- in lowest terms, the denominator at least 1) as Haskell's own Rational;
+-- each operation as the prelude defines it: a zero denominator (x / 0,
+-- n % 0) answers 0 where GHC throws "Ratio has zero denominator"
+type B'HsPrelude'HsRational = Rational
+b'HsPrelude'HsRational'gcd'go fuel a b = if fuel == 0 || b == 0 then a else b'HsPrelude'HsRational'gcd'go (fuel - 1) b (a `mod` b)
+b'HsPrelude'HsRational'gcd a b = gcd a b
+b'HsPrelude'HsRational'zero = 0 :: Rational
+b'HsPrelude'HsRational'mk n d = if d == 0 then 0 else toInteger n % toInteger d :: Rational
+b'HsPrelude'HsRational'mk'at g n d = if g == 0 then 0 else b'HsPrelude'HsRational'mk n d
+b'HsPrelude'HsRational'of n = fromIntegral n :: Rational
+b'HsPrelude'HsRational'numerator r = fromInteger (numerator (r :: Rational))
+b'HsPrelude'HsRational'denominator r = fromInteger (denominator (r :: Rational))
+b'HsPrelude'HsRational'add a b = a + (b :: Rational)
+b'HsPrelude'HsRational'negate a = negate (a :: Rational)
+b'HsPrelude'HsRational'sub a b = a - (b :: Rational)
+b'HsPrelude'HsRational'mul a b = a * (b :: Rational)
+b'HsPrelude'HsRational'div a b = if b == 0 then 0 else a / (b :: Rational)
+b'HsPrelude'HsRational'abs a = abs (a :: Rational)
+b'HsPrelude'HsRational'signum a = signum (a :: Rational)
+b'HsPrelude'HsRational'cmp a b = compare a (b :: Rational)
+b'HsPrelude'HsRational'is_eq a b = a == (b :: Rational)
+b'HsPrelude'HsRational'is_ne a b = a /= (b :: Rational)
+b'HsPrelude'HsRational'is_lt a b = a < (b :: Rational)
+b'HsPrelude'HsRational'is_le a b = a <= (b :: Rational)
+b'HsPrelude'HsRational'is_gt a b = a > (b :: Rational)
+b'HsPrelude'HsRational'is_ge a b = a >= (b :: Rational)
+b'HsPrelude'HsRational'max a b = if a >= (b :: Rational) then a else b
+b'HsPrelude'HsRational'min a b = if a <= (b :: Rational) then a else b
+b'HsPrelude'HsRational'shows d x r = showsPrec d (x :: Rational) r
+b'HsPrelude'HsRational'show x = show (x :: Rational)
+b'HsPrelude'HsInt'ratio a b = if b == 0 then 0 else toInteger a % toInteger b :: Rational
+b'HsPrelude'HsInt'lcm'at g a b = if g == 0 then 0 else (a `div` g) * b
+-- the record HsRational{num, den}: a view of a Rational, and built as GHC's
+-- n % d (G writes it for fuel's default, HsRational{Pos{0}, 1}, and other
+-- literals)
+b'ratv :: Rational -> (Int, Int)
+b'ratv r = (fromInteger (numerator r), fromInteger (denominator r))
+pattern B'HsPrelude'HsRational :: Int -> Int -> Rational
+pattern B'HsPrelude'HsRational n d <- (b'ratv -> (n, d)) where B'HsPrelude'HsRational n d = b'HsPrelude'HsRational'mk n d
+{-# COMPLETE B'HsPrelude'HsRational #-}
+
+-- first, second and bimap at Either, bimap at a pair (the prelude's
+-- HsList.first.either, .second.either, .bimap.either, .bimap.pair)
+b'HsPrelude'HsList'first'either f e = case e of { Left a -> Left (f a); Right c -> Right c }
+b'HsPrelude'HsList'second'either f e = case e of { Left a -> Left a; Right b -> Right (f b) }
+b'HsPrelude'HsList'bimap'either f g e = case e of { Left a -> Left (f a); Right c -> Right (g c) }
+b'HsPrelude'HsList'bimap'pair f g (a, c) = (f a, g c)

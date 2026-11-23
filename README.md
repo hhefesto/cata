@@ -578,7 +578,15 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
 - G gives h's types back where F loses them: a data field's Int, Integer
   or Natural (all Nat in Bend) through h's synonyms, a type's kind
   variables dropped, and a constructor with a tuple of 3 or more (Bend's
-  nested pairs) reached through a pattern synonym that converts it.
+  nested pairs) reached through a pattern synonym that converts it; a
+  module's own type with parameters has its iso as a map over its fields
+  (b'map'D), and the numbers in the fold's own recursion types (.mu.In,
+  .mu.Out) are type parameters GHC infers.
+- On a package (`tests/telomare`: back.zsh, laws.zsh): G writes each
+  module as the package's, other modules' names qualified and imported,
+  and BendRt.hs (with BendPc.hs, cata's megaparsec model) has the
+  prelude's Map, Set, SHA-256, Show, Rational and monads. Telomare: all
+  31 of G's modules compile, and its 420 laws are 420 the same, 0 differ.
 - **Naturality** (`tests/natural`): the specialiser's copies of a def at
   several types, counted once their types are erased (`Copies.hs`), and a
   copied def written once, with a law proved once and a copy as its

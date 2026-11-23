@@ -1826,6 +1826,54 @@ What this says about F and G:
 - **Not checked:** G on Bend cata did not write (G reads the fold's syntax
   tree, not Bend's text).
 
+**On a package: telomare** (tests/telomare: back.zsh runs law --package
+on tsp60 with CATA_BEND2HS=1, laws.zsh compares each law of an ok-law def,
+GHC the oracle; gload2 compiles G's 31 modules as one package). G writes
+each module as the package's: another module's def, type or constructor
+qualified by that module's Haskell name, and imported (8bfb514). Of the
+420 laws on telomare's 118 ok-law defs:
+
+| G | G's modules GHC compiles | laws: same | more defined | differ | missing |
+|---|---|---|---|---|---|
+| one module at a time (bdb8b82) | 4 of 31 | 25 | 0 | 0 | 395 |
+| as a package, BendRt's Map, Set, SHA-256, Show, monads (8bfb514) | 27 | 350 | 0 | 0 | 70 |
+| HsPc, HsRational, the iso at a type's parameters, numbers in .mu types (this) | 31 | 420 | 0 | 0 | 0 |
+
+The last 70 (8bfb514's list: EAL 24, IC 14, Cata.Graph 12, Driver 9,
+Machine 8, Artifact 2, Parse 1), by cause:
+
+- **BendRt's HsRational, HsPc, first/second/bimap.** HsRational is
+  Haskell's Rational with the prelude's choices (x / 0 is 0): EAL's 24.
+  prelude/Back/BendPc.hs is cata's megaparsec model (prelude/HsPc.bend)
+  as Haskell, each def as the Bend one (tests/pc/rt.sh: its 28 parsers
+  answer what megaparsec answers); with first, second and bimap at
+  Either and pairs, IC's, Driver's, Artifact's and Parse's (not told
+  apart one by one).
+- **The iso at a module's own type with parameters.** Cata.Graph's
+  sccNodes, at SCC (Int, Int, [Int]), is G's at SCC (Int, (Int, [Int])).
+  BendRt's B'G now takes a type applied to 1 to 4 types to the type at
+  its arguments' images, B'G (D a ..) = D (B'G a) .., and G writes D's
+  B'Up as a map over D's fields (b'map'D at b'up and b'down) when it can
+  follow each field: one without D's parameters, a parameter, List,
+  Maybe, Either, a pair, a function (its argument the other way) or D
+  itself. A type whose fields it cannot follow has the identity's B'Up,
+  so only at arguments that are their own images: a law at such a type
+  with a reshaped argument would be refused (none is, in hs1003 or
+  telomare).
+- **Numbers in the fold's own recursion types.** A def's NAME.mu.In and
+  NAME.mu.Out (the fold's encoding of a recursion Bend refuses) hold
+  HsInt or Nat where h had Int, Integer or Natural, and G cannot tell
+  which. G writes each number in their fields as a type parameter of its
+  own (n'1, n'2, ..) and no signature names them, so GHC infers it from
+  the def's use, as it does a def's: Machine's decendant, at Integer, has
+  G's code at Integer, and a def at Int at Int.
+
+law at this commit on tsp60: 181 s, the ledger and all 92 .bend files the
+same as before it (G changes no Bend). hs1003, the same G: 401 modules
+load, 6,682 laws: 6,671 the same, 11 more defined, 0 differ, 0 missing,
+as at 93f115a (two modules' operator types, 00169's `<` and 00525's
+`:-`, get maps named by their symbols' codes).
+
 **The other half, F(G(b)) against b** (875e8d7; tests/back/round.zsh,
 bend/Round.bend): G's module and BendRt.hs through hs-export and law again,
 and each def of b compared with F(G(b))'s, up to the def's name as F
