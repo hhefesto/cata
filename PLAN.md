@@ -1823,9 +1823,36 @@ What this says about F and G:
 - **Partial h** is a total F(h) answering Either; G unwraps it
   (`b'unfail`: Inl m is h's error m again), so the script's LawEw shows
   both alike.
-- **Not checked:** F(G(F(h))) = F(h) (the prism's other law, hs2bend after
-  bend2hs: G's modules through hs-export and law again); G on Bend cata did
-  not write (G reads the fold's syntax tree, not Bend's text).
+- **Not checked:** G on Bend cata did not write (G reads the fold's syntax
+  tree, not Bend's text).
+
+**The other half, F(G(b)) against b** (875e8d7; tests/back/round.zsh,
+bend/Round.bend): G's module and BendRt.hs through hs-export and law again,
+and each def of b compared with F(G(b))'s, up to the def's name as F
+writes G's (c_qN) and its parameters by position, nothing else; where the
+text differs, b's own laws checked against F(G(b))'s def. G writes a def's
+Bend type as its signature when no number type is in it, and a match on
+several parameters as equations (20ed3ee); F takes BendRt's wrappers back
+to the Base and prelude defs they stand for, each rewrite an instance of
+the wrapper's definition (105 laws, `--verdict` ALL PROOFS CHECK). On
+hs1003, of b's 2,263 defs:
+
+| | defs |
+|---|---|
+| the same text | 1,366 |
+| other text, b's laws hold of F(G(b))'s def (`--check-only`; `--verdict` 78 of 82, 4 out of the kernel's fuel) | 82 |
+| other text, no laws to decide (53 still call a BendRt def that is no wrapper, 37 another type, 5 another body) | 95 |
+| other text, b's laws do not apply (another type: other type parameters, a kind variable) | 30 |
+| F refuses it (survey's first reason at the 542 it refuses: G left it at a number type to GHC, which makes it a class's, 271; it calls a BendRt def F refuses, 193; it calls one of those, 69) | 690 |
+
+By module, each by its worst def: 97 the same, 23 equal by laws, 28 differ,
+236 with a def F refuses, 17 with no def. Before the signatures, equations
+and fd.rt (law8): 857 the same, 643 other text, 763 refused. What is left
+is F's own lack of injectivity on types: Int, Integer and Natural are all
+Nat, so G writes no number type for a def, and F refuses the class GHC then
+infers. A G that wrote h's own types (Law has them for h's defs, not for
+the fold's helpers) would close most of it; so would laws equating
+BendRt's non-wrapper defs (b'hs'eq'list) with the prelude's.
 
 ### 4. An adjunction: "b correctly implements h", on either side
 
@@ -1863,6 +1890,7 @@ one shape with their b's swapped, at GHC's answers and in PROOF.bend.
 |---|---|---|---|---|
 | XMonad.StackSet, xmonad-bend 1372ad9's StackSet | 17 | 15 in scope (17 with wsmap) | 23 of 23 check, verdict too | 0 / 2 of 2 |
 | XMonad.Config, xmonad-bend 551bdaf's Core cfg.* | 5 | 5 | 5 of 5 | 6 / 6 of 8 |
+| hs1003 00038 ChapterExercises, a hand-written list W (tests/square/list, e8d6caf) | 3 | 3 | 21 of 21 | 2 / 2 of 2 |
 
 The example points are weak where law's inputs are small: reverse and
 swapUp agree on every stack law tried (at most one element below the

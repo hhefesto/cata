@@ -570,6 +570,11 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
   different, or missing.
   G(F(t)) is t only up to an iso (h's triple is G's nested pair, a partial
   h's answer an Either), which BendRt's `b'up` undoes at h's type.
+  The other half, F(G(b)) against b (`tests/back/round.zsh`,
+  `bend/Round.bend`): G's Haskell through hs-export and law again, each
+  def compared with b's by its text (names as F writes G's, parameters
+  by position) and, where the text differs, by b's laws; Fold's `fd.rt`
+  takes BendRt's wrappers back to the defs they stand for, a law each.
 - G gives h's types back where F loses them: a data field's Int, Integer
   or Natural (all Nat in Bend) through h's synonyms, a type's kind
   variables dropped, and a constructor with a tuple of 3 or more (Bend's
