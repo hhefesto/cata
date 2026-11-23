@@ -17,9 +17,11 @@ import ./a2b/ToBend/Sexp.bend as X
 #     pattern it is;
 #   - each call of a def that takes dictionaries (a class constraint), at
 #     types with no variable left, replaced by a call of a copy of that def
-#     at those types (NAME__TYPES), written into the module that calls it;
-#     a method of a class at such types, whose instance the package wrote
-#     by hand, by a copy of that instance's method.
+#     at those types (NAME__TYPES), written into the module that calls it
+#     (once per package: a module that imports the module that wrote it
+#     names that one, see sp.work2); a method of a class at such types,
+#     whose instance the package wrote by hand, by a copy of that
+#     instance's method.
 #
 # The copies are monomorphic: their type variables are the call's types,
 # so the methods they call are at known types too, and are specialised in
@@ -3923,10 +3925,157 @@ def sp.rw.x(r: Rw) -> X.Sx:
     case Rw{x, q}:
       x
 
-def sp.module(+xs: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
+# Copies once per package (the user, 11-23: "merge the duplicate
+# copies"). A copy of a global def at its types (LoG: a def or an
+# instance's method, NAME__TYPES) is one program wherever it is asked
+# for, so a module that imports a module of the package that wrote it
+# names that one, (g THAT NAME var), and writes no copy of its own (nor
+# the copies only it would ask for). Copies at a known function argument
+# (LoF, LoFl) and of a module's locals (LoL) are still made in each
+# module: their names do not say the caller's function or local.
+
+# a copy a module wrote: its def's key (LoG's), its name, the module
+type Wc is Data:
+  Wc{k: List<&2, U32>, n: List<&2, U32>, m: List<&2, U32>}
+
+# a copy the module names in another module
+type Rd is Data:
+  Rd{n: List<&2, U32>, m: List<&2, U32>}
+
+# a module's copies, the ones it names elsewhere, the ones it wrote
+type Wk is Data:
+  Wk{tops: List<&2, X.Sx>, rd: List<&2, Rd>, wc: List<&2, Wc>}
+
+# a module's output and the package's copies after it
+type Md is Data:
+  Md{xs: List<&2, X.Sx>, wc: List<&2, Wc>}
+
+# a request's global key (LoG), else empty
+def sp.rq.lok(rq: Rq) -> List<&2, U32>:
+  match rq:
+    case Rq{n, LoG{k}, tys}:
+      k
+    case _:
+      Nil{}
+
+# the module among ims that wrote the copy n of k
+def sp.wc.at(ws: List<&2, Wc>, +k: List<&2, U32>, +n: List<&2, U32>, +ims: List<&2, List<&2, U32>>) -> Maybe<&2, List<&2, U32>>:
+  match ws:
+    case Nil{}:
+      None{}
+    case Wc{k2, n2, +m2} <> t:
+      sp.if(Maybe<&2, List<&2, U32>>, Bool.and(Bool.and(S.eq(n, n2), S.eq(k, k2)), S.mem(m2, ims)), _ => Some{m2}, _ => sp.wc.at(t, k, n, ims))
+
+# the modules a module imports, from its (module NAME ((import M ..)..))
+def sp.ims.of(its: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +i <> t:
+      sp.sat(i, 1n) <> sp.ims.of(t)
+
+def sp.imports(xs: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      sp.if(List<&2, List<&2, U32>>, sp.head.is(x, "module"), _ => sp.ims.of(sp.els(sp.at(x, 2n))), _ => sp.imports(t))
+
+def sp.wc.add(+lk: List<&2, U32>, +nm: List<&2, U32>, +cur: List<&2, U32>, +wc: List<&2, Wc>) -> List<&2, Wc>:
+  Bool.pick(List<&2, Wc>, List.is_empty(&2, U32, lk), wc, Wc{lk, nm, cur} <> wc)
+
+# the module (of ims) that wrote todo's first copy, if any
+def sp.work.got(todo: List<&2, Rq>, +ws: List<&2, Wc>, +ims: List<&2, List<&2, U32>>) -> Maybe<&2, List<&2, U32>>:
+  match todo:
+    case Nil{}:
+      None{}
+    case +rq <> t:
+      sp.wc.at(ws, sp.rq.lok(rq), sp.rq.name(rq), ims)
+
+# sp.work, a copy another module wrote (got: todo's first's) named there
+# (rd) and not made
+def sp.work2(n: Nat, +todo: List<&2, Rq>, seen: Bool, got: Maybe<&2, List<&2, U32>>, +done: List<&2, List<&2, U32>>, acc: List<&2, X.Sx>, rd: List<&2, Rd>, wc: List<&2, Wc>, +ws: List<&2, Wc>, +ims: List<&2, List<&2, U32>>, +cur: List<&2, U32>, +ix: Ix) -> Wk:
+  match n todo seen got:
+    case Succ{k} rq <> +rest True{} _:
+      sp.work2(k, rest, sp.work.seen(rest, done), sp.work.got(rest, ws, ims), done, acc, rd, wc, ws, ims, cur, ix)
+    case Succ{k} +rq <> +rest False{} Some{m}:
+      +done2 = sp.names.cons(sp.rq.name(rq), done)
+      sp.work2(k, rest, sp.work.seen(rest, done2), sp.work.got(rest, ws, ims), done2, acc, Rd{sp.rq.name(rq), m} <> rd, wc, ws, ims, cur, ix)
+    case Succ{k} +rq <> +rest False{} None{}:
+      +nm = sp.rq.name(rq)
+      +r = sp.work.at(sp.copy.any(rq, cur, ix), cur, ix)
+      +todo2 = List.append(&2, Rq, rest, sp.work.rq(r))
+      +done2 = sp.names.cons(nm, done)
+      sp.work2(k, todo2, sp.work.seen(todo2, done2), sp.work.got(todo2, ws, ims), done2, sp.work.put(r, acc), rd, sp.wc.add(sp.rq.lok(rq), nm, cur, wc), ws, ims, cur, ix)
+    case _ _ _ _:
+      Wk{List.reverse(&2, X.Sx, acc), rd, wc}
+
+def sp.rd.find(rd: List<&2, Rd>, +n: List<&2, U32>) -> Maybe<&2, List<&2, U32>>:
+  match rd:
+    case Nil{}:
+      None{}
+    case Rd{n2, +m} <> t:
+      sp.if(Maybe<&2, List<&2, U32>>, S.eq(n, n2), _ => Some{m}, _ => sp.rd.find(t, n))
+
+def sp.redir.g(m: Maybe<&2, List<&2, U32>>, +y: X.Sx) -> X.Sx:
+  match m:
+    case Some{a}:
+      sp.l([sp.a("g"), X.SxStr{a}, sp.at(y, 2n), sp.at(y, 3n)])
+    case None{}:
+      y
+
+# x with each (g CUR NAME ..) of a copy named elsewhere as (g THAT NAME ..)
+def sp.redir(x: X.Sx, +cur: List<&2, U32>, +rd: List<&2, Rd>) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      +y = {X.SxCons{sp.redir(h, cur, rd), sp.redir(t, cur, rd)} : X.Sx}
+      sp.if(X.Sx, Bool.and(sp.head.is(y, "g"), S.eq(sp.sat(y, 1n), cur)), _ => sp.redir.g(sp.rd.find(rd, sp.sat(y, 2n)), y), _ => y)
+    case z:
+      z
+
+def sp.redirs(xs: List<&2, X.Sx>, +cur: List<&2, U32>, +rd: List<&2, Rd>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      sp.redir(x, cur, rd) <> sp.redirs(t, cur, rd)
+
+def sp.wk.tops(w: Wk) -> List<&2, X.Sx>:
+  match w:
+    case Wk{t, r, c}:
+      t
+
+def sp.wk.rd(w: Wk) -> List<&2, Rd>:
+  match w:
+    case Wk{t, r, c}:
+      r
+
+def sp.wk.wc(w: Wk) -> List<&2, Wc>:
+  match w:
+    case Wk{t, r, c}:
+      c
+
+def sp.md.xs(m: Md) -> List<&2, X.Sx>:
+  match m:
+    case Md{x, w}:
+      x
+
+def sp.md.wc(m: Md) -> List<&2, Wc>:
+  match m:
+    case Md{x, w}:
+      w
+
+# the module's items and copies, the copies named elsewhere redirected
+def sp.module.at(+xs: List<&2, X.Sx>, +cur: List<&2, U32>, +rd: List<&2, Rd>) -> List<&2, X.Sx>:
+  sp.if(List<&2, X.Sx>, List.is_empty(&2, Rd, rd), _ => xs, _ => sp.redirs(xs, cur, rd))
+
+def sp.module(+xs: List<&2, X.Sx>, +ix: Ix, +ws: List<&2, Wc>) -> Md:
   +cur = sp.modname(xs)
   +r = sp.items(xs, cur, ix)
-  List.append(&2, X.Sx, sp.els(sp.rw.x(r)), sp.work(4000n, sp.work.rq(r), False{}, Nil{}, Nil{}, cur, ix))
+  +ims = sp.imports(xs)
+  +todo = sp.work.rq(r)
+  +w = sp.work2(4000n, todo, False{}, sp.work.got(todo, ws, ims), Nil{}, Nil{}, Nil{}, Nil{}, ws, ims, cur, ix)
+  Md{sp.module.at(List.append(&2, X.Sx, sp.els(sp.rw.x(r)), sp.wk.tops(w)), cur, sp.wk.rd(w)), List.append(&2, Wc, sp.wk.wc(w), ws)}
 
 # crypton's Digest SHA256 as HsPrelude's HsDigest (SHA256 itself, the
 # algorithm's tag, as ()) and a ByteString (strict or lazy) as a list of
@@ -4158,7 +4307,7 @@ def sp.text(xs: List<&2, X.Sx>) -> List<&2, U32>:
     case x <> t:
       sp.cat(X.tsx.show(x), 10 <> sp.text(t))
 
-def sp.run(fs: List<String>, +out: String, ix: Ix, list: List<&2, U32>) -> IO(Unit):
+def sp.run(fs: List<String>, +out: String, ix: Ix, list: List<&2, U32>, ws: List<&2, Wc>) -> IO(Unit):
   match fs:
     case Nil{}:
       S.write(out ++ "/modules.txt", list)
@@ -4168,13 +4317,14 @@ def sp.run(fs: List<String>, +out: String, ix: Ix, list: List<&2, U32>) -> IO(Un
         +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(X.tsx.read(bytes)))
         +ix2 : Ix <- IO.pure(Ix, sp.ix.module(xs, ix))
         +p : String <- IO.pure(String, out ++ "/" ++ S.base(f))
-        S.write(p, sp.text(sp.module(xs, ix2)))
-        sp.run(t, out, ix2, sp.cat(list, sp.cat(S.b(p), [10])))
+        +md : Md <- IO.pure(Md, sp.module(xs, ix2, ws))
+        S.write(p, sp.text(sp.md.xs(md)))
+        sp.run(t, out, ix2, sp.cat(list, sp.cat(S.b(p), [10])), sp.md.wc(md))
 
 def sp.main(args: List<String>) -> IO(Unit):
   match args:
     case out <> files:
-      sp.run(files, out, sp.ix0(), Nil{})
+      sp.run(files, out, sp.ix0(), Nil{}, Nil{})
     case Nil{}:
       IO.print("usage: spec OUTDIR FILE.sexp...")
 

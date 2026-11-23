@@ -590,7 +590,9 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
 - **Naturality** (`tests/natural`): the specialiser's copies of a def at
   several types, counted once their types are erased (`Copies.hs`), and a
   copied def written once, with a law proved once and a copy as its
-  instance (`bend --verdict`).
+  instance (`bend --verdict`). Spec writes a copy of a global def at its
+  types once per package: a module that imports the module that wrote it
+  names that one (telomare: 258 copies fewer, the same results).
 - **Squares** (`tests/square`): a hand-written Bend function against F of
   the Haskell one, `phi(F.h(x)) == W.b(phi(x))` proved for every x
   (xmonad-bend's StackSet against cata's XMonad.StackSet, its Core's

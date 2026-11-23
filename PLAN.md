@@ -1987,3 +1987,39 @@ Telomare.PrettyPrint.Indent overflows bend's machine stack in the kernel's
 translation, and one importing Telomare.Machine fails the kernel on an
 example law bend --check-only accepts (decendant.ex1: out of fuel), so
 cata's `ok-law` is a --check-only label, not a verdict, as rule 3 says.
+
+**Copies once per package** (the user, 11-23: "merge the duplicate copies
+to save time"). The specialiser wrote a copy into each module that asked
+for it, so one copy, the same program, was in up to 12 modules
+(cshowsPrec__SourceSpan). Spec now keeps the package's copies of global
+defs at their types (LoG: a def or an instance's method, NAME__TYPES, its
+def's key with it) as it goes, and a module that imports a module that
+wrote one names that one, `(g THAT NAME var)`, and writes no copy of its
+own, nor the copies only that copy asked for. Copies at a known function
+argument (LoF, LoFl) and of a module's locals (LoL) are still made per
+module: their names do not say the caller's function or local.
+
+| telomare (tex17, then law with CATA_BEND2HS=1) | before | after |
+|---|---|---|
+| spec's tops | 6,009 | 5,751 |
+| ledger: ok-check / ok-law / ok-type / out | 1542 / 118 / 115 / 735 | 1296 / 118 / 115 / 723 |
+| Bend written: defs, lines (31 modules) | 3,578, 23,480 | 3,291, 22,029 |
+| G's round trip, 420 laws | 420 the same | 420 the same |
+| spec, law | 137 s, 186 s | 147 s, 182 s |
+| bend --check-only of the 31 modules, one after another | 12.7 s | 12.5 s |
+
+The 258 lines gone from the ledger are all copies (246 ok-check, 12 out)
+that another module now holds; no other def changed status, and 11 out
+defs have another first reason (survey's, where it was the fold's or a
+dep). xmonad (tests/xmonad/run.zsh): 142 out copies gone, 24 ok-check,
+25 ok-law and 17 ok-type as before, every other ledger line the same.
+Copies.hs on G's modules: 1,188 copies in all modules -> 942, 808 by name
+-> 807, 732 distinct erased texts -> 715 (570 -> 581 up to the copies
+they call).
+
+So the duplicates cost little time: the 31 written modules check in
+12.7 s before and 12.5 s after, and law's whole run moved 186 s -> 182 s
+(where the rest of law's time goes was not measured here). What is left
+of "one program at several types" (715 texts for 807 names; 581 up to
+the copies they call) is the polymorphic def and its law of
+tests/natural, a dictionary as arguments: not made in Spec.
