@@ -8,7 +8,7 @@
 -- cata writes Int as Nat only where nothing goes below zero; Nat.sub is
 -- Base's, which stops at 0).  A name G needs and this lacks is GHC's
 -- "not in scope", which tests/back/run.zsh reports by module.
-{-# LANGUAGE NoMonomorphismRestriction, PatternSynonyms, ViewPatterns #-}
+{-# LANGUAGE NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
 module BendRt
   ( module BendRt
   , Bool (..), Maybe (..), Either (..), Ordering (..), Int, Char, String, Float, IO
@@ -17,7 +17,7 @@ module BendRt
 
 import Prelude
 import qualified Data.Char as DC
-import Data.List (sortBy, nubBy, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, groupBy, insertBy, tails, inits, partition, stripPrefix)
+import Data.List (genericLength, genericTake, genericDrop, genericReplicate, sortBy, nubBy, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, groupBy, insertBy, tails, inits, partition, stripPrefix)
 import Data.Maybe (mapMaybe, catMaybes, isJust, isNothing, listToMaybe, maybeToList)
 import Data.Either (lefts, rights, partitionEithers, isLeft, isRight, fromLeft, fromRight)
 
@@ -46,8 +46,8 @@ b'todo = error "bend2hs: a form G does not write"
 b'pred :: Integral a => a -> Maybe a
 b'pred n = if n >= 1 then Just (n - 1) else Nothing
 
-b'chr :: Int -> Char
-b'chr = toEnum
+b'chr :: Integral a => a -> Char
+b'chr = toEnum . fromIntegral
 
 -- cata's prelude: an if with thunks
 b'Bool'if c t e = if c then t () else e ()
@@ -99,16 +99,16 @@ b'Cmp'is_lt o = o == LT
 b'Cmp'is_gt o = o == GT
 
 b'List'append xs ys = xs ++ ys
-b'List'length xs = length xs
+b'List'length xs = genericLength xs
 b'List'reverse = reverse
 b'List'concat = concat
 b'List'map f xs = map f xs
 b'List'filter f xs = filter f xs
 b'List'any f xs = any f xs
 b'List'all f xs = all f xs
-b'List'take xs n = take n xs
-b'List'drop xs n = drop n xs
-b'List'replicate n x = replicate n x
+b'List'take xs n = genericTake n xs
+b'List'drop xs n = genericDrop n xs
+b'List'replicate n x = genericReplicate n x
 b'List'contains eq xs x = any (eq x) xs
 b'List'foldr f xs z = foldr f z xs
 b'List'foldl f xs z = foldl f z xs
@@ -218,8 +218,8 @@ b'main = return ()
 
 -- Base's U32 (an Int below 2^32: cata writes a U32 for a character's code
 -- and for a fuel bound) and F32 (a Float)
-b'U32'to_nat n = n :: Int
-b'U32'from_nat n = n :: Int
+b'U32'to_nat n = fromIntegral (n :: Int)
+b'U32'from_nat n = fromIntegral n :: Int
 b'U32'is_eq a b = a == (b :: Int)
 b'U32'is_ne a b = a /= (b :: Int)
 b'U32'is_lt a b = a < (b :: Int)
@@ -240,56 +240,56 @@ b'F32'is_lt a b = a < (b :: Float)
 b'F32'is_le a b = a <= (b :: Float)
 b'F32'is_gt a b = a > (b :: Float)
 b'F32'is_ge a b = a >= (b :: Float)
-b'F32'from_nat n = fromIntegral (n :: Int) :: Float
+b'F32'from_nat n = fromIntegral n :: Float
 
 -- the prelude's Haskell Int (HsPrelude.HsInt): Pos n and Neg n as views of
 -- an Int; each operation as the prelude defines it (quot, rem, div and mod
 -- by 0 are the prelude's total answers: Nat.div n 0 is 0, Nat.mod n 0 n)
-b'posv :: Int -> Maybe Int
+b'posv :: (Ord a, Num a) => a -> Maybe a
 b'posv k = if k >= 0 then Just k else Nothing
-b'negv :: Int -> Maybe Int
+b'negv :: (Ord a, Num a) => a -> Maybe a
 b'negv k = if k < 0 then Just (negate k) else Nothing
-pattern B'HsPrelude'HsInt'Pos :: Int -> Int
+pattern B'HsPrelude'HsInt'Pos :: (Ord a, Num a) => a -> a
 pattern B'HsPrelude'HsInt'Pos n <- (b'posv -> Just n) where B'HsPrelude'HsInt'Pos n = n
-pattern B'HsPrelude'HsInt'Neg :: Int -> Int
+pattern B'HsPrelude'HsInt'Neg :: (Ord a, Num a) => a -> a
 pattern B'HsPrelude'HsInt'Neg n <- (b'negv -> Just n) where B'HsPrelude'HsInt'Neg n = negate n
 {-# COMPLETE B'HsPrelude'HsInt'Pos, B'HsPrelude'HsInt'Neg #-}
 
-b'HsPrelude'HsInt'of n = n :: Int
-b'HsPrelude'HsInt'neg'of n = negate n :: Int
-b'HsPrelude'HsInt'negate a = negate a :: Int
-b'HsPrelude'HsInt'nsub a b = a - b :: Int
-b'HsPrelude'HsInt'add a b = a + b :: Int
-b'HsPrelude'HsInt'sub a b = a - b :: Int
-b'HsPrelude'HsInt'mul a b = a * b :: Int
-b'HsPrelude'HsInt'abs a = abs a :: Int
-b'HsPrelude'HsInt'signum a = signum a :: Int
-b'HsPrelude'HsInt'mag a = abs a :: Int
-b'HsPrelude'HsInt'isneg a = a < (0 :: Int)
-b'HsPrelude'HsInt'cmp a b = compare a (b :: Int)
-b'HsPrelude'HsInt'is_eq a b = a == (b :: Int)
-b'HsPrelude'HsInt'is_ne a b = a /= (b :: Int)
-b'HsPrelude'HsInt'is_lt a b = a < (b :: Int)
-b'HsPrelude'HsInt'is_le a b = a <= (b :: Int)
-b'HsPrelude'HsInt'is_gt a b = a > (b :: Int)
-b'HsPrelude'HsInt'is_ge a b = a >= (b :: Int)
-b'HsPrelude'HsInt'max a b = max a (b :: Int)
-b'HsPrelude'HsInt'min a b = min a (b :: Int)
-b'HsPrelude'HsInt'succ a = a + 1 :: Int
-b'HsPrelude'HsInt'pred a = a - 1 :: Int
-b'HsPrelude'HsInt'even a = even (a :: Int)
-b'HsPrelude'HsInt'odd a = odd (a :: Int)
-b'HsPrelude'HsInt'show a = show (a :: Int)
-b'HsPrelude'HsInt'count a = max 0 (a :: Int)
-b'HsPrelude'HsInt'mul'sign neg n = if neg then negate n else n :: Int
+b'HsPrelude'HsInt'of n = n
+b'HsPrelude'HsInt'neg'of n = negate n
+b'HsPrelude'HsInt'negate a = negate a
+b'HsPrelude'HsInt'nsub a b = a - b
+b'HsPrelude'HsInt'add a b = a + b
+b'HsPrelude'HsInt'sub a b = a - b
+b'HsPrelude'HsInt'mul a b = a * b
+b'HsPrelude'HsInt'abs a = abs a
+b'HsPrelude'HsInt'signum a = signum a
+b'HsPrelude'HsInt'mag a = abs a
+b'HsPrelude'HsInt'isneg a = a < 0
+b'HsPrelude'HsInt'cmp a b = compare a b
+b'HsPrelude'HsInt'is_eq a b = a == b
+b'HsPrelude'HsInt'is_ne a b = a /= b
+b'HsPrelude'HsInt'is_lt a b = a < b
+b'HsPrelude'HsInt'is_le a b = a <= b
+b'HsPrelude'HsInt'is_gt a b = a > b
+b'HsPrelude'HsInt'is_ge a b = a >= b
+b'HsPrelude'HsInt'max a b = max a b
+b'HsPrelude'HsInt'min a b = min a b
+b'HsPrelude'HsInt'succ a = a + 1
+b'HsPrelude'HsInt'pred a = a - 1
+b'HsPrelude'HsInt'even a = even a
+b'HsPrelude'HsInt'odd a = odd a
+b'HsPrelude'HsInt'show a = show a
+b'HsPrelude'HsInt'count a = max 0 a
+b'HsPrelude'HsInt'mul'sign neg n = if neg then negate n else n
 b'HsPrelude'HsInt'quot a b = b'HsPrelude'HsInt'mul'sign ((a < 0) /= (b < 0)) (b'Nat'div (abs a) (abs b))
 b'HsPrelude'HsInt'rem a b = b'HsPrelude'HsInt'mul'sign (a < 0) (b'Nat'mod (abs a) (abs b))
 b'HsPrelude'HsInt'div a b = let { q = b'HsPrelude'HsInt'quot a b; r = b'HsPrelude'HsInt'rem a b } in if r /= 0 && ((a < 0) /= (b < 0)) then q - 1 else q
 b'HsPrelude'HsInt'mod a b = let r = b'HsPrelude'HsInt'rem a b in if r /= 0 && ((r < 0) /= (b < 0)) then r + b else r
-b'HsPrelude'HsInt'pow a e = a ^ abs (e :: Int) :: Int
-b'HsPrelude'HsInt'gcd a b = gcd a (b :: Int)
-b'HsPrelude'HsInt'lcm a b = lcm a (b :: Int)
-b'HsPrelude'HsInt'range a b = [a .. b :: Int]
+b'HsPrelude'HsInt'pow a e = a ^ abs e
+b'HsPrelude'HsInt'gcd a b = gcd a b
+b'HsPrelude'HsInt'lcm a b = lcm a b
+b'HsPrelude'HsInt'range a b = [a .. b]
 
 -- the prelude's partial functions, each a failure value (Left GHC's
 -- message) where GHC throws (bend/Prelude.bend, "Partial functions")
@@ -308,7 +308,7 @@ b'HsPrelude'HsList'maximumBy cmp xs = case xs of { [] -> Left "maximumBy: empty 
 b'HsPrelude'HsList'minimumBy cmp xs = case xs of { [] -> Left "minimumBy: empty structure"; (x : t) -> Right (b'mingo cmp x t) }
 b'HsPrelude'HsList'foldr1 f xs = case xs of { [] -> Left "Prelude.foldr1: empty list"; _ -> Right (foldr1 f xs) }
 b'HsPrelude'HsList'foldl1 f xs = case xs of { [] -> Left "Prelude.foldl1: empty list"; _ -> Right (foldl1 f xs) }
-b'HsPrelude'HsList'index xs n = if n < 0 then Left "Prelude.!!: negative index" else case drop n xs of { [] -> Left "Prelude.!!: index too large"; (x : _) -> Right x }
+b'HsPrelude'HsList'index xs n = if n < 0 then Left "Prelude.!!: negative index" else case genericDrop n xs of { [] -> Left "Prelude.!!: index too large"; (x : _) -> Right x }
 
 -- mapM and its kin at Maybe and at Either (HsPrelude.HsList.maybe.NAME,
 -- HsPrelude.HsList.either.NAME)
@@ -372,3 +372,60 @@ data B'HsPrelude'CofreeF'fn f a b = B'HsPrelude'CofreeF'fn'CofreeF a (f b)
 b'HsPrelude'Fix'unFix (B'HsPrelude'Fix'Fix y) = y
 b'HsPrelude'Cofree'project (B'HsPrelude'Cofree'Cofree h t) = B'HsPrelude'CofreeF'CofreeF h t
 b'HsPrelude'Cofree'embed (B'HsPrelude'CofreeF'CofreeF h t) = B'HsPrelude'Cofree'Cofree h t
+
+-- The round trip's iso at h's type.  G(F(t)) is t again up to an iso, not
+-- equal: cata's Bend has pairs, not triples (h's (a, b, c) is G's (a, (b,
+-- c))), and a partial h answers Either (b'unfail).  B'G t is G(F(t)) for a
+-- Haskell type t (its numbers t itself: G's arithmetic is any Num's), and
+-- b'up :: B'G t -> t is the iso, defined by t's structure: lists, Maybe,
+-- Either, tuples and functions (b'down the other way, at a function's
+-- argument); any other type, a module's own or a base one, is its own
+-- image.  G writes each def GHC knows as h's name = b'up (G's def), and
+-- the laws' script, whose every call names h's type, picks the iso.
+type family B'G h where
+  B'G [a] = [B'G a]
+  B'G (Maybe a) = Maybe (B'G a)
+  B'G (Either a b) = Either (B'G a) (B'G b)
+  B'G (a, b) = (B'G a, B'G b)
+  B'G (a, b, c) = (B'G a, (B'G b, B'G c))
+  B'G (a, b, c, d) = (B'G a, (B'G b, (B'G c, B'G d)))
+  B'G (a, b, c, d, e) = (B'G a, (B'G b, (B'G c, (B'G d, B'G e))))
+  B'G (a -> b) = B'G a -> B'G b
+  B'G a = a
+
+class B'Up h where
+  b'up :: B'G h -> h
+  b'down :: h -> B'G h
+
+instance B'Up a => B'Up [a] where
+  b'up = map b'up
+  b'down = map b'down
+instance B'Up a => B'Up (Maybe a) where
+  b'up = fmap b'up
+  b'down = fmap b'down
+instance (B'Up a, B'Up b) => B'Up (Either a b) where
+  b'up = either (Left . b'up) (Right . b'up)
+  b'down = either (Left . b'down) (Right . b'down)
+instance (B'Up a, B'Up b) => B'Up (a, b) where
+  b'up (a, b) = (b'up a, b'up b)
+  b'down (a, b) = (b'down a, b'down b)
+instance (B'Up a, B'Up b, B'Up c) => B'Up (a, b, c) where
+  b'up (a, (b, c)) = (b'up a, b'up b, b'up c)
+  b'down (a, b, c) = (b'down a, (b'down b, b'down c))
+instance (B'Up a, B'Up b, B'Up c, B'Up d) => B'Up (a, b, c, d) where
+  b'up (a, (b, (c, d))) = (b'up a, b'up b, b'up c, b'up d)
+  b'down (a, b, c, d) = (b'down a, (b'down b, (b'down c, b'down d)))
+instance (B'Up a, B'Up b, B'Up c, B'Up d, B'Up e) => B'Up (a, b, c, d, e) where
+  b'up (a, (b, (c, (d, e)))) = (b'up a, b'up b, b'up c, b'up d, b'up e)
+  b'down (a, b, c, d, e) = (b'down a, (b'down b, (b'down c, (b'down d, b'down e))))
+instance (B'Up a, B'Up b) => B'Up (a -> b) where
+  b'up f = b'up . f . b'down
+  b'down f = b'down . f . b'up
+instance {-# OVERLAPPABLE #-} (B'G a ~ a) => B'Up a where
+  b'up = id
+  b'down = id
+
+-- a partial def's answer as h's: Inl{m} is h's error m again (the script's
+-- LawEw answers an ErrorCall m as Inl m, as it does h's)
+b'unfail :: Either String a -> a
+b'unfail = either errorWithoutStackTrace id
