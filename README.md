@@ -570,13 +570,24 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
   different, or missing.
   G(F(t)) is t only up to an iso (h's triple is G's nested pair, a partial
   h's answer an Either), which BendRt's `b'up` undoes at h's type.
+- G gives h's types back where F loses them: a data field's Int, Integer
+  or Natural (all Nat in Bend) through h's synonyms, a type's kind
+  variables dropped, and a constructor with a tuple of 3 or more (Bend's
+  nested pairs) reached through a pattern synonym that converts it.
 - **Naturality** (`tests/natural`): the specialiser's copies of a def at
   several types, counted once their types are erased (`Copies.hs`), and a
   copied def written once, with a law proved once and a copy as its
   instance (`bend --verdict`).
 - **Squares** (`tests/square`): a hand-written Bend function against F of
   the Haskell one, `phi(F.h(x)) == W.b(phi(x))` proved for every x
-  (xmonad-bend's StackSet against cata's XMonad.StackSet).
+  (xmonad-bend's StackSet against cata's XMonad.StackSet, its Core's
+  default config against XMonad.Config).
+- **The checker** (`tests/adjoint/run.zsh SQDIR LAWOUT MOD WORK
+  DIR=PATH...`, `bend/Adj.bend`): any such pairing, on both sides: the
+  squares' proofs (`--check-only`, `--verdict`), and each square at GHC's
+  own answers for h (law's example laws, h(a) == v, give phi(v) ==
+  W.b(phi(a)), checked by bend), with mutants (two squares of one shape,
+  their b's swapped) at GHC's answers and in the proofs.
 
 ## Build
 

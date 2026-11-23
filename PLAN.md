@@ -1791,6 +1791,7 @@ hs1003 (643 exports, 401 with laws):
 | locals, strings, names (e100709) | 376 | 5,689 | 11 | 0 | 982 |
 | the iso b'up, partial defs (bb64880) | 401 | 6,594 | 11 | 7 | 70 |
 | h's number types from the export, partial defs by the laws' list (3c0ee35) | 401 | 6,624 | 11 | 7 | 40 |
+| synonyms expanded, kind variables dropped, triples converted (93f115a) | 401 | 6,671 | 11 | 0 | 0 |
 
 What this says about F and G:
 
@@ -1801,10 +1802,19 @@ What this says about F and G:
   BendRt's `B'G t` is G(F(t)) as a closed type family (lists, Maybe,
   Either, tuples, functions; any other type its own image), `b'up :: B'G t
   -> t` the iso, chosen by the type the laws' script names at each call;
-  G's arithmetic is any Num's, and G takes a data type's number fields' h
-  types from the export. At a module's own type `b'up` is the identity, so
-  a triple inside one (00379's Zipper) stays a nested pair: its 7 answers
-  differ from h's only by that iso, and are counted as different.
+  G's arithmetic is any Num's. Inside a module's own types `b'up` is the
+  identity, so there G takes h's types back from the export instead
+  (93f115a): a data field Bend has as Nat is printed at h's Int, Integer
+  or Natural (through h's synonyms: `type Age = Integer`); a type's kind
+  variables, which hs-export lists with its type variables but drops where
+  the type is applied, are dropped; and a constructor with a field F
+  reshapes (a tuple of 3 or more, anywhere in it) is declared with h's
+  field types and reached by G's code through a bidirectional pattern
+  synonym that converts each such field, Bend's nested pairs to h's tuple
+  when it builds, back when it matches (00379's Zipper, 00205's Resistor,
+  00052's Connection and Scanner). So G(F(t)) is t at a module's types
+  too, by a conversion in G's program, not in the comparison; 00379's 7
+  answers that differed by the pair iso are now the same.
 - **"More defined" is the order of flavour 4.** h errs where F(h) answers
   (``x `mod` 0`` errs, Bend's `Nat.mod(x, 0n)` is x): h is below G(F(h))
   in the definedness order, never above it (no law where h answers and
@@ -1826,14 +1836,41 @@ checks them (ALL PROOFS CHECK), and calls 2 out of its scope (wss.lemma
 and workspaces: "a template argument that depends on a run-time value",
 which BendTT says its kernel does not take yet); the mutant (swapUp' paired
 with focusUp) fails. Rerun 2026-11-22 against xmonad-bend 1372ad9: the
-same. The two need either that kernel update, or F not to pass a lambda as
-a template argument there: cata's XMonad.StackSet maps F.workspace over the
-screens as `hs.map(~.., ~x_1 => F.workspace(..), v)`, and a copy of
-hs.map at that function (as the specialiser's rule 15 copies foldr and
-concatMap at telomare's) would be a plain recursive def (untested). The
-GHC side of the same check (G(b) against h, differential) needs G on
-hand-written Bend, which it does not read (3). A general checker over any
-pairing: not done.
+same.
+
+What the two need (tests/square/xmonad/wsmap.zsh, on copies): cata's
+XMonad.StackSet writes workspaces with template type parameters and maps
+F.workspace over the screens as `hs.map(~.., ~x_1 => F.workspace(..), v)`,
+a lambda as a template argument. With a first-order copy of hs.map at that
+function (`wsmap`, as the specialiser's rule 15 copies foldr and concatMap
+at their known functions) and workspaces' type parameters erased, all 17
+squares pass `--verdict`. So they need that rule in cata (not made: it
+changes master's output) or a kernel that takes a lambda as a template
+argument.
+
+The general checker (4db79d0): tests/adjoint/run.zsh SQDIR LAWOUT MOD WORK
+DIR=PATH takes any pairing, squares in SQDIR/PROPOSED.bend and their
+proofs in PROOF.bend. For every input: PROOF.bend's check, verdict, and
+the verdict without what the kernel calls out of scope. At GHC's answers
+(bend/Adj.bend, Bend): each of law's example laws of F.h, h(a) == v, gives
+each square calling F.h the instance phi(v) == W.b(phi(a)), GHC's answer
+in F.h(a)'s place, so b is checked against GHC's h itself, not against F's
+translation, on the side where checking is computing (Bend computes both
+sides; G is not needed on hand-written Bend). And mutants: two squares of
+one shape with their b's swapped, at GHC's answers and in PROOF.bend.
+
+| pairing | squares | verdict | instances at GHC's answers | mutants killed: at GHC's answers / by PROOF.bend |
+|---|---|---|---|---|
+| XMonad.StackSet, xmonad-bend 1372ad9's StackSet | 17 | 15 in scope (17 with wsmap) | 23 of 23 check, verdict too | 0 / 2 of 2 |
+| XMonad.Config, xmonad-bend 551bdaf's Core cfg.* | 5 | 5 | 5 of 5 | 6 / 6 of 8 |
+
+The example points are weak where law's inputs are small: reverse and
+swapUp agree on every stack law tried (at most one element below the
+focus), and only the proof tells them apart. The 2 Config mutants that
+survive both are true squares (focusFollowsMouse and clickJustFocuses are
+both True). Not done: inputs beyond law's (more GHC answers would need
+law's GHCi script at chosen inputs), squares or proofs found by the
+checker (they are the human's and the AI's).
 
 ### 5. Not an isomorphism; an equivalence on a fragment
 
@@ -1841,10 +1878,10 @@ What F leaves out is the ledger's `out`; what it changes is (3)'s list:
 numbers' types, tuples, partiality (total where h errs), and Bend's
 strictness (a partial call's error is the def's even where Haskell would
 never force it). On the fragment the laws reach, the round trip is the
-identity up to (3)'s iso: of hs1003's 6,682 laws, 6,624 agree, 11 are more
-defined, 7 agree up to the pair iso, and GHC refuses the line of 40 (a
-number type behind a synonym, a type parameter G drops, a triple inside a
-module's type).
+identity up to (3)'s iso: of hs1003's 6,682 laws, 6,671 agree and 11 are
+more defined (93f115a; before it, 7 agreed only up to the pair iso and GHC
+refused the line of 40: a number type behind a synonym, a kind variable G
+kept as a type parameter, a triple inside a module's type).
 
 ### Naturality: the specialiser's copies
 
