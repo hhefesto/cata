@@ -1780,12 +1780,33 @@ def lw.kc.ghc.got(got: Maybe<&2, List<&2, U32>>, +dir: String, +key: List<&2, U3
         lw.kc.put(lw.kc.ghc.keep(o), dir, key, o)
         return o
 
+# GHC's words in its key: all but -outputdir and its directory, where GHC
+# keeps the modules it compiled (they change no answer: GHC compiles a
+# module again when its source or flags change), so that runs with their
+# own directories share answers (od: the last word was -outputdir)
+def lw.kc.ghc.word(od: Bool, +w: List<&2, U32>, r: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match od:
+    case True{}:
+      r
+    case False{}:
+      w <> r
+
+def lw.kc.ghc.words(ws: List<&2, List<&2, U32>>, od: Bool) -> List<&2, List<&2, U32>>:
+  match ws od:
+    case Nil{} _:
+      Nil{}
+    case w <> t True{}:
+      lw.kc.ghc.words(t, False{})
+    case +w <> t False{}:
+      +o = S.eq(w, S.b("-outputdir"))
+      lw.kc.ghc.word(o, w, lw.kc.ghc.words(t, o))
+
 def lw.kc.ghc.at(on: Bool, +ck: Kc, +ghc: String, +src: String, +script: List<&2, U32>) -> IO(S.Out):
   match on:
     case False{}:
       lw.ghc.exec(ghc, src, script)
     case True{}:
-      +key = C.ch.key([S.b("cata ghc 1"), lw.cc.ghc(lw.kc.cc(ck)), S.b(ghc), S.b(src), lw.kc.hs(ck), script])
+      +key = C.ch.key([S.b("cata ghc 1"), lw.cc.ghc(lw.kc.cc(ck)), S.join(lw.kc.ghc.words(S.split(S.b(ghc), 32), False{}), 32), S.b(src), lw.kc.hs(ck), script])
       +dir = S.str(lw.kc.dir(ck))
       do IO<S.Out>:
         got : Maybe<&2, List<&2, U32>> <- C.ch.get(dir, key)
