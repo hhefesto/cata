@@ -71,17 +71,33 @@ b'Nat'mul a b = a * b
 b'Nat'div a b = if b == 0 then 0 else a `div` b
 b'Nat'mod a b = if b == 0 then a else a `mod` b
 b'Nat'pow a b = a ^ b
+-- Nat's comparisons and show are a number's (Num beside Eq, Ord or Show):
+-- G(F(h)) uses them at h's Int, Integer or Natural, and F(G(b)) reads
+-- them at Integer by the Report's default rule (Survey's sv.dfl), as Nat's
+b'Nat'max :: (Ord a, Num a) => a -> a -> a
 b'Nat'max a b = max a b
+b'Nat'min :: (Ord a, Num a) => a -> a -> a
 b'Nat'min a b = min a b
+b'Nat'is_eq :: (Eq a, Num a) => a -> a -> Bool
 b'Nat'is_eq a b = a == b
+b'Nat'is_ne :: (Eq a, Num a) => a -> a -> Bool
 b'Nat'is_ne a b = a /= b
+b'Nat'is_lt :: (Ord a, Num a) => a -> a -> Bool
 b'Nat'is_lt a b = a < b
+b'Nat'is_le :: (Ord a, Num a) => a -> a -> Bool
 b'Nat'is_le a b = a <= b
+b'Nat'is_gt :: (Ord a, Num a) => a -> a -> Bool
 b'Nat'is_gt a b = a > b
+b'Nat'is_ge :: (Ord a, Num a) => a -> a -> Bool
 b'Nat'is_ge a b = a >= b
+b'Nat'cmp :: (Ord a, Num a) => a -> a -> Ordering
 b'Nat'cmp a b = compare a b
+b'Nat'show :: (Show a, Num a) => a -> String
 b'Nat'show n = show n
-b'Nat'succ n = n + 1
+-- Bend's 1n+n (G writes a successor that is no pattern so), by Haskell's
+-- succ: F reads succ at a number back as 1n+n
+b'Nat'succ :: Enum a => a -> a
+b'Nat'succ n = succ n
 b'Nat'pred n = max 0 (n - 1)
 b'Nat'is_zero n = n == 0
 
@@ -107,25 +123,38 @@ b'Cmp'is_gt o = o == GT
 b'List'append xs ys = xs ++ ys
 b'List'length xs = genericLength xs
 b'List'reverse = reverse
+-- Base's List is Haskell's list, its Maybe Maybe, cata's Either Either:
+-- the wrappers at them, not at any Foldable or Monad (F reads a class's
+-- method at a type variable as out)
+b'List'concat :: [[a]] -> [a]
 b'List'concat = concat
 b'List'map f xs = map f xs
 b'List'filter f xs = filter f xs
+b'List'any :: (a -> Bool) -> [a] -> Bool
 b'List'any f xs = any f xs
+b'List'all :: (a -> Bool) -> [a] -> Bool
 b'List'all f xs = all f xs
 b'List'take xs n = genericTake n xs
 b'List'drop xs n = genericDrop n xs
 b'List'replicate n x = genericReplicate n x
+b'List'contains :: (a -> a -> Bool) -> [a] -> a -> Bool
 b'List'contains eq xs x = any (eq x) xs
+b'List'foldr :: (a -> b -> b) -> [a] -> b -> b
 b'List'foldr f xs z = foldr f z xs
+b'List'foldl :: (b -> a -> b) -> [a] -> b -> b
 b'List'foldl f xs z = foldl f z xs
+b'List'is_empty :: [a] -> Bool
 b'List'is_empty = null
 b'List'head xs = listToMaybe xs
 b'List'tail xs = drop 1 xs
 b'List'last xs = if null xs then Nothing else Just (last xs)
 b'List'zip xs ys = zip xs ys
+b'List'sum :: Num a => [a] -> a
 b'List'sum xs = sum xs
 
+b'Maybe'map :: (a -> b) -> Maybe a -> Maybe b
 b'Maybe'map f m = fmap f m
+b'Maybe'bind :: Maybe a -> (a -> Maybe b) -> Maybe b
 b'Maybe'bind m f = m >>= f
 b'Maybe'default m d = maybe d id m
 
@@ -133,7 +162,9 @@ b'Maybe'default m d = maybe d id m
 b'hs'map f xs = map f xs
 b'hs'maybe d f m = maybe d f m
 b'hs'either f g e = either f g e
+b'hs'either'bind :: Either e a -> (a -> Either e b) -> Either e b
 b'hs'either'bind m f = m >>= f
+b'hs'either'map :: (a -> b) -> Either e a -> Either e b
 b'hs'either'map f m = fmap f m
 b'hs'eq'list eq xs ys = length xs == length ys && and (zipWith eq xs ys)
 b'hs'eq'maybe eq a b = case (a, b) of
@@ -143,7 +174,9 @@ b'hs'eq'maybe eq a b = case (a, b) of
 b'hs'eq'pair ea eb (a, b) (c, d) = ea a c && eb b d
 
 -- HsPrelude's lists (HsPrelude.HsList.NAME)
+b'HsPrelude'HsList'foldr :: (a -> b -> b) -> [a] -> b -> b
 b'HsPrelude'HsList'foldr f xs z = foldr f z xs
+b'HsPrelude'HsList'foldl :: (b -> a -> b) -> [a] -> b -> b
 b'HsPrelude'HsList'foldl f xs z = foldl f z xs
 b'HsPrelude'HsList'fst = fst
 b'HsPrelude'HsList'snd = snd
@@ -165,7 +198,9 @@ b'HsPrelude'HsList'partition p xs = partition p xs
 b'HsPrelude'HsList'find p xs = case filter p xs of
   (x : _) -> Just x
   [] -> Nothing
+b'HsPrelude'HsList'elem :: (a -> a -> Bool) -> a -> [a] -> Bool
 b'HsPrelude'HsList'elem eq x xs = any (eq x) xs
+b'HsPrelude'HsList'notElem :: (a -> a -> Bool) -> a -> [a] -> Bool
 b'HsPrelude'HsList'notElem eq x xs = not (any (eq x) xs)
 b'HsPrelude'HsList'nub eq xs = nubBy eq xs
 b'HsPrelude'HsList'nubBy eq xs = nubBy eq xs
@@ -306,7 +341,9 @@ b'HsPrelude'HsList'tail xs = case xs of { [] -> Left "Prelude.tail: empty list";
 b'HsPrelude'HsList'last xs = case xs of { [] -> Left "Prelude.last: empty list"; _ -> Right (last xs) }
 b'HsPrelude'HsList'init xs = case xs of { [] -> Left "Prelude.init: empty list"; _ -> Right (init xs) }
 b'HsPrelude'HsList'fromJust m = case m of { Nothing -> Left "Maybe.fromJust: Nothing"; Just x -> Right x }
+b'maxgo :: (a -> a -> Ordering) -> a -> [a] -> a
 b'maxgo cmp x t = foldl (\a b -> case cmp a b of { GT -> a; _ -> b }) x t
+b'mingo :: (a -> a -> Ordering) -> a -> [a] -> a
 b'mingo cmp x t = foldl (\a b -> case cmp a b of { GT -> b; _ -> a }) x t
 b'HsPrelude'HsList'maximum cmp xs = case xs of { [] -> Left "Prelude.maximum: empty list"; (x : t) -> Right (b'maxgo cmp x t) }
 b'HsPrelude'HsList'minimum cmp xs = case xs of { [] -> Left "Prelude.minimum: empty list"; (x : t) -> Right (b'mingo cmp x t) }
@@ -315,23 +352,51 @@ b'HsPrelude'HsList'minimumBy cmp xs = case xs of { [] -> Left "minimumBy: empty 
 b'HsPrelude'HsList'foldr1 f xs = case xs of { [] -> Left "Prelude.foldr1: empty list"; _ -> Right (foldr1 f xs) }
 b'HsPrelude'HsList'foldl1 f xs = case xs of { [] -> Left "Prelude.foldl1: empty list"; _ -> Right (foldl1 f xs) }
 b'HsPrelude'HsList'index xs n = if n < 0 then Left "Prelude.!!: negative index" else case genericDrop n xs of { [] -> Left "Prelude.!!: index too large"; (x : _) -> Right x }
+-- div, mod, quot and rem by what may be 0 (HsNum: GHC's DivideByZero,
+-- shown "divide by zero"); at Nat (non-negative) quot is div, rem mod
+b'HsPrelude'HsNum'div :: Integral a => a -> a -> Either String a
+b'HsPrelude'HsNum'div a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
+b'HsPrelude'HsNum'mod :: Integral a => a -> a -> Either String a
+b'HsPrelude'HsNum'mod a b = if b == 0 then Left "divide by zero" else Right (a `mod` b)
+b'HsPrelude'HsNum'idiv :: Integral a => a -> a -> Either String a
+b'HsPrelude'HsNum'idiv a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
+b'HsPrelude'HsNum'imod :: Integral a => a -> a -> Either String a
+b'HsPrelude'HsNum'imod a b = if b == 0 then Left "divide by zero" else Right (a `mod` b)
+b'HsPrelude'HsNum'iquot :: Integral a => a -> a -> Either String a
+b'HsPrelude'HsNum'iquot a b = if b == 0 then Left "divide by zero" else Right (a `quot` b)
+b'HsPrelude'HsNum'irem :: Integral a => a -> a -> Either String a
+b'HsPrelude'HsNum'irem a b = if b == 0 then Left "divide by zero" else Right (a `rem` b)
+b'HsPrelude'HsNum'rdiv :: Rational -> Rational -> Either String Rational
+b'HsPrelude'HsNum'rdiv a b = if b == 0 then Left "Ratio has zero denominator" else Right (a / b)
 
 -- mapM and its kin at Maybe and at Either (HsPrelude.HsList.maybe.NAME,
 -- HsPrelude.HsList.either.NAME)
+b'HsPrelude'HsList'maybe'mapm :: (a -> Maybe b) -> [a] -> Maybe [b]
 b'HsPrelude'HsList'maybe'mapm f xs = mapM f xs
+b'HsPrelude'HsList'maybe'mapm_ :: (a -> Maybe b) -> [a] -> Maybe ()
 b'HsPrelude'HsList'maybe'mapm_ f xs = mapM_ f xs
+b'HsPrelude'HsList'maybe'seq :: [Maybe a] -> Maybe [a]
 b'HsPrelude'HsList'maybe'seq xs = sequence xs
+b'HsPrelude'HsList'maybe'cons :: Maybe a -> Maybe [a] -> Maybe [a]
 b'HsPrelude'HsList'maybe'cons r rest = (:) <$> r <*> rest
+b'HsPrelude'HsList'maybe'then :: Maybe a -> Maybe b -> Maybe b
 b'HsPrelude'HsList'maybe'then r rest = r >> rest
 b'HsPrelude'HsList'maybe'filterm p xs = case xs of { [] -> Just []; (x : t) -> p x >>= \k -> (if k then (x :) else id) <$> b'HsPrelude'HsList'maybe'filterm p t }
+b'HsPrelude'HsList'maybe'foldm :: (b -> a -> Maybe b) -> [a] -> b -> Maybe b
 b'HsPrelude'HsList'maybe'foldm f xs z = foldl (\acc h -> acc >>= \a -> f a h) (Just z) xs
 b'HsPrelude'HsList'maybe'zipwithm_ f xs ys = sequence_ (zipWith f xs ys)
+b'HsPrelude'HsList'either'mapm :: (a -> Either e b) -> [a] -> Either e [b]
 b'HsPrelude'HsList'either'mapm f xs = mapM f xs
+b'HsPrelude'HsList'either'mapm_ :: (a -> Either e b) -> [a] -> Either e ()
 b'HsPrelude'HsList'either'mapm_ f xs = mapM_ f xs
+b'HsPrelude'HsList'either'seq :: [Either e a] -> Either e [a]
 b'HsPrelude'HsList'either'seq xs = sequence xs
+b'HsPrelude'HsList'either'cons :: Either e a -> Either e [a] -> Either e [a]
 b'HsPrelude'HsList'either'cons r rest = (:) <$> r <*> rest
+b'HsPrelude'HsList'either'then :: Either e a -> Either e b -> Either e b
 b'HsPrelude'HsList'either'then r rest = r >> rest
 b'HsPrelude'HsList'either'filterm p xs = case xs of { [] -> Right []; (x : t) -> p x >>= \k -> (if k then (x :) else id) <$> b'HsPrelude'HsList'either'filterm p t }
+b'HsPrelude'HsList'either'foldm :: (b -> a -> Either e b) -> [a] -> b -> Either e b
 b'HsPrelude'HsList'either'foldm f xs z = foldl (\acc h -> acc >>= \a -> f a h) (Right z) xs
 b'HsPrelude'HsList'either'zipwithm_ f xs ys = sequence_ (zipWith f xs ys)
 b'HsPrelude'HsList'comparing cmp f x y = cmp (f x) (f y)

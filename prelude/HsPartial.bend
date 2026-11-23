@@ -160,3 +160,61 @@ def HsList.foldl1(~A: Data, ~f: A -> A -> A, xs: List<&2, A>) -> Either<&2, &2, 
       Inl{String.to_list("Prelude.foldl1: empty list")}
     case x <> t:
       Inr{HsList.foldl1.go(~A, ~f, t, x)}
+
+# div, mod, quot and rem by a divisor that is not a known non-zero
+# literal (Fold.bend's fd.num): GHC throws ArithException DivideByZero,
+# shown "divide by zero", at 0, so these answer it there (Base's Nat.div
+# and Nat.mod answer 0 and a: F was more defined than Haskell, and no left
+# adjoint, adj/PROOF.bend's P.tot.not).  At Nat (Natural, and Int and
+# Integer where nothing subtracts) quot is div and rem is mod.
+def HsNum.div(a: Nat, b: Nat) -> Either<&2, &2, List<&2, Char>, Nat>:
+  match b:
+    case 0n:
+      Inl{String.to_list("divide by zero")}
+    case 1n+q:
+      Inr{Nat.div(a, 1n+q)}
+
+def HsNum.mod(a: Nat, b: Nat) -> Either<&2, &2, List<&2, Char>, Nat>:
+  match b:
+    case 0n:
+      Inl{String.to_list("divide by zero")}
+    case 1n+q:
+      Inr{Nat.mod(a, 1n+q)}
+
+# at HsInt (Int and Integer): 0 is Pos{0n} only
+def HsNum.idiv(a: HsInt, b: HsInt) -> Either<&2, &2, List<&2, Char>, HsInt>:
+  match b:
+    case HsInt.Pos{0n}:
+      Inl{String.to_list("divide by zero")}
+    case c:
+      Inr{HsInt.div(a, c)}
+
+def HsNum.imod(a: HsInt, b: HsInt) -> Either<&2, &2, List<&2, Char>, HsInt>:
+  match b:
+    case HsInt.Pos{0n}:
+      Inl{String.to_list("divide by zero")}
+    case c:
+      Inr{HsInt.mod(a, c)}
+
+def HsNum.iquot(a: HsInt, b: HsInt) -> Either<&2, &2, List<&2, Char>, HsInt>:
+  match b:
+    case HsInt.Pos{0n}:
+      Inl{String.to_list("divide by zero")}
+    case c:
+      Inr{HsInt.quot(a, c)}
+
+def HsNum.irem(a: HsInt, b: HsInt) -> Either<&2, &2, List<&2, Char>, HsInt>:
+  match b:
+    case HsInt.Pos{0n}:
+      Inl{String.to_list("divide by zero")}
+    case c:
+      Inr{HsInt.rem(a, c)}
+
+# x / y at Rational: GHC throws ArithException RatioZeroDenominator, shown
+# "Ratio has zero denominator", at 0 (HsRational.div answers 0 there)
+def HsNum.rdiv(a: HsRational, b: HsRational) -> Either<&2, &2, List<&2, Char>, HsRational>:
+  match b:
+    case HsRational{HsInt.Pos{0n}, q}:
+      Inl{String.to_list("Ratio has zero denominator")}
+    case c:
+      Inr{HsRational.div(a, c)}

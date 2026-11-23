@@ -48,12 +48,15 @@ if [[ ${STAGE:-all} != cmp ]]; then
   wait
 fi
 bend=${BEND:-bend}
+# the runtime's own modules (prelude/Back: BendRt, BendPc), exported with
+# every G(b): the module compared is the one that is not one of them
+rtm=($rt/*.hs(N:t:r))
 (cd ${here:h:h}/bend && BEND_NO_TELEMETRY=1 $bend Round.bend -o $work/round > $work/round.build.log 2>&1) || { print "round: build failed ($work/round.build.log)"; exit 1 }
 : > $work/round.tsv
 for n in $names; do
   d=$work/$n
   rm -f $d/l/round_*.bend(N)
-  m=$(grep -v '/BendRt.sexp$' $d/ex/modules.txt 2>/dev/null | head -1)
+  m=$(grep -v -E "/(${(j:|:)rtm})\.sexp\$" $d/ex/modules.txt 2>/dev/null | head -1)
   m=${${m:t}%.sexp}
   if [[ -z $m || ! -f $d/l/ledger.tsv ]]; then print "$n\t*\tno-run\t$(cat $work/$n.done 2>/dev/null)" >> $work/round.tsv; continue; fi
   # law writes no MOD.bend when it keeps nothing of the module: every def

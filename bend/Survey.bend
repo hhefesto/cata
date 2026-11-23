@@ -956,6 +956,35 @@ def sv.unsup(u: Bool, +x: X.Sx, r: Rs) -> Rs:
 def sv.stmt(ex: Bool, +x: X.Sx, r: Rs) -> Rs:
   r
 
+# G's Nat successor pattern: (pview E (pcon Just _ (args (pvar BV)))), E
+# BendRt's b'pred at its type and dictionary (bend/Back.bend writes Bend's
+# 1n+p so); Fold reads it as 1n+p again, and the walk visits P only (E's
+# b'pred is G's runtime, not h's)
+def sv.pv.g(+x: X.Sx) -> Bool:
+  Bool.and(sv.is(sv.hd(x), "g"), Bool.and(sv.is(sv.str(x, 1n), "BendRt"), sv.is(sv.str(x, 2n), "b'pred")))
+
+def sv.pv.ty(+x: X.Sx) -> Bool:
+  Bool.or(sv.pv.g(x), Bool.and(sv.is(sv.hd(x), "tyapp"), sv.pv.g(sv.at(x, 1n))))
+
+def sv.pv.fn(+x: X.Sx) -> Bool:
+  Bool.or(sv.pv.ty(x), Bool.and(sv.is(sv.hd(x), "evapp"), sv.pv.ty(sv.at(x, 1n))))
+
+def sv.pv.just(+p: X.Sx) -> Bool:
+  +c = sv.at(p, 1n)
+  +a = sv.at(p, 3n)
+  +con = Bool.and(sv.is(sv.hd(p), "pcon"), Bool.and(sv.is(sv.str(c, 1n), "GHC.Internal.Maybe"), sv.is(sv.str(c, 2n), "Just")))
+  Bool.and(con, Bool.and(sv.is(sv.hd(a), "args"), Bool.and(Nat.is_eq(X.tsx.len(a), 2n), sv.is(sv.hd(sv.at(a, 1n)), "pvar"))))
+
+def sv.pv.succ.if(pv: Bool, +x: X.Sx) -> Bool:
+  match pv:
+    case True{}:
+      Bool.and(sv.pv.fn(sv.at(x, 1n)), sv.pv.just(sv.at(x, 2n)))
+    case False{}:
+      False{}
+
+def sv.pv.succ(+x: X.Sx) -> Bool:
+  sv.pv.succ.if(sv.is(sv.hd(x), "pview"), x)
+
 # patterns and expressions the first version leaves out
 def sv.here.rest(+h: List<&2, U32>, +x: X.Sx, r: Rs) -> Rs:
   r1 = sv.stmt(sv.is(h, "expanded"), x, r)
@@ -963,7 +992,7 @@ def sv.here.rest(+h: List<&2, U32>, +x: X.Sx, r: Rs) -> Rs:
   r3 = sv.unsup(sv.is(h, "unsupported"), x, r2)
   r4 = sv.why.if(sv.is(h, "wpfun"), r3, S.b("wpfun"))
   r5 = sv.why.if(sv.is(h, "pnplusk"), r4, S.b("n+k-pattern"))
-  r6 = sv.why.if(sv.is(h, "pview"), r5, S.b("view-pattern"))
+  r6 = sv.why.if(Bool.and(sv.is(h, "pview"), Bool.not(sv.pv.succ(x))), r5, S.b("view-pattern"))
   sv.why.if(sv.is(h, "plazy"), r6, S.b("lazy-pattern"))
 
 def sv.arith.if(lazy: Bool, r: Rs) -> Rs:
@@ -1090,7 +1119,7 @@ def sv.wk.if(none: Bool, first: Bool, second: Bool) -> Wk:
       WkAll{}
 
 def sv.wk(+x: X.Sx) -> Wk:
-  sv.wk.if(Bool.or(Bool.or(sv.is(sv.hd(x), "olit"), sv.is(sv.hd(x), "pnlit")), Bool.or(sv.is(sv.hd(x), "evbinds"), sv.is(sv.hd(x), "evbind"))), sv.is(sv.hd(x), "evapp"), Bool.or(sv.is(sv.hd(x), "evlam"), sv.is(sv.hd(x), "evlet")))
+  sv.wk.if(Bool.or(Bool.or(sv.is(sv.hd(x), "olit"), sv.is(sv.hd(x), "pnlit")), Bool.or(sv.is(sv.hd(x), "evbinds"), sv.is(sv.hd(x), "evbind"))), sv.is(sv.hd(x), "evapp"), Bool.or(Bool.or(sv.is(sv.hd(x), "evlam"), sv.is(sv.hd(x), "evlet")), sv.pv.succ(x)))
 
 def sv.walk(x: X.Sx, open: Bool, k: Wk, +e: Env, r: Rs) -> Rs:
   match x open k:
@@ -1503,6 +1532,358 @@ def sv.imp.add(i: Imp, +m: List<&2, U32>, ns: List<&2, List<&2, U32>>) -> Imp:
     case Imp{h, o}:
       Imp{m <> h, sv.keys(m, ns, o)}
 
+# Number defaulting ------------------------------------------------------------
+#
+# The Haskell Report's default rule (4.3.4) for a type variable whose
+# classes are numeric, at Integer: a top-level binding whose class
+# constraints are all base's (a GHC. module's) Num, Real or Integral, and
+# Eq, Ord, Show or Enum beside one of them, each on a type variable of the
+# binding, is read at Integer.  Those type variables are Integer in its
+# types and its body, its foralls and constraints on them and its
+# dictionaries go, and every call of it (in its module and, in package
+# mode, the modules after it) drops its type arguments at those variables
+# and its dictionaries.  The survey, the fold and law then read it as the
+# binding it is at Integer (Int, Integer and Natural are one type to the
+# fold; it subtracts: int-sub, as at Integer), and law asks GHC for h at
+# Integer.  Fractional, Floating and every other class keep a binding out
+# as before.  m maps M.N, each binding read so, to its mask: for each
+# forall of its export's type, in order, whether it is one read at
+# Integer (so a call's type arguments are told apart).
+
+# 0: a class the rule does not take; 1: Eq, Ord, Show or Enum; 2: numeric
+def sv.dfl.cls(+cm: List<&2, U32>, +c: List<&2, U32>) -> Nat:
+  +base = S.prefix(cm, S.b("GHC."))
+  +num = Bool.or(sv.is(c, "Num"), Bool.or(sv.is(c, "Real"), sv.is(c, "Integral")))
+  +side = Bool.or(Bool.or(sv.is(c, "Eq"), sv.is(c, "Ord")), Bool.or(sv.is(c, "Show"), sv.is(c, "Enum")))
+  Bool.pick(Nat, Bool.and(base, num), 2n, Bool.pick(Nat, Bool.and(base, side), 1n, 0n))
+
+# what an abs's dictionaries say: whether the rule takes every one, the
+# type variables they constrain, and those with a numeric class
+type Dd is Data:
+  Dd{ok: Bool, vs: List<&2, List<&2, U32>>, ns: List<&2, List<&2, U32>>}
+
+def sv.dfl.cons.if(c: Bool, +x: List<&2, U32>, xs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match c:
+    case True{}:
+      x <> xs
+    case False{}:
+      xs
+
+def sv.dfl.dict.at(+k: Nat, +x: List<&2, U32>, d: Dd) -> Dd:
+  match d:
+    case Dd{ok, vs, ns}:
+      Dd{Bool.and(ok, Bool.not(Nat.is_eq(k, 0n))), x <> vs, sv.dfl.cons.if(Nat.is_eq(k, 2n), x, ns)}
+
+def sv.dfl.cls.if(shape: Bool, +ty: X.Sx) -> Nat:
+  match shape:
+    case True{}:
+      sv.dfl.cls(sv.str(ty, 1n), sv.str(ty, 2n))
+    case False{}:
+      0n
+
+# a constraint (tc MOD CLASS (tv X))
+def sv.dfl.con(+ty: X.Sx, d: Dd) -> Dd:
+  +arg = sv.at(ty, 3n)
+  +shape = Bool.and(sv.is(sv.hd(ty), "tc"), Bool.and(Nat.is_eq(X.tsx.len(ty), 4n), sv.is(sv.hd(arg), "tv")))
+  sv.dfl.dict.at(sv.dfl.cls.if(shape, ty), sv.str(arg, 1n), d)
+
+# the constraints of a type's spine of tforall and tctx: an export's
+# type has its binding's whether GHC inferred them (the abs then takes
+# their dictionaries) or a signature gave them (the fun's type has them,
+# and a tylam and evlam in its wrapper)
+# (fa: t is a tforall, cx: a tctx; a match, not Bool.pick, which takes
+# both branches: the walk is once down the spine)
+def sv.dfl.isfa(+t: X.Sx) -> Bool:
+  sv.is(sv.hd(t), "tforall")
+
+def sv.dfl.iscx(+t: X.Sx) -> Bool:
+  sv.is(sv.hd(t), "tctx")
+
+def sv.dfl.ctx(t: X.Sx, fa: Bool, cx: Bool, d: Dd) -> Dd:
+  match t fa cx:
+    case X.SxCons{_, X.SxCons{_, X.SxCons{+b, X.SxNil{}}}} True{} _:
+      sv.dfl.ctx(b, sv.dfl.isfa(b), sv.dfl.iscx(b), d)
+    case X.SxCons{_, X.SxCons{+v, X.SxCons{+b, X.SxNil{}}}} False{} True{}:
+      sv.dfl.ctx(b, sv.dfl.isfa(b), sv.dfl.iscx(b), sv.dfl.con(v, d))
+    case _ _ _:
+      d
+
+def sv.dfl.all(xs: List<&2, List<&2, U32>>, +ns: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case +x <> t:
+      Bool.and(S.mem(x, ns), sv.dfl.all(t, ns))
+
+def sv.dfl.vars.pick(c: Bool, vs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match c:
+    case True{}:
+      vs
+    case False{}:
+      Nil{}
+
+def sv.dfl.vars.of(d: Dd) -> List<&2, List<&2, U32>>:
+  match d:
+    case Dd{ok, +vs, +ns}:
+      sv.dfl.vars.pick(Bool.and(ok, Bool.and(Bool.not(List.is_empty(&2, List<&2, U32>, vs)), sv.dfl.all(vs, ns))), vs)
+
+# the type variables (abs (TV...) (DICT...) (EXPORT) ...) is read at
+# Integer at, from its one export's type (none: it is not)
+def sv.dfl.vars(+ab: X.Sx) -> List<&2, List<&2, U32>>:
+  +es = sv.at(ab, 3n)
+  +t = sv.at(sv.at(es, 0n), 2n)
+  sv.dfl.vars.pick(Nat.is_eq(X.tsx.len(es), 1n), sv.dfl.vars.of(sv.dfl.ctx(t, sv.dfl.isfa(t), sv.dfl.iscx(t), Dd{True{}, Nil{}, Nil{}})))
+
+def sv.dfl.int() -> X.Sx:
+  X.SxCons{X.SxAtom{S.b("tc")}, X.SxCons{X.SxStr{S.b("GHC.Num.Integer")}, X.SxCons{X.SxStr{S.b("Integer")}, X.SxNil{}}}}
+
+def sv.dfl.sub.tv(hit: Bool, +a: List<&2, U32>, +n: List<&2, U32>) -> X.Sx:
+  match hit:
+    case True{}:
+      sv.dfl.int()
+    case False{}:
+      X.SxCons{X.SxAtom{a}, X.SxCons{X.SxStr{n}, X.SxNil{}}}
+
+# each (tv X) of vs, Integer
+def sv.dfl.sub(x: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+n}, X.SxNil{}}}:
+      sv.dfl.sub.tv(Bool.and(sv.is(a, "tv"), S.mem(n, vs)), a, n)
+    case X.SxCons{h, t}:
+      X.SxCons{sv.dfl.sub(h, vs), sv.dfl.sub(t, vs)}
+    case y:
+      y
+
+# an export's type without the foralls of vs and the constraints on them
+# (its spine of tforall and tctx)
+def sv.dfl.strip(t: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+v, X.SxCons{+b, X.SxNil{}}}}:
+      +fa = Bool.and(sv.is(a, "tforall"), S.mem(X.tsx.str.of(v), vs))
+      +cx = Bool.and(sv.is(a, "tctx"), S.mem(sv.str(sv.at(v, 3n), 1n), vs))
+      +sb = sv.dfl.strip(b, vs)
+      Bool.pick(X.Sx, Bool.or(fa, cx), sb, Bool.pick(X.Sx, Bool.or(sv.is(a, "tforall"), sv.is(a, "tctx")), X.SxCons{X.SxAtom{a}, X.SxCons{v, X.SxCons{sb, X.SxNil{}}}}, X.SxCons{X.SxAtom{a}, X.SxCons{v, X.SxCons{b, X.SxNil{}}}}))
+    case u:
+      u
+
+# (TV...) without vs
+def sv.dfl.tvs(ts: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match ts:
+    case X.SxCons{+h, t}:
+      +r = sv.dfl.tvs(t, vs)
+      Bool.pick(X.Sx, S.mem(X.tsx.str.of(h), vs), r, X.SxCons{h, r})
+    case u:
+      u
+
+# (export VAR TYPE)
+def sv.dfl.export(+e: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  X.SxCons{sv.at(e, 0n), X.SxCons{sv.at(e, 1n), X.SxCons{sv.dfl.sub(sv.dfl.strip(sv.at(e, 2n), vs), vs), X.SxNil{}}}}
+
+def sv.dfl.exports(es: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match es:
+    case X.SxCons{e, t}:
+      X.SxCons{sv.dfl.export(e, vs), sv.dfl.exports(t, vs)}
+    case u:
+      u
+
+# (fun SELF TYPE ...): its type without vs' foralls and constraints
+def sv.dfl.bind(b: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match b:
+    case X.SxCons{a, X.SxCons{s, X.SxCons{t, rest}}}:
+      X.SxCons{a, X.SxCons{s, X.SxCons{sv.dfl.strip(t, vs), rest}}}
+    case u:
+      u
+
+def sv.dfl.binds(bs: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match bs:
+    case X.SxCons{b, t}:
+      X.SxCons{sv.dfl.bind(b, vs), sv.dfl.binds(t, vs)}
+    case u:
+      u
+
+# (abs (TV...) (DICT...) (EXPORT...) EVBINDS BINDS SPAN) read at Integer at vs
+def sv.dfl.abs(ab: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match ab:
+    case X.SxCons{a, X.SxCons{ts, X.SxCons{_, X.SxCons{es, X.SxCons{ev, X.SxCons{bs, rest}}}}}}:
+      X.SxCons{a, X.SxCons{sv.dfl.tvs(ts, vs), X.SxCons{X.SxNil{}, X.SxCons{sv.dfl.exports(es, vs), X.SxCons{sv.dfl.sub(ev, vs), X.SxCons{sv.dfl.sub(sv.dfl.binds(bs, vs), vs), rest}}}}}}
+    case u:
+      u
+
+# for each forall of an export's type, in order, whether it is one of vs
+def sv.dfl.mask(t: X.Sx, +vs: List<&2, List<&2, U32>>) -> List<&2, Bool>:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+v, X.SxCons{b, X.SxNil{}}}}:
+      Bool.pick(List<&2, Bool>, sv.is(a, "tforall"), S.mem(X.tsx.str.of(v), vs) <> sv.dfl.mask(b, vs), Nil{})
+    case _:
+      Nil{}
+
+def sv.dfl.put(es: X.Sx, +vs: List<&2, List<&2, U32>>, m: Map<&2, List<&2, Bool>>) -> Map<&2, List<&2, Bool>>:
+  match es:
+    case X.SxCons{+e, t}:
+      +var = sv.at(e, 1n)
+      sv.dfl.put(t, vs, Map.set(&2, List<&2, Bool>, m, S.str(sv.key(sv.str(var, 1n), sv.str(var, 2n))), sv.dfl.mask(sv.at(e, 2n), vs)))
+    case _:
+      m
+
+def sv.dfl.put.if(on: Bool, es: X.Sx, +vs: List<&2, List<&2, U32>>, m: Map<&2, List<&2, Bool>>) -> Map<&2, List<&2, Bool>>:
+  match on:
+    case True{}:
+      sv.dfl.put(es, vs, m)
+    case False{}:
+      m
+
+# a top item's variables read at Integer (none: it is not read so)
+def sv.dfl.vs(+x: X.Sx) -> List<&2, List<&2, U32>>:
+  +ab = sv.at(x, 1n)
+  Bool.pick(List<&2, List<&2, U32>>, Bool.and(sv.is(sv.hd(x), "top"), sv.is(sv.hd(ab), "abs")), sv.dfl.vars(ab), Nil{})
+
+def sv.dfl.puts(xs: List<&2, X.Sx>, m: Map<&2, List<&2, Bool>>) -> Map<&2, List<&2, Bool>>:
+  match xs:
+    case +x <> t:
+      +vs = sv.dfl.vs(x)
+      sv.dfl.puts(t, sv.dfl.put.if(Bool.not(List.is_empty(&2, List<&2, U32>, vs)), sv.at(sv.at(x, 1n), 3n), vs, m))
+    case Nil{}:
+      m
+
+# A call: a chain of tyapp and evapp on a head.  At a head (g M N var) m
+# has, the chain's type arguments at the mask's True places go, and its
+# dictionaries; any other chain is as it was.
+type Dc is Data:
+  DcTy{t: X.Sx}
+  DcEv{d: X.Sx}
+
+def sv.dfl.ischain(+x: X.Sx) -> Bool:
+  Bool.or(sv.is(sv.hd(x), "tyapp"), sv.is(sv.hd(x), "evapp"))
+
+def sv.dfl.dc(ty: Bool, t: X.Sx) -> Dc:
+  match ty:
+    case True{}:
+      DcTy{t}
+    case False{}:
+      DcEv{t}
+
+# the chain's head, and its arguments, the innermost first
+def sv.dfl.spine(x: X.Sx, c: Bool, acc: List<&2, Dc>) -> X.Sx & List<&2, Dc>:
+  match x c:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+e, X.SxCons{t, X.SxNil{}}}} True{}:
+      sv.dfl.spine(e, sv.dfl.ischain(e), sv.dfl.dc(sv.is(a, "tyapp"), t) <> acc)
+    case y _:
+      Tuple{y, acc}
+
+def sv.dfl.got(r: Map<&2, List<&2, Bool>> & List<&2, Bool>) -> List<&2, Bool>:
+  match r:
+    case Tuple{m, v}:
+      v
+
+def sv.dfl.mask.of(isg: Bool, +h: X.Sx, +m: Map<&2, List<&2, Bool>>) -> List<&2, Bool>:
+  match isg:
+    case True{}:
+      sv.dfl.got(Map.get(List<&2, Bool>, Nil{}, m, S.str(sv.key(sv.str(h, 1n), sv.str(h, 2n)))))
+    case False{}:
+      Nil{}
+
+def sv.dfl.mhd(+ms: List<&2, Bool>) -> Bool:
+  match ms:
+    case b <> t:
+      b
+    case Nil{}:
+      False{}
+
+def sv.dfl.mtl(ms: List<&2, Bool>) -> List<&2, Bool>:
+  match ms:
+    case b <> t:
+      t
+    case Nil{}:
+      Nil{}
+
+def sv.dfl.ty.if(drop: Bool, h: X.Sx, t: X.Sx) -> X.Sx:
+  match drop:
+    case True{}:
+      h
+    case False{}:
+      X.SxCons{X.SxAtom{S.b("tyapp")}, X.SxCons{h, X.SxCons{t, X.SxNil{}}}}
+
+def sv.dfl.ev.if(drop: Bool, h: X.Sx, d: X.Sx) -> X.Sx:
+  match drop:
+    case True{}:
+      h
+    case False{}:
+      X.SxCons{X.SxAtom{S.b("evapp")}, X.SxCons{h, X.SxCons{d, X.SxNil{}}}}
+
+# the chain again on the head h (hit: m had its head, ms its mask)
+def sv.dfl.rebuild(args: List<&2, Dc>, +hit: Bool, h: X.Sx, +ms: List<&2, Bool>) -> X.Sx:
+  match args:
+    case Nil{}:
+      h
+    case DcTy{t} <> r:
+      sv.dfl.rebuild(r, hit, sv.dfl.ty.if(Bool.and(hit, sv.dfl.mhd(ms)), h, t), sv.dfl.mtl(ms))
+    case DcEv{d} <> r:
+      sv.dfl.rebuild(r, hit, sv.dfl.ev.if(hit, h, d), ms)
+
+# the chain r again (a chain's head is a name: g, l, self or a method)
+def sv.dfl.fin(r: X.Sx & List<&2, Dc>, +m: Map<&2, List<&2, Bool>>) -> X.Sx:
+  match r:
+    case Tuple{+h, args}:
+      +ms = sv.dfl.mask.of(Bool.and(sv.is(sv.hd(h), "g"), sv.is(X.tsx.atom.of(sv.at(h, 3n)), "var")), h, m)
+      sv.dfl.rebuild(args, Bool.not(List.is_empty(&2, Bool, ms)), h, ms)
+
+# x with every call of a binding m has rewritten (c: x is a chain)
+def sv.dfl.calls(x: X.Sx, c: Bool, +m: Map<&2, List<&2, Bool>>) -> X.Sx:
+  match x c:
+    case y True{}:
+      sv.dfl.fin(sv.dfl.spine(y, True{}, Nil{}), m)
+    case X.SxCons{+h, t} False{}:
+      X.SxCons{sv.dfl.calls(h, sv.dfl.ischain(h), m), sv.dfl.calls(t, False{}, m)}
+    case y False{}:
+      y
+
+def sv.dfl.item.at(on: Bool, x: X.Sx, +vs: List<&2, List<&2, U32>>) -> X.Sx:
+  match on x:
+    case True{} X.SxCons{t, X.SxCons{ab, rest}}:
+      X.SxCons{t, X.SxCons{sv.dfl.abs(ab, vs), rest}}
+    case _ y:
+      y
+
+def sv.dfl.item(+x: X.Sx, +m: Map<&2, List<&2, Bool>>) -> X.Sx:
+  +vs = sv.dfl.vs(x)
+  sv.dfl.calls(sv.dfl.item.at(Bool.not(List.is_empty(&2, List<&2, U32>, vs)), x, vs), False{}, m)
+
+def sv.dfl.items(xs: List<&2, X.Sx>, +m: Map<&2, List<&2, Bool>>) -> List<&2, X.Sx>:
+  match xs:
+    case x <> t:
+      sv.dfl.item(x, m) <> sv.dfl.items(t, m)
+    case Nil{}:
+      Nil{}
+
+# a module's items read so, and m with its bindings read so
+type Dm is Data:
+  Dm{xs: List<&2, X.Sx>, m: Map<&2, List<&2, Bool>>}
+
+def sv.dfl0() -> Map<&2, List<&2, Bool>>:
+  Map.new(&2, List<&2, Bool>)
+
+def sv.dfl.module(+xs: List<&2, X.Sx>, m: Map<&2, List<&2, Bool>>) -> Dm:
+  +m2 = sv.dfl.puts(xs, m)
+  Dm{sv.dfl.items(xs, m2), m2}
+
+def sv.dfl.dm.xs(+d: Dm) -> List<&2, X.Sx>:
+  match d:
+    case Dm{xs, m}:
+      xs
+
+def sv.dfl.dm.m(+d: Dm) -> Map<&2, List<&2, Bool>>:
+  match d:
+    case Dm{xs, m}:
+      m
+
+# what the next module of a package sees (a module alone: nothing)
+def sv.dfl.next(pkg: Bool, m: Map<&2, List<&2, Bool>>) -> Map<&2, List<&2, Bool>>:
+  match pkg:
+    case True{}:
+      m
+    case False{}:
+      sv.dfl0()
+
 # A module's lines, and what the package has after it
 type Sv is Data:
   Sv{lines: List<&2, U32>, imp: Imp}
@@ -1542,6 +1923,11 @@ def sv.module(+file: List<&2, U32>, bytes: List<&2, U32>, +tb: Tb, +imp: Imp) ->
   +xs = X.tsx.read(bytes)
   sv.module.if(sv.err(xs), file, xs, tb, imp)
 
+# the same, from its items (read at Integer where the default rule takes
+# them, sv.dfl.module)
+def sv.module.xs(+file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb, +imp: Imp) -> Sv:
+  sv.module.if(sv.err(xs), file, xs, tb, imp)
+
 # a module's package: what the modules before it gave, in package mode
 def sv.next(pkg: Bool, +s: Sv) -> Imp:
   match pkg:
@@ -1550,16 +1936,17 @@ def sv.next(pkg: Bool, +s: Sv) -> Imp:
     case False{}:
       sv.imp0()
 
-def sv.run(xs: List<String>, +out: String, +tb: Tb, +pkg: Bool, +imp: Imp) -> IO(Unit):
+def sv.run(xs: List<String>, +out: String, +tb: Tb, +pkg: Bool, +imp: Imp, dm: Map<&2, List<&2, Bool>>) -> IO(Unit):
   match xs:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +s : Sv <- IO.pure(Sv, sv.module(S.b(f), bytes, tb, imp))
+        +d : Dm <- IO.pure(Dm, sv.dfl.module(X.tsx.read(bytes), dm))
+        +s : Sv <- IO.pure(Sv, sv.module.xs(S.b(f), sv.dfl.dm.xs(d), tb, imp))
         S.add(out, sv.sv.lines(s))
-        sv.run(t, out, tb, pkg, sv.next(pkg, s))
+        sv.run(t, out, tb, pkg, sv.next(pkg, s), sv.dfl.next(pkg, sv.dfl.dm.m(d)))
 
 # `survey OUT FILE...` judges each module alone; `survey --package OUT
 # FILE...` reads the files as one package's modules in dependency order
@@ -1568,7 +1955,7 @@ def sv.run(xs: List<String>, +out: String, +tb: Tb, +pkg: Bool, +imp: Imp) -> IO
 def sv.main.go(pkg: Bool, args: List<String>) -> IO(Unit):
   match args:
     case out <> files:
-      sv.run(files, out, sv.tb(), pkg, sv.imp0())
+      sv.run(files, out, sv.tb(), pkg, sv.imp0(), sv.dfl0())
     case Nil{}:
       IO.print("usage: survey [--package] OUT FILE.sexp...")
 

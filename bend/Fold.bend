@@ -2134,17 +2134,55 @@ def fd.cmp(q: Tq, t: T.Bt, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
 def fd.num.nat(+op: List<&2, U32>) -> List<&2, U32>:
   Bool.pick(List<&2, U32>, fd.is(op, "quot"), S.b("div"), Bool.pick(List<&2, U32>, fd.is(op, "rem"), S.b("mod"), op))
 
-def fd.num.natf(+pre: String, +op: List<&2, U32>, a: T.Bt, b: T.Bt) -> T.Bt:
-  Bool.pick(T.Bt, fd.is(op, "sub"), fd.todo("fold:int-sub"), T.tba.call(T.BtVar{fd.cat(S.b(pre), fd.num.nat(op))}, [a, b]))
+# div, mod, quot and rem: GHC throws at a divisor 0, Base's Nat.div and
+# Nat.mod (and HsInt's, by them) answer 0 and a there, so F was more
+# defined than Haskell and no left adjoint (adj/PROOF.bend, P.tot.not).
+# By a known non-zero literal they are Haskell's; by anything else F calls
+# the prelude's partial ones (prelude/HsPartial.bend, HsNum), failure
+# values at 0 the partial pass binds.
+def fd.num.isdiv(+op: List<&2, U32>) -> Bool:
+  Bool.or(Bool.or(fd.is(op, "div"), fd.is(op, "mod")), Bool.or(fd.is(op, "quot"), fd.is(op, "rem")))
+
+def fd.nz.digits(+s: List<&2, U32>) -> Bool:
+  Bool.not(fd.is(s, "0"))
+
+def fd.nz.con(+c: List<&2, U32>) -> Bool:
+  Bool.or(fd.is(c, "HsPrelude.HsInt.Pos"), fd.is(c, "HsPrelude.HsInt.Neg"))
+
+# whether a divisor is a known non-zero literal: n at Nat, Pos{n} or
+# Neg{n} at HsInt
+def fd.nz.lit(b: T.Bt) -> Bool:
+  match b:
+    case T.BtNat{s}:
+      fd.nz.digits(s)
+    case T.BtCon{c, T.BtArgs{T.BtNat{s}, T.BtANil{}}}:
+      Bool.and(fd.nz.con(c), fd.nz.digits(s))
+    case _:
+      False{}
+
+# whether F must call the partial one
+def fd.num.part(+op: List<&2, U32>, +b: T.Bt) -> Bool:
+  Bool.and(fd.num.isdiv(op), Bool.not(fd.nz.lit(b)))
+
+def fd.num.natf(+pre: String, +op: List<&2, U32>, +a: T.Bt, +b: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.is(op, "sub"), fd.todo("fold:int-sub"), Bool.pick(T.Bt, fd.num.part(op, b), T.tba.call(T.BtVar{fd.cat(S.b("HsPrelude.HsNum."), fd.num.nat(op))}, [a, b]), T.tba.call(T.BtVar{fd.cat(S.b(pre), fd.num.nat(op))}, [a, b])))
+
+def fd.num.intf(+op: String, +a: T.Bt, +b: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.num.part(S.b(op), b), fd.callS("HsPrelude.HsNum.i" ++ op, [a, b]), fd.callS("HsPrelude.HsInt." ++ op, [a, b]))
+
+# x / y at Rational (its op div): GHC throws at 0, HsRational.div answers
+# 0, so the prelude's partial HsNum.rdiv
+def fd.num.ratf(+op: String, +a: T.Bt, +b: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.is(S.b(op), "div"), fd.callS("HsPrelude.HsNum.rdiv", [a, b]), fd.callS("HsPrelude.HsRational." ++ op, [a, b]))
 
 def fd.num(q: Tq, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
     case TqNat{}:
       fd.num.natf("Nat.", S.b(op), a, b)
     case TqInt{}:
-      fd.callS("HsPrelude.HsInt." ++ op, [a, b])
+      fd.num.intf(op, a, b)
     case TqRat{}:
-      fd.callS("HsPrelude.HsRational." ++ op, [a, b])
+      fd.num.ratf(op, a, b)
     case TqF32{}:
       T.tba.call(T.BtVar{fd.cat(S.b("F32."), fd.num.nat(S.b(op)))}, [a, b])
     case _:
@@ -3024,6 +3062,30 @@ def fd.pc.drop(n: Nat, xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
     case _ ys:
       ys
 
+# flip f x y is f y x.  At a division F wrote as a function (fd.eta's
+# x_1 => x_2 => HsNum.op(x_1, x_2), the divisor unknown there, so the
+# partial op), the divisor x is known here: a non-zero literal gets the
+# total op, anything else the partial op saturated, not under a lambda
+# (telomare's decendant and isUnbounded: flip div 2 $ pred x)
+def fd.div.tot(+g: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, fd.is(g, "HsPrelude.HsNum.idiv"), S.b("HsPrelude.HsInt.div"), Bool.pick(List<&2, U32>, fd.is(g, "HsPrelude.HsNum.imod"), S.b("HsPrelude.HsInt.mod"), Bool.pick(List<&2, U32>, fd.is(g, "HsPrelude.HsNum.iquot"), S.b("HsPrelude.HsInt.quot"), Bool.pick(List<&2, U32>, fd.is(g, "HsPrelude.HsNum.irem"), S.b("HsPrelude.HsInt.rem"), Bool.pick(List<&2, U32>, fd.is(g, "HsPrelude.HsNum.div"), S.b("Nat.div"), Bool.pick(List<&2, U32>, fd.is(g, "HsPrelude.HsNum.mod"), S.b("Nat.mod"), Nil{}))))))
+
+def fd.div.is(+g: List<&2, U32>) -> Bool:
+  Bool.not(List.is_empty(&2, U32, fd.div.tot(g)))
+
+def fd.flip.div(+g: List<&2, U32>, +x: T.Bt, +y: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.nz.lit(x), T.tba.call(T.BtVar{fd.div.tot(g)}, [y, x]), T.tba.call(T.BtVar{g}, [y, x]))
+
+def fd.flip.plain(f: T.Bt, +x: T.Bt, +y: T.Bt) -> T.Bt:
+  T.tba.call(T.tba.call(f, [y]), [x])
+
+def fd.flip(+f: T.Bt, +x: T.Bt, +y: T.Bt) -> T.Bt:
+  match f:
+    case T.BtLam{m1, +v1, T.BtLam{m2, +v2, T.BtApp{T.BtVar{+g}, T.BtArgs{T.BtVar{+a1}, T.BtArgs{T.BtVar{+a2}, T.BtANil{}}}}}}:
+      Bool.pick(T.Bt, Bool.and(fd.div.is(g), Bool.and(S.eq(a1, v1), S.eq(a2, v2))), fd.flip.div(g, x, y), fd.flip.plain(T.BtLam{m1, v1, T.BtLam{m2, v2, T.tba.call(T.BtVar{g}, [T.BtVar{a1}, T.BtVar{a2}])}}, x, y))
+    case h:
+      fd.flip.plain(h, x, y)
+
 # a saturated call of one of base's functions, as Base writes it
 def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<&2, U32>>) -> T.Bt:
   match f tys xs:
@@ -3182,7 +3244,7 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
     case BfBi{op} tys xs:
       fd.bi(S.b(op), tys, xs, ls)
     case BfFlip{} _ f <> x <> y <> _:
-      T.tba.call(T.tba.call(f, [y]), [x])
+      fd.flip(f, x, y)
     case BfTrace{} _ a <> b <> _:
       b
     case BfMempty{} t <> _ _:
@@ -4035,11 +4097,22 @@ def fd.uses(t: T.Bt, +x: List<&2, U32>) -> Nat:
 def fd.mode(n: Nat) -> T.BMode:
   Bool.pick(T.BMode, Nat.is_gt(n, 1n), T.BmCopy{}, T.BmLive{})
 
+# a successor pattern's variable used twice: 1n+(+x), written as text as
+# fd.fu.pv does (ToBend's printer writes a copied successor's variable 1n++x)
+def fd.succpv(m: T.BMode, +x: List<&2, U32>) -> T.Bt:
+  match m:
+    case T.BmCopy{}:
+      T.BtSucc{T.BtVar{fd.cat(S.b("(+"), fd.cat(x, S.b(")")))}}
+    case _:
+      T.BtSucc{T.BtPv{T.BmLive{}, x}}
+
 # a pattern's variables marked + where the body b uses them twice
 def fd.markp(p: T.Bt, +b: T.Bt) -> T.Bt:
   match p:
     case T.BtPv{m, +x}:
       T.BtPv{fd.mode(fd.uses(b, x)), x}
+    case T.BtSucc{T.BtPv{m, +x}}:
+      fd.succpv(fd.mode(fd.uses(b, x)), x)
     case T.BtCon{c, a}:
       T.BtCon{c, fd.markp(a, b)}
     case T.BtArgs{a, rest}:
@@ -5054,6 +5127,27 @@ def fd.pnlit.at(q: Tq, +neg: Bool, +v: X.Sx) -> T.Bt:
     case _:
       Bool.pick(T.Bt, Bool.and(Bool.not(neg), V.sv.is(V.sv.hd(v), "int")), T.BtNat{X.tsx.atom.of(V.sv.at(v, 1n))}, T.BtTodo{fd.bpick(neg, S.b("int-sub"), S.b("fold:literal-pattern"))})
 
+# G's Nat successor pattern (b'pred -> Just p) (bend/Back.bend writes Bend's
+# 1n+p so, BendRt's b'pred n = Just (n - 1) where n >= 1): Bend's 1n+p
+# again, at Nat only (V.sv.pv.succ tells the view)
+# (the type read from the binder's own: Int, Integer and Natural are Nat;
+# a deep pattern in fd.go's match grew law's C sixfold, so no fd.go here)
+def fd.psucc.isnat(+t: X.Sx) -> Bool:
+  +n = fd.cat(V.sv.str(t, 1n), fd.cat(S.b("."), V.sv.str(t, 2n)))
+  Bool.and(V.sv.is(V.sv.hd(t), "tc"), Bool.or(fd.is(n, "GHC.Types.Int"), Bool.or(fd.is(n, "GHC.Num.Integer.Integer"), fd.is(n, "GHC.Num.Natural.Natural"))))
+
+def fd.psucc.at(nat: Bool, +l: X.Sx) -> T.Bt:
+  match nat:
+    case True{}:
+      T.BtSucc{T.BtPv{T.BmLive{}, fd.vname(V.sv.str(l, 1n))}}
+    case False{}:
+      fd.todo("fold:view-pattern-at-type")
+
+# P, (pcon Just TYS (args (pvar (bv L T))))
+def fd.psucc(+p: X.Sx) -> T.Bt:
+  +bv = V.sv.at(V.sv.at(V.sv.at(p, 3n), 1n), 1n)
+  fd.psucc.at(fd.psucc.isnat(V.sv.at(bv, 2n)), V.sv.at(bv, 1n))
+
 def fd.pnlit(+v: X.Sx, +sg: X.Sx, t: R) -> R:
   RT{fd.pnlit.at(fd.tq(fd.rt(t)), V.sv.is(X.tsx.atom.of(sg), "neg"), v)}
 
@@ -5119,6 +5213,8 @@ type K is Data:
   KPf{}
   KPlit{}
   KPnlit{}
+  KPview{}
+  KPsucc{}
   KPs{}
   KEg{}
   KEl{}
@@ -5180,7 +5276,7 @@ def fd.k.tys() -> List<&2, Kt>:
   [Kt{"tv", KTv{}}, Kt{"tc", KTc{}}, Kt{"tfun", KTfun{}}]
 
 def fd.k.pats() -> List<&2, Kt>:
-  [Kt{"pwild", KPwild{}}, Kt{"pvar", KPvar{}}, Kt{"pbang", KPbang{}}, Kt{"plist", KPlist{}}, Kt{"ptuple", KPtuple{}}, Kt{"pcon", KPcon{}}, Kt{"plit", KPlit{}}, Kt{"pnlit", KPnlit{}}]
+  [Kt{"pwild", KPwild{}}, Kt{"pvar", KPvar{}}, Kt{"pbang", KPbang{}}, Kt{"plist", KPlist{}}, Kt{"ptuple", KPtuple{}}, Kt{"pcon", KPcon{}}, Kt{"plit", KPlit{}}, Kt{"pnlit", KPnlit{}}, Kt{"pview", KPview{}}]
 
 def fd.k.exs() -> List<&2, Kt>:
   [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"negapp", KEnegapp{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}, Kt{"reccon", KEreccon{}}]
@@ -5196,6 +5292,8 @@ def fd.k.pat(k: K, +x: X.Sx) -> K:
       Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 3n)), "args"), KPcon{}, KPconF{})
     case KPnlit{}:
       KPnlit{}
+    case KPview{}:
+      Bool.pick(K, V.sv.pv.succ(x), KPsucc{}, KBad{S.b("fold:pattern-pview")})
     case k1:
       k1
 
@@ -5279,6 +5377,9 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.plit(v)
     case X.SxCons{_, X.SxCons{X.SxCons{_, X.SxCons{+v, _}}, X.SxCons{+sg, X.SxCons{+t, _}}}} KPnlit{}:
       fd.pnlit(v, sg, fd.go(t, fd.k(RoTy{}, t), env))
+    # (pview E P), P (pcon Just TYS (args (pvar (bv L T))))
+    case X.SxCons{_, X.SxCons{_, X.SxCons{+p, _}}} KPsucc{}:
+      RT{fd.psucc(p)}
     case X.SxCons{+h, t} KPs{}:
       fd.cons(fd.go(h, fd.k(RoPat{}, h), env), fd.go(t, KPs{}, env))
     case _ KPs{}:
@@ -9340,12 +9441,13 @@ def fd.pt.nth(xs: List<&2, T.Bt>, n: Nat) -> T.Bt:
       T.BtType{}
 
 # prelude/HsPartial.bend's defs and their answer at a call's arguments: 1
-# the first type argument, 2 a list of it, 3 the second (Map's value)
+# the first type argument, 2 a list of it, 3 the second (Map's value), 4
+# Nat, 5 HsInt, 6 HsRational
 type Pp is Data:
   Pp{n: String, k: Nat}
 
 def fd.pt.pres() -> List<&2, Pp>:
-  [Pp{"HsPrelude.HsList.error", 1n}, Pp{"HsPrelude.HsList.undefined", 1n}, Pp{"HsPrelude.HsList.head", 1n}, Pp{"HsPrelude.HsList.last", 1n}, Pp{"HsPrelude.HsList.index", 1n}, Pp{"HsPrelude.HsList.fromJust", 1n}, Pp{"HsPrelude.HsList.tail", 2n}, Pp{"HsPrelude.HsList.init", 2n}, Pp{"HsPrelude.HsMap.at", 3n}, Pp{"HsPrelude.HsList.maximum", 1n}, Pp{"HsPrelude.HsList.minimum", 1n}, Pp{"HsPrelude.HsList.maximumBy", 1n}, Pp{"HsPrelude.HsList.minimumBy", 1n}, Pp{"HsPrelude.HsList.foldr1", 1n}, Pp{"HsPrelude.HsList.foldl1", 1n}]
+  [Pp{"HsPrelude.HsList.error", 1n}, Pp{"HsPrelude.HsList.undefined", 1n}, Pp{"HsPrelude.HsList.head", 1n}, Pp{"HsPrelude.HsList.last", 1n}, Pp{"HsPrelude.HsList.index", 1n}, Pp{"HsPrelude.HsList.fromJust", 1n}, Pp{"HsPrelude.HsList.tail", 2n}, Pp{"HsPrelude.HsList.init", 2n}, Pp{"HsPrelude.HsMap.at", 3n}, Pp{"HsPrelude.HsList.maximum", 1n}, Pp{"HsPrelude.HsList.minimum", 1n}, Pp{"HsPrelude.HsList.maximumBy", 1n}, Pp{"HsPrelude.HsList.minimumBy", 1n}, Pp{"HsPrelude.HsList.foldr1", 1n}, Pp{"HsPrelude.HsList.foldl1", 1n}, Pp{"HsPrelude.HsNum.div", 4n}, Pp{"HsPrelude.HsNum.mod", 4n}, Pp{"HsPrelude.HsNum.idiv", 5n}, Pp{"HsPrelude.HsNum.imod", 5n}, Pp{"HsPrelude.HsNum.iquot", 5n}, Pp{"HsPrelude.HsNum.irem", 5n}, Pp{"HsPrelude.HsNum.rdiv", 6n}]
 
 def fd.pt.pre.find(xs: List<&2, Pp>, +f: List<&2, U32>) -> Nat:
   match xs:
@@ -9362,8 +9464,14 @@ def fd.pt.pre.ans(k: Nat, +xs: List<&2, T.Bt>) -> Maybe<&2, T.Bt>:
       Some{fd.pt.nth(xs, 0n)}
     case 2n:
       Some{fd.list(fd.pt.nth(xs, 0n))}
-    case 3n+j:
+    case 3n:
       Some{fd.pt.nth(xs, 1n)}
+    case 4n:
+      Some{fd.ty0("Nat")}
+    case 5n:
+      Some{fd.ty0("HsPrelude.HsInt")}
+    case 6n+j:
+      Some{fd.ty0("HsPrelude.HsRational")}
 
 def fd.pt.isty(m: T.BMode) -> Bool:
   match m:

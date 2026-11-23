@@ -505,6 +505,16 @@ message}` where GHC throws its `ErrorCall` (the message alone, as
 is not an element in the map"), `Inr{the answer}` else. The survey takes
 them (info `partial:NAME`, not out).
 
+So are `div`, `mod`, `quot` and `rem` by a divisor that is not a known
+non-zero literal, and Rational's `/`: GHC throws an `ArithException` at
+0 ("divide by zero", "Ratio has zero denominator"), and Base's `Nat.div`
+and `Nat.mod` answer 0 and x there, so F wrote programs more defined than
+Haskell's and, adj/ proves, was no left adjoint. Fold's `fd.num` calls
+HsPartial.bend's `HsNum.div`, `HsNum.mod` (at Nat), `HsNum.idiv`, `imod`,
+`iquot`, `irem` (at HsInt) and `HsNum.rdiv` instead, failure values at 0;
+by a non-zero literal (``n `div` 2``, and `flip div 2`, decided at the
+flip) the total ones stay.
+
 A def that calls one, or calls a def that does (the module's items to a
 fixed point, then the later modules' through the package's exports), is
 partial (Fold.bend's pass `fd.pt`, after the local catas, before the
@@ -528,8 +538,9 @@ A partial call under a lambda (a monad's continuation, a function
 argument, a cata's algebra) is out for now (`fold:partial-in-lambda`).
 
 A partial def's law runs GHC's call under `LawEw`, whose `lawSx` turns
-an `ErrorCall m` into `Inl m` and an answer into `Inr`, so the laws check
-GHC's message too (tests/hs/Partial.hs).
+an `ErrorCall m` into `Inl m` (an `ArithException` into `Inl` of its
+show) and an answer into `Inr`, so the laws check GHC's message too
+(tests/hs/Partial.hs, tests/hs/DivZero.hs).
 
 ## Equality
 

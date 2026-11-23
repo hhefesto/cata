@@ -987,7 +987,7 @@ def bk.t(t: T.Bt, k: BkK, +e: Bk, +sc: List<&2, List<&2, U32>>, acc: List<&2, U3
     case T.BtNat{s} _:
       bk.b(s, acc)
     case T.BtSucc{a} _:
-      bk.s("(1 + ", bk.t(a, BkTerm{}, e, sc, 41 <> acc))
+      bk.s("(b'Nat'succ ", bk.t(a, BkTerm{}, e, sc, 41 <> acc))
     case T.BtStr{s} _:
       34 <> bk.str(s, 34 <> acc)
     case _ _:
@@ -2005,6 +2005,41 @@ def bk.main(need: Bool, acc: List<&2, U32>) -> List<&2, U32>:
     case False{}:
       acc
 
+# BendRt's names without a prime (the prelude's types and constructors it
+# re-exports): a module's own type or constructor of one of these names
+# (00203's data Rational) hides BendRt's, else GHC finds two
+def bk.rt.names() -> List<&2, List<&2, U32>>:
+  [S.b("Bool"), S.b("True"), S.b("False"), S.b("Maybe"), S.b("Just"), S.b("Nothing"), S.b("Either"), S.b("Left"), S.b("Right"), S.b("Ordering"), S.b("LT"), S.b("EQ"), S.b("GT"), S.b("Int"), S.b("Integer"), S.b("Natural"), S.b("Char"), S.b("String"), S.b("Float"), S.b("IO"), S.b("Rational")]
+
+def bk.hide.add(hit: Bool, +h: List<&2, U32>, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match hit:
+    case True{}:
+      Bool.pick(List<&2, List<&2, U32>>, S.mem(h, acc), acc, h <> acc)
+    case False{}:
+      acc
+
+def bk.hides(as: List<&2, BkA>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match as:
+    case Nil{}:
+      acc
+    case BkA{+h, b} <> t:
+      bk.hide.add(S.mem(h, bk.rt.names()), h, bk.hides(t, acc))
+
+def bk.hiding.rest(hs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match hs:
+    case Nil{}:
+      acc
+    case h <> t:
+      bk.s(", ", bk.b(h, bk.hiding.rest(t, acc)))
+
+# BendRt's import line, hiding what the module names itself
+def bk.hiding(hs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match hs:
+    case Nil{}:
+      bk.s("import BendRt\n", acc)
+    case h <> t:
+      bk.s("import BendRt hiding (", bk.b(h, bk.hiding.rest(t, bk.s(")\n", acc))))
+
 # the module: file the export it came from, its, the items (in the order
 # Bend checked them), nm its names (as BkN says)
 def bk.module(+file: List<&2, U32>, +its: List<&2, T.BItem>, +nm: BkN) -> List<&2, U32>:
@@ -2012,4 +2047,4 @@ def bk.module(+file: List<&2, U32>, +its: List<&2, T.BItem>, +nm: BkN) -> List<&
   +m = bk.nm.m(nm)
   +as = bk.nm.as(nm)
   +body = bk.items(its, e, bk.aliases(as, e, bk.main(Bool.and(S.eq(m, S.b("Main")), Bool.not(bk.aliased(as, e, S.b("main")))), Nil{})))
-  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleContexts #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\nimport BendRt\n", bk.imps(bk.nm.ims(nm), body, 10 <> body))))))
+  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleContexts #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\n", bk.hiding(bk.hides(bk.tn(e), bk.hides(bk.cn(e), Nil{})), bk.imps(bk.nm.ims(nm), body, 10 <> body)))))))

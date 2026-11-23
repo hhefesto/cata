@@ -1000,6 +1000,7 @@ def lw.plan.why(+h: Hy, +ks: List<&2, Bool>) -> List<&2, U32>:
 
 # a partial def (Fold's fd.pt: its answer an Either, Inl{GHC's error}): its
 # GHCi line wraps the call in LawEw, which answers GHC's ErrorCall as Inl
+# (and its ArithException, as shown: "divide by zero", HsNum's message)
 def lw.pt.open(pt: Bool) -> List<&2, U32>:
   F.fd.bpick(pt, S.b("(LawEw LawP.$ ("), S.b("(("))
 
@@ -1067,7 +1068,7 @@ def lw.any.pl(ps: List<&2, Pl>) -> Bool:
 # nothing here.  Each answer is printed with lawSx; lawRun gives each call
 # 2 s and turns an exception (error, a failed pattern) into `err`.
 def lw.ghci.pre() -> String:
-  ":set -XScopedTypeVariables -XFlexibleInstances -XFlexibleContexts\nimport qualified Prelude as LawP\nimport qualified System.Timeout as LawT\nimport qualified Control.Exception as LawE\nimport qualified System.IO as LawIO\nimport qualified Numeric.Natural as LawN\nimport qualified System.IO.Unsafe as LawU\n:{\nclass LawSx a where\n  lawSx :: a -> LawP.String\n:}\n:{\nlawI :: LawP.Integer -> LawP.String\nlawI n = if n LawP.< 0 then \"(neg \" LawP.++ LawP.show (LawP.negate n) LawP.++ \")\" else \"(nat \" LawP.++ LawP.show n LawP.++ \")\"\n:}\n:{\nlawC :: LawP.String -> [LawP.String] -> LawP.String\nlawC c xs = \"(con \\\"\" LawP.++ c LawP.++ \"\\\"\" LawP.++ LawP.concatMap (\\x -> ' ' : x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx LawP.Int where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Integer where\n  lawSx n = lawI n\n:}\n:{\ninstance LawSx LawN.Natural where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Bool where\n  lawSx b = if b then lawC \"True\" [] else lawC \"False\" []\n:}\n:{\ninstance LawSx LawP.Char where\n  lawSx c = \"(char \" LawP.++ LawP.show (LawP.fromEnum c) LawP.++ \")\"\n:}\n:{\ninstance LawSx () where\n  lawSx _ = lawC \"Unit\" []\n:}\n:{\ninstance LawSx LawP.Ordering where\n  lawSx o = case o of { LawP.LT -> lawC \"LT\" []; LawP.EQ -> lawC \"EQ\" []; LawP.GT -> lawC \"GT\" [] }\n:}\n:{\ninstance LawSx a => LawSx [a] where\n  lawSx xs = \"(list\" LawP.++ LawP.concatMap (\\x -> ' ' : lawSx x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx a => LawSx (LawP.Maybe a) where\n  lawSx m = case m of { LawP.Nothing -> lawC \"None\" []; LawP.Just x -> lawC \"Some\" [lawSx x] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (LawP.Either a b) where\n  lawSx e = case e of { LawP.Left x -> lawC \"Inl\" [lawSx x]; LawP.Right y -> lawC \"Inr\" [lawSx y] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (a, b) where\n  lawSx (a, b) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \")\"\n:}\n:{\ninstance (LawSx a, LawSx b, LawSx c) => LawSx (a, b, c) where\n  lawSx (a, b, c) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \" \" LawP.++ lawSx c LawP.++ \")\"\n:}\n:{\nlawRun :: LawSx b => LawP.String -> LawP.Int -> b -> LawP.IO ()\nlawRun n k v = do\n  r <- LawE.try (LawT.timeout 2000000 (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s))\n  case r of\n    LawP.Left (e :: LawE.SomeException) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" err\")\n    LawP.Right LawP.Nothing -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" timeout\")\n    LawP.Right (LawP.Just s) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" ok \" LawP.++ s)\n  LawIO.hFlush LawIO.stdout\n:}\n:{\nnewtype LawEw a = LawEw a\n:}\n:{\ninstance LawSx a => LawSx (LawEw a) where\n  lawSx (LawEw v) = LawU.unsafePerformIO (LawE.try (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s) LawP.>>= \\r -> case r of { LawP.Left (e :: LawE.SomeException) -> case LawE.fromException e of { LawP.Just (LawE.ErrorCall m) -> LawP.return (lawC \"Inl\" [lawSx m]); LawP.Nothing -> LawE.throwIO e }; LawP.Right s -> LawP.return (lawC \"Inr\" [s]) })\n:}\n"
+  ":set -XScopedTypeVariables -XFlexibleInstances -XFlexibleContexts\nimport qualified Prelude as LawP\nimport qualified System.Timeout as LawT\nimport qualified Control.Exception as LawE\nimport qualified System.IO as LawIO\nimport qualified Numeric.Natural as LawN\nimport qualified System.IO.Unsafe as LawU\n:{\nclass LawSx a where\n  lawSx :: a -> LawP.String\n:}\n:{\nlawI :: LawP.Integer -> LawP.String\nlawI n = if n LawP.< 0 then \"(neg \" LawP.++ LawP.show (LawP.negate n) LawP.++ \")\" else \"(nat \" LawP.++ LawP.show n LawP.++ \")\"\n:}\n:{\nlawC :: LawP.String -> [LawP.String] -> LawP.String\nlawC c xs = \"(con \\\"\" LawP.++ c LawP.++ \"\\\"\" LawP.++ LawP.concatMap (\\x -> ' ' : x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx LawP.Int where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Integer where\n  lawSx n = lawI n\n:}\n:{\ninstance LawSx LawN.Natural where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Bool where\n  lawSx b = if b then lawC \"True\" [] else lawC \"False\" []\n:}\n:{\ninstance LawSx LawP.Char where\n  lawSx c = \"(char \" LawP.++ LawP.show (LawP.fromEnum c) LawP.++ \")\"\n:}\n:{\ninstance LawSx () where\n  lawSx _ = lawC \"Unit\" []\n:}\n:{\ninstance LawSx LawP.Ordering where\n  lawSx o = case o of { LawP.LT -> lawC \"LT\" []; LawP.EQ -> lawC \"EQ\" []; LawP.GT -> lawC \"GT\" [] }\n:}\n:{\ninstance LawSx a => LawSx [a] where\n  lawSx xs = \"(list\" LawP.++ LawP.concatMap (\\x -> ' ' : lawSx x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx a => LawSx (LawP.Maybe a) where\n  lawSx m = case m of { LawP.Nothing -> lawC \"None\" []; LawP.Just x -> lawC \"Some\" [lawSx x] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (LawP.Either a b) where\n  lawSx e = case e of { LawP.Left x -> lawC \"Inl\" [lawSx x]; LawP.Right y -> lawC \"Inr\" [lawSx y] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (a, b) where\n  lawSx (a, b) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \")\"\n:}\n:{\ninstance (LawSx a, LawSx b, LawSx c) => LawSx (a, b, c) where\n  lawSx (a, b, c) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \" \" LawP.++ lawSx c LawP.++ \")\"\n:}\n:{\nlawRun :: LawSx b => LawP.String -> LawP.Int -> b -> LawP.IO ()\nlawRun n k v = do\n  r <- LawE.try (LawT.timeout 2000000 (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s))\n  case r of\n    LawP.Left (e :: LawE.SomeException) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" err\")\n    LawP.Right LawP.Nothing -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" timeout\")\n    LawP.Right (LawP.Just s) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" ok \" LawP.++ s)\n  LawIO.hFlush LawIO.stdout\n:}\n:{\nnewtype LawEw a = LawEw a\n:}\n:{\ninstance LawSx a => LawSx (LawEw a) where\n  lawSx (LawEw v) = LawU.unsafePerformIO (LawE.try (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s) LawP.>>= \\r -> case r of { LawP.Left (e :: LawE.SomeException) -> case LawE.fromException e of { LawP.Just (LawE.ErrorCall m) -> LawP.return (lawC \"Inl\" [lawSx m]); LawP.Nothing -> case LawE.fromException e of { LawP.Just (a :: LawE.ArithException) -> LawP.return (lawC \"Inl\" [lawSx (LawP.show a)]); LawP.Nothing -> LawE.throwIO e } }; LawP.Right s -> LawP.return (lawC \"Inr\" [s]) })\n:}\n"
 
 # x0 x1 ..: a constructor's fields in a pattern
 def lw.vars(n: Nat, +i: Nat) -> List<&2, List<&2, U32>>:
@@ -2229,17 +2230,23 @@ def lw.kc.module(+ck: Kc, +pkg: Bool, +out: String, +src: List<&2, U32>) -> IO(K
 
 # a module's answer: its package after it, and the cache's state
 type Lm is Data:
-  Lm{px: F.Px, ck: Kc}
+  Lm{px: F.Px, ck: Kc, dm: Map<&2, List<&2, Bool>>}
 
 def lw.lm.px(+r: Lm) -> F.Px:
   match r:
-    case Lm{px, ck}:
+    case Lm{px, ck, dm}:
       px
 
 def lw.lm.ck(+r: Lm) -> Kc:
   match r:
-    case Lm{px, ck}:
+    case Lm{px, ck, dm}:
       ck
+
+# the bindings read at Integer so far (Survey's sv.dfl)
+def lw.lm.dm(+r: Lm) -> Map<&2, List<&2, Bool>>:
+  match r:
+    case Lm{px, ck, dm}:
+      dm
 
 # the module BendRt (prelude/Back/BendRt.hs, in F(G(b))'s package: tests/
 # back/round.zsh): its kept items and its wrappers' rewrites as laws
@@ -2254,8 +2261,9 @@ def lw.rt.write(isrt: Bool, +out: String, +file: List<&2, U32>, +m: List<&2, U32
 # a module: fold it as Fold.bend does, ask GHC for its defs' laws, and gate
 # the defs and laws together (px: what its package's modules before it
 # gave, F.fd.px0() for a module alone); the package after it
-def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: F.Px, +ck: Kc) -> IO(Lm):
-  +xs = X.tsx.read(bytes)
+def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>) -> IO(Lm):
+  +d = V.sv.dfl.module(X.tsx.read(bytes), dm)
+  +xs = V.sv.dfl.dm.xs(d)
   +m = V.sv.modname(xs)
   +tbs = F.fd.tbs(xs)
   +cs = F.fd.ctrs(xs)
@@ -2275,17 +2283,17 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
     S.write(out ++ "/" ++ S.str(base) ++ "_drops.tsv", lw.drs.text(lw.gs.drs(g0)))
     +kept : Lk <- lw.laws(rounds, ck1, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, g0, F.fd.px.dt(px))
     lw.rt.write(F.fd.is(m, "BendRt"), out, file, m, ims, lw.lk.its(kept))
-    return Lm{F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, lw.lk.its(kept)), lw.kc.with.mk(ck1, lw.lk.mk(kept))}
+    return Lm{F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, lw.lk.its(kept)), lw.kc.with.mk(ck1, lw.lk.mk(kept)), V.sv.dfl.next(pkg, V.sv.dfl.dm.m(d))}
 
-def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px, +ck: Kc) -> IO(Unit):
+def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>) -> IO(Unit):
   match xs:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +r : Lm <- lw.module(rounds, bend, ghc, out, S.b(f), F.fd.base(S.b(f)), bytes, pkg, px, ck)
-        lw.run(t, rounds, bend, ghc, out, pkg, lw.lm.px(r), lw.lm.ck(r))
+        +r : Lm <- lw.module(rounds, bend, ghc, out, S.b(f), F.fd.base(S.b(f)), bytes, pkg, px, ck, dm)
+        lw.run(t, rounds, bend, ghc, out, pkg, lw.lm.px(r), lw.lm.ck(r), lw.lm.dm(r))
 
 # the cache's settings (CATA_CACHE: its directory, made if missing), with
 # bend's and GHC's identities: each resolved (PATH, then links)
@@ -2318,7 +2326,7 @@ def lw.kc.start(+dir: String, +bend: String, +ghc: String) -> IO(Kc):
 def lw.main.go(pkg: Bool, args: List<String>, +rounds: Nat, +bend: String, +ghc: String, +ck: Kc) -> IO(Unit):
   match args:
     case out <> files:
-      lw.run(files, rounds, bend, ghc, out, pkg, F.fd.px0(), ck)
+      lw.run(files, rounds, bend, ghc, out, pkg, F.fd.px0(), ck, V.sv.dfl0())
     case Nil{}:
       IO.print("usage: law [--package] OUT FILE.sexp...  (BEND: the bend to check with, GHC: the ghc and any flags for it, CATA_CACHE: a directory to keep their answers in)")
 
