@@ -33,7 +33,13 @@ import ./a2b/ToBend/Ast.bend as T
 #   character literal; a let is a case on a variable (Bend's let does not
 #   recurse, Haskell's would); a rewrite is its body; Bend's types become
 #   BendRt's synonyms (Nat is Int: cata writes Int as Nat only where nothing
-#   subtracts).
+#   subtracts), but a data field's Nat is h's Int, Integer or Natural when
+#   the export says so (F sends all three to Nat, so G needs h's type);
+# - G(F(t)) is t only up to an iso (h's triple is G's nested pair; a
+#   partial h answers Either String A), so each def GHC knows is h's name =
+#   b'up (G's def), BendRt's iso at the type the laws' script names, and a
+#   partial def's Either is unwrapped first (b'unfail: Inl m is h's error
+#   m).
 #
 # Laws (defs whose type is an equation) are not printed.  What it cannot
 # write it writes as b'todo, so GHC says where.  Every def is prefixed
