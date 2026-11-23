@@ -159,18 +159,39 @@ def bk.hss(ps: List<&2, BkA>) -> List<&2, List<&2, U32>>:
     case BkA{h, b} <> t:
       h <> bk.hss(t)
 
-# a constructor's fields' Haskell number types, by its Bend name: each
-# field's h type when it is Int, Integer or Natural (all Nat in Bend: F is
-# not one to one on types, so G takes h's back from the export), else
-# empty
+# h's type, as the export has it (its synonyms expanded): F is not one to
+# one on types (Int, Integer and Natural are all Nat, h's (a, b, c) is
+# Bend's (a, (b, c))), so G takes a data field's type back from h.  A type
+# variable (its Bend name), one of base's (Haskell's name: Int, Maybe,
+# ...), one of the module's (its Bend name), a list, a tuple (its
+# elements), a function, an argument spine, or a type G does not know
+type BkT is Data:
+  BkTv{n: List<&2, U32>}
+  BkTh{n: List<&2, U32>, args: BkT}
+  BkTc{n: List<&2, U32>, args: BkT}
+  BkTList{a: BkT}
+  BkTTup{xs: BkT}
+  BkTFun{a: BkT, b: BkT}
+  BkTArgs{a: BkT, rest: BkT}
+  BkTNil{}
+  BkTNo{}
+
+# a constructor's fields' h types, by its Bend name
 type BkF is Data:
-  BkF{c: List<&2, U32>, fs: List<&2, List<&2, U32>>}
+  BkF{c: List<&2, U32>, fs: List<&2, BkT>}
+
+# a type whose first n parameters are kind variables (hs-export lists a
+# type's kind variables with its type variables, and drops them where the
+# type is applied: GHC's invisible arguments), by its Bend name
+type BkD is Data:
+  BkD{t: List<&2, U32>, n: Nat}
 
 # the names the module gets: its Haskell name, its defs' Haskell names
 # (as), its types' (tn) and its constructors' (cn), its partial defs'
-# Bend names (pd), and its constructors' number fields (nf)
+# Bend names (pd), its constructors' fields' h types (nf), and its types'
+# kind variables (kd)
 type BkN is Data:
-  BkN{m: List<&2, U32>, as: List<&2, BkA>, tn: List<&2, BkA>, cn: List<&2, BkA>, pd: List<&2, List<&2, U32>>, nf: List<&2, BkF>}
+  BkN{m: List<&2, U32>, as: List<&2, BkA>, tn: List<&2, BkA>, cn: List<&2, BkA>, pd: List<&2, List<&2, U32>>, nf: List<&2, BkF>, kd: List<&2, BkD>}
 
 # a partial def (pd: their Bend names; Fold's fd.pt: it answers
 # Either<String, A>, h's error as Inl): its Bend name and its value
@@ -180,65 +201,155 @@ type BkP is Data:
 
 def bk.nm.m(+nm: BkN) -> List<&2, U32>:
   match nm:
-    case BkN{m, as, tn, cn, pd, nf}:
+    case BkN{m, as, tn, cn, pd, nf, kd}:
       m
 
 def bk.nm.as(+nm: BkN) -> List<&2, BkA>:
   match nm:
-    case BkN{m, as, tn, cn, pd, nf}:
+    case BkN{m, as, tn, cn, pd, nf, kd}:
       as
 
 def bk.nm.pd(+nm: BkN) -> List<&2, List<&2, U32>>:
   match nm:
-    case BkN{m, as, tn, cn, pd, nf}:
+    case BkN{m, as, tn, cn, pd, nf, kd}:
       pd
 
 # what the module defines: its Haskell name, its defs' and its types' Bend
-# names, its types' and constructors' Haskell names
+# names, its types' and constructors' Haskell names, its partial defs, its
+# constructors' fields' h types, its types' kind variables, and the
+# constructors G reaches through a pattern synonym (cv: their Bend names)
 type Bk is Data:
-  Bk{m: List<&2, U32>, defs: List<&2, List<&2, U32>>, tys: List<&2, List<&2, U32>>, tn: List<&2, BkA>, cn: List<&2, BkA>, pt: List<&2, BkP>, nf: List<&2, BkF>}
+  Bk{m: List<&2, U32>, defs: List<&2, List<&2, U32>>, tys: List<&2, List<&2, U32>>, tn: List<&2, BkA>, cn: List<&2, BkA>, pt: List<&2, BkP>, nf: List<&2, BkF>, kd: List<&2, BkD>, cv: List<&2, List<&2, U32>>}
+
+def bk.kd(+e: Bk) -> List<&2, BkD>:
+  match e:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
+      kd
+
+def bk.cvs(+e: Bk) -> List<&2, List<&2, U32>>:
+  match e:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
+      cv
+
+# a type's kind variables' count (0: none)
+def bk.kd.find(ds: List<&2, BkD>, +t: List<&2, U32>) -> Nat:
+  match ds:
+    case Nil{}:
+      0n
+    case BkD{+t2, n} <> r:
+      Bool.pick(Nat, S.eq(t2, t), n, bk.kd.find(r, t))
+
+# a spine's length
+def bk.hk.len(t: BkT) -> Nat:
+  match t:
+    case BkTArgs{a, r}:
+      1n+bk.hk.len(r)
+    case _:
+      0n
+
+# whether F reshapes h's type (a tuple of 3 or more within: Bend's are
+# nested pairs)
+def bk.hk.re(t: BkT) -> Bool:
+  match t:
+    case BkTTup{+xs}:
+      Bool.or(Nat.is_ge(bk.hk.len(xs), 3n), bk.hk.re(xs))
+    case BkTh{n, a}:
+      bk.hk.re(a)
+    case BkTc{n, a}:
+      bk.hk.re(a)
+    case BkTList{a}:
+      bk.hk.re(a)
+    case BkTFun{a, b}:
+      Bool.or(bk.hk.re(a), bk.hk.re(b))
+    case BkTArgs{a, r}:
+      Bool.or(bk.hk.re(a), bk.hk.re(r))
+    case _:
+      False{}
+
+# h's types: whether G knows one (a type of the module applied to one F
+# reshapes it is beyond: G would have to map inside it)
+def bk.hk.ok(t: BkT) -> Bool:
+  match t:
+    case BkTNo{}:
+      False{}
+    case BkTv{n}:
+      True{}
+    case BkTh{n, a}:
+      bk.hk.ok(a)
+    case BkTc{n, +a}:
+      Bool.and(bk.hk.ok(a), Bool.not(bk.hk.re(a)))
+    case BkTList{a}:
+      bk.hk.ok(a)
+    case BkTTup{xs}:
+      bk.hk.ok(xs)
+    case BkTFun{a, b}:
+      Bool.and(bk.hk.ok(a), bk.hk.ok(b))
+    case BkTArgs{a, r}:
+      Bool.and(bk.hk.ok(a), bk.hk.ok(r))
+    case BkTNil{}:
+      True{}
+
+# a field G prints as h has it, through a pattern synonym
+def bk.hk.cv(+t: BkT) -> Bool:
+  Bool.and(bk.hk.ok(t), bk.hk.re(t))
+
+def bk.hk.anycv(ts: List<&2, BkT>) -> Bool:
+  match ts:
+    case Nil{}:
+      False{}
+    case +t <> r:
+      Bool.or(bk.hk.cv(t), bk.hk.anycv(r))
+
+# the constructors with a field F reshapes
+def bk.cv(fs: List<&2, BkF>) -> List<&2, List<&2, U32>>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case BkF{c, +ts} <> r:
+      +rest = bk.cv(r)
+      Bool.pick(List<&2, List<&2, U32>>, bk.hk.anycv(ts), c <> rest, rest)
 
 def bk.nf(+e: Bk) -> List<&2, BkF>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       nf
 
-# a constructor's number fields (none: Nil)
-def bk.nf.find(fs: List<&2, BkF>, +c: List<&2, U32>) -> List<&2, List<&2, U32>>:
+# a constructor's fields' h types (none known: Nil)
+def bk.nf.find(fs: List<&2, BkF>, +c: List<&2, U32>) -> List<&2, BkT>:
   match fs:
     case Nil{}:
       Nil{}
     case BkF{+c2, ns} <> t:
-      Bool.pick(List<&2, List<&2, U32>>, S.eq(c2, c), ns, bk.nf.find(t, c))
+      Bool.pick(List<&2, BkT>, S.eq(c2, c), ns, bk.nf.find(t, c))
 
 def bk.pt(+e: Bk) -> List<&2, BkP>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       pt
 
 def bk.m(+e: Bk) -> List<&2, U32>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       m
 
 def bk.defs(+e: Bk) -> List<&2, List<&2, U32>>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       d
 
 def bk.tys(+e: Bk) -> List<&2, List<&2, U32>>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       t
 
 def bk.tn(+e: Bk) -> List<&2, BkA>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       tn
 
 def bk.cn(+e: Bk) -> List<&2, BkA>:
   match e:
-    case Bk{m, d, t, tn, cn, pt, nf}:
+    case Bk{m, d, t, tn, cn, pt, nf, kd, cv}:
       cn
 
 def bk.dname(+x: List<&2, U32>) -> List<&2, U32>:
@@ -352,10 +463,20 @@ def bk.con.own(found: Maybe<&2, List<&2, U32>>, head: Bool, plain: Bool, +m: Lis
     case None{} _ False{}:
       67 <> 39 <> bk.dots(c)
 
-def bk.con.at(own: Bool, head: Bool, +e: Bk, +c: List<&2, U32>, +t: List<&2, U32>) -> List<&2, U32>:
+# the module's constructor, or (pv: in a term or a pattern, the
+# constructor having a field F reshapes) its pattern synonym, P' and its
+# Bend name
+def bk.con.pv(pv: Bool, head: Bool, +e: Bk, +c: List<&2, U32>, +t: List<&2, U32>) -> List<&2, U32>:
+  match pv:
+    case True{}:
+      80 <> 39 <> bk.dots(c)
+    case False{}:
+      bk.con.own(bk.find(bk.cn(e), c), head, Bool.and(bk.head.upper(t), Bool.not(bk.has.dot(t))), bk.m(e), c)
+
+def bk.con.at(own: Bool, +head: Bool, +e: Bk, +c: List<&2, U32>, +t: List<&2, U32>) -> List<&2, U32>:
   match own:
     case True{}:
-      bk.con.own(bk.find(bk.cn(e), c), head, Bool.and(bk.head.upper(t), Bool.not(bk.has.dot(t))), bk.m(e), c)
+      bk.con.pv(Bool.and(Bool.not(head), S.mem(c, bk.cvs(e))), head, e, c, t)
     case False{}:
       +h = bk.con.base(c)
       bk.con.rt(S.mem(h, bk.hss(bk.cn(e))), h)
@@ -601,6 +722,8 @@ type BkY is Data:
   BkYEta{}
   BkYInit{}
   BkYUnit{}
+  BkYDropA{n: Nat}
+  BkYDropI{n: Nat}
 
 # a quantity argument (&2), which Haskell's types do not have
 def bk.isq(+t: T.Bt) -> Bool:
@@ -655,9 +778,19 @@ def bk.ty(t: T.Bt, k: BkY, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, 
     case _ BkYUnit{}:
       bk.s("()", acc)
     case T.BtTyApp{+n, args} BkYEta{}:
-      40 <> bk.b(bk.tname(e, n), bk.ty(args, BkYInit{}, e, tvs, 41 <> acc))
+      40 <> bk.b(bk.tname(e, n), bk.ty(args, BkYDropI{bk.kd.find(bk.kd(e), n)}, e, tvs, 41 <> acc))
     case _ BkYEta{}:
       bk.s("()", acc)
+    case T.BtArgs{a, rest} BkYDropA{1n+p}:
+      bk.ty(rest, BkYDropA{p}, e, tvs, acc)
+    case T.BtArgs{+a, rest} BkYDropA{0n}:
+      bk.lead(bk.isq(a), bk.ty(a, bk.yk(bk.isq(a)), e, tvs, bk.ty(rest, BkYArgs{}, e, tvs, acc)))
+    case T.BtArgs{a, rest} BkYDropI{1n+p}:
+      bk.ty(rest, BkYDropI{p}, e, tvs, acc)
+    case T.BtArgs{a, T.BtANil{}} BkYDropI{0n}:
+      acc
+    case T.BtArgs{+a, rest} BkYDropI{0n}:
+      bk.lead(bk.isq(a), bk.ty(a, bk.yk(bk.isq(a)), e, tvs, bk.ty(rest, BkYInit{}, e, tvs, acc)))
     case T.BtArgs{a, T.BtANil{}} BkYInit{}:
       acc
     case T.BtArgs{+a, rest} BkYInit{}:
@@ -669,7 +802,7 @@ def bk.ty(t: T.Bt, k: BkY, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, 
     case T.BtTyApp{+n, T.BtANil{}} _:
       bk.b(bk.tname(e, n), acc)
     case T.BtTyApp{+n, args} _:
-      40 <> bk.b(bk.tname(e, n), bk.ty(args, BkYArgs{}, e, tvs, 41 <> acc))
+      40 <> bk.b(bk.tname(e, n), bk.ty(args, BkYDropA{bk.kd.find(bk.kd(e), n)}, e, tvs, 41 <> acc))
     case T.BtVar{+x} _:
       bk.b(Bool.pick(List<&2, U32>, S.mem(x, tvs), bk.lower1(x), bk.tname(e, x)), acc)
     case T.BtPi{m, x, d, a, b} _:
@@ -724,6 +857,206 @@ def bk.tvs.text(xs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32
     case x <> t:
       32 <> bk.b(bk.lower1(x), bk.tvs.text(t, acc))
 
+# h's types, printed: a whole type, or a tuple's elements (first: before
+# the first)
+type BkH is Data:
+  BkHTop{}
+  BkHTup{first: Bool}
+
+def bk.hk.ty(t: BkT, k: BkH, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match t k:
+    case BkTArgs{a, r} BkHTup{True{}}:
+      bk.hk.ty(a, BkHTop{}, e, bk.hk.ty(r, BkHTup{False{}}, e, acc))
+    case BkTArgs{a, r} BkHTup{False{}}:
+      44 <> 32 <> bk.hk.ty(a, BkHTop{}, e, bk.hk.ty(r, BkHTup{False{}}, e, acc))
+    case BkTArgs{a, r} BkHTop{}:
+      32 <> bk.hk.ty(a, BkHTop{}, e, bk.hk.ty(r, BkHTop{}, e, acc))
+    case BkTNil{} _:
+      acc
+    case BkTv{+n} _:
+      bk.b(bk.lower1(n), acc)
+    case BkTh{+n, BkTNil{}} _:
+      bk.b(n, acc)
+    case BkTh{+n, a} _:
+      40 <> bk.b(n, bk.hk.ty(a, BkHTop{}, e, 41 <> acc))
+    case BkTc{+n, BkTNil{}} _:
+      bk.b(bk.tname(e, n), acc)
+    case BkTc{+n, a} _:
+      40 <> bk.b(bk.tname(e, n), bk.hk.ty(a, BkHTop{}, e, 41 <> acc))
+    case BkTList{a} _:
+      91 <> bk.hk.ty(a, BkHTop{}, e, 93 <> acc)
+    case BkTTup{xs} _:
+      40 <> bk.hk.ty(xs, BkHTup{True{}}, e, 41 <> acc)
+    case BkTFun{a, b} _:
+      40 <> bk.hk.ty(a, BkHTop{}, e, bk.s(" -> ", bk.hk.ty(b, BkHTop{}, e, 41 <> acc)))
+    case _ _:
+      bk.s("()", acc)
+
+# x'i, the i-th of a tuple's elements in a converter
+def bk.xv(+i: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+  120 <> 39 <> bk.b(S.b(Nat.show(i)), acc)
+
+# A converter between Bend's shape of h's type and h's own (up: Bend's to
+# h's, else back), as a Haskell function: a tuple's is a lambda from its
+# nested pairs to h's tuple (or back), a list's, a Maybe's, an Either's
+# BendRt's maps of its elements' (b'cvL, b'cvM, b'cvE), a function's the
+# argument's back and the result's up (b'cvF), any other the identity.
+# Its parts: an element of a tuple (El: x'i, converted when F reshapes it),
+# a tuple's elements flat (h's) or nested (Bend's), as a pattern of x'i or
+# as the elements converted.
+type BkC is Data:
+  BkCFun{}
+  BkCId{}
+  BkCMaybe{}
+  BkCEither{}
+  BkCEl{i: Nat}
+  BkCElRe{i: Nat}
+  BkCElId{i: Nat}
+  BkCFlat{i: Nat, first: Bool}
+  BkCNest{i: Nat}
+  BkCPatF{i: Nat, first: Bool}
+  BkCPatN{i: Nat}
+
+def bk.tup.lead(first: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match first:
+    case True{}:
+      40 <> acc
+    case False{}:
+      44 <> 32 <> acc
+
+# a tuple's converter's pattern and body: from nested pairs to h's flat
+# tuple (up), or from flat to nested
+def bk.cv.pat(up: Bool) -> BkC:
+  match up:
+    case True{}:
+      BkCPatN{1n}
+    case False{}:
+      BkCPatF{1n, True{}}
+
+def bk.cv.body(up: Bool) -> BkC:
+  match up:
+    case True{}:
+      BkCFlat{1n, True{}}
+    case False{}:
+      BkCNest{1n}
+
+def bk.cv.thk(+n: List<&2, U32>) -> BkC:
+  Bool.pick(BkC, S.eq(n, S.b("Maybe")), BkCMaybe{}, Bool.pick(BkC, S.eq(n, S.b("Either")), BkCEither{}, BkCId{}))
+
+def bk.cv.el(re: Bool, +i: Nat) -> BkC:
+  match re:
+    case True{}:
+      BkCElRe{i}
+    case False{}:
+      BkCElId{i}
+
+def bk.cvt(fuel: Nat, +t: BkT, +up: Bool, k: BkC, acc: List<&2, U32>) -> List<&2, U32>:
+  match fuel:
+    case 0n:
+      bk.s("b'todo", acc)
+    case 1n+(+p):
+      match t k:
+        case _ BkCEl{+i}:
+          bk.cvt(p, t, up, bk.cv.el(bk.hk.re(t), i), acc)
+        case _ BkCElId{+i}:
+          bk.xv(i, acc)
+        case _ BkCElRe{+i}:
+          40 <> bk.cvt(p, t, up, BkCFun{}, 32 <> bk.xv(i, 41 <> acc))
+        case BkTTup{+xs} BkCFun{}:
+          bk.s("(\\", bk.cvt(p, xs, up, bk.cv.pat(up), bk.s(" -> ", bk.cvt(p, xs, up, bk.cv.body(up), 41 <> acc))))
+        case BkTList{a} BkCFun{}:
+          bk.s("(b'cvL ", bk.cvt(p, a, up, BkCFun{}, 41 <> acc))
+        case BkTh{+n, a} BkCFun{}:
+          bk.cvt(p, a, up, bk.cv.thk(n), acc)
+        case BkTFun{a, b} BkCFun{}:
+          bk.s("(b'cvF ", bk.cvt(p, a, Bool.not(up), BkCFun{}, 32 <> bk.cvt(p, b, up, BkCFun{}, 41 <> acc)))
+        case BkTArgs{a, r} BkCMaybe{}:
+          bk.s("(b'cvM ", bk.cvt(p, a, up, BkCFun{}, 41 <> acc))
+        case BkTArgs{a, BkTArgs{b, r}} BkCEither{}:
+          bk.s("(b'cvE ", bk.cvt(p, a, up, BkCFun{}, 32 <> bk.cvt(p, b, up, BkCFun{}, 41 <> acc)))
+        case BkTArgs{a, r} BkCFlat{+i, first}:
+          bk.tup.lead(first, bk.cvt(p, a, up, BkCEl{i}, bk.cvt(p, r, up, BkCFlat{1n+i, False{}}, acc)))
+        case BkTNil{} BkCFlat{i, first}:
+          41 <> acc
+        case BkTArgs{a, BkTNil{}} BkCNest{+i}:
+          bk.cvt(p, a, up, BkCEl{i}, acc)
+        case BkTArgs{a, r} BkCNest{+i}:
+          40 <> bk.cvt(p, a, up, BkCEl{i}, bk.s(", ", bk.cvt(p, r, up, BkCNest{1n+i}, 41 <> acc)))
+        case BkTArgs{a, r} BkCPatF{+i, first}:
+          bk.tup.lead(first, bk.xv(i, bk.cvt(p, r, up, BkCPatF{1n+i, False{}}, acc)))
+        case BkTNil{} BkCPatF{i, first}:
+          41 <> acc
+        case BkTArgs{a, BkTNil{}} BkCPatN{+i}:
+          bk.xv(i, acc)
+        case BkTArgs{a, r} BkCPatN{+i}:
+          40 <> bk.xv(i, bk.s(", ", bk.cvt(p, r, up, BkCPatN{1n+i}, 41 <> acc)))
+        case _ BkCFun{}:
+          bk.s("b'id", acc)
+        case _ _:
+          bk.s("b'id", acc)
+
+# a field's h type (the first of ns; none known: BkTNo)
+def bk.hk.hd(ns: List<&2, BkT>) -> BkT:
+  match ns:
+    case h <> t:
+      h
+    case Nil{}:
+      BkTNo{}
+
+# h's number type, when it is Int, Integer or Natural (else empty)
+def bk.hk.num(t: BkT) -> List<&2, U32>:
+  match t:
+    case BkTh{+n, BkTNil{}}:
+      Bool.pick(List<&2, U32>, Bool.or(S.eq(n, S.b("Int")), Bool.or(S.eq(n, S.b("Integer")), S.eq(n, S.b("Natural")))), n, Nil{})
+    case _:
+      Nil{}
+
+# a1 a2 .. an, each after a space (k: the next's number)
+def bk.anames(n: Nat, +k: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+  match n:
+    case 0n:
+      acc
+    case 1n+p:
+      32 <> 97 <> bk.b(S.b(Nat.show(k)), bk.anames(p, 1n+k, acc))
+
+def bk.ps.arg(cv: Bool, pat: Bool, +h: BkT, +i: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+  match cv pat:
+    case True{} True{}:
+      40 <> bk.cvt(64n, h, False{}, BkCFun{}, bk.s(" -> a", bk.b(S.b(Nat.show(i)), 41 <> acc)))
+    case True{} False{}:
+      40 <> bk.cvt(64n, h, True{}, BkCFun{}, bk.s(" a", bk.b(S.b(Nat.show(i)), 41 <> acc)))
+    case False{} _:
+      97 <> bk.b(S.b(Nat.show(i)), acc)
+
+# A constructor with a field F reshapes: h's data type is printed with h's
+# field types, and G's terms and patterns reach it through a bidirectional
+# pattern synonym that converts each such field (Bend's shape to h's when
+# it builds, back when it matches):
+#   pattern P'C a1 .. an <- C (DOWN1 -> a1) .. an where P'C a1 .. an = C (UP1 a1) .. an
+def bk.ps.args(ns: List<&2, BkT>, +i: Nat, +pat: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match ns:
+    case Nil{}:
+      acc
+    case +h <> t:
+      32 <> bk.ps.arg(bk.hk.cv(h), pat, h, i, bk.ps.args(t, 1n+i, pat, acc))
+
+def bk.psyn(cv: Bool, +c: List<&2, U32>, +ns: List<&2, BkT>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match cv:
+    case True{}:
+      +p = bk.s("P'", bk.dots(c))
+      +k = List.length(&2, BkT, ns)
+      +hc = bk.con.pv(False{}, False{}, e, c, bk.init(c))
+      bk.s("pattern ", bk.b(p, bk.anames(k, 1n, bk.s(" <- ", bk.b(hc, bk.ps.args(ns, 1n, True{}, bk.s(" where ", bk.b(p, bk.anames(k, 1n, bk.s(" = ", bk.b(hc, bk.ps.args(ns, 1n, False{}, 10 <> 10 <> acc))))))))))))
+    case False{}:
+      acc
+
+def bk.psyns(cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      acc
+    case T.BCtor{+c, fs} <> t:
+      bk.psyn(S.mem(c, bk.cvs(e)), c, bk.nf.find(bk.nf(e), c), e, bk.psyns(t, e, acc))
+
 def bk.isnat(+t: T.Bt) -> Bool:
   match t:
     case T.BtVar{+x}:
@@ -733,29 +1066,26 @@ def bk.isnat(+t: T.Bt) -> Bool:
     case _:
       False{}
 
-def bk.hd.or(xs: List<&2, List<&2, U32>>) -> List<&2, U32>:
-  match xs:
-    case h <> t:
-      h
-    case Nil{}:
-      Nil{}
-
-# a field's type: h's number type n where Bend's is Nat (num), else G's
-def bk.field.at(num: Bool, +n: List<&2, U32>, ty: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
-  match num:
-    case True{}:
+# a field's type: h's where F reshapes it (cv), h's number type n where
+# Bend's is Nat (num), else G's
+def bk.field.at(cv: Bool, num: Bool, +n: List<&2, U32>, h: BkT, ty: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match cv num:
+    case True{} _:
+      bk.hk.ty(h, BkHTop{}, e, acc)
+    case False{} True{}:
       bk.b(n, acc)
-    case False{}:
+    case False{} False{}:
       bk.ty(ty, BkYTop{}, e, tvs, acc)
 
-# the fields (ns: h's number types, by field)
-def bk.fields(fs: List<&2, T.BField>, +ns: List<&2, List<&2, U32>>, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+# the fields (ns: h's types, by field)
+def bk.fields(fs: List<&2, T.BField>, +ns: List<&2, BkT>, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
   match fs:
     case Nil{}:
       acc
     case T.BField{x, +ty} <> t:
-      +n = bk.hd.or(ns)
-      32 <> bk.field.at(Bool.and(Bool.not(List.is_empty(&2, U32, n)), bk.isnat(ty)), n, ty, e, tvs, bk.fields(t, List.drop(&2, List<&2, U32>, ns, 1n), e, tvs, acc))
+      +h = bk.hk.hd(ns)
+      +n = bk.hk.num(h)
+      32 <> bk.field.at(bk.hk.cv(h), Bool.and(Bool.not(List.is_empty(&2, U32, n)), bk.isnat(ty)), n, h, ty, e, tvs, bk.fields(t, List.drop(&2, BkT, ns, 1n), e, tvs, acc))
 
 def bk.ctors(cs: List<&2, T.BCtor>, first: Bool, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
   match cs first:
@@ -777,8 +1107,8 @@ def bk.item(it: T.BItem, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
   match it:
     case T.BiDef{+n, ps, +ret, body, doc}:
       bk.def(bk.law(ret), n, ps, body, e, acc)
-    case T.BiType{+n, +ps, k, cs, doc}:
-      bk.s("data ", bk.b(bk.tname.at(True{}, True{}, e, n), bk.tvs.text(bk.tvs(ps), bk.ctors(cs, True{}, e, bk.tvs(ps), 10 <> 10 <> acc))))
+    case T.BiType{+n, +ps, k, +cs, doc}:
+      bk.s("data ", bk.b(bk.tname.at(True{}, True{}, e, n), bk.tvs.text(List.drop(&2, List<&2, U32>, bk.tvs(ps), bk.kd.find(bk.kd(e), n)), bk.ctors(cs, True{}, e, bk.tvs(ps), 10 <> 10 <> bk.psyns(cs, e, acc)))))
     case _:
       acc
 
@@ -819,22 +1149,14 @@ def bk.env.go(its: List<&2, T.BItem>, ds: List<&2, List<&2, U32>>, ts: List<&2, 
   match its:
     case Nil{}:
       match nm:
-        case BkN{m, as, tn, cn, pd, nf}:
-          Bk{m, ds, ts, tn, cn, pt, nf}
+        case BkN{m, as, tn, cn, pd, nf, kd}:
+          Bk{m, ds, ts, tn, cn, pt, nf, kd, bk.cv(nf)}
     case T.BiDef{+n, ps, r, b, d} <> t:
       bk.env.go(t, n <> ds, ts, bk.pt.add(S.mem(n, bk.nm.pd(nm)), n, ps, pt), nm)
     case T.BiType{n, ps, k, cs, d} <> t:
       bk.env.go(t, ds, n <> ts, pt, nm)
     case _ <> t:
       bk.env.go(t, ds, ts, pt, nm)
-
-# a1 a2 .. an, each after a space (k: the next's number)
-def bk.anames(n: Nat, +k: Nat, acc: List<&2, U32>) -> List<&2, U32>:
-  match n:
-    case 0n:
-      acc
-    case 1n+p:
-      32 <> 97 <> bk.b(S.b(Nat.show(k)), bk.anames(p, 1n+k, acc))
 
 # G(F(h)) at h's type: a partial def's Either unwrapped (its Inl{m} h's
 # error m again, b'unfail), under a lambda of its value parameters
@@ -885,4 +1207,4 @@ def bk.module(+file: List<&2, U32>, +its: List<&2, T.BItem>, +nm: BkN) -> List<&
   +e = bk.env.go(its, Nil{}, Nil{}, Nil{}, nm)
   +m = bk.nm.m(nm)
   +as = bk.nm.as(nm)
-  bk.s("{-# LANGUAGE ViewPatterns, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleContexts #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\nimport BendRt\n\n", bk.items(its, e, bk.aliases(as, e, bk.main(Bool.and(S.eq(m, S.b("Main")), Bool.not(bk.aliased(as, e, S.b("main")))), Nil{}))))))))
+  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleContexts #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\nimport BendRt\n\n", bk.items(its, e, bk.aliases(as, e, bk.main(Bool.and(S.eq(m, S.b("Main")), Bool.not(bk.aliased(as, e, S.b("main")))), Nil{}))))))))

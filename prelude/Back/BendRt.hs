@@ -430,3 +430,18 @@ instance {-# OVERLAPPABLE #-} (B'G a ~ a) => B'Up a where
 -- LawEw answers an ErrorCall m as Inl m, as it does h's)
 b'unfail :: Either String a -> a
 b'unfail = either errorWithoutStackTrace id
+
+-- G's converters between Bend's shape of a data field's type and h's (a
+-- module's constructor with such a field is reached through a pattern
+-- synonym that applies them): a list's, a Maybe's, an Either's and a
+-- function's, of their parts' (a tuple's is a lambda G writes)
+b'id :: a -> a
+b'id x = x
+b'cvL :: (a -> b) -> [a] -> [b]
+b'cvL f = map f
+b'cvM :: (a -> b) -> Maybe a -> Maybe b
+b'cvM f = fmap f
+b'cvE :: (a -> c) -> (b -> d) -> Either a b -> Either c d
+b'cvE f g = either (Left . f) (Right . g)
+b'cvF :: (c -> a) -> (b -> d) -> (a -> b) -> c -> d
+b'cvF dn up h = up . h . dn

@@ -1937,42 +1937,195 @@ def lw.back.pts(tbs: List<&2, F.Tb>, +its: List<&2, T.BItem>) -> List<&2, List<&
     case Nil{}:
       Nil{}
 
-# a field's type, when h's is a number (Int, Integer, Natural: each Nat in
-# Bend), as G prints it; else empty
-def lw.back.num.at(tc: Bool, +k: List<&2, U32>) -> List<&2, U32>:
-  match tc:
-    case True{}:
-      F.fd.bpick(S.eq(k, S.b("GHC.Types.Int")), S.b("Int"), F.fd.bpick(S.eq(k, S.b("GHC.Num.Integer.Integer")), S.b("Integer"), F.fd.bpick(S.eq(k, S.b("GHC.Num.Natural.Natural")), S.b("Natural"), Nil{})))
-    case False{}:
+# h's types as G takes them back (Back.bend's BkT), from the export: what
+# a type tree is, read off its head (Bd), then the walk, one def taking it
+# as a parameter.  Base's types by their key M.N (Bb): a Haskell name, a
+# list, String, a tuple, or one G does not know
+type Bb is Data:
+  BbH{n: List<&2, U32>}
+  BbL{}
+  BbStr{}
+  BbTup{}
+  BbNo{}
+
+def lw.back.bb(+k: List<&2, U32>) -> Bb:
+  Bool.pick(Bb, S.eq(k, S.b("GHC.Types.Int")), BbH{S.b("Int")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Num.Integer.Integer")), BbH{S.b("Integer")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Num.Natural.Natural")), BbH{S.b("Natural")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Types.Char")), BbH{S.b("Char")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Types.Bool")), BbH{S.b("Bool")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Types.Float")), BbH{S.b("Float")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Types.Ordering")), BbH{S.b("Ordering")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Tuple.Unit")), BbH{S.b("()")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Internal.Base.String")), BbStr{}, Bool.pick(Bb, S.eq(k, S.b("GHC.Types.List")), BbL{}, Bool.pick(Bb, S.eq(k, S.b("GHC.Internal.Maybe.Maybe")), BbH{S.b("Maybe")}, Bool.pick(Bb, S.eq(k, S.b("GHC.Internal.Data.Either.Either")), BbH{S.b("Either")}, Bool.pick(Bb, Bool.or(S.eq(k, S.b("GHC.Tuple.Tuple2")), Bool.or(S.eq(k, S.b("GHC.Tuple.Tuple3")), Bool.or(S.eq(k, S.b("GHC.Tuple.Tuple4")), S.eq(k, S.b("GHC.Tuple.Tuple5"))))), BbTup{}, BbNo{})))))))))))))
+
+def lw.back.hd(a: K.BkT) -> K.BkT:
+  match a:
+    case K.BkTArgs{h, r}:
+      h
+    case _:
+      K.BkTNo{}
+
+def lw.back.base.of(b: Bb, a: K.BkT) -> K.BkT:
+  match b:
+    case BbH{n}:
+      K.BkTh{n, a}
+    case BbL{}:
+      K.BkTList{lw.back.hd(a)}
+    case BbStr{}:
+      K.BkTList{K.BkTh{S.b("Char"), K.BkTNil{}}}
+    case BbTup{}:
+      K.BkTTup{a}
+    case BbNo{}:
+      K.BkTNo{}
+
+# a type variable, a synonym of the module (its parameters, its body, the
+# arguments), a type of the module, base's, a function, an argument spine,
+# or none G takes
+type Bd is Data:
+  BdTv{n: List<&2, U32>}
+  BdSyn{tvs: List<&2, List<&2, U32>>, body: X.Sx, args: X.Sx}
+  BdOwn{n: List<&2, U32>, args: X.Sx}
+  BdBase{b: Bb, args: X.Sx}
+  BdFun{a: X.Sx, b: X.Sx}
+  BdChain{x: X.Sx}
+  BdNo{}
+
+def lw.back.bd.tc(own: Bool, found: Maybe<&2, Sy>, +x: X.Sx) -> Bd:
+  match own found:
+    case True{} Some{Sy{n, tvs, body}}:
+      BdSyn{tvs, body, lw.drop3(x)}
+    case True{} None{}:
+      BdOwn{V.sv.str(x, 2n), lw.drop3(x)}
+    case False{} _:
+      BdBase{lw.back.bb(lw.cat3(V.sv.str(x, 1n), [46], V.sv.str(x, 2n))), lw.drop3(x)}
+
+def lw.back.bd.of(k: Hh, +m: List<&2, U32>, ss: List<&2, Sy>, +x: X.Sx) -> Bd:
+  match k:
+    case HhTv{}:
+      BdTv{V.sv.str(x, 1n)}
+    case HhTc{}:
+      lw.back.bd.tc(S.eq(V.sv.str(x, 1n), m), lw.syn.find(ss, V.sv.str(x, 2n)), x)
+    case HhFun{}:
+      BdFun{V.sv.at(x, 1n), V.sv.at(x, 2n)}
+    case _:
+      BdNo{}
+
+def lw.back.bd(+m: List<&2, U32>, ss: List<&2, Sy>, +x: X.Sx) -> Bd:
+  lw.back.bd.of(lw.hh(V.sv.hd(x)), m, ss, x)
+
+# a synonym's parameters bound to its arguments
+type Bs is Data:
+  Bs{v: List<&2, U32>, t: K.BkT}
+
+def lw.back.sub(xs: List<&2, Bs>, +v: List<&2, U32>) -> K.BkT:
+  match xs:
+    case Nil{}:
+      K.BkTv{F.fd.tvname(v)}
+    case Bs{+k, t} <> r:
+      Bool.pick(K.BkT, S.eq(k, v), t, lw.back.sub(r, v))
+
+def lw.back.zip(tvs: List<&2, List<&2, U32>>, a: K.BkT) -> List<&2, Bs>:
+  match tvs a:
+    case v <> t K.BkTArgs{h, r}:
+      Bs{v, h} <> lw.back.zip(t, r)
+    case _ _:
       Nil{}
 
-def lw.back.num(+t: X.Sx) -> List<&2, U32>:
-  lw.back.num.at(Bool.and(V.sv.is(V.sv.hd(t), "tc"), Nat.is_eq(X.tsx.len(t), 3n)), lw.cat3(V.sv.str(t, 1n), [46], V.sv.str(t, 2n)))
+# h's type: its synonyms expanded (ss: the module's), its type variables
+# by sub (a synonym's parameters) or as their Bend names, base's by
+# Haskell's names, the module's by their Bend names, any other BkTNo
+def lw.back.bkt(fuel: Nat, +m: List<&2, U32>, +ss: List<&2, Sy>, +sub: List<&2, Bs>, d: Bd) -> K.BkT:
+  match fuel d:
+    case 0n _:
+      K.BkTNo{}
+    case 1n+(+p) BdChain{X.SxCons{h, t}}:
+      K.BkTArgs{lw.back.bkt(p, m, ss, sub, lw.back.bd(m, ss, h)), lw.back.bkt(p, m, ss, sub, BdChain{t})}
+    case 1n+p BdChain{x}:
+      K.BkTNil{}
+    case 1n+p BdTv{n}:
+      lw.back.sub(sub, n)
+    case 1n+(+p) BdSyn{tvs, body, args}:
+      lw.back.bkt(p, m, ss, lw.back.zip(tvs, lw.back.bkt(p, m, ss, sub, BdChain{args})), lw.back.bd(m, ss, body))
+    case 1n+p BdOwn{n, args}:
+      K.BkTc{F.fd.tyname(n), lw.back.bkt(p, m, ss, sub, BdChain{args})}
+    case 1n+p BdBase{b, args}:
+      lw.back.base.of(b, lw.back.bkt(p, m, ss, sub, BdChain{args}))
+    case 1n+(+p) BdFun{a, b}:
+      K.BkTFun{lw.back.bkt(p, m, ss, sub, lw.back.bd(m, ss, a)), lw.back.bkt(p, m, ss, sub, lw.back.bd(m, ss, b))}
+    case 1n+p BdNo{}:
+      K.BkTNo{}
 
-def lw.back.nums(tys: X.Sx) -> List<&2, List<&2, U32>>:
+# a constructor's fields' h types, (con NAME FIELDS TYPES EX)
+def lw.back.fts(+m: List<&2, U32>, +ss: List<&2, Sy>, tys: X.Sx) -> List<&2, K.BkT>:
   match tys:
     case X.SxCons{+t, r}:
-      lw.back.num(t) <> lw.back.nums(r)
+      lw.back.bkt(64n, m, ss, Nil{}, lw.back.bd(m, ss, t)) <> lw.back.fts(m, ss, r)
     case _:
       Nil{}
 
-# a type's constructors' number fields, (con NAME FIELDS TYPES EX) each
-def lw.back.cf(+ty: List<&2, U32>, cs: X.Sx) -> List<&2, K.BkF>:
+def lw.back.cf(+m: List<&2, U32>, +ss: List<&2, Sy>, +ty: List<&2, U32>, cs: X.Sx) -> List<&2, K.BkF>:
   match cs:
     case X.SxCons{+c, t}:
-      K.BkF{F.fd.cname(ty, V.sv.str(c, 1n)), lw.back.nums(V.sv.at(c, 3n))} <> lw.back.cf(ty, t)
+      K.BkF{F.fd.cname(ty, V.sv.str(c, 1n)), lw.back.fts(m, ss, V.sv.at(c, 3n))} <> lw.back.cf(m, ss, ty, t)
     case _:
       Nil{}
 
-def lw.back.nf(ds: List<&2, Dd>) -> List<&2, K.BkF>:
+def lw.back.nf(+m: List<&2, U32>, +ss: List<&2, Sy>, ds: List<&2, Dd>) -> List<&2, K.BkF>:
   match ds:
     case Nil{}:
       Nil{}
     case Dd{+n, tvs, cs} <> t:
-      List.append(&2, K.BkF, lw.back.cf(n, cs), lw.back.nf(t))
+      List.append(&2, K.BkF, lw.back.cf(m, ss, n, cs), lw.back.nf(m, ss, t))
 
-def lw.back.nm(+m: List<&2, U32>, +tbs: List<&2, F.Tb>, +dds: List<&2, Dd>, +its: List<&2, T.BItem>) -> K.BkN:
-  K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(dds)}
+# A type's kind variables.  hs-export lists them with its type variables
+# (data NAME (TV...) ...) but drops them where the type is applied (tc's
+# invisible arguments), and they come first.  So a type has k of them when
+# its first k variables are in no field and no use applies it to more
+# than its count less k (ar: the most arguments any (tc m n ...) has)
+def lw.back.ar.here(+x: X.Sx, +m: List<&2, U32>, +n: List<&2, U32>) -> Nat:
+  Bool.pick(Nat, Bool.and(V.sv.is(V.sv.hd(x), "tc"), Bool.and(S.eq(V.sv.str(x, 1n), m), S.eq(V.sv.str(x, 2n), n))), Nat.sub(X.tsx.len(x), 3n), 0n)
+
+def lw.back.ar.go(x: X.Sx, here: Nat, +m: List<&2, U32>, +n: List<&2, U32>) -> Nat:
+  match x:
+    case X.SxCons{+h, t}:
+      Nat.max(here, Nat.max(lw.back.ar.go(h, lw.back.ar.here(h, m, n), m, n), lw.back.ar.go(t, 0n, m, n)))
+    case _:
+      here
+
+def lw.back.ars(xs: List<&2, X.Sx>, +m: List<&2, U32>, +n: List<&2, U32>) -> Nat:
+  match xs:
+    case Nil{}:
+      0n
+    case +h <> t:
+      Nat.max(lw.back.ar.go(h, lw.back.ar.here(h, m, n), m, n), lw.back.ars(t, m, n))
+
+# whether (tv v) is anywhere in x
+def lw.back.uses.go(x: X.Sx, here: Bool, +v: List<&2, U32>) -> Bool:
+  match x:
+    case X.SxCons{+h, t}:
+      Bool.or(here, Bool.or(lw.back.uses.go(h, Bool.and(V.sv.is(V.sv.hd(h), "tv"), S.eq(V.sv.str(h, 1n), v)), v), lw.back.uses.go(t, False{}, v)))
+    case _:
+      here
+
+def lw.back.lead(tvs: List<&2, List<&2, U32>>, +lim: Nat, +cs: X.Sx) -> Nat:
+  match tvs lim:
+    case +v <> t 1n+p:
+      +k = lw.back.lead(t, p, cs)
+      Bool.pick(Nat, lw.back.uses.go(cs, False{}, v), 0n, 1n+k)
+    case _ _:
+      0n
+
+def lw.back.kd(ds: List<&2, Dd>, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List<&2, K.BkD>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Dd{+n, +tvs, +cs} <> t:
+      +d = lw.back.lead(tvs, Nat.sub(List.length(&2, List<&2, U32>, tvs), lw.back.ars(xs, m, n)), cs)
+      +b = F.fd.tyname(n)
+      K.BkD{b, d} <> K.BkD{lw.cat(b, S.b(".fn")), d} <> lw.back.kd(t, xs, m)
+
+# what G needs of the module (Back.bend's BkN), when CATA_BEND2HS is set
+# (on): nothing is computed when it is not
+def lw.back.nm(on: Bool, +m: List<&2, U32>, +tbs: List<&2, F.Tb>, +dds: List<&2, Dd>, +its: List<&2, T.BItem>, +xs: List<&2, X.Sx>) -> K.BkN:
+  match on:
+    case True{}:
+      +ss = lw.syns(xs)
+      K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(m, ss, dds), lw.back.kd(dds, xs, m)}
+    case False{}:
+      K.BkN{m, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
 
 def lw.fin(+ck: Kc, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +fb: Bool, +g: F.Gs, +ps: List<&2, Pl>, +nm: K.BkN) -> IO(Lk):
   +its = lw.gs.its(g)
@@ -2024,7 +2177,7 @@ def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +f
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<Lk>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(m, tbs, dds, lw.gs.its(g0)))
+    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(lw.kc.back(ck), m, tbs, dds, lw.gs.its(g0), xs))
 
 # the items before the gate, and the ones it drops before its first check
 # (dep: what they use that is out), as OUT/NAME_all.bend and
