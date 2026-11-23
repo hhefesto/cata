@@ -1096,17 +1096,183 @@ def bk.ctors(cs: List<&2, T.BCtor>, first: Bool, +e: Bk, +tvs: List<&2, List<&2,
     case T.BCtor{+c, fs} <> t False{}:
       bk.s(" | ", bk.b(bk.con.h(True{}, e, c), bk.fields(fs, bk.nf.find(bk.nf(e), c), e, tvs, bk.ctors(t, False{}, e, tvs, acc))))
 
-def bk.def(islaw: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, body: T.Bt, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+# A def's signature.  G erases types, and GHC then infers a def's type
+# again, the most general one: a def b gives a type (toList at a list of
+# pairs) is the identity at any type, a def that adds is Num's, and F
+# takes neither back (F(G(b)) is not b).  So G writes the def's Bend type
+# as its Haskell type, where it can: every type in it one the module
+# defines or one BendRt has (List, Maybe, Either, Sigma, Bool, Char,
+# String, Unit, Cmp, and the prelude's Fix, Cofree, CofreeF), a type
+# variable, a function (not a dependent one), or a type function G
+# prints (x => D<.., x> as D .., _ => B as B).  A number type (Nat, U32,
+# F32, HsInt, ...) is not: F sends Int, Integer and Natural all to Nat,
+# so G cannot tell which of them h had (a data field's it takes from the
+# export, a def's it has not), and such a def is left to GHC's inference.
+def bk.sig.base() -> List<&2, List<&2, U32>>:
+  [S.b("List"), S.b("Maybe"), S.b("Either"), S.b("Sigma"), S.b("Bool"), S.b("Char"), S.b("String"), S.b("Unit"), S.b("Cmp"), S.b("HsPrelude.Fix"), S.b("HsPrelude.Cofree"), S.b("HsPrelude.CofreeF"), S.b("HsPrelude.CofreeF.fn")]
+
+def bk.sig.name(+e: Bk, +tvs: List<&2, List<&2, U32>>, +n: List<&2, U32>) -> Bool:
+  Bool.or(S.mem(n, tvs), Bool.or(S.mem(n, bk.tys(e)), S.mem(n, bk.sig.base())))
+
+def bk.sig.ok(t: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>) -> Bool:
+  match t:
+    case T.BtTyApp{+n, a}:
+      Bool.and(bk.sig.name(e, tvs, n), bk.sig.ok(a, e, tvs))
+    case T.BtVar{+x}:
+      Bool.or(S.head.is(x, 38), bk.sig.name(e, tvs, x))
+    case T.BtPi{m, x, d, a, b}:
+      Bool.and(Bool.not(d), Bool.and(bk.sig.ok(a, e, tvs), bk.sig.ok(b, e, tvs)))
+    case T.BtLam{m, +x, +b}:
+      Bool.and(Bool.or(S.eq(x, S.b("_")), bk.ty.eta(b, x)), bk.sig.ok(b, e, x <> tvs))
+    case T.BtArgs{a, r}:
+      Bool.and(bk.sig.ok(a, e, tvs), bk.sig.ok(r, e, tvs))
+    case T.BtANil{}:
+      True{}
+    case _:
+      False{}
+
+# the value parameters' types (a type's parameters are erased)
+def bk.sig.ps(ps: List<&2, T.BParam>, +e: Bk, +tvs: List<&2, List<&2, U32>>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case T.BParam{m, x, +ty} <> t:
+      Bool.and(Bool.or(bk.kind(ty), bk.sig.ok(ty, e, tvs)), bk.sig.ps(t, e, tvs))
+
+def bk.sig.arg(kind: Bool, ty: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match kind:
+    case True{}:
+      acc
+    case False{}:
+      bk.ty(ty, BkYTop{}, e, tvs, bk.s(" -> ", acc))
+
+def bk.sig.text(ps: List<&2, T.BParam>, +r: T.Bt, +e: Bk, +tvs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match ps:
+    case Nil{}:
+      bk.ty(r, BkYTop{}, e, tvs, acc)
+    case T.BParam{m, x, +ty} <> t:
+      bk.sig.arg(bk.kind(ty), ty, e, tvs, bk.sig.text(t, r, e, tvs, acc))
+
+def bk.sig(ok: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match ok:
+    case True{}:
+      bk.b(bk.dname(n), bk.s(" :: ", bk.sig.text(ps, r, e, bk.tvs(ps), 10 <> acc)))
+    case False{}:
+      acc
+
+# A def whose body is a match on two or more of its parameters is
+# written as equations, one per case, each case's patterns in its
+# scrutinees' places and the other parameters as they are: F folds
+# equations into a match on those parameters again, where it folds a case
+# on a tuple into a def of its own (fd.lift).  Only when no case's body
+# names a scrutinee and no pattern binds a parameter's name (Haskell's
+# equations would then bind it twice); else the case on the tuple.
+
+# the scrutinees' names, when each is a variable
+def bk.scr(xs: T.Bt) -> List<&2, List<&2, U32>>:
+  match xs:
+    case T.BtArgs{T.BtVar{x}, r}:
+      bk.bare(x) <> bk.scr(r)
+    case T.BtArgs{a, r}:
+      S.b("*") <> bk.scr(r)
+    case _:
+      Nil{}
+
+def bk.anyin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      False{}
+    case +x <> t:
+      Bool.or(S.mem(x, ys), bk.anyin(t, ys))
+
+def bk.allin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case +x <> t:
+      Bool.and(S.mem(x, ys), bk.allin(t, ys))
+
+# each case: its body names no scrutinee, its patterns bind no parameter
+def bk.eqs.ok(cs: T.Bt, +scr: List<&2, List<&2, U32>>, +pn: List<&2, List<&2, U32>>) -> Bool:
+  match cs:
+    case T.BtCase{+p, +b, rest}:
+      Bool.and(Bool.not(Bool.or(bk.anyin(T.tba.refs(b, Nil{}), scr), bk.anyin(bk.pv(p, Nil{}), pn))), bk.eqs.ok(rest, scr, pn))
+    case T.BtCEnd{}:
+      True{}
+    case _:
+      False{}
+
+def bk.eqs.when(+ps: List<&2, T.BParam>, +b: T.Bt) -> Bool:
+  match b:
+    case T.BtMatch{+xs, +cs}:
+      +scr = bk.scr(xs)
+      +pn = bk.pnames(ps)
+      Bool.and(Nat.is_gt(List.length(&2, List<&2, U32>, scr), 1n), Bool.and(bk.allin(scr, pn), bk.eqs.ok(cs, scr, pn)))
+    case _:
+      False{}
+
+# the i-th of a spine (none: a wildcard)
+def bk.nth(a: T.Bt, i: Nat) -> T.Bt:
+  match a i:
+    case T.BtArgs{h, r} 0n:
+      h
+    case T.BtArgs{h, r} 1n+k:
+      bk.nth(r, k)
+    case _ _:
+      T.BtWild{}
+
+def bk.idx(xs: List<&2, List<&2, U32>>, +x: List<&2, U32>, +i: Nat) -> Maybe<&2, Nat>:
+  match xs:
+    case Nil{}:
+      None{}
+    case +y <> t:
+      Bool.pick(Maybe<&2, Nat>, S.eq(y, x), Some{i}, bk.idx(t, x, 1n+i))
+
+# an equation's parameter: the case's pattern where it is a scrutinee,
+# else its name (a type's: nothing)
+def bk.eq.arg(kind: Bool, m: Maybe<&2, Nat>, +x: List<&2, U32>, p: T.Bt, +e: Bk, +sc: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match kind m:
+    case True{} _:
+      acc
+    case False{} Some{i}:
+      32 <> bk.t(bk.nth(p, i), BkPat{}, e, sc, acc)
+    case False{} None{}:
+      32 <> bk.b(x, acc)
+
+def bk.eq.args(ps: List<&2, T.BParam>, +scr: List<&2, List<&2, U32>>, +p: T.Bt, +e: Bk, +sc: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match ps:
+    case Nil{}:
+      acc
+    case T.BParam{m, +x, +ty} <> t:
+      +y = bk.bare(x)
+      bk.eq.arg(bk.kind(ty), bk.idx(scr, y, 0n), y, p, e, sc, bk.eq.args(t, scr, p, e, sc, acc))
+
+def bk.eqs(cs: T.Bt, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +scr: List<&2, List<&2, U32>>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case T.BtCase{+p, b, rest}:
+      bk.b(bk.dname(n), bk.eq.args(ps, scr, p, e, Nil{}, bk.s(" = ", bk.t(b, BkTerm{}, e, bk.pv(p, bk.pnames(ps)), 10 <> bk.eqs(rest, n, ps, scr, e, acc)))))
+    case _:
+      10 <> acc
+
+def bk.body(eqs: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, body: T.Bt, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match eqs body:
+    case True{} T.BtMatch{+xs, cs}:
+      bk.eqs(cs, n, ps, bk.scr(xs), e, acc)
+    case _ b:
+      bk.b(bk.dname(n), bk.params(ps, bk.s(" = ", bk.t(b, BkTerm{}, e, bk.pnames(ps), 10 <> 10 <> acc))))
+
+def bk.def(islaw: Bool, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +body: T.Bt, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
   match islaw:
     case True{}:
       acc
     case False{}:
-      bk.b(bk.dname(n), bk.params(ps, bk.s(" = ", bk.t(body, BkTerm{}, e, bk.pnames(ps), 10 <> 10 <> acc))))
+      +tvs = bk.tvs(ps)
+      bk.sig(Bool.and(bk.sig.ps(ps, e, tvs), bk.sig.ok(r, e, tvs)), n, ps, r, e, bk.body(bk.eqs.when(ps, body), n, ps, body, e, acc))
 
 def bk.item(it: T.BItem, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
   match it:
     case T.BiDef{+n, ps, +ret, body, doc}:
-      bk.def(bk.law(ret), n, ps, body, e, acc)
+      bk.def(bk.law(ret), n, ps, ret, body, e, acc)
     case T.BiType{+n, +ps, k, +cs, doc}:
       bk.s("data ", bk.b(bk.tname.at(True{}, True{}, e, n), bk.tvs.text(List.drop(&2, List<&2, U32>, bk.tvs(ps), bk.kd.find(bk.kd(e), n)), bk.ctors(cs, True{}, e, bk.tvs(ps), 10 <> 10 <> bk.psyns(cs, e, acc)))))
     case _:
