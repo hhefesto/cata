@@ -1908,3 +1908,392 @@ def lrose(x: HV) -> HV:
 # (h, the one answer) at Inr h
 def lalg(z: HTm, s: HTm) -> HTm:
   HComp{HCase{HComp{z, HSnd{}}, HComp{s, HPr{HSnd{}, HComp{HFold{HUnit{}, HFst{}}, HFst{}}}}}, HComp{HDist{}, HPr{HSnd{}, HFst{}}}}
+
+# Definitions that call each other, and functions as values (PROPOSED.bend's
+# section 14) --------------------------------------------------------------------
+#
+# Haskell's definitions call each other as they like (even and odd, a data
+# type's functions and the functions of the types in it), and a function is
+# a value: an argument, an answer, a field.  A program here is a table of
+# definitions and a body, each an HR: the fragment's programs (HrTm), what
+# builds programs, a call of the table's i-th definition (HrCall), and the
+# application of a function value (HrApp).  A function value is a closure,
+# what a lambda is after lambda lifting: the pair of the number of the
+# definition it became and the variables it uses, so `\a -> t` with the
+# variables e around it is clo(i) at e, its i-th definition t at (e, a),
+# and HrApp at ((i, e), a) is that call (defunctionalization: no value is
+# new, and two functions are the same value when they are the same
+# definition with the same variables).  A class's dictionary is a pair of
+# closures, a record a pair, and mutually recursive data types' values the
+# values they already were, their functions definitions of the table; a
+# fold whose functions call definitions is one of the definitions.
+type HR is Data:
+  HrTm{t: HTm}
+  HrComp{g: HR, f: HR}
+  HrPr{f: HR, g: HR}
+  HrCase{f: HR, g: HR}
+  HrIf{c: HR, t: HR, e: HR}
+  HrCons{h: HR, t: HR}
+  HrCall{i: Nat}
+  HrApp{}
+
+# the definitions, each with its type's default (fd.dv: what cata's Bend
+# answers when the fuel runs out; Haskell has no use for it)
+type HD is Data:
+  HdNil{}
+  HdCons{t: HR, d: HV, ds: HD}
+
+def hd.at(ds: HD, i: Nat) -> HR:
+  match ds i:
+    case HdNil{} _:
+      HrTm{HErr{}}
+    case HdCons{t, d, es} 0n:
+      t
+    case HdCons{t, d, es} 1n+j:
+      hd.at(es, j)
+
+def hd.dv(ds: HD, i: Nat) -> HV:
+  match ds i:
+    case HdNil{} _:
+      HvUnit{}
+    case HdCons{t, d, es} 0n:
+      d
+    case HdCons{t, d, es} 1n+j:
+      hd.dv(es, j)
+
+def hd.app(ds: HD, es: HD) -> HD:
+  match ds:
+    case HdNil{}:
+      es
+    case HdCons{t, d, fs}:
+      HdCons{t, d, hd.app(fs, es)}
+
+# a lambda: the closure of definition i over the variables around it
+def clo(i: Nat) -> HTm:
+  HPr{HLit{i}, HId{}}
+
+# runs, put together: out of steps where the part it needs is
+def r.bind(r: Run, k: HV -> Run) -> Run:
+  match r:
+    case ROut{}:
+      ROut{}
+    case RDone{m}:
+      match m:
+        case None{}:
+          RDone{None{}}
+        case Some{v}:
+          k(v)
+
+def r.pair(a: Run, b: Run) -> Run:
+  match a:
+    case ROut{}:
+      ROut{}
+    case RDone{m}:
+      match m:
+        case None{}:
+          RDone{None{}}
+        case Some{u}:
+          match b:
+            case ROut{}:
+              ROut{}
+            case RDone{w}:
+              RDone{h.pair(Some{u}, w)}
+
+def r.cons(a: Run, b: Run) -> Run:
+  match a:
+    case ROut{}:
+      ROut{}
+    case RDone{m}:
+      match m:
+        case None{}:
+          RDone{None{}}
+        case Some{u}:
+          match b:
+            case ROut{}:
+              ROut{}
+            case RDone{w}:
+              RDone{h.cons(Some{u}, w)}
+
+def r.if(c: Run, a: Run, e: Run) -> Run:
+  match c:
+    case ROut{}:
+      ROut{}
+    case RDone{m}:
+      match m:
+        case Some{HvBool{True{}}}:
+          a
+        case Some{HvBool{False{}}}:
+          e
+        case _:
+          RDone{None{}}
+
+def r.case(x: HV, f: HV -> Run, g: HV -> Run) -> Run:
+  match x:
+    case HvInl{a}:
+      f(a)
+    case HvInr{b}:
+      g(b)
+    case _:
+      RDone{None{}}
+
+# a function value applied: its definition's number and its argument, with
+# its variables
+def r.app(x: HV, k: Nat -> HV -> Run) -> Run:
+  match x:
+    case HvPair{HvPair{HvNat{i}, e}, a}:
+      k(i, HvPair{e, a})
+    case _:
+      RDone{None{}}
+
+# Haskell's meaning, calls nested n deep at most: ROut when that is not
+# enough (a program that never stops: ROut at every n), else its answer
+def eval.hr(n: Nat, +ds: HD, t: HR, +x: HV) -> Run:
+  match n t:
+    case _ HrTm{u}:
+      RDone{eval.h(u, x)}
+    case +k HrComp{g, f}:
+      r.bind(eval.hr(k, ds, f, x), y => eval.hr(k, ds, g, y))
+    case +k HrPr{f, g}:
+      r.pair(eval.hr(k, ds, f, x), eval.hr(k, ds, g, x))
+    case +k HrCase{f, g}:
+      r.case(x, a => eval.hr(k, ds, f, a), b => eval.hr(k, ds, g, b))
+    case +k HrIf{c, a, e}:
+      r.if(eval.hr(k, ds, c, x), eval.hr(k, ds, a, x), eval.hr(k, ds, e, x))
+    case +k HrCons{a, b}:
+      r.cons(eval.hr(k, ds, a, x), eval.hr(k, ds, b, x))
+    case 0n HrCall{i}:
+      ROut{}
+    case 1n+m HrCall{i}:
+      eval.hr(m, ds, hd.at(ds, i), x)
+    case 0n HrApp{}:
+      r.app(x, i => y => ROut{})
+    case 1n+m HrApp{}:
+      r.app(x, i => y => eval.hr(m, ds, hd.at(ds, i), y))
+
+# Bend's program: the same, its calls with fuel, n at the start and one
+# less at each (Fold.bend's fuelled group), the callee's default where it
+# runs out
+type BR is Data:
+  BrTm{t: BTm}
+  BrComp{g: BR, f: BR}
+  BrPr{f: BR, g: BR}
+  BrCase{f: BR, g: BR}
+  BrIf{c: BR, t: BR, e: BR}
+  BrCons{h: BR, t: BR}
+  BrCall{i: Nat}
+  BrApp{}
+
+type BD is Data:
+  BdNil{}
+  BdCons{t: BR, d: BV, ds: BD}
+
+def bd.at(ds: BD, i: Nat) -> BR:
+  match ds i:
+    case BdNil{} _:
+      BrTm{BFail{}}
+    case BdCons{t, d, es} 0n:
+      t
+    case BdCons{t, d, es} 1n+j:
+      bd.at(es, j)
+
+def bd.dv(ds: BD, i: Nat) -> BV:
+  match ds i:
+    case BdNil{} _:
+      BvUnit{}
+    case BdCons{t, d, es} 0n:
+      d
+    case BdCons{t, d, es} 1n+j:
+      bd.dv(es, j)
+
+def bd.app(ds: BD, es: BD) -> BD:
+  match ds:
+    case BdNil{}:
+      es
+    case BdCons{t, d, fs}:
+      BdCons{t, d, bd.app(fs, es)}
+
+def bclo(i: Nat) -> BTm:
+  BPr{BLit{i}, BId{}}
+
+def m.case(y: BV, f: BV -> Maybe<&2, BV>, g: BV -> Maybe<&2, BV>) -> Maybe<&2, BV>:
+  match y:
+    case BvInl{a}:
+      f(a)
+    case BvInr{b}:
+      g(b)
+    case _:
+      None{}
+
+def m.app(y: BV, k: Nat -> BV -> Maybe<&2, BV>) -> Maybe<&2, BV>:
+  match y:
+    case BvPair{BvPair{BvNat{i}, e}, a}:
+      k(i, BvPair{e, a})
+    case _:
+      None{}
+
+def eval.br(n: Nat, +ds: BD, t: BR, +y: BV) -> Maybe<&2, BV>:
+  match n t:
+    case _ BrTm{u}:
+      eval.b(u, y)
+    case +k BrComp{g, f}:
+      Maybe.bind(&2, BV, BV, eval.br(k, ds, f, y), z => eval.br(k, ds, g, z))
+    case +k BrPr{f, g}:
+      b.pair(eval.br(k, ds, f, y), eval.br(k, ds, g, y))
+    case +k BrCase{f, g}:
+      m.case(y, a => eval.br(k, ds, f, a), b => eval.br(k, ds, g, b))
+    case +k BrIf{c, a, e}:
+      b.if(eval.br(k, ds, c, y), eval.br(k, ds, a, y), eval.br(k, ds, e, y))
+    case +k BrCons{a, b}:
+      b.cons(eval.br(k, ds, a, y), eval.br(k, ds, b, y))
+    case 0n BrCall{i}:
+      Some{bd.dv(ds, i)}
+    case 1n+m BrCall{i}:
+      eval.br(m, ds, bd.at(ds, i), y)
+    case 0n BrApp{}:
+      m.app(y, i => z => Some{bd.dv(ds, i)})
+    case 1n+m BrApp{}:
+      m.app(y, i => z => eval.br(m, ds, bd.at(ds, i), z))
+
+def g.case(x: HV, f: HV -> Maybe<&2, HV>, g: HV -> Maybe<&2, HV>) -> Maybe<&2, HV>:
+  match x:
+    case HvInl{a}:
+      f(a)
+    case HvInr{b}:
+      g(b)
+    case _:
+      None{}
+
+def g.app(x: HV, k: Nat -> HV -> Maybe<&2, HV>) -> Maybe<&2, HV>:
+  match x:
+    case HvPair{HvPair{HvNat{i}, e}, a}:
+      k(i, HvPair{e, a})
+    case _:
+      None{}
+
+# G's Haskell for it: the fuel and the defaults kept
+def eval.gr(n: Nat, +ds: HD, t: HR, +x: HV) -> Maybe<&2, HV>:
+  match n t:
+    case _ HrTm{u}:
+      eval.h(u, x)
+    case +k HrComp{g, f}:
+      Maybe.bind(&2, HV, HV, eval.gr(k, ds, f, x), y => eval.gr(k, ds, g, y))
+    case +k HrPr{f, g}:
+      h.pair(eval.gr(k, ds, f, x), eval.gr(k, ds, g, x))
+    case +k HrCase{f, g}:
+      g.case(x, a => eval.gr(k, ds, f, a), b => eval.gr(k, ds, g, b))
+    case +k HrIf{c, a, e}:
+      h.if(eval.gr(k, ds, c, x), eval.gr(k, ds, a, x), eval.gr(k, ds, e, x))
+    case +k HrCons{a, b}:
+      h.cons(eval.gr(k, ds, a, x), eval.gr(k, ds, b, x))
+    case 0n HrCall{i}:
+      Some{hd.dv(ds, i)}
+    case 1n+m HrCall{i}:
+      eval.gr(m, ds, hd.at(ds, i), x)
+    case 0n HrApp{}:
+      g.app(x, i => y => Some{hd.dv(ds, i)})
+    case 1n+m HrApp{}:
+      g.app(x, i => y => eval.gr(m, ds, hd.at(ds, i), y))
+
+# F and G on them: each construct to its own, a definition's number its
+# own, its default by enc and dec
+def F.hr(t: HR) -> BR:
+  match t:
+    case HrTm{u}:
+      BrTm{F(u)}
+    case HrComp{g, f}:
+      BrComp{F.hr(g), F.hr(f)}
+    case HrPr{f, g}:
+      BrPr{F.hr(f), F.hr(g)}
+    case HrCase{f, g}:
+      BrCase{F.hr(f), F.hr(g)}
+    case HrIf{c, a, e}:
+      BrIf{F.hr(c), F.hr(a), F.hr(e)}
+    case HrCons{a, b}:
+      BrCons{F.hr(a), F.hr(b)}
+    case HrCall{i}:
+      BrCall{i}
+    case HrApp{}:
+      BrApp{}
+
+def F.hd(ds: HD) -> BD:
+  match ds:
+    case HdNil{}:
+      BdNil{}
+    case HdCons{t, d, es}:
+      BdCons{F.hr(t), enc(d), F.hd(es)}
+
+def G.br(t: BR) -> HR:
+  match t:
+    case BrTm{u}:
+      HrTm{G(u)}
+    case BrComp{g, f}:
+      HrComp{G.br(g), G.br(f)}
+    case BrPr{f, g}:
+      HrPr{G.br(f), G.br(g)}
+    case BrCase{f, g}:
+      HrCase{G.br(f), G.br(g)}
+    case BrIf{c, a, e}:
+      HrIf{G.br(c), G.br(a), G.br(e)}
+    case BrCons{a, b}:
+      HrCons{G.br(a), G.br(b)}
+    case BrCall{i}:
+      HrCall{i}
+    case BrApp{}:
+      HrApp{}
+
+def G.bd(ds: BD) -> HD:
+  match ds:
+    case BdNil{}:
+      HdNil{}
+    case BdCons{t, d, es}:
+      HdCons{G.br(t), dec(d), G.bd(es)}
+
+# whole programs: Haskell's, Bend's (with its fuel), and G's Haskell
+type HPg is Data:
+  HPg{ds: HD, t: HR}
+
+type BPg is Data:
+  BPg{n: Nat, ds: BD, t: BR}
+
+type GPg is Data:
+  GPg{n: Nat, ds: HD, t: HR}
+
+def eval.hp(n: Nat, h: HPg, +x: HV) -> Run:
+  match h:
+    case HPg{+ds, +t}:
+      eval.hr(n, ds, t, x)
+
+def eval.bp(b: BPg, +y: BV) -> Maybe<&2, BV>:
+  match b:
+    case BPg{n, +ds, +t}:
+      eval.br(n, ds, t, y)
+
+def eval.gp(g: GPg, +x: HV) -> Maybe<&2, HV>:
+  match g:
+    case GPg{n, +ds, +t}:
+      eval.gr(n, ds, t, x)
+
+# F with fuel n, F with cata's fuel, and G
+def F.pn(n: Nat, h: HPg) -> BPg:
+  match h:
+    case HPg{ds, t}:
+      BPg{n, F.hd(ds), F.hr(t)}
+
+def F.p(h: HPg) -> BPg:
+  F.pn(fuel(), h)
+
+def G.p(b: BPg) -> GPg:
+  match b:
+    case BPg{n, ds, t}:
+      GPg{n, G.bd(ds), G.br(t)}
+
+# section 7's loop, until p s, as a definition that calls itself
+def until.ds(p: HTm, s: HTm) -> HD:
+  HdCons{HrIf{HrTm{p}, HrTm{HId{}}, HrComp{HrCall{0n}, HrTm{s}}}, HvNat{0n}, HdNil{}}
+
+# Mutually recursive data types: t1 and t2, each with fields of both.  One
+# type's catamorphism, on the rose of their sum (a node's shape is Inl of
+# t1's layer or Inr of t2's, its children both's), by t1's algebra and
+# t2's: section 13's HCata at their case.
+def malg(s1: HTm, s2: HTm) -> HTm:
+  HComp{HCase{HComp{s1, HPr{HSnd{}, HFst{}}}, HComp{s2, HPr{HSnd{}, HFst{}}}}, HComp{HDist{}, HPr{HSnd{}, HFst{}}}}

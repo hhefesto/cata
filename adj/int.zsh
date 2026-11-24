@@ -1,7 +1,8 @@
 #!/usr/bin/env zsh
 # adj/int.zsh: write INT.bend from GHC's Int and Int8 (IntGhc.hs),
-# LAZY.bend from GHC's laziness (LazyGhc.hs) and CATA.bend from GHC's
-# catamorphisms (CataGhc.hs: recursion-schemes), and check each against the
+# LAZY.bend from GHC's laziness (LazyGhc.hs), CATA.bend from GHC's
+# catamorphisms (CataGhc.hs: recursion-schemes) and REC.bend from GHC's
+# recursion and functions as values (RecGhc.hs), and check each against the
 # model (Core.bend), --check-only then --verdict.
 #   GHC names a directory holding runghc (with recursion-schemes: the
 #   telomare GHC); BEND the bend; LEAN a directory
@@ -15,8 +16,9 @@ cd $here
 runghc IntGhc.hs > INT.bend || { print FAIL: runghc IntGhc.hs; exit 1 }
 runghc LazyGhc.hs > LAZY.bend || { print FAIL: runghc LazyGhc.hs; exit 1 }
 runghc CataGhc.hs > CATA.bend || { print FAIL: runghc CataGhc.hs; exit 1 }
+runghc RecGhc.hs > REC.bend || { print FAIL: runghc RecGhc.hs; exit 1 }
 ok=1
-for f in INT LAZY CATA; do
+for f in INT LAZY CATA REC; do
   c=$(BEND_NO_TELEMETRY=1 $bend $f.bend --check-only 2>&1)
   print "$f check: ${c//$'\n'/ | }"
   v=$(BEND_NO_TELEMETRY=1 $bend $f.bend --verdict 2>&1)

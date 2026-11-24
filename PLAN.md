@@ -2311,6 +2311,47 @@ a fresh `--verdict`, no cache, 55 s).
   done: cata's own F at a data type is not tied to HCata (adj/gen writes no
   data types, so no certificate covers one), and mutually recursive types
   (an indexed family of roses) are outside.
+- **Definitions that call each other, and functions as values** (section
+  14). A program is a table of definitions and a body (`HPg`, Bend's
+  `BPg`): the fragment's programs (HrTm), what builds programs, a call of
+  the table's i-th definition (HrCall) and the application of a function
+  value (HrApp). A function value is a closure, what a lambda is after
+  lambda lifting: the number of the definition it became and the variables
+  it uses (`clo`), so no value is new. That covers general (mutual)
+  recursion, higher-order functions, classes (a dictionary is a pair of
+  closures), records (pairs) and mutually recursive data types' functions;
+  a fold whose functions call definitions is one of the definitions.
+  Proved, with the verdict: F and G are functors here too (composition,
+  calls, lambdas, application, and linking: the translation of two tables
+  linked is their translations linked); a lambda applied is its body
+  (`curry.app`); section 7's loop is one of these definitions, step for
+  step (`until.rec`); the squares (F's program with fuel n means what h
+  means wherever h stops within k <= n nested calls, at every n and every
+  default; G's means what Bend's means, always); h's answer is one,
+  whatever the depth (`det.r`); **F -| G on the programs that stop within
+  the fuel** (`adj.FG.rec`, and at cata's 2^32 - 1), and its refutation
+  without that (`adj.FG.rec.not`: f x = f x, at every fuel). Mutually
+  recursive types' catamorphism is section 13's at the rose of their sum
+  (`malg`): `mcata.l`, `mcata.r` say what it answers at a node of each,
+  `F.malg` that F keeps it. GHC: `adj/RecGhc.hs` writes 16 programs once,
+  over a class whose one instance is Haskell itself (its recursion, its
+  functions, its data types) and whose other writes the model's program,
+  and GHC's answers into `adj/REC.bend`: 50 equations of eval.hp (49 the
+  same, 7 of them errors where GHC throws; 1 where the strict model errs
+  and GHC's laziness answers, written as such) and the 50 of F's program,
+  `--verdict` ALL PROOFS CHECK: even and odd, Hofstadter's F and M, Ackermann,
+  Collatz, map and foldr with closures, a list of functions, twice twice,
+  foldl by foldr, continuations, a class's dictionary, trees and forests,
+  an interpreter of expressions and blocks. `adj/rec-mut.zsh`: 18 mutants
+  each fail PROOF.bend, the 6 that change Haskell's meaning fail REC.bend
+  too. What it leaves: answers at a function's type are compared as
+  closures (the same definition, the same variables), not as functions;
+  the model's fuel counts nested calls through the whole program, where
+  cata's starts again at each call into a fuelled group (it answers where
+  the model's has run out), and cata writes most recursions without fuel
+  (structural) and most lambdas as templates, so this is the theorem of
+  what F must keep, as section 13's is, and no certificate yet ties
+  Fold.bend's own answers to it; it is strict, as eval.h is.
 - **The model against GHC, and against cata itself (adj/gen).** Until now
   only the model's arithmetic and 14 lazy programs were tried against GHC,
   and nothing tied the model's F to Fold.bend's. `adj/gen/Gen.bend` writes
@@ -2382,9 +2423,9 @@ a fresh `--verdict`, no cache, 55 s).
   as Le allows it. It found one defect of F: a structural foldr whose
   step's case was lifted became a fuelled group (26 of them), wrong past
   2^31 elements, which no certificate can prove.
-- **Outside the model.** Functions as values, mutually recursive data
-  types (a single recursive type is in it: section 13), classes, records,
-  strings and general mutual recursion:
+- **Outside the model.** Function values compared as functions (section 14
+  compares closures), strings as Bend's own (the model's are lists of
+  numbers), and laziness with recursion (section 14 is strict):
   cata takes them, and their laws are tested (GHC's answers), not proved.
   An overflowing run (section 8: F answers the
   exact number where GHC's Int wraps; nothing in cata guards it). A
