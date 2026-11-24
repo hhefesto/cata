@@ -69,3 +69,13 @@ subNat w l = case l of
 keep :: Int -> [Int] -> [Int]
 keep k xs = filter ok xs
   where ok x = x > k || x == 0
+
+-- a list function without its list, and uncurry at a closure
+comp :: Int -> ([Int], Int) -> [Int]
+comp k = map (scale k) . fst
+
+comps :: Int -> [([Int], Int)] -> [[Int]]
+comps k ps = map (filter (> k) . fst) ps
+
+dists :: Int -> (Int, Int) -> Int
+dists k p = uncurry (step k) p

@@ -4205,11 +4205,18 @@ def sp.hf.find(hs: List<&2, Hke>, +k: List<&2, U32>) -> Maybe<&2, Hk>:
 def sp.hf.digits(+x: X.Sx) -> List<&2, U32>:
   S.b(U32.show(sp.fa.hash(X.tsx.show(x), 5381)))
 
+# a list function without its list (`fmap res`, in `gets (fmap res . rows)`):
+# a lambda over the list
+def sp.hf.part(+s: String, +a: X.Sx, +r: X.Sx, +f: X.Sx, +h: List<&2, U32>) -> X.Sx:
+  +l = sp.hf.v("hfl", h)
+  +m = sp.hf.match([sp.hf.pv(l, sp.hf.list(a))], sp.hf.k1(s, a, r, f, l, h))
+  sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([sp.hf.list(a)]), sp.hf.ans(s, a, r), sp.a("source"), sp.l([m])])])
+
 def sp.hf.mk.of(k: Hk, +tys: List<&2, X.Sx>, +f: X.Sx, +x1: X.Sx, +x2: X.Sx, +n: Nat, +h: List<&2, U32>, +y: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
   match k:
     case Hk1{+s, +at, +a, +r}:
-      +ok = Bool.and(Nat.is_eq(n, 2n), Bool.or(Bool.not(at), sp.pc.atlist(tys)))
-      sp.if(X.Sx, ok, _ => sp.hf.k1(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, x1, h), _ => y)
+      +ls = Bool.or(Bool.not(at), sp.pc.atlist(tys))
+      sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 2n)), _ => sp.hf.k1(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, x1, h), _ => sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 1n)), _ => sp.hf.part(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, h), _ => y))
     case HkFoldr{+at}:
       +o = Bool.pick(Nat, at, 1n, 0n)
       sp.if(X.Sx, Bool.and(Nat.is_eq(n, 3n), Bool.or(Bool.not(at), sp.pc.atlist(tys))), _ => sp.hf.foldr(sp.hf.ty(tys, o), sp.hf.ty(tys, 1n+o), f, x1, x2, h, sp.hf.lam(f, 2n), sys), _ => y)
@@ -4222,32 +4229,36 @@ def sp.hf.mk.of(k: Hk, +tys: List<&2, X.Sx>, +f: X.Sx, +x1: X.Sx, +x2: X.Sx, +n:
 def sp.hf.mk(k: Hk, +tys: List<&2, X.Sx>, +xs: List<&2, X.Sx>, +y: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
   sp.hf.mk.of(k, tys, sp.pc.strip(sp.first(xs)), sp.hf.ty(xs, 1n), sp.hf.ty(xs, 2n), List.length(&2, X.Sx, xs), sp.hf.digits(y), y, sys)
 
-def sp.hf.go(m: Maybe<&2, Hk>, +tys: List<&2, X.Sx>, +xs: List<&2, X.Sx>, +y: X.Sx, +env: List<&2, Asb>, +sys: List<&2, Sy>) -> X.Sx:
+def sp.hf.go(m: Maybe<&2, Hk>, +tys: List<&2, X.Sx>, +xs: List<&2, X.Sx>, +y: X.Sx, +fnp: Bool, +env: List<&2, Asb>, +sys: List<&2, Sy>) -> X.Sx:
   match m:
     case Some{k}:
       +f = sp.pc.strip(sp.first(xs))
       +ok = {sp.if(Bool, Bool.or(sp.head.is(f, "lam"), sp.head.is(f, "app")), _ => sp.hf.free(sp.fa.frees(f, sp.fa.binds(f, Nil{}), Nil{}), env, sys), _ => sp.if(Bool, sp.head.is(f, "l"), _ => sp.hf.free([f], env, sys), _ => False{})) : Bool}
-      sp.if(X.Sx, ok, _ => sp.hf.mk(k, tys, xs, y, sys), _ => y)
+      sp.if(X.Sx, Bool.and(ok, Bool.not(Bool.and(fnp, Nat.is_eq(List.length(&2, X.Sx, xs), 1n)))), _ => sp.hf.mk(k, tys, xs, y, sys), _ => y)
     case None{}:
       y
 
-def sp.hf.at(s: Bs, +y: X.Sx, +env: List<&2, Asb>, +sys: List<&2, Sy>, +tab: List<&2, Hke>) -> X.Sx:
+def sp.hf.at(s: Bs, +y: X.Sx, +fnp: Bool, +env: List<&2, Asb>, +sys: List<&2, Sy>, +tab: List<&2, Hke>) -> X.Sx:
   match s:
     case Bs{+h, +xs}:
       +p = sp.pc.peel(h, Nil{}, Nil{})
-      sp.hf.go(sp.hf.find(tab, sp.pc.key(p)), sp.pc.tys(p), xs, y, env, sys)
+      sp.hf.go(sp.hf.find(tab, sp.pc.key(p)), sp.pc.tys(p), xs, y, fnp, env, sys)
 
 # bottom up: (app F A), its parts done (env: the top's binders with their
 # types)
-def sp.hf(x: X.Sx, +env: List<&2, Asb>, +sys: List<&2, Sy>, +tab: List<&2, Hke>) -> X.Sx:
+# (fnp: x is an application's function: the list comes after)
+def sp.hf.w(x: X.Sx, +fnp: Bool, +env: List<&2, Asb>, +sys: List<&2, Sy>, +tab: List<&2, Hke>) -> X.Sx:
   match x:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
-      +y = {X.SxCons{X.SxAtom{a}, X.SxCons{sp.hf(f, env, sys, tab), X.SxCons{sp.hf(e, env, sys, tab), X.SxNil{}}}} : X.Sx}
-      sp.if(X.Sx, sp.is(a, "app"), _ => sp.hf.at(sp.beta.spine(y, Nil{}), y, env, sys, tab), _ => y)
+      +y = {X.SxCons{X.SxAtom{a}, X.SxCons{sp.hf.w(f, sp.is(a, "app"), env, sys, tab), X.SxCons{sp.hf.w(e, False{}, env, sys, tab), X.SxNil{}}}} : X.Sx}
+      sp.if(X.Sx, sp.is(a, "app"), _ => sp.hf.at(sp.beta.spine(y, Nil{}), y, fnp, env, sys, tab), _ => y)
     case X.SxCons{h, t}:
-      X.SxCons{sp.hf(h, env, sys, tab), sp.hf(t, env, sys, tab)}
+      X.SxCons{sp.hf.w(h, False{}, env, sys, tab), sp.hf.w(t, False{}, env, sys, tab)}
     case y:
       y
+
+def sp.hf(+x: X.Sx, +env: List<&2, Asb>, +sys: List<&2, Sy>, +tab: List<&2, Hke>) -> X.Sx:
+  sp.hf.w(x, False{}, env, sys, tab)
 
 # the local functions (a let's, a where's) that use a value only the run
 # has, each with a type variable for its type, as sp.hf.free reads one: a
@@ -4310,9 +4321,9 @@ def sp.hm.apps(xs: List<&2, X.Sx>, f: X.Sx) -> X.Sx:
 
 def sp.hm.call(m: Maybe<&2, Hme>, +tys: List<&2, X.Sx>, +h: X.Sx, +xs: List<&2, X.Sx>, +y: X.Sx, +env: List<&2, Asb>, +sys: List<&2, Sy>) -> X.Sx:
   match m:
-    case Some{Hme{q, i, n}}:
+    case Some{Hme{q, +i, n}}:
       +f = sp.pc.strip(sp.hf.ty(xs, i))
-      +ok = {Bool.and(Nat.is_eq(List.length(&2, X.Sx, xs), n), sp.pc.atlist(tys)) : Bool}
+      +ok = {Bool.and(Bool.and(Nat.is_gt(List.length(&2, X.Sx, xs), i), Nat.is_le(List.length(&2, X.Sx, xs), n)), sp.pc.atlist(tys)) : Bool}
       +use = {sp.if(Bool, ok, _ => sp.if(Bool, Bool.or(sp.head.is(f, "lam"), Bool.or(sp.head.is(f, "app"), sp.head.is(f, "l"))), _ => sp.hf.free(sp.fa.frees(f, sp.fa.binds(f, Nil{}), Nil{}), env, sys), _ => False{}), _ => False{}) : Bool}
       sp.if(X.Sx, use, _ => sp.hm.apps(xs, sp.hm.put(h)), _ => y)
     case None{}:
