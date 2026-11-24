@@ -5562,7 +5562,7 @@ def sp.p5.last(+m: List<&2, U32>, +n: List<&2, U32>) -> Bool:
 # IntMap's unionsWith: Data.Map's has the key second (Foldable f, then
 # Ord k)
 def sp.p5.second(+m: List<&2, U32>, +n: List<&2, U32>) -> Bool:
-  Bool.and(Bool.or(sp.is(m, "Data.IntMap.Internal"), sp.is(m, "Data.IntMap.Strict.Internal")), sp.is(n, "unionsWith"))
+  Bool.and(Bool.or(sp.is(m, "Data.IntMap.Internal"), sp.is(m, "Data.IntMap.Strict.Internal")), Bool.or(sp.is(n, "unionsWith"), sp.is(n, "unions")))
 
 def sp.mkspine(ts: List<&2, X.Sx>, h: X.Sx) -> X.Sx:
   match ts:

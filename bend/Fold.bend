@@ -1758,7 +1758,7 @@ def fd.dm.specs.set2() -> List<&2, DmS>:
 
 # (map5 and set3: prelude/HsMapMore.bend's; unionsWith's Foldable a list)
 def fd.dm.specs.map5() -> List<&2, DmS>:
-  [DmS{"intersectionWith", "HsMap.intersectionWith", "KVWX", "VWX", "KVWXc", 1n, 3n}, DmS{"restrictKeys", "HsMap.restrictKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"withoutKeys", "HsMap.withoutKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"fromSet", "HsMap.fromSet", "KV", "V", "KV", 1n, 2n}, DmS{"unionWithKey", "HsMap.unionWithKey", "KV", "V", "KVc", 1n, 3n}, DmS{"unionsWith", "HsMap.unionsWith", "XKV", "XV", "KVc", 1n, 2n}, DmS{"split", "HsMap.split", "KV", "V", "KVc", 0n, 2n}]
+  [DmS{"intersectionWith", "HsMap.intersectionWith", "KVWX", "VWX", "KVWXc", 1n, 3n}, DmS{"restrictKeys", "HsMap.restrictKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"withoutKeys", "HsMap.withoutKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"fromSet", "HsMap.fromSet", "KV", "V", "KV", 1n, 2n}, DmS{"unionWithKey", "HsMap.unionWithKey", "KV", "V", "KVc", 1n, 3n}, DmS{"unionsWith", "HsMap.unionsWith", "XKV", "XV", "KVc", 1n, 2n}, DmS{"unions", "HsMap.unions", "XKV", "XV", "KVc", 0n, 1n}, DmS{"split", "HsMap.split", "KV", "V", "KVc", 0n, 2n}]
 
 # (Map's !: partial, prelude/HsPartial.bend)
 def fd.dm.specs.map6() -> List<&2, DmS>:

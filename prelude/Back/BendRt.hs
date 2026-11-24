@@ -765,6 +765,7 @@ b'HsPrelude'HsMap'insertWithKey cmp f k v m = case m of
     GT -> B'HsPrelude'HsMap'Bin k2 v2 (b'HsPrelude'HsMap'insertWithKey cmp f k v t)
 b'HsPrelude'HsMap'unionWithKey cmp f a b = case a of { B'HsPrelude'HsMap'Tip -> b; B'HsPrelude'HsMap'Bin k v t -> b'HsPrelude'HsMap'insertWithKey cmp f k v (b'HsPrelude'HsMap'unionWithKey cmp f t b) }
 b'HsPrelude'HsMap'unionsWith'go cmp f ms acc = case ms of { [] -> acc; m : t -> b'HsPrelude'HsMap'unionsWith'go cmp f t (b'HsPrelude'HsMap'unionWith cmp f acc m) }
+b'HsPrelude'HsMap'unions cmp ms = b'HsPrelude'HsMap'unionsWith cmp (\a _ -> a) ms
 b'HsPrelude'HsMap'unionsWith cmp f ms = case ms of { [] -> B'HsPrelude'HsMap'Tip; m : t -> b'HsPrelude'HsMap'unionsWith'go cmp f t m }
 b'HsPrelude'HsMap'intersectionWith cmp f a b = case a of
   B'HsPrelude'HsMap'Tip -> B'HsPrelude'HsMap'Tip

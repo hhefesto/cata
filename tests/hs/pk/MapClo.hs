@@ -57,3 +57,6 @@ exKeys :: Int -> [Int] -> [(Int, Int)]
 exKeys n xs = Map.toList (go xs (Map.fromList [(1, n), (2, 3)])) where
   go [] m = m
   go (y : ys) m = go ys (addKey (sumFrom y m) m)
+
+exUnions :: Int -> Int -> ([(Int, Int)], [(Int, Int)])
+exUnions a b = (Map.toList (Map.unions [Map.fromList [(a, 1)], Map.fromList [(b, 2), (3, 3)]]), IntMap.toList (IntMap.unions (map (\x -> IntMap.fromList [(x, b), (1, x)]) [a, 2])))

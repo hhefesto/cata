@@ -110,3 +110,7 @@ def HsMap.fromAsc(~K: Data, ~V: Data, xs: List<&2, Sigma<&2, &2, K, _ => V>>) ->
       HsMap.Tip{}
     case (k, v) <> t:
       HsMap.Bin{k, v, HsMap.fromAsc(~K, ~V, t)}
+
+# unions ms: the maps' union, the first's values first
+def HsMap.unions(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ms: List<&2, HsMap<K, V>>) -> HsMap<K, V>:
+  HsMap.unionsWith(~K, ~V, ~cmp, ~(a => b => a), ms)
