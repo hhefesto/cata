@@ -880,3 +880,255 @@ def L.int.not(le: P.Le.z(L.idz, z => C.gz(C.BId{}, z))) -> Empty:
 
 def P.adj.FG.int.not(adj):
   L.int.not(adj(C.HId{}, C.BId{}, L.idz, x => L.idz.ag(x), y => w => e => e))
+
+# 6. Agree, proved: h at Int against h at Natural, at a Natural value, for
+# an h that never subtracts; a lemma for each construct, as the squares
+
+# a primitive at two numbers, but (-)
+def L.z.at(+p: C.Prim, ep: {C.p.nosub(p) == True{} : Bool}, +a: Nat, +b: Nat) -> {C.upM(C.h.pv(C.p.at(p, a, b))) == C.z.at(p, C.ZvNat{a}, C.ZvNat{b}) : Maybe<&2, C.ZV>}:
+  match p:
+    case C.PAdd{}:
+      {==}
+    case C.PLt{}:
+      {==}
+    case C.PSub{}:
+      Empty.absurd({C.upM(C.h.pv(C.p.at(C.PSub{}, a, b))) == C.z.at(C.PSub{}, C.ZvNat{a}, C.ZvNat{b}) : Maybe<&2, C.ZV>}, L.ft(ep))
+    case C.PDiv{}:
+      match b:
+        case 0n:
+          {==}
+        case 1n+q:
+          {==}
+    case C.PMod{}:
+      match b:
+        case 0n:
+          {==}
+        case 1n+q:
+          {==}
+    case C.PSubT{}:
+      {==}
+    case C.PDivT{}:
+      {==}
+    case C.PModT{}:
+      {==}
+
+# a primitive, at any value
+def L.z.prim(+p: C.Prim, +ep: {C.p.nosub(p) == True{} : Bool}, x: C.HV) -> {C.upM(C.h.prim(p, x)) == C.z.prim(p, C.up(x)) : Maybe<&2, C.ZV>}:
+  match x:
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{a}:
+      {==}
+    case C.HvInr{b}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      {==}
+    case C.HvPair{u, w}:
+      match u:
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{c, d}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, t}:
+          {==}
+        case C.HvNat{a}:
+          match w:
+            case C.HvNat{b}:
+              L.z.at(p, ep, a, b)
+            case C.HvBool{b}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{c, d}:
+              {==}
+            case C.HvInl{c}:
+              {==}
+            case C.HvInr{c}:
+              {==}
+            case C.HvNil{}:
+              {==}
+            case C.HvCons{h, t}:
+              {==}
+
+def L.z.fst(x: C.HV) -> {C.upM(C.h.fst(x)) == C.z.fst(C.up(x)) : Maybe<&2, C.ZV>}:
+  match x:
+    case C.HvPair{a, b}:
+      {==}
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{a}:
+      {==}
+    case C.HvInr{b}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      {==}
+
+def L.z.snd(x: C.HV) -> {C.upM(C.h.snd(x)) == C.z.snd(C.up(x)) : Maybe<&2, C.ZV>}:
+  match x:
+    case C.HvPair{a, b}:
+      {==}
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{a}:
+      {==}
+    case C.HvInr{b}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      {==}
+
+def L.z.pair(r: Maybe<&2, C.HV>, s: Maybe<&2, C.HV>) -> {C.upM(C.h.pair(r, s)) == C.z.pair(C.upM(r), C.upM(s)) : Maybe<&2, C.ZV>}:
+  match r s:
+    case Some{u} Some{v}:
+      {==}
+    case Some{u} None{}:
+      {==}
+    case None{} Some{v}:
+      {==}
+    case None{} None{}:
+      {==}
+
+def L.z.if(c: Maybe<&2, C.HV>, a: Maybe<&2, C.HV>, e: Maybe<&2, C.HV>) -> {C.upM(C.h.if(c, a, e)) == C.z.if(C.upM(c), C.upM(a), C.upM(e)) : Maybe<&2, C.ZV>}:
+  match c:
+    case None{}:
+      {==}
+    case Some{v}:
+      match v:
+        case C.HvBool{b}:
+          match b:
+            case True{}:
+              {==}
+            case False{}:
+              {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{p, q}:
+          {==}
+        case C.HvInl{p}:
+          {==}
+        case C.HvInr{p}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, t}:
+          {==}
+
+def L.z.bind(r: Maybe<&2, C.HV>, -kh: C.HV -> Maybe<&2, C.HV>, -kz: C.ZV -> Maybe<&2, C.ZV>, ih: @v: C.HV -> {C.upM(kh(v)) == kz(C.up(v)) : Maybe<&2, C.ZV>}) -> {C.upM(Maybe.bind(&2, C.HV, C.HV, r, kh)) == Maybe.bind(&2, C.ZV, C.ZV, C.upM(r), kz) : Maybe<&2, C.ZV>}:
+  match r:
+    case None{}:
+      {==}
+    case Some{v}:
+      ih(v)
+
+# h at Natural, through toInteger, is h at Int at a Natural value, by
+# induction on h (and, at a fold, on the list)
+def L.agree(+t: C.HTm, +e: {C.nosub(t) == True{} : Bool}, +x: C.HV) -> {C.upM(C.eval.h(t, x)) == C.eval.z(t, C.up(x)) : Maybe<&2, C.ZV>}:
+  match t:
+    case C.HId{}:
+      {==}
+    case C.HComp{g, f}:
+      %L.agree(f, L.and.r(C.nosub(g), C.nosub(f), e), x) : {C.upM(Maybe.bind(&2, C.HV, C.HV, C.eval.h(f, x), y => C.eval.h(g, y))) == Maybe.bind(&2, C.ZV, C.ZV, _, w => C.eval.z(g, w)) : Maybe<&2, C.ZV>}
+      L.z.bind(C.eval.h(f, x), y => C.eval.h(g, y), w => C.eval.z(g, w), v => L.agree(g, L.and.l(C.nosub(g), C.nosub(f), e), v))
+    case C.HFst{}:
+      L.z.fst(x)
+    case C.HSnd{}:
+      L.z.snd(x)
+    case C.HPr{f, g}:
+      %L.agree(f, L.and.l(C.nosub(f), C.nosub(g), e), x) : {C.upM(C.h.pair(C.eval.h(f, x), C.eval.h(g, x))) == C.z.pair(_, C.eval.z(g, C.up(x))) : Maybe<&2, C.ZV>}
+      %L.agree(g, L.and.r(C.nosub(f), C.nosub(g), e), x) : {C.upM(C.h.pair(C.eval.h(f, x), C.eval.h(g, x))) == C.z.pair(C.upM(C.eval.h(f, x)), _) : Maybe<&2, C.ZV>}
+      L.z.pair(C.eval.h(f, x), C.eval.h(g, x))
+    case C.HInl{}:
+      {==}
+    case C.HInr{}:
+      {==}
+    case C.HCase{f, g}:
+      match x:
+        case C.HvInl{a}:
+          L.agree(f, L.and.l(C.nosub(f), C.nosub(g), e), a)
+        case C.HvInr{b}:
+          L.agree(g, L.and.r(C.nosub(f), C.nosub(g), e), b)
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{a, b}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, tl}:
+          {==}
+    case C.HLit{n}:
+      {==}
+    case C.HPrim{p}:
+      L.z.prim(p, e, x)
+    case C.HIf{c, a, d}:
+      %L.agree(c, L.and.l(C.nosub(c), Bool.and(C.nosub(a), C.nosub(d)), e), x) : {C.upM(C.h.if(C.eval.h(c, x), C.eval.h(a, x), C.eval.h(d, x))) == C.z.if(_, C.eval.z(a, C.up(x)), C.eval.z(d, C.up(x))) : Maybe<&2, C.ZV>}
+      %L.agree(a, L.and.l(C.nosub(a), C.nosub(d), L.and.r(C.nosub(c), Bool.and(C.nosub(a), C.nosub(d)), e)), x) : {C.upM(C.h.if(C.eval.h(c, x), C.eval.h(a, x), C.eval.h(d, x))) == C.z.if(C.upM(C.eval.h(c, x)), _, C.eval.z(d, C.up(x))) : Maybe<&2, C.ZV>}
+      %L.agree(d, L.and.r(C.nosub(a), C.nosub(d), L.and.r(C.nosub(c), Bool.and(C.nosub(a), C.nosub(d)), e)), x) : {C.upM(C.h.if(C.eval.h(c, x), C.eval.h(a, x), C.eval.h(d, x))) == C.z.if(C.upM(C.eval.h(c, x)), C.upM(C.eval.h(a, x)), _) : Maybe<&2, C.ZV>}
+      L.z.if(C.eval.h(c, x), C.eval.h(a, x), C.eval.h(d, x))
+    case C.HFold{z, s}:
+      match x:
+        case C.HvNil{}:
+          L.agree(z, L.and.l(C.nosub(z), C.nosub(s), e), C.HvUnit{})
+        case C.HvCons{hd, tl}:
+          %L.agree(t, e, tl) : {C.upM(Maybe.bind(&2, C.HV, C.HV, C.eval.h(t, tl), r => C.eval.h(s, C.HvPair{hd, r}))) == Maybe.bind(&2, C.ZV, C.ZV, _, r => C.eval.z(s, C.ZvPair{C.up(hd), r})) : Maybe<&2, C.ZV>}
+          L.z.bind(C.eval.h(t, tl), r => C.eval.h(s, C.HvPair{hd, r}), r => C.eval.z(s, C.ZvPair{C.up(hd), r}), v => L.agree(s, L.and.r(C.nosub(z), C.nosub(s), e), C.HvPair{hd, v}))
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{a, b}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+    case C.HErr{}:
+      {==}
+
+def P.agree(h, e):
+  x => Equal.sym(Maybe<&2, C.ZV>, C.upM(C.eval.h(h, x)), C.eval.z(h, C.up(x)), L.agree(h, e, x))
+
+# x - y at (0, 1): -1 at Int, an error at Natural
+def L.sub.at() -> C.HV:
+  C.HvPair{C.HvNat{0n}, C.HvNat{1n}}
+
+def P.agree.sub.not(ag):
+  L.none.some.z(C.ZvNeg{0n}, Equal.sym(Maybe<&2, C.ZV>, Some{C.ZvNeg{0n}}, None{}, ag(L.sub.at())))
+
+def P.adj.GF.nosub.l(h, b, e, le):
+  y => w => ex => L.int.l(h, b, z => C.eval.z(h, z), P.agree(h, e), le, y, w, ex)
+
+def P.adj.GF.nosub.r(h, b, e, le):
+  z => u => ex => L.int.r(h, b, z2 => C.eval.z(h, z2), P.agree(h, e), le, z, u, ex)

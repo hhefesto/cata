@@ -2008,10 +2008,28 @@ a fresh `--verdict`, no cache, 55 s).
   negative), G's program used at Int is `gz` (down in front, up behind).
   For any h whose meaning at Int agrees with its Natural one on
   non-negative values (`Agree`: the survey's "Int as Nat only where
-  nothing subtracts", its int-sub refusal; stated as a hypothesis, not
-  proved from the survey), G ⊣ F holds at Int (`adj.GF.int.l`,
-  `adj.GF.int.r`), and F ⊣ G does not (`adj.FG.int.not`: the identity
-  answers -1 at -1, where every G's program errs).
+  nothing subtracts", its int-sub refusal; a hypothesis here, proved in
+  (6)), G ⊣ F holds at Int (`adj.GF.int.l`, `adj.GF.int.r`), and F ⊣ G
+  does not (`adj.FG.int.not`: the identity answers -1 at -1, where every
+  G's program errs). (6) Agree, proved: h at Int is `eval.z`, h run on
+  Int's values with Int's own arithmetic (`z.add`, `z.sub`, `z.lt`, `z.div`
+  and `z.mod` rounding toward minus infinity, BendRt's wrappers as
+  BendRt.hs defines them); for every h that never subtracts (`nosub`: no
+  Haskell `-`), Agree(h, eval.z h) holds (`agree`, by induction on h and,
+  at a fold, on the list), so G ⊣ F at Int needs no hypothesis
+  (`adj.GF.nosub.l`, `adj.GF.nosub.r`); and one that subtracts need not
+  agree (`agree.sub.not`: x - y at (0, 1) errs at Natural, is -1 at Int).
+  The model's Int is GHC's, not one written for the proof: `adj/int.zsh`
+  runs `adj/IntGhc.hs` (GHC 9.10.3) to write `adj/INT.bend`, each of the 8
+  primitives at all 81 pairs of -4..4 equal to GHC's answer (None where it
+  throws divide by zero), checked by computation, `--verdict` ALL PROOFS
+  CHECK; a changed answer fails it. And cata's survey refuses each way to
+  a negative the model's `nosub` stands for: `tests/hs/IntNeg.hs` (x - 1,
+  `subtract 1`, `negate`, `pred`, x + (-3), `complement`, `read`, a call of
+  a def that subtracts, via Integer, `[n, n - 1 .. 0]`) is all out
+  (int-sub, fold:int-sub, method:Bits.complement, partial:read,
+  calls:decr), its two defs that never subtract ok-law, 8 laws the same
+  through G(F(h)); `x * 2^62` is out too (a literal over Bend's U32).
 - **What it changed in cata (15bb4ff).** Division by anything but a known
   non-zero literal is the prelude's partial `HsNum` (README, Partial
   functions). hs1003's G(F(h)): 7,131 laws, 7,100 the same, 23 more
@@ -2028,9 +2046,11 @@ a fresh `--verdict`, no cache, 55 s).
   argument makes F no adjoint; the theorem is for the terminating fragment
   (folds), and 2^32 - 1 is a depth no run reaches. Laziness (Bend is
   strict: a partial call's error is the def's even where Haskell never
-  forces it). Int's wrap-around. And cata's real G keeps h's Int (BendRt's
-  numbers are any Num's): it has no underflow guard, so at Int it is the
-  model's gz only on non-negative inputs, which are the laws' inputs.
+  forces it). Int's wrap-around (the model's Int is Integer's: (6) is
+  exact at Integer, and at Int up to overflow). And cata's real G keeps
+  h's Int (BendRt's numbers are any Num's): it has no underflow guard, so
+  at Int it is the model's gz only on non-negative inputs, which are the
+  laws' inputs.
 
 ### 5. Not an isomorphism; an equivalence on a fragment
 

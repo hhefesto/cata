@@ -604,3 +604,399 @@ def down(+z: ZV) -> Maybe<&2, HV>:
 # answer toInteger
 def gz(+b: BTm, +z: ZV) -> Maybe<&2, ZV>:
   Maybe.bind(&2, HV, ZV, down(z), x => upM(eval.h(G(b), x)))
+
+# Haskell's meaning at Int --------------------------------------------------------
+
+# h run at Int: its values ZV, negative numbers too, and Int's own
+# arithmetic (Integer's: the model has no wrap-around).  ZvNat{n} is n,
+# ZvNeg{n} is -(n+1).  What F's Nat is right for is then a theorem, not a
+# hypothesis: at a Natural value, h at Int means what h at Natural means
+# whenever h never subtracts (PROPOSED.bend's agree), and not otherwise
+# (agree.sub.not).
+
+# n - m for Natural n and m
+def z.minus.at(lt: Bool, +n: Nat, +m: Nat) -> ZV:
+  match lt:
+    case True{}:
+      ZvNeg{Nat.sub(Nat.sub(m, n), 1n)}
+    case False{}:
+      ZvNat{Nat.sub(n, m)}
+
+def z.minus(+n: Nat, +m: Nat) -> ZV:
+  z.minus.at(Nat.is_lt(n, m), n, m)
+
+# -n for Natural n
+def z.negn(n: Nat) -> ZV:
+  match n:
+    case 0n:
+      ZvNat{0n}
+    case 1n+k:
+      ZvNeg{k}
+
+# (+), (-) and (<) at Int; anything but two numbers, an error
+def z.add(a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvNat{Nat.add(m, n)}}
+        case ZvNeg{n}:
+          Some{z.minus(m, 1n+n)}
+        case _:
+          None{}
+    case ZvNeg{m}:
+      match b:
+        case ZvNat{n}:
+          Some{z.minus(n, 1n+m)}
+        case ZvNeg{n}:
+          Some{ZvNeg{1n+Nat.add(m, n)}}
+        case _:
+          None{}
+    case _:
+      None{}
+
+def z.sub(a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          Some{z.minus(m, n)}
+        case ZvNeg{n}:
+          Some{ZvNat{Nat.add(m, 1n+n)}}
+        case _:
+          None{}
+    case ZvNeg{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvNeg{Nat.add(m, n)}}
+        case ZvNeg{n}:
+          Some{z.minus(n, m)}
+        case _:
+          None{}
+    case _:
+      None{}
+
+def z.lt(a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvBool{Nat.is_lt(m, n)}}
+        case ZvNeg{n}:
+          Some{ZvBool{False{}}}
+        case _:
+          None{}
+    case ZvNeg{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvBool{True{}}}
+        case ZvNeg{n}:
+          Some{ZvBool{Nat.is_lt(n, m)}}
+        case _:
+          None{}
+    case _:
+      None{}
+
+# div and mod at Int round toward minus infinity, mod with the divisor's
+# sign.  Where the signs differ, of q = |a| div |b| and r = |a| mod |b|:
+# the quotient is -q when r is 0, else -(q+1)
+def z.divx(+q: Nat, r: Nat) -> ZV:
+  match r:
+    case 0n:
+      z.negn(q)
+    case 1n+k:
+      ZvNeg{q}
+
+# and the remainder 0 when r is 0, else |b| - r with b's sign: at a
+# negative divisor -(n+1), -(n+1-r); at a positive one n, n - r
+def z.modn(+n: Nat, r: Nat) -> ZV:
+  match r:
+    case 0n:
+      ZvNat{0n}
+    case 1n+k:
+      ZvNeg{Nat.sub(n, 1n+k)}
+
+def z.modp(+n: Nat, r: Nat) -> ZV:
+  match r:
+    case 0n:
+      ZvNat{0n}
+    case 1n+k:
+      ZvNat{Nat.sub(n, 1n+k)}
+
+# the quotient and remainder of a by b where their signs differ (a, b
+# their sizes; at a negative divisor -(n+1), at a positive one b)
+def z.dx(+a: Nat, +b: Nat) -> ZV:
+  z.divx(Nat.div(a, b), Nat.mod(a, b))
+
+def z.mn(+n: Nat, a: Nat) -> ZV:
+  z.modn(n, Nat.mod(a, 1n+n))
+
+def z.mp(+b: Nat, a: Nat) -> ZV:
+  z.modp(b, Nat.mod(a, b))
+
+# div and mod at Int, an error (divide by zero) at 0
+def z.div(a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          match n:
+            case 0n:
+              None{}
+            case 1n+q:
+              Some{ZvNat{Nat.div(m, 1n+q)}}
+        case ZvNeg{n}:
+          Some{z.dx(m, 1n+n)}
+        case _:
+          None{}
+    case ZvNeg{m}:
+      match b:
+        case ZvNat{n}:
+          match n:
+            case 0n:
+              None{}
+            case 1n+q:
+              Some{z.dx(1n+m, 1n+q)}
+        case ZvNeg{n}:
+          Some{ZvNat{Nat.div(1n+m, 1n+n)}}
+        case _:
+          None{}
+    case _:
+      None{}
+
+def z.mod(a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          match n:
+            case 0n:
+              None{}
+            case 1n+q:
+              Some{ZvNat{Nat.mod(m, 1n+q)}}
+        case ZvNeg{n}:
+          Some{z.mn(n, m)}
+        case _:
+          None{}
+    case ZvNeg{m}:
+      match b:
+        case ZvNat{n}:
+          match n:
+            case 0n:
+              None{}
+            case 1n+q:
+              Some{z.mp(1n+q, 1n+m)}
+        case ZvNeg{n}:
+          Some{z.negn(Nat.mod(1n+m, 1n+n))}
+        case _:
+          None{}
+    case _:
+      None{}
+
+# BendRt's wrappers, at Int (their Haskell is any Num's): b'Nat'sub a b =
+# max 0 (a - b), b'Nat'div a b = if b == 0 then 0 else a `div` b,
+# b'Nat'mod a b = if b == 0 then a else a `mod` b
+def z.max0(r: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
+  match r:
+    case Some{ZvNeg{n}}:
+      Some{ZvNat{0n}}
+    case _:
+      r
+
+def z.subT(+a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvNat{Nat.sub(m, n)}}
+        case _:
+          z.max0(z.sub(ZvNat{m}, b))
+    case _:
+      z.max0(z.sub(a, b))
+
+def z.zero(b: ZV) -> Bool:
+  match b:
+    case ZvNat{0n}:
+      True{}
+    case _:
+      False{}
+
+def z.divT.at(c: Bool, +a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  match c:
+    case True{}:
+      Some{ZvNat{0n}}
+    case False{}:
+      z.div(a, b)
+
+def z.modT.at(c: Bool, +a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  match c:
+    case True{}:
+      Some{a}
+    case False{}:
+      z.mod(a, b)
+
+def z.divT(+a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvNat{Nat.div(m, n)}}
+        case _:
+          z.divT.at(z.zero(b), ZvNat{m}, b)
+    case _:
+      z.divT.at(z.zero(b), a, b)
+
+def z.modT(+a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvNat{Nat.mod(m, n)}}
+        case _:
+          z.modT.at(z.zero(b), ZvNat{m}, b)
+    case _:
+      z.modT.at(z.zero(b), a, b)
+
+# a primitive at Int, at two numbers
+def z.at(p: Prim, +a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  match p:
+    case PAdd{}:
+      z.add(a, b)
+    case PLt{}:
+      z.lt(a, b)
+    case PSub{}:
+      z.sub(a, b)
+    case PDiv{}:
+      z.div(a, b)
+    case PMod{}:
+      z.mod(a, b)
+    case PSubT{}:
+      z.subT(a, b)
+    case PDivT{}:
+      z.divT(a, b)
+    case PModT{}:
+      z.modT(a, b)
+
+# its argument: a pair of numbers, anything else an error
+def z.nb(p: Prim, +a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match b:
+    case ZvNat{n}:
+      z.at(p, a, ZvNat{n})
+    case ZvNeg{n}:
+      z.at(p, a, ZvNeg{n})
+    case _:
+      None{}
+
+def z.ab(p: Prim, a: ZV, b: ZV) -> Maybe<&2, ZV>:
+  match a:
+    case ZvNat{m}:
+      z.nb(p, ZvNat{m}, b)
+    case ZvNeg{m}:
+      z.nb(p, ZvNeg{m}, b)
+    case _:
+      None{}
+
+def z.prim(p: Prim, v: ZV) -> Maybe<&2, ZV>:
+  match v:
+    case ZvPair{a, b}:
+      z.ab(p, a, b)
+    case _:
+      None{}
+
+def z.fst(v: ZV) -> Maybe<&2, ZV>:
+  match v:
+    case ZvPair{a, b}:
+      Some{a}
+    case _:
+      None{}
+
+def z.snd(v: ZV) -> Maybe<&2, ZV>:
+  match v:
+    case ZvPair{a, b}:
+      Some{b}
+    case _:
+      None{}
+
+def z.pair(a: Maybe<&2, ZV>, b: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
+  match a b:
+    case Some{u} Some{v}:
+      Some{ZvPair{u, v}}
+    case _ _:
+      None{}
+
+def z.if(c: Maybe<&2, ZV>, a: Maybe<&2, ZV>, e: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
+  match c:
+    case Some{ZvBool{True{}}}:
+      a
+    case Some{ZvBool{False{}}}:
+      e
+    case _:
+      None{}
+
+# Haskell's meaning at Int: the answer of t at v, None an error
+def eval.z(+t: HTm, +v: ZV) -> Maybe<&2, ZV>:
+  match t:
+    case HId{}:
+      Some{v}
+    case HComp{g, f}:
+      Maybe.bind(&2, ZV, ZV, eval.z(f, v), y => eval.z(g, y))
+    case HFst{}:
+      z.fst(v)
+    case HSnd{}:
+      z.snd(v)
+    case HPr{f, g}:
+      z.pair(eval.z(f, v), eval.z(g, v))
+    case HInl{}:
+      Some{ZvInl{v}}
+    case HInr{}:
+      Some{ZvInr{v}}
+    case HCase{f, g}:
+      match v:
+        case ZvInl{a}:
+          eval.z(f, a)
+        case ZvInr{b}:
+          eval.z(g, b)
+        case _:
+          None{}
+    case HLit{n}:
+      Some{ZvNat{n}}
+    case HPrim{p}:
+      z.prim(p, v)
+    case HIf{c, a, e}:
+      z.if(eval.z(c, v), eval.z(a, v), eval.z(e, v))
+    case HFold{z, s}:
+      match v:
+        case ZvNil{}:
+          eval.z(z, ZvUnit{})
+        case ZvCons{hd, tl}:
+          Maybe.bind(&2, ZV, ZV, eval.z(t, tl), r => eval.z(s, ZvPair{hd, r}))
+        case _:
+          None{}
+    case HErr{}:
+      None{}
+
+# whether a program never subtracts (Haskell's (-); Survey.bend's int-sub
+# refuses it at an Int F takes to Nat, and negate and pred with it)
+def p.nosub(p: Prim) -> Bool:
+  match p:
+    case PSub{}:
+      False{}
+    case _:
+      True{}
+
+def nosub(t: HTm) -> Bool:
+  match t:
+    case HComp{g, f}:
+      Bool.and(nosub(g), nosub(f))
+    case HPr{f, g}:
+      Bool.and(nosub(f), nosub(g))
+    case HCase{f, g}:
+      Bool.and(nosub(f), nosub(g))
+    case HPrim{p}:
+      p.nosub(p)
+    case HIf{c, a, e}:
+      Bool.and(nosub(c), Bool.and(nosub(a), nosub(e)))
+    case HFold{z, s}:
+      Bool.and(nosub(z), nosub(s))
+    case _:
+      True{}

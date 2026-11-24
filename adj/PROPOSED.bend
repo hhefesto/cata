@@ -139,8 +139,9 @@ law tot.not:
 # Natural value what it means at Natural, its answer Natural: Agree.  (The
 # survey takes Int to Nat only where nothing subtracts, so every number h
 # makes from non-negative ones is non-negative; that is the claim Agree
-# states, not proved here.)  G's program used at Int is gz (fromIntegral,
-# an underflow error at a negative number, in front of it).
+# states, here a hypothesis, which section 6 proves of every h that never
+# subtracts, h's meaning at Int its own.)  G's program used at Int is gz
+# (fromIntegral, an underflow error at a negative number, in front of it).
 
 def Agree(+h: C.HTm, hz: C.ZV -> Maybe<&2, C.ZV>) -> Type:
   @x: C.HV -> {hz(C.up(x)) == C.upM(C.eval.h(h, x)) : Maybe<&2, C.ZV>}
@@ -173,3 +174,36 @@ def FG.int() -> Type:
 law adj.FG.int.not:
   for adj: FG.int()
   Empty
+
+# 6. Agree, proved.  h at Int means eval.z (Core.bend: h run on Int's
+# values with Int's own arithmetic; INT.bend checks that arithmetic is
+# GHC's on a grid, by computation).  For every h that never subtracts
+# (nosub: the survey's int-sub refusal at an Int F takes to Nat), h at Int
+# means at a Natural value what h at Natural means: section 5's hypothesis
+# holds of it, so G -| F at Int needs none.  And a program that subtracts
+# need not agree: x - y at (0, 1) is an error at Natural, -1 at Int.
+
+law agree:
+  for +h: C.HTm
+  for +e: {C.nosub(h) == True{} : Bool}
+  Agree(h, z => C.eval.z(h, z))
+
+law agree.sub.not:
+  for ag: Agree(C.HPrim{C.PSub{}}, z => C.eval.z(C.HPrim{C.PSub{}}, z))
+  Empty
+
+# G -| F at Int for every h that never subtracts, h's meaning at Int its
+# own: G b <= h exactly when b <= F h
+law adj.GF.nosub.l:
+  for +h: C.HTm
+  for +b: C.BTm
+  for +e: {C.nosub(h) == True{} : Bool}
+  for le: Le.z(z => C.gz(b, z), z => C.eval.z(h, z))
+  Le.b(b, C.F(h))
+
+law adj.GF.nosub.r:
+  for +h: C.HTm
+  for +b: C.BTm
+  for +e: {C.nosub(h) == True{} : Bool}
+  for le: Le.b(b, C.F(h))
+  Le.z(z => C.gz(b, z), z => C.eval.z(h, z))
