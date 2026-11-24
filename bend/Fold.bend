@@ -9533,6 +9533,225 @@ def fd.nzg.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
     case h <> t:
       h <> fd.nzg.all(t)
 
+# Float-in ----------------------------------------------------------------------
+
+# Haskell is lazy, Bend strict: a let's value is computed in Haskell only
+# where the let's body takes it, in Bend where the let stands.  So, before
+# the guard and partial passes, a let goes into the one branch of an if
+# that uses it (and on down, as deep as it goes), and a let nothing uses
+# goes, as GHC's own float-in moves them: `let h = head xs in if n == 0
+# then 0 else h` errs in Haskell only where it takes h, and now in Bend
+# too.  And fst and snd of a pair written out are its component (fst (1,
+# head xs) is 1).  Each moves F's def toward Haskell's meaning (more
+# defined only where Haskell answers).  A let both branches use stays (both
+# take it).  A def it changes has its binders marked again (fd.mark, as
+# fd.def.of marks them).
+
+# an if's branches are thunks _ => a (fd.thunk), so moving a let into one
+# captures none of its value's variables
+def fd.fi.ok(+f: List<&2, U32>, +x: List<&2, U32>, +r: T.Bt, +c: T.Bt, +y1: List<&2, U32>, +y2: List<&2, U32>) -> Bool:
+  Bool.and(fd.is(f, "Bool.if"), Bool.and(Nat.is_eq(fd.uses(r, x), 0n), Bool.and(Nat.is_eq(fd.uses(c, x), 0n), Bool.and(fd.is(y1, "_"), fd.is(y2, "_")))))
+
+def fd.fi.if(f: List<&2, U32>, r: T.Bt, c: T.Bt, m1: T.BMode, y1: List<&2, U32>, a: T.Bt, m2: T.BMode, y2: List<&2, U32>, e: T.Bt) -> T.Bt:
+  T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, a}, T.BtArgs{T.BtLam{m2, y2, e}, T.BtANil{}}}}}}
+
+# where a let of x in b goes: into the then branch of b's if (only it
+# uses x), into the else branch (only it), or it stays
+type Fis is Data:
+  FiThen{}
+  FiElse{}
+  FiStay{}
+
+def fd.fi.side.at(ok: Bool, na: Bool, ne: Bool) -> Fis:
+  match ok na ne:
+    case True{} False{} True{}:
+      FiThen{}
+    case True{} True{} False{}:
+      FiElse{}
+    case _ _ _:
+      FiStay{}
+
+# (x without the + fd.mark gives a let's name used twice: fd.unplus)
+def fd.fi.side(+x: List<&2, U32>, b: T.Bt) -> Fis:
+  match b:
+    case T.BtApp{T.BtVar{+f}, T.BtArgs{+r, T.BtArgs{+c, T.BtArgs{T.BtLam{m1, +y1, +a}, T.BtArgs{T.BtLam{m2, +y2, +e}, T.BtANil{}}}}}}:
+      fd.fi.side.at(fd.fi.ok(f, x, r, c, y1, y2), Nat.is_eq(fd.uses(a, x), 0n), Nat.is_eq(fd.uses(e, x), 0n))
+    case T.BtExpr{e}:
+      fd.fi.side(x, e)
+    case _:
+      FiStay{}
+
+def fd.fi.stays(s: Fis) -> Bool:
+  match s:
+    case FiStay{}:
+      True{}
+    case _:
+      False{}
+
+# let x = v in x is v (so a partial call moved into a branch is the
+# branch's answer, which the partial pass takes)
+def fd.fi.isvar(+x: List<&2, U32>, u: T.Bt) -> Bool:
+  match u:
+    case T.BtVar{y}:
+      S.eq(y, x)
+    case T.BtExpr{T.BtVar{y}}:
+      S.eq(y, x)
+    case _:
+      False{}
+
+def fd.fi.bind(iv: Bool, x: List<&2, U32>, v: T.Bt, u: T.Bt) -> T.Bt:
+  match iv:
+    case True{}:
+      v
+    case False{}:
+      T.BtLet{x, v, u}
+
+# let x = v in b, b using x, s its side
+def fd.fi.sink(b: T.Bt, s: Fis, +x: List<&2, U32>, +v: T.Bt) -> T.Bt:
+  match b s:
+    case T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, +a}, T.BtArgs{T.BtLam{m2, y2, e}, T.BtANil{}}}}}} FiThen{}:
+      fd.fi.if(f, r, c, m1, y1, fd.fi.sink(a, fd.fi.side(fd.unplus(x), a), x, v), m2, y2, e)
+    case T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, a}, T.BtArgs{T.BtLam{m2, y2, +e}, T.BtANil{}}}}}} FiElse{}:
+      fd.fi.if(f, r, c, m1, y1, a, m2, y2, fd.fi.sink(e, fd.fi.side(fd.unplus(x), e), x, v))
+    case T.BtExpr{e} FiThen{}:
+      T.BtExpr{fd.fi.sink(e, FiThen{}, x, v)}
+    case T.BtExpr{e} FiElse{}:
+      T.BtExpr{fd.fi.sink(e, FiElse{}, x, v)}
+    case +u _:
+      fd.fi.bind(fd.fi.isvar(fd.unplus(x), u), x, v, u)
+
+def fd.fi.let.at(dead: Bool, +x: List<&2, U32>, +v: T.Bt, +b: T.Bt) -> T.Bt:
+  match dead:
+    case True{}:
+      b
+    case False{}:
+      fd.fi.sink(b, fd.fi.side(fd.unplus(x), b), x, v)
+
+# (a let named _ is a statement, a local def or group fd.lets.go wrote: it
+# stays)
+def fd.fi.let.st(st: Bool, +x: List<&2, U32>, +v: T.Bt, +b: T.Bt) -> T.Bt:
+  match st:
+    case True{}:
+      T.BtLet{x, v, b}
+    case False{}:
+      fd.fi.let.at(Nat.is_eq(fd.uses(b, fd.unplus(x)), 0n), x, v, b)
+
+def fd.fi.let(+x: List<&2, U32>, +v: T.Bt, +b: T.Bt) -> T.Bt:
+  fd.fi.let.st(fd.is(x, "_"), x, v, b)
+
+# fst and snd of a pair written out
+def fd.fi.isproj(+f: List<&2, U32>, +c: List<&2, U32>) -> Bool:
+  Bool.and(fd.is(c, "Tuple"), Bool.or(fd.is(f, "HsPrelude.HsList.fst"), fd.is(f, "HsPrelude.HsList.snd")))
+
+# fst or snd of a pair written out (its parts already floated): the part
+def fd.fi.proj(pj: Bool, isfst: Bool, f: List<&2, U32>, t1: T.Bt, t2: T.Bt, c: List<&2, U32>, a: T.Bt, b: T.Bt) -> T.Bt:
+  match pj isfst:
+    case True{} True{}:
+      a
+    case True{} False{}:
+      b
+    case False{} _:
+      T.BtApp{T.BtVar{f}, T.BtArgs{t1, T.BtArgs{t2, T.BtArgs{T.BtCon{c, T.BtArgs{a, T.BtArgs{b, T.BtANil{}}}}, T.BtANil{}}}}}
+
+def fd.fi(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+f}, T.BtArgs{t1, T.BtArgs{t2, T.BtArgs{T.BtCon{+c, T.BtArgs{a, T.BtArgs{b, T.BtANil{}}}}, T.BtANil{}}}}}:
+      fd.fi.proj(fd.fi.isproj(f, c), fd.is(f, "HsPrelude.HsList.fst"), f, fd.fi(t1), fd.fi(t2), c, fd.fi(a), fd.fi(b))
+    case T.BtApp{h, a}:
+      T.BtApp{fd.fi(h), fd.fi(a)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.fi(a)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.fi(b)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.fi(a)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.fi(a), fd.fi(b)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.fi(a)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.fi(a), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.fi(cs)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.fi(e)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.fi(e), p, fd.fi(b)}
+    case T.BtLet{+x, v, b}:
+      fd.fi.let(x, fd.fi(v), fd.fi(b))
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.fi(b), fd.fi(rest)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.fi(a), fd.fi(rest)}
+    case u:
+      u
+
+# whether fd.fi changes t (a let it moves or drops, a projection it takes)
+def fd.fi.moves(+x: List<&2, U32>, b: T.Bt) -> Bool:
+  Bool.not(fd.fi.stays(fd.fi.side(x, b)))
+
+def fd.fi.any(t: T.Bt) -> Bool:
+  match t:
+    case T.BtApp{T.BtVar{+f}, T.BtArgs{t1, T.BtArgs{t2, T.BtArgs{T.BtCon{+c, T.BtArgs{a, T.BtArgs{b, T.BtANil{}}}}, T.BtANil{}}}}}:
+      Bool.or(fd.fi.isproj(f, c), Bool.or(fd.fi.any(a), fd.fi.any(b)))
+    case T.BtApp{h, a}:
+      Bool.or(fd.fi.any(h), fd.fi.any(a))
+    case T.BtTplArg{a}:
+      fd.fi.any(a)
+    case T.BtLam{m, x, b}:
+      fd.fi.any(b)
+    case T.BtCon{c, a}:
+      fd.fi.any(a)
+    case T.BtEq{ty, a, b}:
+      Bool.or(fd.fi.any(a), fd.fi.any(b))
+    case T.BtSucc{a}:
+      fd.fi.any(a)
+    case T.BtAnn{a, ty}:
+      fd.fi.any(a)
+    case T.BtMatch{xs, cs}:
+      fd.fi.any(cs)
+    case T.BtExpr{e}:
+      fd.fi.any(e)
+    case T.BtRw{e, p, b}:
+      Bool.or(fd.fi.any(e), fd.fi.any(b))
+    case T.BtLet{+x, v, +b}:
+      Bool.or(Bool.and(Bool.not(fd.is(x, "_")), Bool.or(Nat.is_eq(fd.uses(b, fd.unplus(x)), 0n), fd.fi.moves(fd.unplus(x), b))), Bool.or(fd.fi.any(v), fd.fi.any(b)))
+    case T.BtCase{p, b, rest}:
+      Bool.or(fd.fi.any(b), fd.fi.any(rest))
+    case T.BtArgs{a, rest}:
+      Bool.or(fd.fi.any(a), fd.fi.any(rest))
+    case _:
+      False{}
+
+# a changed def's parameters marked again (erased and template ones kept)
+def fd.fi.ps(ps: List<&2, T.BParam>, +b: T.Bt) -> List<&2, T.BParam>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{T.BmLive{}, +x, ty} <> t:
+      T.BParam{fd.mode(fd.uses(b, x)), x, ty} <> fd.fi.ps(t, b)
+    case T.BParam{T.BmCopy{}, +x, ty} <> t:
+      T.BParam{fd.mode(fd.uses(b, x)), x, ty} <> fd.fi.ps(t, b)
+    case p <> t:
+      p <> fd.fi.ps(t, b)
+
+def fd.fi.def(ch: Bool, n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>) -> T.BItem:
+  match ch:
+    case True{}:
+      +b2 = fd.mark(fd.fi(b))
+      T.BiDef{n, fd.fi.ps(ps, b2), r, b2, d}
+    case False{}:
+      T.BiDef{n, ps, r, b, d}
+
+def fd.fi.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, +b, d} <> t:
+      fd.fi.def(fd.fi.any(b), n, ps, r, b, d) <> fd.fi.all(t)
+    case h <> t:
+      h <> fd.fi.all(t)
+
 # Partial functions -------------------------------------------------------------
 
 # Haskell's partial functions are failure values (PLAN.md, "Partial
@@ -10434,7 +10653,7 @@ def fd.rt.all(its: List<&2, T.BItem>, ws: List<&2, T.BItem>) -> List<&2, T.BItem
       fd.rt.items(its, w <> t)
 
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.mu.all(fd.ti.all(fd.pt.all(fd.nzg.all(fd.lc.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px))), fd.px.dt(px))), fd.px.dt(px))
+  fd.mu.all(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), fd.px.dt(px))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:

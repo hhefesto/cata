@@ -529,8 +529,17 @@ a partial call is that call, and an if (a compare's three ways) with a
 partial branch is an if of Eithers (bound as one call where it is not
 the answer). A let's partial calls are bound before it, the let then a
 parenthesized body inside the last bind's lambda. Bend is strict, so a
-partial call's error is the def's even where Haskell's laziness would
-never force it (an unused let); the laws compare.
+partial call's error would be the def's even where Haskell's laziness
+never forces it; before the partial pass Fold's float-in (`fd.fi`)
+moves a let into the one branch of an if that uses it (on down, as deep
+as it goes; `let x = v in x` is v), drops a let nothing uses, and takes
+`fst` and `snd` of a pair written out, as GHC's own float-in moves them:
+`let h = head xs in if n == 0 then 0 else h` errs only where it takes h
+(tests/hs/Lazy.hs). A let both branches use stays. A strict one, `let
+!x = e`, must not move: hs-export writes it as the pattern binding it
+means, `(patbind (pbang (pvar x)) ..)`, which Fold does not take yet
+(`fold:form`, tests/hs/Bang.hs). What a lazy list needs, map's elements
+left unforced, is out; the laws compare.
 Where two partial calls of one def both fail on an input, GHC may throw
 either (its exceptions are imprecise) and cata gives the first it binds:
 the laws compare messages, so such a def can be out on a law

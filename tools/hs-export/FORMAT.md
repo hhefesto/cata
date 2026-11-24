@@ -83,6 +83,11 @@ SPAN is `(span L1 C1 L2 C2)` or `nospan`.
     (varbind VAR TYPE EXPR)               generated
     (abs (TV...) (EVBINDER...) ((export VAR TYPE)...) (EVBINDS...) (BIND...) SPAN)
 
+A strict variable binding, `!x = e` (BangPatterns), is a FunBind in GHC
+with the strictness in its match's context; it is written as the pattern
+binding it means, `(patbind (pbang (pvar BINDER)) SPAN GRHSS)`, so a
+consumer that reads `(fun ..)` as a lazy let does not lose the bang.
+
 `abs` is GHC's AbsBinds: a generalised group. Its binds refer to each other
 through `self`; its evidence binders are the dictionaries it takes, and its
 evidence bindings the dictionaries it builds.

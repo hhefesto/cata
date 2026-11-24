@@ -2041,12 +2041,41 @@ a fresh `--verdict`, no cache, 55 s).
   F read the guard: under `if x == 0 then .. else ..` (and x /= 0, x > 0)
   the division by x is the total one (fd.nzg); tests/hs then 1,046 laws,
   all the same.
+- **Laziness, closer (Fold's fd.fi, 11-23).** Bend is strict, so F's
+  def failed where Haskell's never forces a partial call: `let h = head
+  xs in if n == 0 then 0 else h` erred at ([], 0), where GHC answers 0,
+  and F's def was out on its first law (the gate caught it; at inputs no
+  law tries, it would have been less defined than h, against the
+  adjunction's unit h <= G(F(h))). Float-in, before the guard and
+  partial passes, moves a let into the one branch of an if that uses it
+  (on down; `let x = v in x` is v), drops a let nothing uses, and takes
+  fst and snd of a pair written out, each a step GHC's own float-in
+  takes, so meaning-preserving in Haskell; in Bend it moves F's def
+  toward h's and never past it. tests/hs/Lazy.hs: 2 defs ok-law before
+  (constHead, both), 8 with it (unusedHead, unusedDiv, whereHead, nested,
+  deadLet, fstPair besides), 64 laws the same through G(F(h)); takeOne
+  and lengthDivs (map's elements left unforced: a lazy list) out. A let named _ (a local
+  def or group, a statement) stays. A strict let must not move: GHC keeps
+  `let !x = e` a FunBind with the bang in its match, which hs-export's
+  (fun ..) lost, so hs-export now writes it as the pattern binding it
+  means, (patbind (pbang (pvar x)) ..) (FORMAT.md), which Fold does not
+  take yet (fold:form): tests/hs/Bang.hs's two bang lets are out, where
+  before they were plain lets by luck (hs1003 has one, 00602's total
+  `cnt + 1`; telomare none). Measured with law-fi3 and law-fi4 (_ lets
+  kept): tests/hs 1,142 laws, all the same, its earlier modules' ledger
+  line for line; telomare's ledger line for line, 420 laws the same, its
+  Bend different in Resolve (and the _all files): freeVarsDeep's
+  where-bound patternRefs was a dead let in its body (its uses are the
+  specialiser's copies at the known function), dropped, so the fuel
+  group no longer takes palg, patternRefs and its cata (3 defs fewer);
+  hs1003's ledger line for line, 7,127 laws as before (both).
 - **Outside the model.** General recursion: a fuelled def's end answers a
   default (fd.dv), as F.tot answered at 0, so at a diverging h the same
   argument makes F no adjoint; the theorem is for the terminating fragment
-  (folds), and 2^32 - 1 is a depth no run reaches. Laziness (Bend is
-  strict: a partial call's error is the def's even where Haskell never
-  forces it). Int's wrap-around (the model's Int is Integer's: (6) is
+  (folds), and 2^32 - 1 is a depth no run reaches. Laziness beyond
+  float-in (Bend is strict: a partial call's error is still the def's
+  where Haskell never forces it in a lazy structure, a list's unforced
+  elements). Int's wrap-around (the model's Int is Integer's: (6) is
   exact at Integer, and at Int up to overflow). And cata's real G keeps
   h's Int (BendRt's numbers are any Num's): it has no underflow guard, so
   at Int it is the model's gz only on non-negative inputs, which are the

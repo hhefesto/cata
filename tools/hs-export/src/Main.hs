@@ -40,6 +40,7 @@ import GHC.Data.Bag (bagToList)
 import GHC.Data.FastString (unpackFS)
 import GHC.Driver.Session (DynFlags (..), Language (..))
 import GHC.Hs
+import GHC.Hs.Utils (isBangedHsBind)
 import GHC.Tc.Types (TcGblEnv (..))
 import GHC.Tc.Utils.TcType (tcSplitDFunTy)
 import GHC.Core.Class (Class)
@@ -323,6 +324,18 @@ clsInfoS cls = tagged "cls" [list [S (getOccString v) | v <- classTyVars cls], l
 
 bindS :: LHsBind GhcTc -> M Sexp
 bindS lb@(L _ b) = case b of
+  -- a strict variable binding, !x = e (BangPatterns): GHC keeps it a
+  -- FunBind with SrcStrict in its match's context, which the plain (fun ..)
+  -- below would lose; written as the pattern binding it means, (patbind
+  -- (pbang (pvar X)) ..), so cata evaluates it where it stands (Fold's
+  -- float-in moves only lazy lets)
+  FunBind {fun_id = L _ f, fun_matches = mg}
+    | isBangedHsBind b
+    , [L _ m] <- unLoc (mg_alts mg)
+    , null (m_pats m) -> do
+        x <- binderS f
+        r <- grhssS (m_grhss m)
+        pure (tagged "patbind" [tagged "pbang" [tagged "pvar" [x]], spanS (getLocA lb), r])
   FunBind {fun_id = L _ f, fun_matches = mg, fun_ext = (w, _)} -> do
     f' <- varS f
     m <- mgS mg
