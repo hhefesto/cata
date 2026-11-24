@@ -2079,7 +2079,7 @@ a fresh `--verdict`, no cache, 55 s).
   tests/hs (law-pb1): 34 modules with laws (31), 1,198 laws (1,142), all
   the same through G(F(h)); PatBind's sumCount, mean and classify, Bang's
   bangLet and bangWhere ok-law; a lazy tuple let whose unused part errs
-  (`let (h, k) = (head xs, 1) in if b then k else h` at []) is out on
+  (BangPat.hs's tupLet, `let (h, k) = (head xs, 1) in if b then k else h` at []) is out on
   its law (Bend matches the pair, so forces head), as the gate should.
   Telomare (pkgd10): its Bend byte for byte pkgd9's, 420 laws the same.
 - **General recursion, in the model (7).** A fuelled def's end answers a
@@ -2124,11 +2124,35 @@ a fresh `--verdict`, no cache, 55 s).
   `z.primw` at range 127. `run.zsh` PASS, 40 laws, 40 proofs; mutants (no
   wrap, no range check, every number in range, div at minBound by -1
   answering, the modulus off by one) each fail.
-- **Outside the model.** Laziness beyond
-  float-in (Bend is strict: a partial call's error is still the def's
-  where Haskell never forces it in a lazy structure, a list's unforced
-  elements). An overflowing run (section 8: F answers the exact number
-  where GHC's Int wraps; nothing in cata guards it). And cata's real G keeps
+- **Laziness, in the model (9).** The squares are about h's strict
+  meaning (`eval.h`); Haskell's own is lazy: Core.bend's `eval.lz`, a
+  value in weak head normal form whose parts (a pair's, a sum's, a
+  list's head and tail, a fold's recursive answer) are thunks, each an
+  answer or an error, looked at only by a projection, a case, a
+  primitive, an if or a fold. Proved: wherever the strict meaning
+  answers, the lazy one answers the same (`lazy.sq`, by induction on h
+  and on the list), so F's Bend is never wrong under laziness: where it
+  answers w at y, h answers dec w at dec y, lazily (`lazy.F`); it may
+  answer less: fst (1, error) is 1 lazily and an error in F's Bend
+  (`lazy.fe`, `lazy.fe.F`). So in the lazy reading the adjunction needs
+  strictness, and fails without it (`adj.FG.lazy.not`: the constant 1 is
+  below G b, lazily, for b = fst (1, failure), whose Bend fails, so F of
+  it is not below b). That is what the gate meets as a lazy def's law
+  failing (Lazy.hs's takeOne and lengthDivs, BangPat.hs's tupLet and bangTup): it is refused,
+  never mistranslated. The model's laziness is GHC's: `adj/LazyGhc.hs`
+  writes GHC's answers, part by part (None where forcing a part throws),
+  for 14 programs (an error inside a pair, a Left, a case, an if's other
+  branch, a fold's unused recursion or base) into `adj/LAZY.bend`,
+  computed against `eval.lz`; `int.zsh` writes INT.bend and LAZY.bend,
+  `run.zsh` checks PROOF, INT and LAZY: PASS, 45 laws, 45 proofs; mutants
+  (a strict pair, fst answering the second part, a fold's head the tail,
+  an error that answers) each fail.
+- **Outside the model.** An overflowing run (section 8: F answers the
+  exact number where GHC's Int wraps; nothing in cata guards it). A
+  partial call under laziness answers an error in F's Bend where h's
+  never forces it (section 9: F is less defined there, so the def's law
+  fails and the def is out, or, at inputs no law tries, it would be less
+  defined than h). And cata's real G keeps
   h's Int (BendRt's numbers are any Num's): it has no underflow guard, so
   at Int it is the model's gz only on non-negative inputs, which are the
   laws' inputs.

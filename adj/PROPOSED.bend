@@ -363,3 +363,50 @@ law range.int8:
 law range.not:
   for e: {C.eval.int(C.int8.max(), hdbl(), C.ZvNat{127n}) == C.eval.z(hdbl(), C.ZvNat{127n}) : Maybe<&2, C.ZV>}
   Empty
+
+# 9. Laziness.  Haskell is lazy and Bend is strict: the squares are about
+# eval.h, h's strict meaning; eval.lz is Haskell's own, lazy (Core.bend:
+# a value's parts are thunks, each an answer or an error, looked at only
+# when needed).  Wherever the strict meaning answers, the lazy one answers
+# the same (lazy.sq), so F's Bend is never wrong under laziness: where it
+# answers, h answers that, lazily (lazy.F).  It may answer less: fst (1,
+# error) is 1, lazily, and an error in F's Bend (lazy.fe, lazy.fe.F).  So
+# the adjunction needs strictness: in the lazy reading of G's Haskell the
+# constant 1 is below G b for b = fst (1, failure), whose own Bend fails,
+# so F of it is not below b (adj.FG.lazy.not).
+
+law lazy.sq:
+  for +t: C.HTm
+  for +x: C.HV
+  for +v: C.HV
+  for e: {C.eval.h(t, x) == Some{v} : Maybe<&2, C.HV>}
+  {C.eval.lz(t, Some{C.lz(x)}) == Some{C.lz(v)} : Maybe<&2, C.LV>}
+
+law lazy.F:
+  for +h: C.HTm
+  for +y: C.BV
+  for +w: C.BV
+  for e: {C.eval.b(C.F(h), y) == Some{w} : Maybe<&2, C.BV>}
+  {C.eval.lz(h, Some{C.lz(C.dec(y))}) == Some{C.lz(C.dec(w))} : Maybe<&2, C.LV>}
+
+# fst (1, error)
+def hfe() -> C.HTm:
+  C.HComp{C.HFst{}, C.HPr{C.HLit{1n}, C.HErr{}}}
+
+law lazy.fe:
+  {C.eval.lz(hfe(), Some{C.LvUnit{}}) == Some{C.LvNat{1n}} : Maybe<&2, C.LV>}
+
+law lazy.fe.F:
+  {C.eval.b(C.F(hfe()), C.BvUnit{}) == None{} : Maybe<&2, C.BV>}
+
+# h <= g in the lazy reading: g answers lazily what h answers lazily, at
+# every value with no error in it
+def Le.lz(+h: C.HTm, +g: C.HTm) -> Type:
+  @x: C.HV -> @v: C.HV -> {C.eval.lz(h, Some{C.lz(x)}) == Some{C.lz(v)} : Maybe<&2, C.LV>} -> {C.eval.lz(g, Some{C.lz(x)}) == Some{C.lz(v)} : Maybe<&2, C.LV>}
+
+def FG.lazy() -> Type:
+  @h: C.HTm -> @b: C.BTm -> Le.lz(h, C.G(b)) -> Le.b(C.F(h), b)
+
+law adj.FG.lazy.not:
+  for adj: FG.lazy()
+  Empty

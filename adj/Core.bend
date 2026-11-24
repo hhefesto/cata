@@ -1259,3 +1259,144 @@ def int.max() -> Nat:
 # Int8's: 127
 def int8.max() -> Nat:
   127n
+
+# Laziness (PROPOSED.bend's section 9) ------------------------------------------
+
+# Haskell is lazy: a pair's parts, a sum's, a list's head and tail are
+# thunks, each an answer or an error (None), looked at only when a
+# projection, a case, a primitive, an if or a fold needs it; Bend, and
+# eval.h, are strict.  LV is a value in weak head normal form, its parts
+# Maybe LV; a program's lazy meaning takes a thunk to one.
+type LV is Data:
+  LvNat{n: Nat}
+  LvBool{b: Bool}
+  LvUnit{}
+  LvPair{a: Maybe<&2, LV>, b: Maybe<&2, LV>}
+  LvInl{a: Maybe<&2, LV>}
+  LvInr{b: Maybe<&2, LV>}
+  LvNil{}
+  LvCons{h: Maybe<&2, LV>, t: Maybe<&2, LV>}
+
+# a value with no error in it, as a lazy one
+def lz(x: HV) -> LV:
+  match x:
+    case HvNat{n}:
+      LvNat{n}
+    case HvBool{b}:
+      LvBool{b}
+    case HvUnit{}:
+      LvUnit{}
+    case HvPair{a, b}:
+      LvPair{Some{lz(a)}, Some{lz(b)}}
+    case HvInl{a}:
+      LvInl{Some{lz(a)}}
+    case HvInr{b}:
+      LvInr{Some{lz(b)}}
+    case HvNil{}:
+      LvNil{}
+    case HvCons{h, t}:
+      LvCons{Some{lz(h)}, Some{lz(t)}}
+
+def lzM(r: Maybe<&2, HV>) -> Maybe<&2, LV>:
+  match r:
+    case None{}:
+      None{}
+    case Some{v}:
+      Some{lz(v)}
+
+# a primitive looks at both numbers of its pair
+def l.nn.b(a: Nat, y: Maybe<&2, LV>) -> NN:
+  match y:
+    case Some{LvNat{b}}:
+      NN{a, b}
+    case _:
+      NNo{}
+
+def l.nn.p(x: Maybe<&2, LV>, y: Maybe<&2, LV>) -> NN:
+  match x:
+    case Some{LvNat{a}}:
+      l.nn.b(a, y)
+    case _:
+      NNo{}
+
+def l.nn(x: Maybe<&2, LV>) -> NN:
+  match x:
+    case Some{LvPair{a, b}}:
+      l.nn.p(a, b)
+    case _:
+      NNo{}
+
+def l.pv(v: PV) -> Maybe<&2, LV>:
+  match v:
+    case PvNat{n}:
+      Some{LvNat{n}}
+    case PvBool{b}:
+      Some{LvBool{b}}
+    case PvNo{}:
+      None{}
+
+def l.fst(x: Maybe<&2, LV>) -> Maybe<&2, LV>:
+  match x:
+    case Some{LvPair{a, b}}:
+      a
+    case _:
+      None{}
+
+def l.snd(x: Maybe<&2, LV>) -> Maybe<&2, LV>:
+  match x:
+    case Some{LvPair{a, b}}:
+      b
+    case _:
+      None{}
+
+def l.if(c: Maybe<&2, LV>, a: Maybe<&2, LV>, e: Maybe<&2, LV>) -> Maybe<&2, LV>:
+  match c:
+    case Some{LvBool{True{}}}:
+      a
+    case Some{LvBool{False{}}}:
+      e
+    case _:
+      None{}
+
+# Haskell's lazy meaning: the answer of t at the thunk x (a pair's parts
+# computed only when looked at; a fold's recursive answer a thunk too)
+def eval.lz(+t: HTm, +x: Maybe<&2, LV>) -> Maybe<&2, LV>:
+  match t:
+    case HId{}:
+      x
+    case HComp{g, f}:
+      eval.lz(g, eval.lz(f, x))
+    case HFst{}:
+      l.fst(x)
+    case HSnd{}:
+      l.snd(x)
+    case HPr{f, g}:
+      Some{LvPair{eval.lz(f, x), eval.lz(g, x)}}
+    case HInl{}:
+      Some{LvInl{x}}
+    case HInr{}:
+      Some{LvInr{x}}
+    case HCase{f, g}:
+      match x:
+        case Some{LvInl{a}}:
+          eval.lz(f, a)
+        case Some{LvInr{b}}:
+          eval.lz(g, b)
+        case _:
+          None{}
+    case HLit{n}:
+      Some{LvNat{n}}
+    case HPrim{p}:
+      l.pv(p.nn(p, l.nn(x)))
+    case HIf{c, a, e}:
+      l.if(eval.lz(c, x), eval.lz(a, x), eval.lz(e, x))
+    case HFold{z, s}:
+      match x:
+        case Some{LvNil{}}:
+          eval.lz(z, Some{LvUnit{}})
+        case Some{LvCons{hd, tl}}:
+          eval.lz(s, Some{LvPair{hd, eval.lz(t, tl)}})
+        case _:
+          None{}
+    case HErr{}:
+      None{}

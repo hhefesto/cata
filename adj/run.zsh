@@ -1,8 +1,8 @@
 #!/usr/bin/env zsh
 # adj/run.zsh: cata as a functor and an adjunction, proved.  bend
 # --check-only, then --verdict (BendTT's kernel) on adj/PROOF.bend, and on
-# adj/INT.bend (the model's Int against GHC's on a grid; int.zsh writes it
-# from GHC again).
+# adj/INT.bend and adj/LAZY.bend (the model's Int, Int8 and laziness
+# against GHC's; int.zsh writes them from GHC again).
 #   BEND names the bend; LEAN a directory holding Lean 4.34.0's lean (for
 #   --verdict).  Prints PASS or FAIL.
 set -u
@@ -10,12 +10,12 @@ here=${0:A:h}
 bend=${BEND:-bend}
 [[ -n ${LEAN:-} ]] && export PATH=$LEAN:$PATH
 cd $here
-c=$(BEND_NO_TELEMETRY=1 $bend PROOF.bend --check-only 2>&1)
-print "check: ${c//$'\n'/ | }"
-v=$(BEND_NO_TELEMETRY=1 $bend PROOF.bend --verdict 2>&1)
-print "verdict: ${v//$'\n'/ | }"
-ic=$(BEND_NO_TELEMETRY=1 $bend INT.bend --check-only 2>&1)
-print "INT check: ${ic//$'\n'/ | }"
-iv=$(BEND_NO_TELEMETRY=1 $bend INT.bend --verdict 2>&1)
-print "INT verdict: ${iv//$'\n'/ | }"
-if [[ $c == "ALL PROOFS CHECK"* && $v == "ALL PROOFS CHECK"* && $ic == "ALL PROOFS CHECK"* && $iv == "ALL PROOFS CHECK"* ]]; then print PASS; else print FAIL; exit 1; fi
+ok=1
+for f in PROOF INT LAZY; do
+  c=$(BEND_NO_TELEMETRY=1 $bend $f.bend --check-only 2>&1)
+  print "$f check: ${c//$'\n'/ | }"
+  v=$(BEND_NO_TELEMETRY=1 $bend $f.bend --verdict 2>&1)
+  print "$f verdict: ${v//$'\n'/ | }"
+  [[ $c == "ALL PROOFS CHECK"* && $v == "ALL PROOFS CHECK"* ]] || ok=0
+done
+if (( ok )); then print PASS; else print FAIL; exit 1; fi

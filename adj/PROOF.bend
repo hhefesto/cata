@@ -1814,3 +1814,243 @@ def L.isnat(m: Maybe<&2, C.ZV>) -> Type:
 def P.range.not(e):
   %e : L.isnat(_)
   Unit{}
+
+# 9. Laziness
+
+# an answer r == Some v, lazily
+def L.lz.cong(-r: Maybe<&2, C.HV>, -v: C.HV, e: {r == Some{v} : Maybe<&2, C.HV>}) -> {C.lzM(r) == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  Equal.cong(Maybe<&2, C.HV>, Maybe<&2, C.LV>, C.lzM, r, Some{v}, e)
+
+def L.lz.comp(r: Maybe<&2, C.HV>, -lr: Maybe<&2, C.LV>, hr: @y: C.HV -> {r == Some{y} : Maybe<&2, C.HV>} -> {lr == Some{C.lz(y)} : Maybe<&2, C.LV>}, -k: C.HV -> Maybe<&2, C.HV>, -kl: Maybe<&2, C.LV> -> Maybe<&2, C.LV>, hk: @y: C.HV -> @w: C.HV -> {k(y) == Some{w} : Maybe<&2, C.HV>} -> {kl(Some{C.lz(y)}) == Some{C.lz(w)} : Maybe<&2, C.LV>}, +v: C.HV, e: {Maybe.bind(&2, C.HV, C.HV, r, k) == Some{v} : Maybe<&2, C.HV>}) -> {kl(lr) == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  match r:
+    case None{}:
+      Empty.absurd({kl(lr) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case Some{+y}:
+      %Equal.sym(Maybe<&2, C.LV>, lr, Some{C.lz(y)}, hr(y, {==})) : {kl(_) == Some{C.lz(v)} : Maybe<&2, C.LV>}
+      hk(y, v, e)
+
+def L.lz.pair(r1: Maybe<&2, C.HV>, r2: Maybe<&2, C.HV>, -l1: Maybe<&2, C.LV>, -l2: Maybe<&2, C.LV>, h1: @y: C.HV -> {r1 == Some{y} : Maybe<&2, C.HV>} -> {l1 == Some{C.lz(y)} : Maybe<&2, C.LV>}, h2: @y: C.HV -> {r2 == Some{y} : Maybe<&2, C.HV>} -> {l2 == Some{C.lz(y)} : Maybe<&2, C.LV>}, +v: C.HV, e: {C.h.pair(r1, r2) == Some{v} : Maybe<&2, C.HV>}) -> {Some{C.LvPair{l1, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  match r1:
+    case None{}:
+      Empty.absurd({Some{C.LvPair{l1, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case Some{+p}:
+      match r2:
+        case None{}:
+          Empty.absurd({Some{C.LvPair{l1, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case Some{+q}:
+          %Equal.sym(Maybe<&2, C.LV>, l1, Some{C.lz(p)}, h1(p, {==})) : {Some{C.LvPair{_, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}
+          %Equal.sym(Maybe<&2, C.LV>, l2, Some{C.lz(q)}, h2(q, {==})) : {Some{C.LvPair{Some{C.lz(p)}, _}} == Some{C.lz(v)} : Maybe<&2, C.LV>}
+          L.lz.cong(Some{C.HvPair{p, q}}, v, e)
+
+def L.lz.if(rc: Maybe<&2, C.HV>, ra: Maybe<&2, C.HV>, rd: Maybe<&2, C.HV>, -lc: Maybe<&2, C.LV>, -la: Maybe<&2, C.LV>, -ld: Maybe<&2, C.LV>, hc: @y: C.HV -> {rc == Some{y} : Maybe<&2, C.HV>} -> {lc == Some{C.lz(y)} : Maybe<&2, C.LV>}, ha: @y: C.HV -> {ra == Some{y} : Maybe<&2, C.HV>} -> {la == Some{C.lz(y)} : Maybe<&2, C.LV>}, hd: @y: C.HV -> {rd == Some{y} : Maybe<&2, C.HV>} -> {ld == Some{C.lz(y)} : Maybe<&2, C.LV>}, +v: C.HV, e: {C.h.if(rc, ra, rd) == Some{v} : Maybe<&2, C.HV>}) -> {C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  match rc:
+    case None{}:
+      Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case Some{cv}:
+      match cv:
+        case C.HvBool{bb}:
+          match bb:
+            case True{}:
+              %Equal.sym(Maybe<&2, C.LV>, lc, Some{C.LvBool{True{}}}, hc(C.HvBool{True{}}, {==})) : {C.l.if(_, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}
+              ha(v, e)
+            case False{}:
+              %Equal.sym(Maybe<&2, C.LV>, lc, Some{C.LvBool{False{}}}, hc(C.HvBool{False{}}, {==})) : {C.l.if(_, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}
+              hd(v, e)
+        case C.HvNat{q}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvPair{q, r}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInl{q}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInr{q}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNil{}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvCons{q, r}:
+          Empty.absurd({C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+
+# a primitive looks at the same two numbers, lazily
+def L.lz.nnb(a: Nat, b: C.HV) -> {C.h.nn(C.HvPair{C.HvNat{a}, b}) == C.l.nn(Some{C.lz(C.HvPair{C.HvNat{a}, b})}) : C.NN}:
+  match b:
+    case C.HvNat{j}:
+      {==}
+    case C.HvBool{q}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvPair{q, r}:
+      {==}
+    case C.HvInl{q}:
+      {==}
+    case C.HvInr{q}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{q, r}:
+      {==}
+
+def L.lz.nn(x: C.HV) -> {C.h.nn(x) == C.l.nn(Some{C.lz(x)}) : C.NN}:
+  match x:
+    case C.HvPair{a, b}:
+      match a:
+        case C.HvNat{i}:
+          L.lz.nnb(i, b)
+        case C.HvBool{q}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{q, r}:
+          {==}
+        case C.HvInl{q}:
+          {==}
+        case C.HvInr{q}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{q, r}:
+          {==}
+    case C.HvNat{q}:
+      {==}
+    case C.HvBool{q}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{q}:
+      {==}
+    case C.HvInr{q}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{q, r}:
+      {==}
+
+def L.lz.pv(v: C.PV, +w: C.HV, e: {C.h.pv(v) == Some{w} : Maybe<&2, C.HV>}) -> {C.l.pv(v) == Some{C.lz(w)} : Maybe<&2, C.LV>}:
+  match v:
+    case C.PvNat{n}:
+      L.lz.cong(Some{C.HvNat{n}}, w, e)
+    case C.PvBool{b}:
+      L.lz.cong(Some{C.HvBool{b}}, w, e)
+    case C.PvNo{}:
+      Empty.absurd({None{} == Some{C.lz(w)} : Maybe<&2, C.LV>}, L.none.some.h(w, e))
+
+def L.lz.prim(p: C.Prim, +x: C.HV, +w: C.HV, e: {C.h.prim(p, x) == Some{w} : Maybe<&2, C.HV>}) -> {C.l.pv(C.p.nn(p, C.l.nn(Some{C.lz(x)}))) == Some{C.lz(w)} : Maybe<&2, C.LV>}:
+  %L.lz.nn(x) : {C.l.pv(C.p.nn(p, _)) == Some{C.lz(w)} : Maybe<&2, C.LV>}
+  L.lz.pv(C.p.nn(p, C.h.nn(x)), w, e)
+
+# h's strict answer is its lazy one, by induction on h (and, at a fold, on
+# the list)
+def L.lz.sq(+t: C.HTm, +x: C.HV, +v: C.HV, e: {C.eval.h(t, x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.lz(t, Some{C.lz(x)}) == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  match t:
+    case C.HId{}:
+      L.lz.cong(Some{x}, v, e)
+    case C.HComp{+g, +f}:
+      L.lz.comp(C.eval.h(f, x), C.eval.lz(f, Some{C.lz(x)}), y => ey => L.lz.sq(f, x, y, ey), y => C.eval.h(g, y), q => C.eval.lz(g, q), y => w => ew => L.lz.sq(g, y, w, ew), v, e)
+    case C.HFst{}:
+      match x:
+        case C.HvPair{a, b}:
+          L.lz.cong(Some{a}, v, e)
+        case C.HvNat{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInl{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInr{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNil{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvCons{q, r}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HSnd{}:
+      match x:
+        case C.HvPair{a, b}:
+          L.lz.cong(Some{b}, v, e)
+        case C.HvNat{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInl{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInr{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNil{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvCons{q, r}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HPr{+f, +g}:
+      L.lz.pair(C.eval.h(f, x), C.eval.h(g, x), C.eval.lz(f, Some{C.lz(x)}), C.eval.lz(g, Some{C.lz(x)}), y => ey => L.lz.sq(f, x, y, ey), y => ey => L.lz.sq(g, x, y, ey), v, e)
+    case C.HInl{}:
+      L.lz.cong(Some{C.HvInl{x}}, v, e)
+    case C.HInr{}:
+      L.lz.cong(Some{C.HvInr{x}}, v, e)
+    case C.HCase{+f, +g}:
+      match x:
+        case C.HvInl{a}:
+          L.lz.sq(f, a, v, e)
+        case C.HvInr{b}:
+          L.lz.sq(g, b, v, e)
+        case C.HvNat{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvPair{q, r}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNil{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvCons{q, r}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HLit{n}:
+      L.lz.cong(Some{C.HvNat{n}}, v, e)
+    case C.HPrim{p}:
+      L.lz.prim(p, x, v, e)
+    case C.HIf{+c, +a, +d}:
+      L.lz.if(C.eval.h(c, x), C.eval.h(a, x), C.eval.h(d, x), C.eval.lz(c, Some{C.lz(x)}), C.eval.lz(a, Some{C.lz(x)}), C.eval.lz(d, Some{C.lz(x)}), y => ey => L.lz.sq(c, x, y, ey), y => ey => L.lz.sq(a, x, y, ey), y => ey => L.lz.sq(d, x, y, ey), v, e)
+    case C.HFold{+z, +s}:
+      match x:
+        case C.HvNil{}:
+          L.lz.sq(z, C.HvUnit{}, v, e)
+        case C.HvCons{+hd, +tl}:
+          L.lz.comp(C.eval.h(t, tl), C.eval.lz(t, Some{C.lz(tl)}), y => ey => L.lz.sq(t, tl, y, ey), r => C.eval.h(s, C.HvPair{hd, r}), q => C.eval.lz(s, Some{C.LvPair{Some{C.lz(hd)}, q}}), y => w => ew => L.lz.sq(s, C.HvPair{hd, y}, w, ew), v, e)
+        case C.HvNat{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvPair{q, r}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInl{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInr{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HErr{}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+
+def P.lazy.sq(t, x, v, e):
+  L.lz.sq(t, x, v, e)
+
+# F's Bend answers w at y: h answers dec w at dec y strictly (L.h.at), so
+# lazily
+def P.lazy.F(h, y, w, e):
+  L.lz.sq(h, C.dec(y), C.dec(w), L.h.at(h, y, w, e))
+
+def P.lazy.fe():
+  {==}
+
+def P.lazy.fe.F():
+  {==}
+
+# fst (1, failure): its Bend fails, and G's Haskell of it is 1, lazily
+def L.bfe() -> C.BTm:
+  C.BComp{C.BFst{}, C.BPr{C.BLit{1n}, C.BFail{}}}
+
+def P.adj.FG.lazy.not(adj):
+  L.none.some.b(C.BvNat{1n}, adj(C.HLit{1n}, L.bfe(), x => v => e => e, C.BvUnit{}, C.BvNat{1n}, {==}))
