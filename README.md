@@ -513,7 +513,9 @@ Haskell's and, adj/ proves, was no left adjoint. Fold's `fd.num` calls
 HsPartial.bend's `HsNum.div`, `HsNum.mod` (at Nat), `HsNum.idiv`, `imod`,
 `iquot`, `irem` (at HsInt) and `HsNum.rdiv` instead, failure values at 0;
 by a non-zero literal (``n `div` 2``, and `flip div 2`, decided at the
-flip) the total ones stay.
+flip), or by a variable an enclosing if has told is not 0 (``if x == 0
+then .. else .. a `div` x ..``, and `x /= 0`, `x > 0`, `0 < x`: Fold's
+`fd.nzg`, before the partial pass), the total ones stay.
 
 A def that calls one, or calls a def that does (the module's items to a
 fixed point, then the later modules' through the package's exports), is

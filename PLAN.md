@@ -1820,6 +1820,9 @@ What this says about F and G:
   in the definedness order, never above it (no law where h answers and
   G(F(h)) errs). F is not an iso there; h ⊑ G(F(h)) is the shape of an
   adjunction's unit in that order, seen on the laws' inputs, not proved.
+  **11-23: it was F's defect, not a unit** (section 4b): an F that makes
+  Haskell's division total is proved no left adjoint, and with division
+  partial (15bb4ff) every one of the 23 is the same.
 - **Partial h** is a total F(h) answering Either; G unwraps it
   (`b'unfail`: Inl m is h's error m again), so the script's LawEw shows
   both alike.
@@ -1967,6 +1970,67 @@ survive both are true squares (focusFollowsMouse and clickJustFocuses are
 both True). Not done: inputs beyond law's (more GHC answers would need
 law's GHCi script at chosen inputs), squares or proofs found by the
 checker (they are the human's and the AI's).
+
+### 4b. The adjunction, proved on a model of the fragment (adj/, 11-23)
+
+The user's goal (11-23): cata as a functor, refined, and a proven
+adjunction. `adj/Core.bend` is cata's fragment as two categories,
+`adj/PROPOSED.bend` the laws, `adj/PROOF.bend` their proofs, and
+`adj/run.zsh` runs `bend PROOF.bend --check-only` and `--verdict`
+(BendTT's kernel through Lean 4.34.0): ALL PROOFS CHECK, PASS (e55f896;
+a fresh `--verdict`, no cache, 55 s).
+
+- **The categories.** Values HV (Haskell's) and BV (Bend's): numbers,
+  booleans, unit, pairs, sums, lists; F on values `enc`, G `dec`,
+  inverses. Programs point-free, so compositionality is F's definition:
+  identity, composition, projections and pairing, injections and case,
+  literals, primitives, if, foldr (lists' initial algebra: catamorphisms),
+  an error (Haskell) or failure value (Bend). A program means a function
+  from values to Maybe values (`eval.h`, `eval.b`), None the error. The
+  primitives are where the languages differ: Haskell's Natural `-`, `div`
+  and `mod` are partial, Base's `Nat.sub`, `Nat.div`, `Nat.mod` total.
+  Programs are ordered by "is implemented by": p ⊑ q when q answers what p
+  answers wherever p answers (`Le.h`, `Le.b`).
+- **Proved.** (1) F and G are functors on the nose (identities,
+  composition, pairs, sums, folds: a catamorphism goes to one). (2) The
+  squares for every program, by induction on it: F's Bend means what the
+  Haskell means, G's Haskell what the Bend means (`sq.F`, `sq.G`). (3) F ⊣
+  G: F h ⊑ b exactly when h ⊑ G b (`adj.FG.l`, `adj.FG.r`), and G ⊣ F: G b
+  ⊑ h exactly when b ⊑ F h (`adj.GF.l`, `adj.GF.r`); on this fragment an
+  adjoint equivalence. (076c5bd's message called `adj.FG.r` "G ⊣ F"; it is
+  F ⊣ G's other half, and 055c81d adds G ⊣ F.) (4) F.tot, F as cata had
+  it (`div`, `mod` to the total `Nat.div`, `Nat.mod`), is no left adjoint:
+  h0 = x `mod` 0 errs everywhere, so h0 ⊑ G b for every b, but F.tot h0
+  answers 0 at 0, so F.tot h0 ⊑ b fails at b the constant 7
+  (`tot.below`, `tot.not`). (5) Int and Integer, which F takes to Nat
+  (the user, 11-23: keep Nat): Int's values ZV have negative numbers too,
+  `up` is toInteger, `down` fromIntegral (an underflow error at a
+  negative), G's program used at Int is `gz` (down in front, up behind).
+  For any h whose meaning at Int agrees with its Natural one on
+  non-negative values (`Agree`: the survey's "Int as Nat only where
+  nothing subtracts", its int-sub refusal; stated as a hypothesis, not
+  proved from the survey), G ⊣ F holds at Int (`adj.GF.int.l`,
+  `adj.GF.int.r`), and F ⊣ G does not (`adj.FG.int.not`: the identity
+  answers -1 at -1, where every G's program errs).
+- **What it changed in cata (15bb4ff).** Division by anything but a known
+  non-zero literal is the prelude's partial `HsNum` (README, Partial
+  functions). hs1003's G(F(h)): 7,131 laws, 7,100 the same, 23 more
+  defined, 8 missing -> 7,128, 7,120 the same, **0 more defined**, 0
+  differ, 8 missing (00429). Telomare: its ledger line for line as before,
+  420 laws the same. tests/hs: 22 more defined -> 0. Lost: 00482's op_pct
+  (`(%)` as a function value: a partial call under a lambda). MonadList's
+  divs and divSum went the same way (safeDiv's ``100 `div` x`` partial) until
+  F read the guard: under `if x == 0 then .. else ..` (and x /= 0, x > 0)
+  the division by x is the total one (fd.nzg); tests/hs then 1,046 laws,
+  all the same.
+- **Outside the model.** General recursion: a fuelled def's end answers a
+  default (fd.dv), as F.tot answered at 0, so at a diverging h the same
+  argument makes F no adjoint; the theorem is for the terminating fragment
+  (folds), and 2^32 - 1 is a depth no run reaches. Laziness (Bend is
+  strict: a partial call's error is the def's even where Haskell never
+  forces it). Int's wrap-around. And cata's real G keeps h's Int (BendRt's
+  numbers are any Num's): it has no underflow guard, so at Int it is the
+  model's gz only on non-negative inputs, which are the laws' inputs.
 
 ### 5. Not an isomorphism; an equivalence on a fragment
 

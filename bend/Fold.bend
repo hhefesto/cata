@@ -9361,6 +9361,178 @@ def fd.ti.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
 
 # a module's items as written, before the gate: local catas written, then
 # groups merged (Law.bend's lw.module writes them so too)
+# Division under a guard --------------------------------------------------------
+
+# A division by a variable an enclosing if has told is not 0 is the total
+# op there: `if x == 0 then .. else .. div a x ..` (the else branch), and
+# x /= 0, x > 0, 0 < x (the then branch), at Nat and at HsInt.  So
+# MonadList's safeDiv (if x == 0 then Nothing else Just (100 `div` x))
+# stays total, as Haskell's never errs.  Run before the partial pass
+# (fd.pt.all); a binder of the same name below forgets the variable, and a
+# match forgets them all (its patterns bind).
+
+type Nzc is Data:
+  NzThen{x: List<&2, U32>}
+  NzElse{x: List<&2, U32>}
+  NzNone{}
+
+def fd.nzg.zero(z: T.Bt) -> Bool:
+  match z:
+    case T.BtNat{+s}:
+      fd.is(s, "0")
+    case T.BtCon{+c, T.BtArgs{T.BtNat{+s}, T.BtANil{}}}:
+      Bool.and(fd.is(c, "HsPrelude.HsInt.Pos"), fd.is(s, "0"))
+    case _:
+      False{}
+
+def fd.nzg.var.if(c: Bool, x: List<&2, U32>) -> Maybe<&2, List<&2, U32>>:
+  match c:
+    case True{}:
+      Some{x}
+    case False{}:
+      None{}
+
+def fd.nzg.var(v: T.Bt, z: T.Bt) -> Maybe<&2, List<&2, U32>>:
+  match v:
+    case T.BtVar{x}:
+      fd.nzg.var.if(fd.nzg.zero(z), x)
+    case _:
+      None{}
+
+def fd.nzg.is2(+f: List<&2, U32>, +op: String) -> Bool:
+  Bool.or(fd.is(f, "Nat." ++ op), fd.is(f, "HsPrelude.HsInt." ++ op))
+
+# x OP 0 (flipped: 0 OP x)
+def fd.nzg.rel(+f: List<&2, U32>, +x: List<&2, U32>, +flipped: Bool) -> Nzc:
+  +gt = Bool.or(Bool.and(Bool.not(flipped), fd.nzg.is2(f, "is_gt")), Bool.and(flipped, fd.nzg.is2(f, "is_lt")))
+  Bool.pick(Nzc, fd.nzg.is2(f, "is_eq"), NzElse{x}, Bool.pick(Nzc, Bool.or(fd.nzg.is2(f, "is_ne"), gt), NzThen{x}, NzNone{}))
+
+def fd.nzg.pick2(m2: Maybe<&2, List<&2, U32>>, +f: List<&2, U32>) -> Nzc:
+  match m2:
+    case Some{x}:
+      fd.nzg.rel(f, x, True{})
+    case None{}:
+      NzNone{}
+
+def fd.nzg.pick(m1: Maybe<&2, List<&2, U32>>, m2: Maybe<&2, List<&2, U32>>, +f: List<&2, U32>) -> Nzc:
+  match m1:
+    case Some{x}:
+      fd.nzg.rel(f, x, False{})
+    case None{}:
+      fd.nzg.pick2(m2, f)
+
+# an if's condition: what it says of a variable and 0
+def fd.nzg.cond(c: T.Bt) -> Nzc:
+  match c:
+    case T.BtApp{T.BtVar{+f}, T.BtArgs{+p, T.BtArgs{+q, T.BtANil{}}}}:
+      fd.nzg.pick(fd.nzg.var(p, q), fd.nzg.var(q, p), f)
+    case _:
+      NzNone{}
+
+def fd.nzg.in(+v: List<&2, U32>, nz: List<&2, List<&2, U32>>) -> Bool:
+  match nz:
+    case Nil{}:
+      False{}
+    case +x <> t:
+      Bool.or(S.eq(x, v), fd.nzg.in(v, t))
+
+def fd.nzg.less(+v: List<&2, U32>, nz: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match nz:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      +r = fd.nzg.less(v, t)
+      Bool.pick(List<&2, List<&2, U32>>, S.eq(x, v), r, x <> r)
+
+# a division's arguments: whether the divisor is a variable told non-zero
+def fd.nzg.divby(a: T.Bt, +nz: List<&2, List<&2, U32>>) -> Bool:
+  match a:
+    case T.BtArgs{x, T.BtArgs{T.BtVar{+v}, T.BtANil{}}}:
+      fd.nzg.in(v, nz)
+    case _:
+      False{}
+
+def fd.nzg.isif(+f: List<&2, U32>) -> Bool:
+  Bool.or(fd.is(f, "Bool.if"), Bool.or(fd.is(f, "HsBool.if"), fd.is(f, "HsPrelude.HsBool.if")))
+
+# an if's arguments' sets of variables told non-zero: its type's, its
+# condition's, its then thunk's, its else thunk's
+def fd.nzg.sets.at(k: Nzc, +nz: List<&2, List<&2, U32>>) -> List<&2, List<&2, List<&2, U32>>>:
+  match k:
+    case NzThen{x}:
+      [nz, nz, x <> nz, nz]
+    case NzElse{x}:
+      [nz, nz, nz, x <> nz]
+    case NzNone{}:
+      Nil{}
+
+def fd.nzg.sets.of(a: T.Bt, +nz: List<&2, List<&2, U32>>) -> List<&2, List<&2, List<&2, U32>>>:
+  match a:
+    case T.BtArgs{ty, T.BtArgs{c, T.BtArgs{t, T.BtArgs{e, T.BtANil{}}}}}:
+      fd.nzg.sets.at(fd.nzg.cond(c), nz)
+    case _:
+      Nil{}
+
+def fd.nzg.sets(isif: Bool, +a: T.Bt, +nz: List<&2, List<&2, U32>>) -> List<&2, List<&2, List<&2, U32>>>:
+  match isif:
+    case True{}:
+      fd.nzg.sets.of(a, nz)
+    case False{}:
+      Nil{}
+
+# a call's name: a division's total op where its divisor is told non-zero
+def fd.nzg.name(+f: List<&2, U32>, +a: T.Bt, +nz: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, Bool.and(fd.div.is(f), fd.nzg.divby(a, nz)), fd.div.tot(f), f)
+
+# the walk: nz the variables told non-zero here, ss an argument spine's
+# sets (an if's), one per argument
+def fd.nzg(t: T.Bt, +nz: List<&2, List<&2, U32>>, ss: List<&2, List<&2, List<&2, U32>>>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+f}, +a}:
+      +a2 = fd.nzg(a, nz, fd.nzg.sets(fd.nzg.isif(f), a, nz))
+      T.BtApp{T.BtVar{fd.nzg.name(f, a2, nz)}, a2}
+    case T.BtApp{h, a}:
+      T.BtApp{fd.nzg(h, nz, Nil{}), fd.nzg(a, nz, Nil{})}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.nzg(a, nz, Nil{})}
+    case T.BtLam{m, +x, b}:
+      T.BtLam{m, x, fd.nzg(b, fd.nzg.less(x, nz), Nil{})}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.nzg(a, nz, Nil{})}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.nzg(a, nz, Nil{}), fd.nzg(b, nz, Nil{})}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.nzg(a, nz, Nil{})}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.nzg(a, nz, Nil{}), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.nzg(cs, Nil{}, Nil{})}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.nzg(e, nz, Nil{})}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.nzg(e, nz, Nil{}), p, fd.nzg(b, nz, Nil{})}
+    case T.BtLet{+x, v, b}:
+      T.BtLet{x, fd.nzg(v, nz, Nil{}), fd.nzg(b, fd.nzg.less(x, nz), Nil{})}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.nzg(b, Nil{}, Nil{}), fd.nzg(rest, Nil{}, Nil{})}
+    case T.BtArgs{a, rest}:
+      match ss:
+        case s <> st:
+          T.BtArgs{fd.nzg(a, s, Nil{}), fd.nzg(rest, nz, st)}
+        case Nil{}:
+          T.BtArgs{fd.nzg(a, nz, Nil{}), fd.nzg(rest, nz, Nil{})}
+    case u:
+      u
+
+def fd.nzg.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, ps, r, fd.nzg(b, Nil{}, Nil{}), d} <> fd.nzg.all(t)
+    case h <> t:
+      h <> fd.nzg.all(t)
+
 # Partial functions -------------------------------------------------------------
 
 # Haskell's partial functions are failure values (PLAN.md, "Partial
@@ -10262,7 +10434,7 @@ def fd.rt.all(its: List<&2, T.BItem>, ws: List<&2, T.BItem>) -> List<&2, T.BItem
       fd.rt.items(its, w <> t)
 
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.mu.all(fd.ti.all(fd.pt.all(fd.lc.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)), fd.px.dt(px))), fd.px.dt(px))
+  fd.mu.all(fd.ti.all(fd.pt.all(fd.nzg.all(fd.lc.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px))), fd.px.dt(px))), fd.px.dt(px))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
