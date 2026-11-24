@@ -6607,6 +6607,146 @@ def sp.p5s.go(xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
 def sp.p5s(+xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
   sp.p5s.go(xs, List.append(&2, Ct, sp.cts.own(xs, sp.modname(xs)), cts))
 
+# Eq1 derived via Generically1 (`deriving Eq1 via (Generically1 T)`): GHC
+# writes liftEq as a coercion of the generic one, which is the equality of
+# T's structure: t at a field of T's last type variable, liftEq at a field
+# of a functor at it, == at any other. Written so, from T's declaration.
+def sp.g1.has(x: X.Sx, +v: X.Sx) -> Bool:
+  match x:
+    case X.SxCons{+h, +t}:
+      Bool.or(sp.eq(X.SxCons{h, t}, v), Bool.or(sp.g1.has(h, v), sp.g1.has(t, v)))
+    case y:
+      False{}
+
+def sp.g1.atom(x: X.Sx, +s: List<&2, U32>) -> Bool:
+  match x:
+    case X.SxCons{h, t}:
+      Bool.or(sp.g1.atom(h, s), sp.g1.atom(t, s))
+    case X.SxStr{+a}:
+      S.eq(a, s)
+    case _:
+      False{}
+
+def sp.g1.v(+s: String, +i: Nat) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{sp.cat(S.b(s), S.b(Nat.show(i)))}, sp.a("0")])
+
+def sp.g1.app(+f: X.Sx, +x: X.Sx) -> X.Sx:
+  sp.l([sp.a("app"), f, x])
+
+def sp.g1.init(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> Nil{}:
+      Nil{}
+    case x <> t:
+      x <> sp.g1.init(t)
+
+def sp.g1.last(xs: List<&2, X.Sx>) -> X.Sx:
+  match xs:
+    case Nil{}:
+      X.SxNil{}
+    case x <> Nil{}:
+      x
+    case x <> t:
+      sp.g1.last(t)
+
+# a field's comparison (ty: its type in the declaration, f: the last type
+# variable, sa: the variables' types, ta and tb the two element types)
+def sp.g1.field(+ty: X.Sx, +f: X.Sx, +sa: List<&2, Sb>, +ta: X.Sx, +tb: X.Sx, +x: X.Sx, +y: X.Sx) -> X.Sx:
+  +t = sp.g1.v("g1t", 0n)
+  +as = sp.els(ty)
+  +fun = Bool.and(sp.head.is(ty, "tc"), Bool.and(sp.eq(sp.g1.last(as), f), Bool.not(sp.g1.has(sp.l(sp.g1.init(as)), f))))
+  +le = sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("evapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("g"), X.SxStr{S.b("Data.Functor.Classes")}, X.SxStr{S.b("liftEq")}, sp.l([sp.a("method"), X.SxStr{S.b("Data.Functor.Classes")}, X.SxStr{S.b("Eq1")}])]), sp.subst(sp.l(sp.g1.init(as)), sa)]), sp.l([sp.a("l"), X.SxStr{S.b("$dEq1")}, sp.a("0")])]), ta]), tb])
+  +eq = sp.l([sp.a("evapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("g"), X.SxStr{S.b("GHC.Classes")}, X.SxStr{S.b("==")}, sp.l([sp.a("method"), X.SxStr{S.b("GHC.Classes")}, X.SxStr{S.b("Eq")}])]), sp.subst(ty, sa)]), sp.l([sp.a("l"), X.SxStr{S.b("$dEq")}, sp.a("0")])])
+  +h = sp.if(X.Sx, sp.eq(ty, f), _ => t, _ => sp.if(X.Sx, Bool.not(sp.g1.has(ty, f)), _ => eq, _ => sp.if(X.Sx, fun, _ => sp.g1.app(le, t), _ => sp.g(S.b("HsPrelude.Z"), S.b("g1out"), "var"))))
+  sp.g1.app(sp.g1.app(h, x), y)
+
+def sp.g1.and(+a: X.Sx, b: Maybe<&2, X.Sx>) -> X.Sx:
+  match b:
+    case Some{y}:
+      sp.g1.app(sp.g1.app(sp.g(S.b("GHC.Classes"), S.b("&&"), "var"), a), y)
+    case None{}:
+      a
+
+def sp.g1.fields(tys: List<&2, X.Sx>, +i: Nat, +f: X.Sx, +sa: List<&2, Sb>, +ta: X.Sx, +tb: X.Sx) -> Maybe<&2, X.Sx>:
+  match tys:
+    case Nil{}:
+      None{}
+    case ty <> t:
+      Some{sp.g1.and(sp.g1.field(ty, f, sa, ta, tb, sp.g1.v("g1x", i), sp.g1.v("g1y", i)), sp.g1.fields(t, 1n+i, f, sa, ta, tb))}
+
+def sp.g1.vars(tys: List<&2, X.Sx>, +s: String, +i: Nat, +sb: List<&2, Sb>) -> List<&2, X.Sx>:
+  match tys:
+    case Nil{}:
+      Nil{}
+    case ty <> t:
+      sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.g1.v(s, i), sp.subst(ty, sb)])]) <> sp.g1.vars(t, s, 1n+i, sb)
+
+def sp.g1.match(+ps: List<&2, X.Sx>, +b: X.Sx) -> X.Sx:
+  sp.l([sp.a("match"), sp.l(ps), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, b])]), sp.l([sp.a("binds")])])])
+
+# a constructor's clause
+def sp.g1.clauses(cs: List<&2, X.Sx>, +m: List<&2, U32>, +ft: X.Sx, +tya: X.Sx, +tyb: X.Sx, +f: X.Sx, +sa: List<&2, Sb>, +sb: List<&2, Sb>) -> List<&2, X.Sx>:
+  match cs:
+    case Nil{}:
+      [sp.g1.match([sp.l([sp.a("pwild"), ft]), sp.l([sp.a("pwild"), tya]), sp.l([sp.a("pwild"), tyb])], sp.hf.bool("False"))]
+    case +c <> t:
+      +k = sp.g(m, sp.sat(c, 1n), "con")
+      +tys = sp.els(sp.at(c, 3n))
+      +pa = {sp.l([sp.a("pcon"), k, sp.l(sp.dropn(sp.els(tya), 3n)), X.SxCons{sp.a("args"), sp.l(sp.g1.vars(tys, "g1x", 0n, sa))}]) : X.Sx}
+      +pb = {sp.l([sp.a("pcon"), k, sp.l(sp.dropn(sp.els(tyb), 3n)), X.SxCons{sp.a("args"), sp.l(sp.g1.vars(tys, "g1y", 0n, sb))}]) : X.Sx}
+      +b = {sp.or(sp.g1.fields(tys, 0n, f, sa, sp.g1.last(sp.els(tya)), sp.g1.last(sp.els(tyb))), sp.hf.bool("True")) : X.Sx}
+      sp.g1.match([sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.g1.v("g1t", 0n), ft])]), pa, pb], b) <> sp.g1.clauses(t, m, ft, tya, tyb, f, sa, sb)
+
+# the declaration of the type named n among the items
+def sp.g1.data(xs: List<&2, X.Sx>, +n: List<&2, U32>) -> X.Sx:
+  match xs:
+    case Nil{}:
+      X.SxNil{}
+    case +x <> t:
+      Bool.pick(X.Sx, Bool.and(Bool.or(sp.head.is(x, "data"), sp.head.is(x, "newtype")), S.eq(sp.sat(x, 1n), n)), x, sp.g1.data(t, n))
+
+# the matches of the fun in x as ms
+def sp.g1.put(x: X.Sx, +ms: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, +t}:
+      +isf = sp.is(a, "fun")
+      sp.if(X.Sx, isf, _ => X.SxCons{X.SxAtom{a}, X.SxCons{sp.at(t, 0n), X.SxCons{sp.at(t, 1n), X.SxCons{sp.at(t, 2n), X.SxCons{ms, X.SxCons{sp.a("hole"), X.SxNil{}}}}}}}, _ => X.SxCons{X.SxAtom{a}, sp.g1.put(t, ms)})
+    case X.SxCons{h, t}:
+      X.SxCons{sp.g1.put(h, ms), sp.g1.put(t, ms)}
+    case y:
+      y
+
+def sp.g1.top(+x: X.Sx, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> X.Sx:
+  +ty = sp.strip(sp.at(sp.or(sp.nth(sp.exports(x), 0n), X.SxNil{}), 2n))
+  +ft = sp.at(ty, 1n)
+  +r1 = sp.at(ty, 2n)
+  +tya = sp.at(r1, 1n)
+  +tyb = sp.at(sp.at(r1, 2n), 1n)
+  +d = sp.g1.data(xs, sp.sat(tya, 2n))
+  +tvs = sp.strs(sp.at(d, 2n))
+  +f = sp.l([sp.a("tv"), X.SxStr{Maybe.default(&2, List<&2, U32>, List.last(&2, List<&2, U32>, tvs), Nil{})}])
+  +sa = sp.zip(tvs, sp.dropn(sp.els(tya), 3n))
+  +sb = sp.zip(tvs, sp.dropn(sp.els(tyb), 3n))
+  +cls = sp.g1.clauses(sp.els(sp.at(d, 3n)), m, ft, tya, tyb, f, sa, sb)
+  +ms = {sp.l([sp.a("matches"), sp.l([ft, tya, tyb]), sp.tc(S.b("GHC.Types"), S.b("Bool"), Nil{}), sp.a("source"), sp.l(cls)]) : X.Sx}
+  sp.if(X.Sx, sp.eq(d, X.SxNil{}), _ => x, _ => sp.g1.put(x, ms))
+
+def sp.g1.is(+x: X.Sx) -> Bool:
+  +v = sp.at(sp.or(sp.nth(sp.exports(x), 0n), X.SxNil{}), 1n)
+  sp.if(Bool, Bool.and(sp.head.is(x, "top"), Bool.and(sp.head.is(v, "l"), sp.is(sp.sat(v, 1n), "$cliftEq"))), _ => sp.g1.atom(x, S.b("Generically1")), _ => False{})
+
+def sp.g1.go(ys: List<&2, X.Sx>, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List<&2, X.Sx>:
+  match ys:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      sp.if(X.Sx, sp.g1.is(x), _ => sp.g1.top(x, xs, m), _ => x) <> sp.g1.go(t, xs, m)
+
+def sp.g1(+xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  sp.g1.go(xs, xs, sp.modname(xs))
+
 # The program ------------------------------------------------------------------------
 
 def sp.text(xs: List<&2, X.Sx>) -> List<&2, U32>:
@@ -6623,7 +6763,7 @@ def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: Lis
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(X.tsx.read(bytes), sp.ix.cts(ix)))
+        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(sp.g1(X.tsx.read(bytes)), sp.ix.cts(ix)))
         +ix2 : Ix <- IO.pure(Ix, sp.ix.module(xs, ix))
         +p : String <- IO.pure(String, out ++ "/" ++ S.base(f))
         +md : Md <- IO.pure(Md, sp.module(xs, ix2, ws))
