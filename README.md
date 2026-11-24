@@ -664,8 +664,12 @@ the prelude's `HsPt` of it, whose continuation answers the Either (Fold's
 at the state it is run at, so a partial def that answers an action takes the
 state as its last parameter (`ps_s`) and answers `Either<String, result>`
 there; its body is applied to the state inside (`fd.pa`, tests/hs/pk/
-PartAct.hs). Under any other lambda (a cata's algebra, a function in a field
-or an answer) a partial call is out (`fold:partial-in-lambda`).
+PartAct.hs). A def of the module that takes a function (a spec's copy of
+foldl, a data type's catamorphism) and is given a partial one has a variant,
+`NAME.pt<i>`, whose i-th parameter answers the Either (`fd.ph`,
+tests/hs/pk/PartLet.hs). In a function that is a field or an answer, or a
+cata's whose answer is a function, a partial call is out
+(`fold:partial-in-lambda`).
 
 Natural's `-` is partial too (GHC's ArithException Underflow below 0):
 `HsNum.sub`, "arithmetic underflow" (tests/hs/NatSub.hs). Int's `-` in a
