@@ -288,6 +288,67 @@ unwrapCofree (_ C.:< x) = x
 showsDefault :: forall a. Show a => a -> ShowS
 showsDefault x = showsPrec 0 x
 
+-- | base's functions over a Functor, a Monad or a Foldable that are no
+-- methods, at a package's own: base's definitions, so that the specialiser
+-- writes them at its instance's methods.
+fmapOp :: forall f a b. Functor f => (a -> b) -> f a -> f b
+fmapOp g x = fmap g x
+
+fmapFlip :: forall f a b. Functor f => f a -> (a -> b) -> f b
+fmapFlip x g = fmap g x
+
+bindFlip :: forall m a b. Monad m => (a -> m b) -> m a -> m b
+bindFlip k m = m >>= k
+
+voidOp :: forall f a. Functor f => f a -> f ()
+voidOp x = fmap (\_ -> ()) x
+
+whenOp :: forall f. Applicative f => Bool -> f () -> f ()
+whenOp b x = if b then x else pure ()
+
+unlessOp :: forall f. Applicative f => Bool -> f () -> f ()
+unlessOp b x = if b then pure () else x
+
+liftM2Op :: forall m a b r. Monad m => (a -> b -> r) -> m a -> m b -> m r
+liftM2Op f m n = m >>= \x -> n >>= \y -> pure (f x y)
+
+anyDefault :: forall t a. Foldable t => (a -> Bool) -> t a -> Bool
+anyDefault p t = F.any p (toListDefault t)
+
+allDefault :: forall t a. Foldable t => (a -> Bool) -> t a -> Bool
+allDefault p t = F.all p (toListDefault t)
+
+orDefault :: forall t. Foldable t => t Bool -> Bool
+orDefault t = F.or (toListDefault t)
+
+andDefault :: forall t. Foldable t => t Bool -> Bool
+andDefault t = F.and (toListDefault t)
+
+nullDefault :: forall t a. Foldable t => t a -> Bool
+nullDefault t = F.null (toListDefault t)
+
+elemDefault :: forall t a. (Foldable t, Eq a) => a -> t a -> Bool
+elemDefault x t = F.elem x (toListDefault t)
+
+concatMapDefault :: forall t a b. Foldable t => (a -> [b]) -> t a -> [b]
+concatMapDefault f t = concatMap f (toListDefault t)
+
+-- | the classes' default methods at a package's own instance
+thenOp :: forall m a b. Monad m => m a -> m b -> m b
+thenOp m k = m >>= \_ -> k
+
+returnOp :: forall m a. Monad m => a -> m a
+returnOp x = pure x
+
+mapMOp :: forall t m a b. (Traversable t, Monad m) => (a -> m b) -> t a -> m (t b)
+mapMOp f t = traverse f t
+
+sequenceOp :: forall t m a. (Traversable t, Monad m) => t (m a) -> m (t a)
+sequenceOp t = traverse (\x -> x) t
+
+constMap :: forall f a b. Functor f => a -> f b -> f a
+constMap x t = fmap (\_ -> x) t
+
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
 mapKeys :: forall k2 k1 a. Ord k2 => (k1 -> k2) -> Map.Map k1 a -> Map.Map k2 a
