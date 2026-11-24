@@ -5155,8 +5155,90 @@ def sp.lg(x: X.Sx) -> X.Sx:
     case y:
       y
 
+# A local function of one plain clause that takes a function (EAL's
+# instantiateTemplate: shKV f (k, v) = (sh k, f v), polymorphic) is its
+# lambda where it is used: a local function's function parameter is a
+# template, which a function over run-time locals (shKV shTau) is not.
+type Lh is Data:
+  Lh{v: X.Sx, tvs: List<&2, List<&2, U32>>, ms: X.Sx}
+
+def sp.lh.hasfn(ts: List<&2, X.Sx>) -> Bool:
+  match ts:
+    case Nil{}:
+      False{}
+    case t <> r:
+      Bool.or(sp.head.is(t, "tfun"), sp.lh.hasfn(r))
+
+# a fun as one of them
+def sp.lh.fun(+v: X.Sx, +tvs: List<&2, List<&2, U32>>, +f: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
+  +ms = sp.at(f, 4n)
+  +cs = sp.els(sp.at(ms, 4n))
+  +m0 = sp.first(cs)
+  +gr = sp.at(m0, 2n)
+  +g0 = sp.first(sp.els(sp.at(gr, 1n)))
+  +one = Bool.and(Bool.and(Nat.is_eq(List.length(&2, X.Sx, cs), 1n), Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")]))))
+  +ok = Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(v, "l")), Bool.and(one, sp.lh.hasfn(sp.els(sp.at(ms, 1n)))))
+  Bool.pick(List<&2, Lh>, Bool.and(ok, Bool.not(sp.lg.mentions(ms, v))), Lh{v, tvs, ms} <> acc, acc)
+
+def sp.lh.grp(+g: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
+  +a = sp.at(g, 1n)
+  +fs = sp.els(sp.at(a, 5n))
+  +es = sp.els(sp.at(a, 3n))
+  +ev = Bool.and(sp.eq(sp.at(a, 2n), X.SxNil{}), Bool.and(Nat.is_eq(List.length(&2, X.Sx, fs), 1n), Nat.is_eq(List.length(&2, X.Sx, es), 1n)))
+  sp.if(List<&2, Lh>, Bool.not(Nat.is_eq(X.tsx.len(g), 2n)), _ => acc, _ => sp.if(List<&2, Lh>, sp.head.is(a, "fun"), _ => sp.lh.fun(sp.fa.unself(sp.at(a, 1n)), Nil{}, a, acc), _ => sp.if(List<&2, Lh>, Bool.and(sp.head.is(a, "abs"), ev), _ => sp.lh.fun(sp.at(sp.first(es), 1n), sp.strs(sp.at(a, 1n)), sp.first(fs), acc), _ => acc)))
+
+def sp.lh.of(x: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +acc2 = sp.if(List<&2, Lh>, sp.is(X.tsx.atom.of(h), "nonrec"), _ => sp.lh.grp(n, acc), _ => acc)
+      sp.lh.of(t, sp.lh.of(h, acc2))
+    case _:
+      acc
+
+def sp.lh.find(hs: List<&2, Lh>, +v: X.Sx) -> Maybe<&2, Lh>:
+  match hs:
+    case Nil{}:
+      None{}
+    case Lh{+w, tvs, ms} <> t:
+      sp.if(Maybe<&2, Lh>, sp.eq(w, v), _ => Some{Lh{w, tvs, ms}}, _ => sp.lh.find(t, v))
+
+def sp.lh.lam(m: Maybe<&2, Lh>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
+  match m:
+    case Some{Lh{v, +tvs, ms}}:
+      Bool.pick(X.Sx, Nat.is_eq(List.length(&2, X.Sx, tys), List.length(&2, List<&2, U32>, tvs)), sp.l([sp.a("lam"), sp.a("single"), sp.subst(ms, sp.zip(tvs, tys))]), x)
+    case None{}:
+      x
+
+# the uses (a local, its type arguments around it) in x; a binder stays
+def sp.lh.sub(x: X.Sx, +hs: List<&2, Lh>) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, +t}}:
+      +n = {X.SxCons{X.SxAtom{a}, X.SxCons{p, t}} : X.Sx}
+      +isl = Bool.or(sp.is(a, "l"), sp.is(a, "tyapp"))
+      +hd = sp.if(X.Sx, isl, _ => sp.vhead(n), _ => X.SxNil{})
+      +m = sp.if(Maybe<&2, Lh>, sp.head.is(hd, "l"), _ => sp.lh.find(hs, hd), _ => None{})
+      +bind = Bool.or(sp.is(a, "fun"), Bool.or(sp.is(a, "export"), sp.is(a, "self")))
+      sp.if(X.Sx, Maybe.is_some(&2, Lh, m), _ => sp.lh.lam(m, sp.spine.tys(n, Nil{}), n), _ => sp.if(X.Sx, bind, _ => X.SxCons{X.SxAtom{a}, X.SxCons{p, sp.lh.sub(t, hs)}}, _ => X.SxCons{X.SxAtom{a}, X.SxCons{sp.lh.sub(p, hs), sp.lh.sub(t, hs)}}))
+    case X.SxCons{h, t}:
+      X.SxCons{sp.lh.sub(h, hs), sp.lh.sub(t, hs)}
+    case y:
+      y
+
+def sp.lh.go(n: Nat, +x: X.Sx, +hs: List<&2, Lh>) -> X.Sx:
+  match n:
+    case 0n:
+      x
+    case 1n+p:
+      sp.lh.go(p, sp.lh.sub(x, hs), hs)
+
+# twice: one's body may use another
+def sp.lh(+x: X.Sx) -> X.Sx:
+  +hs = sp.lh.of(x, Nil{})
+  sp.if(X.Sx, List.is_empty(&2, Lh, hs), _ => x, _ => sp.lh.go(2n, x, hs))
+
 def sp.passes0(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +rl0: List<&2, X.Sx>, +ol0: List<&2, Og>, +kn: List<&2, Rq>, +rg: List<&2, X.Sx>) -> Rw:
-  +xr = sp.lr(sp.lec(x), cur)
+  +xr = sp.lr(sp.lh(sp.lec(x)), cur)
   +xl = sp.lc(xr, sp.fa.binds(xr, Nil{}), sp.ix.cts(ix))
   +xm = sp.if(X.Sx, sp.ix.hasgen(ix), _ => sp.hm(xl, sp.hf.env(xl, sp.ix.sys(ix)), sp.ix.sys(ix)), _ => xl)
   +xq = sp.pl(sp.pc(xm, sp.ix.hasbase(ix), ix), sp.pl.toptvs(x), ix)
