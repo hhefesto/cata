@@ -1661,6 +1661,7 @@ type Bf is Data:
   BfSubtract{}
   BfLift2{}
   BfZ{op: String}
+  BfOrd{}
   BfRange{}
   BfOne{f: String}
   BfParity{op: String}
@@ -1752,7 +1753,7 @@ def fd.bftab0() -> List<&2, BfE>:
 
 # Num's and Enum's functions beyond the first table
 def fd.bftab1() -> List<&2, BfE>:
-  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfToI{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"GHC.Internal.Real.numerator", BfOne{"HsPrelude.HsRational.numerator"}}, BfE{"GHC.Internal.Real.denominator", BfOne{"HsPrelude.HsRational.denominator"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
+  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"HsPrelude.N.subSafe", BfNum{"safe"}}, BfE{"GHC.Internal.Base.ord", BfOrd{}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfToI{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"GHC.Internal.Real.numerator", BfOne{"HsPrelude.HsRational.numerator"}}, BfE{"GHC.Internal.Real.denominator", BfOne{"HsPrelude.HsRational.denominator"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
 
 # Data.List's, Data.Maybe's, Data.Either's, Data.Tuple's and Data.Bifunctor's
 # functions (HsPrelude's HsList, see fd.dm), mempty, flip, trace, liftM2
@@ -1915,6 +1916,8 @@ def fd.bf.n(f: Bf) -> Nat:
       3n
     case BfShows{}:
       2n
+    case BfOrd{}:
+      1n
     case BfZ{op}:
       fd.z.n(S.b(op))
     case BfMaybe{}:
@@ -2475,9 +2478,10 @@ def fd.cmp(q: Tq, t: T.Bt, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
     case TqOther{}:
       fd.cmp.other(S.b(op), t, a, b)
 
-# Nat's and F32's names for quot and rem, and Nat has no subtraction
+# Nat's and F32's names for quot and rem; Nat has no subtraction but the one that
+# what is around it makes safe (Spec's sp.ssb: safe), Base's Nat.sub
 def fd.num.nat(+op: List<&2, U32>) -> List<&2, U32>:
-  Bool.pick(List<&2, U32>, fd.is(op, "quot"), S.b("div"), Bool.pick(List<&2, U32>, fd.is(op, "rem"), S.b("mod"), op))
+  Bool.pick(List<&2, U32>, fd.is(op, "quot"), S.b("div"), Bool.pick(List<&2, U32>, fd.is(op, "rem"), S.b("mod"), Bool.pick(List<&2, U32>, fd.is(op, "safe"), S.b("sub"), op)))
 
 # div, mod, quot and rem: GHC throws at a divisor 0, Base's Nat.div and
 # Nat.mod (and HsInt's, by them) answer 0 and a there, so F was more
@@ -2520,14 +2524,18 @@ def fd.num.intf(+op: String, +a: T.Bt, +b: T.Bt) -> T.Bt:
 def fd.num.ratf(+op: String, +a: T.Bt, +b: T.Bt) -> T.Bt:
   Bool.pick(T.Bt, fd.is(S.b(op), "div"), fd.callS("HsPrelude.HsNum.rdiv", [a, b]), fd.callS("HsPrelude.HsRational." ++ op, [a, b]))
 
+# a safe subtraction is the type's own, where it has one
+def fd.num.op(+op: String) -> String:
+  Bool.pick(String, fd.is(S.b(op), "safe"), "sub", op)
+
 def fd.num(q: Tq, op: String, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
     case TqNat{}:
       fd.num.natf("Nat.", S.b(op), a, b)
     case TqInt{}:
-      fd.num.intf(op, a, b)
+      fd.num.intf(fd.num.op(op), a, b)
     case TqRat{}:
-      fd.num.ratf(op, a, b)
+      fd.num.ratf(fd.num.op(op), a, b)
     case TqF32{}:
       T.tba.call(T.BtVar{fd.cat(S.b("F32."), fd.num.nat(S.b(op)))}, [a, b])
     case _:
@@ -3663,6 +3671,8 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.num(fd.tq(t), "sub", b, a)
     case BfLift2{} m <> a <> b <> c <> _ f <> x <> y <> _:
       fd.lift2(fd.mk(m), a, b, c, fd.untpl(f), x, y)
+    case BfOrd{} _ x <> _:
+      fd.callS("U32.to_nat", [fd.callS("Char.to_u32", [x])])
     case BfZ{op} tys xs:
       fd.z(S.b(op), tys, xs)
     case BfRange{} t <> _ a <> b <> _:

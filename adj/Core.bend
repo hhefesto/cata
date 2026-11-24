@@ -906,15 +906,8 @@ def z.mod(a: ZV, b: ZV) -> Maybe<&2, ZV>:
       None{}
 
 # BendRt's wrappers, at Int (their Haskell is any Num's): b'Nat'sub a b =
-# max 0 (a - b), b'Nat'div a b = if b == 0 then 0 else a `div` b,
+# if a < b then 0 else a - b, b'Nat'div a b = if b == 0 then 0 else a `div` b,
 # b'Nat'mod a b = if b == 0 then a else a `mod` b
-def z.max0(r: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
-  match r:
-    case Some{ZvNeg{n}}:
-      Some{ZvNat{0n}}
-    case _:
-      r
-
 # Int's range (PROPOSED.bend's section 8) ----------------------------------------
 
 # GHC's Int has 64 bits: its numbers are -(m+1)..m, m = 2^63 - 1 (127 at
@@ -1008,7 +1001,15 @@ def z.rd(+r: Rg, +v: ZV) -> Maybe<&2, ZV>:
     case RgInt{m}:
       z.chk(m, v)
 
-# b'Nat'sub, its a - b at r (at two Naturals of the range a - b is in it)
+# b'Nat'sub, its a - b at r, where a < b does not hold (at two Naturals of the
+# range a - b is in it)
+def z.subT.at(lt: Bool, d: Maybe<&2, ZV>, +r: Rg) -> Maybe<&2, ZV>:
+  match lt:
+    case True{}:
+      Some{ZvNat{0n}}
+    case False{}:
+      Maybe.bind(&2, ZV, ZV, d, y => z.rw(r, y))
+
 def z.subT(+a: ZV, +b: ZV, +r: Rg) -> Maybe<&2, ZV>:
   match a:
     case ZvNat{m}:
@@ -1016,9 +1017,17 @@ def z.subT(+a: ZV, +b: ZV, +r: Rg) -> Maybe<&2, ZV>:
         case ZvNat{n}:
           Some{ZvNat{Nat.sub(m, n)}}
         case _:
-          z.max0(Maybe.bind(&2, ZV, ZV, z.sub(ZvNat{m}, b), y => z.rw(r, y)))
+          Maybe.bind(&2, ZV, ZV, z.sub(ZvNat{m}, b), y => z.rw(r, y))
+    case ZvNeg{+m}:
+      match b:
+        case ZvNat{n}:
+          Some{ZvNat{0n}}
+        case ZvNeg{+n}:
+          z.subT.at(Nat.is_lt(n, m), z.sub(ZvNeg{m}, ZvNeg{n}), r)
+        case _:
+          None{}
     case _:
-      z.max0(Maybe.bind(&2, ZV, ZV, z.sub(a, b), y => z.rw(r, y)))
+      None{}
 
 def z.zero(b: ZV) -> Bool:
   match b:
@@ -1792,3 +1801,21 @@ def cc.def(t: Ex) -> HTm:
 
 def ev.def(+t: Ex, x: HV) -> Maybe<&2, HV>:
   ev(t, HvPair{HvUnit{}, x})
+
+# Subtraction a test makes safe (PROPOSED.bend's section 12) ------------------------
+#
+# Where what is around x - y says x >= y, F writes Bend's total Nat.sub
+# (Spec's sp.ssb), at Natural and at an Int it takes to Nat: the program is
+# `if x < y then t else d`, d given what it had and x - y.
+def h.gap(+x: HTm, +y: HTm, t: HTm, d: HTm) -> HTm:
+  HIf{HComp{HPrim{PLt{}}, HPr{x, y}}, t, HComp{d, HPr{HId{}, HComp{HPrim{PSub{}}, HPr{x, y}}}}}
+
+def F.gap(+x: HTm, +y: HTm, t: HTm, d: HTm) -> BTm:
+  BIf{BComp{BPrim{PLt{}}, BPr{F(x), F(y)}}, F(t), BComp{F(d), BPr{BId{}, BComp{BPrim{PSubT{}}, BPr{F(x), F(y)}}}}}
+
+# the same with the test the wrong way: x - y where x < y
+def h.gapw(+x: HTm, +y: HTm, t: HTm, d: HTm) -> HTm:
+  HIf{HComp{HPrim{PLt{}}, HPr{y, x}}, t, HComp{d, HPr{HId{}, HComp{HPrim{PSub{}}, HPr{x, y}}}}}
+
+def F.gapw(+x: HTm, +y: HTm, t: HTm, d: HTm) -> BTm:
+  BIf{BComp{BPrim{PLt{}}, BPr{F(y), F(x)}}, F(t), BComp{F(d), BPr{BId{}, BComp{BPrim{PSubT{}}, BPr{F(x), F(y)}}}}}

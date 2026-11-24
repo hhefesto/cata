@@ -27,7 +27,7 @@ mkdir -p $out/gen $out/l $out/c $out/bin
 cp $here/../Core.bend $out/; cp $here/L.bend $here/R.bend $here/S.bend $out/gen/
 # (without their own laws, GHC's answers at points: dN.exK)
 for f in $l/Frag<->.bend $l/Cata_Base.bend(N); do awk '/^# GHC: /{next} /^def [^ ]*\.ex[0-9]+\(\) -> /{skip=1} !skip{print} skip && /^$/{skip=0}' $f > $out/l/${f:t}; done
-cp $l/HsPrelude.bend $out/l/
+cp $l/HsPrelude.bend $out/l/; [[ -e $l/BendRt.bend ]] && cp $l/BendRt.bend $out/l/
 export BEND_NO_TELEMETRY=1
 [[ -n ${LEAN:-} ]] && export PATH=$LEAN:$PATH
 # MUT: a sed program that breaks cata's Bend, to see certificates fail
@@ -38,6 +38,7 @@ fi
 
 kimp=() ksig=()
 [[ -e $out/l/Cata_Base.bend ]] && kimp=("import ../l/Cata_Base.bend as K") ksig=(K=$out/l/Cata_Base.bend)
+[[ -e $out/l/BendRt.bend ]] && kimp+=("import ../l/BendRt.bend as B") ksig+=(B=$out/l/BendRt.bend)
 
 # one program: N FragK.  A step of a fold has choices (which of cata's calls
 # is the model's fold, or none): the first that leads to a checked file.
@@ -46,7 +47,7 @@ one() {
   local -a saved chs
   local p=total
   grep -B1 "^def d$i(" $out/l/$m.bend | grep -q '^# partial' && p=partial
-  { print -l "# cata's d$i (l/$m.bend) is the model's meaning of it, at every input" "import Base" "import ../Core.bend as C" "import ../gen/R.bend as R" "import ../gen/L.bend as L" "import ../gen/S.bend as S" "import ../l/$m.bend as D" "import ../l/HsPrelude.bend as H" "${kimp[@]}" ""; $out/bin/gen cert $i $p ${SAME:+same} } > $f
+  { print -l "# cata's d$i (l/$m.bend) is the model's meaning of it, at every input" "import Base" "import ../Core.bend as C" "import ../gen/R.bend as R" "import ../gen/L.bend as L" "import ../gen/S.bend as S" "import ../l/$m.bend as D" "import ../l/HsPrelude.bend as H" "${kimp[@]}" ""; $out/bin/gen cert $i $p ${SAME:+same} | { if [[ -n ${EX:-} ]]; then awk -F"\t" -v i=$i -v ex=$EX 'BEGIN { while ((getline l < ex) > 0) { split(l, a, "\t"); if (a[1] == i) e = a[2] } } { print } $0 ~ "^def e" i "\\(\\) -> C.Ex:" { getline; print "  " e }'; else cat; fi } } > $f
   while true; do
     tries=$((tries + 1))
     (cd $out/c && timeout 120 $bend c$i.bend --check-only > c$i.log 2>&1)
@@ -79,6 +80,7 @@ one() {
 }
 
 awk -F'\t' '$1 ~ /Frag[0-9]+\.sexp$/ && $2 ~ /^d[0-9]+$/ && $3 != "out" {sub(/.*\//, "", $1); sub(/\.sexp/, "", $1); sub(/^d/, "", $2); print $2, $1}' $l/ledger.tsv > $out/todo
+[[ -n ${EX:-} ]] && { awk -F"\t" -v ex=$EX 'BEGIN { while ((getline l < ex) > 0) { split(l, a, "\t"); if (a[2] !~ /^OUT/) k[a[1]] = 1 } } { split($0, b, " ") } b[1] in k' $out/todo > $out/todo.2; cp $out/todo.2 $out/todo }
 [[ -n ${ONLY:-} ]] && { awk -v o=" $ONLY " 'index(o, " " $1 " ")' $out/todo > $out/todo.1; cp $out/todo.1 $out/todo }
 while read -r i m; do
   while (( ${#jobstates} >= ${JOBS:-4} )); do sleep 0.1; done

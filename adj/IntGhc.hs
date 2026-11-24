@@ -36,7 +36,7 @@ bool b = pure ("C.ZvBool{" ++ (if b then "True" else "False") ++ "{}}")
 
 -- the model's primitives, at Int (or Int8): Haskell's own, and BendRt's
 -- wrappers as prelude/Back/BendRt.hs defines them (b'Nat'sub a b =
--- max 0 (a - b), ...)
+-- if a < b then 0 else a - b, ...)
 ops :: Integral a => [(String, a -> a -> IO String)]
 ops =
   [ ("PAdd", \a b -> num (a + b))
@@ -44,7 +44,7 @@ ops =
   , ("PSub", \a b -> num (a - b))
   , ("PDiv", \a b -> num (a `div` b))
   , ("PMod", \a b -> num (a `mod` b))
-  , ("PSubT", \a b -> num (max 0 (a - b)))
+  , ("PSubT", \a b -> num (if a < b then 0 else a - b))
   , ("PDivT", \a b -> num (if b == 0 then 0 else a `div` b))
   , ("PModT", \a b -> num (if b == 0 then a else a `mod` b))
   ]
