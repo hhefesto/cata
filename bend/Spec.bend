@@ -1661,7 +1661,7 @@ def sp.pc.amodel(m: Maybe<&2, Pcr>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
 # package for it, as IR.Base's BasicExpr, is one too)
 def sp.pc.ftab() -> List<&2, Pcr>:
   +s = {"GHC.Internal.Show." : String}
-  [Pcr{S.b(s ++ "show"), S.b("fixShow"), 0n}, Pcr{S.b(s ++ "showsPrec"), S.b("fixShowsPrec"), 0n}, Pcr{S.b(s ++ "showList"), S.b("fixShowList"), 0n}, Pcr{S.b(s ++ "shows"), S.b("fixShows"), 0n}]
+  [Pcr{S.b(s ++ "show"), S.b("fixShow"), 0n}, Pcr{S.b(s ++ "showsPrec"), S.b("fixShowsPrec"), 0n}, Pcr{S.b(s ++ "showList"), S.b("fixShowList"), 0n}, Pcr{S.b(s ++ "shows"), S.b("fixShows"), 0n}, Pcr{S.b("GHC.Classes.=="), S.b("fixEq"), 0n}, Pcr{S.b("GHC.Classes./="), S.b("fixNe"), 0n}]
 
 def sp.pc.atfix(+tys: List<&2, X.Sx>) -> Bool:
   +t = sp.first(tys)

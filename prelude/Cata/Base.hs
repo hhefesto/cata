@@ -20,7 +20,7 @@ import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
-import Data.Functor.Classes (Show1 (..))
+import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Functor.Foldable (cata)
 import qualified Data.Map as Map
 import GHC.Show (showList__)
@@ -348,6 +348,14 @@ sequenceOp t = traverse (\x -> x) t
 
 constMap :: forall f a b. Functor f => a -> f b -> f a
 constMap x t = fmap (\_ -> x) t
+
+-- | data-fix's Eq at Fix f: base's Eq1 at f, its liftEq (the package's
+-- instance) at the recursion
+fixEq :: forall f. Eq1 f => Fix f -> Fix f -> Bool
+fixEq (Fix a) (Fix b) = liftEq fixEq a b
+
+fixNe :: forall f. Eq1 f => Fix f -> Fix f -> Bool
+fixNe a b = not (fixEq a b)
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
