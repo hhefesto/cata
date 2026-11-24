@@ -4834,8 +4834,105 @@ def sp.lg(x: X.Sx) -> X.Sx:
     case y:
       y
 
+# A function whose right-hand sides are compositions (resolveItems modules
+# stack = fmap concat . traverse resolveItem) takes its argument, the
+# composition read as calls (fmap concat (traverse resolveItem x)): the
+# list's and the monad's functions then have all their arguments, and a
+# recursion through them is a call. Every fun, the top's and the locals';
+# each right-hand side a call, a name or a lambda, one a composition.
+def sp.lec.comp(+e: X.Sx) -> Bool:
+  +y = sp.pc.strip(e)
+  +f = sp.pc.strip(sp.at(y, 1n))
+  Bool.and(Bool.and(sp.head.is(y, "app"), sp.head.is(f, "app")), sp.is(sp.gkey(sp.vhead(sp.at(f, 1n))), "GHC.Internal.Base.."))
+
+def sp.lec.ok(+e: X.Sx) -> Bool:
+  +y = sp.pc.strip(e)
+  Bool.or(Bool.or(sp.head.is(y, "app"), Bool.or(sp.head.is(y, "g"), sp.head.is(y, "l"))), Bool.or(sp.head.is(y, "tyapp"), sp.head.is(y, "evapp")))
+
+# the right-hand sides of a clause's guards
+def sp.lec.rhs(gs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case g <> t:
+      sp.at(g, 2n) <> sp.lec.rhs(t)
+
+def sp.lec.rhss(ms: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match ms:
+    case Nil{}:
+      Nil{}
+    case +m <> t:
+      List.append(&2, X.Sx, sp.lec.rhs(sp.els(sp.at(sp.at(m, 2n), 1n))), sp.lec.rhss(t))
+
+def sp.lec.any(es: List<&2, X.Sx>) -> Bool:
+  match es:
+    case Nil{}:
+      False{}
+    case e <> t:
+      Bool.or(sp.lec.comp(e), sp.lec.any(t))
+
+def sp.lec.all(es: List<&2, X.Sx>) -> Bool:
+  match es:
+    case Nil{}:
+      True{}
+    case e <> t:
+      Bool.and(sp.lec.ok(e), sp.lec.all(t))
+
+def sp.lec.guards(gs: List<&2, X.Sx>, +v: X.Sx) -> List<&2, X.Sx>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case +g <> t:
+      sp.l([sp.a("grhs"), sp.at(g, 1n), sp.lg.dot(8n, sp.l([sp.a("app"), sp.at(g, 2n), v]))]) <> sp.lec.guards(t, v)
+
+def sp.lec.clauses(ms: List<&2, X.Sx>, +v: X.Sx, +ty: X.Sx) -> List<&2, X.Sx>:
+  match ms:
+    case Nil{}:
+      Nil{}
+    case +m <> t:
+      +gr = sp.at(m, 2n)
+      +ps = sp.l(List.append(&2, X.Sx, sp.els(sp.at(m, 1n)), [sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, ty])])]))
+      sp.l([sp.a("match"), ps, sp.l([sp.a("grhss"), sp.l(sp.lec.guards(sp.els(sp.at(gr, 1n)), v)), sp.at(gr, 2n)])]) <> sp.lec.clauses(t, v, ty)
+
+# the parameter, named after the function (its name's letters and digits)
+def sp.lec.alnum(+c: U32) -> Bool:
+  Bool.or(Bool.or(Bool.and(Bool.not(U32.is_lt(c, 48)), U32.is_lt(c, 58)), Bool.and(Bool.not(U32.is_lt(c, 65)), U32.is_lt(c, 91))), Bool.or(Bool.and(Bool.not(U32.is_lt(c, 97)), U32.is_lt(c, 123)), U32.is_eq(c, 95)))
+
+def sp.lec.keep(cs: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case +c <> t:
+      +rest = sp.lec.keep(t)
+      Bool.pick(List<&2, U32>, sp.lec.alnum(c), c <> rest, rest)
+
+def sp.lec.v(+f: X.Sx) -> X.Sx:
+  +k = sp.lg.key(f)
+  +n = Bool.pick(List<&2, U32>, sp.head.is(k, "g"), sp.sat(k, 2n), sp.sat(k, 1n))
+  sp.l([sp.a("l"), X.SxStr{List.concat(&2, U32, [S.b("c_"), sp.lec.keep(n), S.b("_x")])}, sp.a("0")])
+
+def sp.lec.fun(+f: X.Sx) -> X.Sx:
+  +ms = sp.at(f, 4n)
+  +ty = sp.at(ms, 2n)
+  +cs = sp.els(sp.at(ms, 4n))
+  +es = sp.lec.rhss(cs)
+  +v = sp.lec.v(f)
+  +ms2 = sp.l([sp.a("matches"), sp.l(List.append(&2, X.Sx, sp.els(sp.at(ms, 1n)), [sp.at(ty, 1n)])), sp.at(ty, 2n), sp.at(ms, 3n), sp.l(sp.lec.clauses(cs, v, sp.at(ty, 1n)))])
+  sp.if(X.Sx, Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(ty, "tfun")), Bool.and(sp.lec.any(es), sp.lec.all(es))), _ => sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), ms2, sp.at(f, 5n)]), _ => f)
+
+# bottom up
+def sp.lec(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, t}:
+      +n = {X.SxCons{X.SxAtom{a}, sp.lec(t)} : X.Sx}
+      sp.if(X.Sx, sp.is(a, "fun"), _ => sp.lec.fun(n), _ => n)
+    case X.SxCons{h, t}:
+      X.SxCons{sp.lec(h), sp.lec(t)}
+    case y:
+      y
+
 def sp.passes0(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +rl0: List<&2, X.Sx>, +ol0: List<&2, Og>) -> Rw:
-  +xr = sp.lr(x, cur)
+  +xr = sp.lr(sp.lec(x), cur)
   +xl = sp.lc(xr, sp.fa.binds(xr, Nil{}), sp.ix.cts(ix))
   +xm = sp.if(X.Sx, sp.ix.hasgen(ix), _ => sp.hm(xl, sp.hf.env(xl, sp.ix.sys(ix)), sp.ix.sys(ix)), _ => xl)
   +xq = sp.pl(sp.pc(xm, sp.ix.hasbase(ix), ix), sp.pl.toptvs(x), ix)
