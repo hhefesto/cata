@@ -11121,6 +11121,15 @@ def fd.lc.back(xs: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>, +d: List<&2, U3
     case +x <> t:
       Bool.or(Bool.or(S.eq(x, d), fd.mu.reaches(rs, x, d)), fd.lc.back(t, rs, d))
 
+# whether one of xs is partial (rs's %partial: the partial defs and the
+# prelude's partial functions)
+def fd.lc.part(xs: List<&2, List<&2, U32>>, +rs: List<&2, Mrch>) -> Bool:
+  match xs:
+    case Nil{}:
+      False{}
+    case +x <> t:
+      Bool.or(fd.mu.reaches(rs, S.b("%partial"), x), fd.lc.part(t, rs))
+
 def fd.lc.untpls(xs: List<&2, T.Bt>) -> List<&2, T.Bt>:
   match xs:
     case Nil{}:
@@ -11140,9 +11149,9 @@ def fd.lc.some(b: Bool, c: Lc) -> Maybe<&2, Lc>:
 def fd.lc.q4(cof: Bool, ys: List<&2, T.Bt>, +nocata: Bool, +n: List<&2, U32>, +g: List<&2, U32>, +as: List<&2, T.Bt>, +d: List<&2, U32>, +rs: List<&2, Mrch>) -> Maybe<&2, Lc>:
   match cof ys:
     case True{} w <> r <> +alg <> x <> Nil{}:
-      fd.lc.some(Bool.or(nocata, fd.lc.back(T.tba.refs(fd.untpl(alg), Nil{}), rs, d)), Lc{n, g, True{}, as, fd.untpl(w), fd.untpl(r), fd.untpl(alg)})
+      fd.lc.some(Bool.or(nocata, Bool.or(fd.lc.back(T.tba.refs(fd.untpl(alg), Nil{}), rs, d), fd.lc.part(T.tba.refs(fd.untpl(alg), Nil{}), rs))), Lc{n, g, True{}, as, fd.untpl(w), fd.untpl(r), fd.untpl(alg)})
     case False{} r <> +alg <> x <> Nil{}:
-      fd.lc.some(Bool.or(nocata, fd.lc.back(T.tba.refs(fd.untpl(alg), Nil{}), rs, d)), Lc{n, g, False{}, as, fd.v("Unit"), fd.untpl(r), fd.untpl(alg)})
+      fd.lc.some(Bool.or(nocata, Bool.or(fd.lc.back(T.tba.refs(fd.untpl(alg), Nil{}), rs, d), fd.lc.part(T.tba.refs(fd.untpl(alg), Nil{}), rs))), Lc{n, g, False{}, as, fd.v("Unit"), fd.untpl(r), fd.untpl(alg)})
     case _ _:
       None{}
 
@@ -11491,11 +11500,11 @@ def fd.lc.items(its: List<&2, T.BItem>, +rs: List<&2, Mrch>, +fz: List<&2, Fz>, 
 
 # the module's items with each local cata written (fz: the functors, own
 # and the package's earlier ones; dt: the earlier modules' types)
-def fd.lc.all(+its: List<&2, T.BItem>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+def fd.lc.all(+its: List<&2, T.BItem>, pn: List<&2, List<&2, U32>>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   +ns = fd.mu.names(its)
   +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
   +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
-  fd.lc.items(its, rs, fz, List.append(&2, T.BItem, its, dt))
+  fd.lc.items(its, Mrch{S.b("%partial"), T.tba.set(pn, Map.new(&2, Bool))} <> rs, fz, List.append(&2, T.BItem, its, dt))
 
 # Template copies ---------------------------------------------------------------
 #
@@ -12321,6 +12330,13 @@ type Pp is Data:
 
 def fd.pt.pres() -> List<&2, Pp>:
   [Pp{"HsPrelude.HsPt.errorq", 3n}, Pp{"HsPrelude.HsPt.undefq", 3n}, Pp{"HsPrelude.HsList.error", 1n}, Pp{"HsPrelude.HsList.undefined", 1n}, Pp{"HsPrelude.HsList.head", 1n}, Pp{"HsPrelude.HsList.last", 1n}, Pp{"HsPrelude.HsList.index", 1n}, Pp{"HsPrelude.HsList.index.go", 1n}, Pp{"HsPrelude.HsList.fromJust", 1n}, Pp{"HsPrelude.HsList.tail", 2n}, Pp{"HsPrelude.HsList.init", 2n}, Pp{"HsPrelude.HsMap.at", 3n}, Pp{"HsPrelude.HsList.maximum", 1n}, Pp{"HsPrelude.HsList.minimum", 1n}, Pp{"HsPrelude.HsList.maximumBy", 1n}, Pp{"HsPrelude.HsList.minimumBy", 1n}, Pp{"HsPrelude.HsList.foldr1", 1n}, Pp{"HsPrelude.HsList.foldl1", 1n}, Pp{"HsPrelude.HsNum.sub", 4n}, Pp{"HsPrelude.HsNum.div", 4n}, Pp{"HsPrelude.HsNum.mod", 4n}, Pp{"HsPrelude.HsNum.idiv", 5n}, Pp{"HsPrelude.HsNum.imod", 5n}, Pp{"HsPrelude.HsNum.iquot", 5n}, Pp{"HsPrelude.HsNum.irem", 5n}, Pp{"HsPrelude.HsNum.rdiv", 6n}]
+
+def fd.pt.prenames(xs: List<&2, Pp>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Pp{s, k} <> t:
+      S.b(s) <> fd.pt.prenames(t)
 
 def fd.pt.pre.find(xs: List<&2, Pp>, +f: List<&2, U32>) -> Nat:
   match xs:
@@ -13593,6 +13609,21 @@ def fd.ph.all2(+its: List<&2, T.BItem>, +hs: List<&2, Hkf>, +hds: List<&2, Hdf>,
 def fd.ph.all(+its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
   +hds = fd.ph.hds(its)
   fd.ph.all2(its, fd.ph.fix(50n, False{}, hds, ks, fd.ph.scans(its, hds, ks, Nil{})), hds, ks)
+
+# the local catas, the partial ones too (its partial defs' names and the
+# prelude's partial functions': a cata at a partial algebra is written as a
+# def of its own, whose calls the partial pass binds)
+def fd.pt.pnames(ks: List<&2, Pt>) -> List<&2, List<&2, U32>>:
+  match ks:
+    case Nil{}:
+      fd.pt.prenames(fd.pt.pres())
+    case Pt{n, ps, r} <> t:
+      n <> fd.pt.pnames(t)
+    case Ph{n, i, ps, b, r} <> t:
+      fd.pt.pnames(t)
+
+def fd.lc.allp(+its: List<&2, T.BItem>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.lc.all(its, fd.pt.pnames(fd.pt.ks(its, dt)), fz, dt)
 
 # the items with the point-free partial defs given their parameters
 def fd.el.of(es: List<&2, Een>, its: List<&2, T.BItem>) -> List<&2, T.BItem>:
@@ -15449,7 +15480,7 @@ def fd.kd.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
 # arguments) holds a function where one is a local action (IC's eraRegion's
 # dropLeaf), and is a Type then
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))
+  fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:

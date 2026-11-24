@@ -4821,11 +4821,19 @@ def sp.hf.lets(x: X.Sx, +env: List<&2, Asb>, +sys: List<&2, Sy>) -> List<&2, Asb
     case _:
       Nil{}
 
-# (twice: a local function may use another)
+# (rounds, at most eight: a local function may use another that uses another
+# ..: EAL's instantiateTemplate: shEq, shB, sh, shift)
+def sp.hf.env.go(fuel: Nat, +x: X.Sx, +e0: List<&2, Asb>, +e: List<&2, Asb>, +sys: List<&2, Sy>) -> List<&2, Asb>:
+  match fuel:
+    case 0n:
+      e
+    case 1n+p:
+      +e2 = List.append(&2, Asb, sp.hf.lets(x, e, sys), e0)
+      sp.if(List<&2, Asb>, Nat.is_eq(List.length(&2, Asb, e2), List.length(&2, Asb, e)), _ => e, _ => sp.hf.env.go(p, x, e0, e2, sys))
+
 def sp.hf.env(+x: X.Sx, +sys: List<&2, Sy>) -> List<&2, Asb>:
   +e0 = sp.fa.binds(x, Nil{})
-  +e1 = List.append(&2, Asb, sp.hf.lets(x, e0, sys), e0)
-  List.append(&2, Asb, sp.hf.lets(x, e1, sys), e1)
+  sp.hf.env.go(8n, x, e0, e0, sys)
 
 # mapM, forM, traverse, for, mapM_, forM_, traverse_, for_ and foldM at a
 # list and a function that uses a value only the run has (`forM xs (\x ->
@@ -5229,6 +5237,25 @@ def sp.lh.lam(m: Maybe<&2, Lh>, +tys: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
     case None{}:
       x
 
+# a use's lambda given its function (shKV (fmap shInfo)): the lambda of its
+# other parameters, the function in the first one's place (a variable), so
+# that what the function is given is read in its body (fmap shInfo v)
+def sp.lh.give(+lam: X.Sx, +a: X.Sx) -> Maybe<&2, X.Sx>:
+  +ms = sp.at(lam, 2n)
+  +ts = sp.els(sp.at(ms, 1n))
+  +m0 = sp.first(sp.els(sp.at(ms, 4n)))
+  +ps = sp.els(sp.at(m0, 1n))
+  +p0 = sp.first(ps)
+  +v = sp.at(sp.at(p0, 1n), 1n)
+  +ok = Bool.and(Bool.and(sp.head.is(lam, "lam"), Nat.is_gt(List.length(&2, X.Sx, ts), 1n)), Bool.and(sp.head.is(p0, "pvar"), sp.head.is(sp.first(ts), "tfun")))
+  +m = sp.l([sp.a("match"), sp.l(sp.dropn(ps, 1n)), sp.beta.sub(sp.at(m0, 2n), v, a)])
+  +ms2 = sp.l([sp.a("matches"), sp.l(sp.dropn(ts, 1n)), sp.at(ms, 2n), sp.at(ms, 3n), sp.l([m])])
+  Bool.pick(Maybe<&2, X.Sx>, ok, Some{sp.l([sp.a("lam"), sp.a("single"), ms2])}, None{})
+
+def sp.lh.app(+f: X.Sx, +a: X.Sx) -> X.Sx:
+  +m = sp.if(Maybe<&2, X.Sx>, sp.head.is(f, "lam"), _ => sp.lh.give(f, a), _ => None{})
+  sp.or(m, sp.l([sp.a("app"), f, a]))
+
 # the uses (a local, its type arguments around it) in x; a binder stays
 def sp.lh.sub(x: X.Sx, +hs: List<&2, Lh>) -> X.Sx:
   match x:
@@ -5238,7 +5265,8 @@ def sp.lh.sub(x: X.Sx, +hs: List<&2, Lh>) -> X.Sx:
       +hd = sp.if(X.Sx, isl, _ => sp.vhead(n), _ => X.SxNil{})
       +m = sp.if(Maybe<&2, Lh>, sp.head.is(hd, "l"), _ => sp.lh.find(hs, hd), _ => None{})
       +bind = Bool.or(sp.is(a, "fun"), Bool.or(sp.is(a, "export"), sp.is(a, "self")))
-      sp.if(X.Sx, Maybe.is_some(&2, Lh, m), _ => sp.lh.lam(m, sp.spine.tys(n, Nil{}), n), _ => sp.if(X.Sx, bind, _ => X.SxCons{X.SxAtom{a}, X.SxCons{p, sp.lh.sub(t, hs)}}, _ => X.SxCons{X.SxAtom{a}, X.SxCons{sp.lh.sub(p, hs), sp.lh.sub(t, hs)}}))
+      +pu = sp.if(Bool, Bool.and(sp.is(a, "app"), sp.head.is(sp.vhead(p), "l")), _ => Maybe.is_some(&2, Lh, sp.lh.find(hs, sp.vhead(p))), _ => False{})
+      sp.if(X.Sx, Maybe.is_some(&2, Lh, m), _ => sp.lh.lam(m, sp.spine.tys(n, Nil{}), n), _ => sp.if(X.Sx, bind, _ => X.SxCons{X.SxAtom{a}, X.SxCons{p, sp.lh.sub(t, hs)}}, _ => sp.if(X.Sx, pu, _ => sp.lh.app(sp.lh.sub(p, hs), sp.first(sp.els(sp.lh.sub(t, hs)))), _ => X.SxCons{X.SxAtom{a}, X.SxCons{sp.lh.sub(p, hs), sp.lh.sub(t, hs)}})))
     case X.SxCons{h, t}:
       X.SxCons{sp.lh.sub(h, hs), sp.lh.sub(t, hs)}
     case y:
