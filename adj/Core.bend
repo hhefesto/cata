@@ -6,9 +6,10 @@
 # The core is cata's fragment as combinators, point-free (the categories'
 # own structure, so F's compositionality is its definition): identities,
 # composition, pairs, sums, foldr over lists (lists' initial algebra), the
-# numbers' arithmetic and tests, general recursion with fuel (at the
-# end: a loop, Haskell's until, and cata's fuelled def), and the
-# primitives where the two languages differ: Haskell's Natural
+# numbers' arithmetic and tests (at Int, at a range: every integer, or
+# Int's 64 bits), general recursion with fuel (near the end: a loop,
+# Haskell's until, and cata's fuelled def), and the primitives where the
+# two languages differ: Haskell's Natural
 # subtraction, div and mod are partial (an error below 0 or at 0), Bend's
 # Nat.sub, Nat.div and Nat.mod are total (0 below 0, 0 at 0, a at 0), and
 # a partial Bend def answers a failure value (the Inl of its Either).  A
@@ -610,7 +611,8 @@ def gz(+b: BTm, +z: ZV) -> Maybe<&2, ZV>:
 # Haskell's meaning at Int --------------------------------------------------------
 
 # h run at Int: its values ZV, negative numbers too, and Int's own
-# arithmetic (Integer's: the model has no wrap-around).  ZvNat{n} is n,
+# arithmetic (Integer's here; Int's 64 bits, wrap-around, are a range,
+# below and at the end, PROPOSED.bend's section 8).  ZvNat{n} is n,
 # ZvNeg{n} is -(n+1).  What F's Nat is right for is then a theorem, not a
 # hypothesis: at a Natural value, h at Int means what h at Natural means
 # whenever h never subtracts (PROPOSED.bend's agree), and not otherwise
@@ -805,16 +807,110 @@ def z.max0(r: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
     case _:
       r
 
-def z.subT(+a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+# Int's range (PROPOSED.bend's section 8) ----------------------------------------
+
+# GHC's Int has 64 bits: its numbers are -(m+1)..m, m = 2^63 - 1 (127 at
+# Int8), and (+), (-) and a literal take a number outside around, modulo
+# 2m + 2; div's one answer outside, minBound `div` (-1), is an error
+# (GHC.Real's overflowError).  A comparison and mod make no number outside
+# their arguments' range.  The model's Int so far has every integer.
+
+# whether v is in -(m+1)..m (anything but a number is)
+def z.inr(+m: Nat, v: ZV) -> Bool:
+  match v:
+    case ZvNat{n}:
+      Bool.not(Nat.is_lt(m, n))
+    case ZvNeg{n}:
+      Bool.not(Nat.is_lt(m, n))
+    case _:
+      True{}
+
+# 2m + 2, the modulus
+def z.k(+m: Nat) -> Nat:
+  Nat.add(Nat.add(m, m), 2n)
+
+# r, 0 <= r < 2m + 2, as the range's number: r, or r - (2m + 2) above m
+def z.wrapr.at(c: Bool, +m: Nat, +r: Nat) -> ZV:
+  match c:
+    case True{}:
+      ZvNeg{Nat.sub(Nat.add(Nat.add(m, m), 1n), r)}
+    case False{}:
+      ZvNat{r}
+
+def z.wrapr(+m: Nat, +r: Nat) -> ZV:
+  z.wrapr.at(Nat.is_lt(m, r), m, r)
+
+# a number modulo 2m + 2, in the range
+def z.wrapx(+m: Nat, v: ZV) -> ZV:
+  match v:
+    case ZvNat{n}:
+      z.wrapr(m, Nat.mod(n, z.k(m)))
+    case ZvNeg{n}:
+      z.wrapr(m, Nat.mod(Nat.sub(z.k(m), Nat.mod(1n+n, z.k(m))), z.k(m)))
+    case y:
+      y
+
+# Int's number for v: v in the range, else v taken around
+def z.wrap.at(c: Bool, +m: Nat, v: ZV) -> ZV:
+  match c:
+    case True{}:
+      v
+    case False{}:
+      z.wrapx(m, v)
+
+def z.wrap(+m: Nat, +v: ZV) -> ZV:
+  z.wrap.at(z.inr(m, v), m, v)
+
+# v in the range, else an error
+def z.chk.at(c: Bool, v: ZV) -> Maybe<&2, ZV>:
+  match c:
+    case True{}:
+      Some{v}
+    case False{}:
+      None{}
+
+def z.chk(+m: Nat, +v: ZV) -> Maybe<&2, ZV>:
+  z.chk.at(z.inr(m, v), v)
+
+# a run's range: every integer (Integer's, the model's Int so far),
+# -(m+1)..m with an error where a number leaves it (the exact run that
+# stays in Int's range), or GHC's Int of range m
+type Rg is Data:
+  RgAll{}
+  RgIn{m: Nat}
+  RgInt{m: Nat}
+
+# the number a literal, (+) or (-) makes, v exactly
+def z.rw(+r: Rg, +v: ZV) -> Maybe<&2, ZV>:
+  match r:
+    case RgAll{}:
+      Some{v}
+    case RgIn{m}:
+      z.chk(m, v)
+    case RgInt{m}:
+      Some{z.wrap(m, v)}
+
+# the number div makes, v exactly
+def z.rd(+r: Rg, +v: ZV) -> Maybe<&2, ZV>:
+  match r:
+    case RgAll{}:
+      Some{v}
+    case RgIn{m}:
+      z.chk(m, v)
+    case RgInt{m}:
+      z.chk(m, v)
+
+# b'Nat'sub, its a - b at r (at two Naturals of the range a - b is in it)
+def z.subT(+a: ZV, +b: ZV, +r: Rg) -> Maybe<&2, ZV>:
   match a:
     case ZvNat{m}:
       match b:
         case ZvNat{n}:
           Some{ZvNat{Nat.sub(m, n)}}
         case _:
-          z.max0(z.sub(ZvNat{m}, b))
+          z.max0(Maybe.bind(&2, ZV, ZV, z.sub(ZvNat{m}, b), y => z.rw(r, y)))
     case _:
-      z.max0(z.sub(a, b))
+      z.max0(Maybe.bind(&2, ZV, ZV, z.sub(a, b), y => z.rw(r, y)))
 
 def z.zero(b: ZV) -> Bool:
   match b:
@@ -859,51 +955,58 @@ def z.modT(+a: ZV, +b: ZV) -> Maybe<&2, ZV>:
     case _:
       z.modT.at(z.zero(b), a, b)
 
-# a primitive at Int, at two numbers
-def z.at(p: Prim, +a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+# a primitive at Int, at two numbers, at range r
+def z.atw(p: Prim, +a: ZV, +b: ZV, +r: Rg) -> Maybe<&2, ZV>:
   match p:
     case PAdd{}:
-      z.add(a, b)
+      Maybe.bind(&2, ZV, ZV, z.add(a, b), y => z.rw(r, y))
     case PLt{}:
       z.lt(a, b)
     case PSub{}:
-      z.sub(a, b)
+      Maybe.bind(&2, ZV, ZV, z.sub(a, b), y => z.rw(r, y))
     case PDiv{}:
-      z.div(a, b)
+      Maybe.bind(&2, ZV, ZV, z.div(a, b), y => z.rd(r, y))
     case PMod{}:
       z.mod(a, b)
     case PSubT{}:
-      z.subT(a, b)
+      z.subT(a, b, r)
     case PDivT{}:
-      z.divT(a, b)
+      Maybe.bind(&2, ZV, ZV, z.divT(a, b), y => z.rd(r, y))
     case PModT{}:
       z.modT(a, b)
 
+# at every integer
+def z.at(p: Prim, +a: ZV, +b: ZV) -> Maybe<&2, ZV>:
+  z.atw(p, a, b, RgAll{})
+
 # its argument: a pair of numbers, anything else an error
-def z.nb(p: Prim, +a: ZV, b: ZV) -> Maybe<&2, ZV>:
+def z.nb(p: Prim, +a: ZV, b: ZV, +r: Rg) -> Maybe<&2, ZV>:
   match b:
     case ZvNat{n}:
-      z.at(p, a, ZvNat{n})
+      z.atw(p, a, ZvNat{n}, r)
     case ZvNeg{n}:
-      z.at(p, a, ZvNeg{n})
+      z.atw(p, a, ZvNeg{n}, r)
     case _:
       None{}
 
-def z.ab(p: Prim, a: ZV, b: ZV) -> Maybe<&2, ZV>:
+def z.ab(p: Prim, a: ZV, b: ZV, +r: Rg) -> Maybe<&2, ZV>:
   match a:
     case ZvNat{m}:
-      z.nb(p, ZvNat{m}, b)
+      z.nb(p, ZvNat{m}, b, r)
     case ZvNeg{m}:
-      z.nb(p, ZvNeg{m}, b)
+      z.nb(p, ZvNeg{m}, b, r)
+    case _:
+      None{}
+
+def z.primw(p: Prim, v: ZV, +r: Rg) -> Maybe<&2, ZV>:
+  match v:
+    case ZvPair{a, b}:
+      z.ab(p, a, b, r)
     case _:
       None{}
 
 def z.prim(p: Prim, v: ZV) -> Maybe<&2, ZV>:
-  match v:
-    case ZvPair{a, b}:
-      z.ab(p, a, b)
-    case _:
-      None{}
+  z.primw(p, v, RgAll{})
 
 def z.fst(v: ZV) -> Maybe<&2, ZV>:
   match v:
@@ -935,19 +1038,20 @@ def z.if(c: Maybe<&2, ZV>, a: Maybe<&2, ZV>, e: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
     case _:
       None{}
 
-# Haskell's meaning at Int: the answer of t at v, None an error
-def eval.z(+t: HTm, +v: ZV) -> Maybe<&2, ZV>:
+# Haskell's meaning at Int, at range r: the answer of t at v, None an
+# error
+def eval.zr(+r: Rg, +t: HTm, +v: ZV) -> Maybe<&2, ZV>:
   match t:
     case HId{}:
       Some{v}
     case HComp{g, f}:
-      Maybe.bind(&2, ZV, ZV, eval.z(f, v), y => eval.z(g, y))
+      Maybe.bind(&2, ZV, ZV, eval.zr(r, f, v), y => eval.zr(r, g, y))
     case HFst{}:
       z.fst(v)
     case HSnd{}:
       z.snd(v)
     case HPr{f, g}:
-      z.pair(eval.z(f, v), eval.z(g, v))
+      z.pair(eval.zr(r, f, v), eval.zr(r, g, v))
     case HInl{}:
       Some{ZvInl{v}}
     case HInr{}:
@@ -955,27 +1059,32 @@ def eval.z(+t: HTm, +v: ZV) -> Maybe<&2, ZV>:
     case HCase{f, g}:
       match v:
         case ZvInl{a}:
-          eval.z(f, a)
+          eval.zr(r, f, a)
         case ZvInr{b}:
-          eval.z(g, b)
+          eval.zr(r, g, b)
         case _:
           None{}
     case HLit{n}:
-      Some{ZvNat{n}}
+      z.rw(r, ZvNat{n})
     case HPrim{p}:
-      z.prim(p, v)
+      z.primw(p, v, r)
     case HIf{c, a, e}:
-      z.if(eval.z(c, v), eval.z(a, v), eval.z(e, v))
+      z.if(eval.zr(r, c, v), eval.zr(r, a, v), eval.zr(r, e, v))
     case HFold{z, s}:
       match v:
         case ZvNil{}:
-          eval.z(z, ZvUnit{})
+          eval.zr(r, z, ZvUnit{})
         case ZvCons{hd, tl}:
-          Maybe.bind(&2, ZV, ZV, eval.z(t, tl), r => eval.z(s, ZvPair{hd, r}))
+          Maybe.bind(&2, ZV, ZV, eval.zr(r, t, tl), q => eval.zr(r, s, ZvPair{hd, q}))
         case _:
           None{}
     case HErr{}:
       None{}
+
+# Haskell's meaning at Int, every integer (Integer's: section 8 has Int's
+# 64 bits)
+def eval.z(+t: HTm, +v: ZV) -> Maybe<&2, ZV>:
+  eval.zr(RgAll{}, t, v)
 
 # whether a program never subtracts (Haskell's (-); Survey.bend's int-sub
 # refuses it at an Int F takes to Nat, and negate and pred with it)
@@ -1129,3 +1238,24 @@ def le(a: Nat, b: Nat) -> Bool:
       False{}
     case 1n+i 1n+j:
       le(i, j)
+
+# Int's range: GHC's Int ------------------------------------------------------
+
+# h at GHC's Int of range m: (+), (-) and literals wrap around, div at
+# minBound by -1 errs
+def eval.int(+m: Nat, +t: HTm, +v: ZV) -> Maybe<&2, ZV>:
+  eval.zr(RgInt{m}, t, v)
+
+# h's exact run while it stays in -(m+1)..m: an error where a number leaves
+# the range
+def eval.in(+m: Nat, +t: HTm, +v: ZV) -> Maybe<&2, ZV>:
+  eval.zr(RgIn{m}, t, v)
+
+# GHC's Int: m = 2^63 - 1 (a term: Bend's literals stop at 2^32 - 1, and
+# its Nat is unary, so no proof computes with it)
+def int.max() -> Nat:
+  Nat.sub(Nat.mul(Nat.mul(65536n, 65536n), 2147483648n), 1n)
+
+# Int8's: 127
+def int8.max() -> Nat:
+  127n

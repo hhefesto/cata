@@ -305,3 +305,61 @@ law adj.FG.loop.not:
   for n: Nat
   for adj: FG.loop(n)
   Empty
+
+# 8. Int's range.  GHC's Int has 64 bits: a number outside -(m+1)..m
+# (m = 2^63 - 1, Core.bend's int.max()) that (+), (-) or a literal makes
+# is taken around, modulo 2m + 2, and minBound `div` (-1) is an error,
+# where sections 5 and 6 have every integer (Integer's).  Core.bend has
+# both at any m: eval.int is GHC's Int of range m, eval.in the exact run
+# while it stays in the range (an error where a number leaves it); INT.bend
+# checks the model's Int8 (m = 127) against GHC's Int8 on a grid.  For
+# every m: where h's run stays in the range, GHC's Int answers what every
+# integer does (range.int, range.z), so section 6 holds there of Int's own
+# 64 bits (agree.int: at a Natural value, h at Int means what h at Natural
+# means); and the hypothesis is needed: x + x at 127 is -2 at Int8, 254
+# at every integer (range.int8, range.not).
+
+law range.int:
+  for +m: Nat
+  for +h: C.HTm
+  for +v: C.ZV
+  for +u: C.ZV
+  for e: {C.eval.in(m, h, v) == Some{u} : Maybe<&2, C.ZV>}
+  {C.eval.int(m, h, v) == Some{u} : Maybe<&2, C.ZV>}
+
+law range.z:
+  for +m: Nat
+  for +h: C.HTm
+  for +v: C.ZV
+  for +u: C.ZV
+  for e: {C.eval.in(m, h, v) == Some{u} : Maybe<&2, C.ZV>}
+  {C.eval.z(h, v) == Some{u} : Maybe<&2, C.ZV>}
+
+law agree.int:
+  for +m: Nat
+  for +h: C.HTm
+  for +e: {C.nosub(h) == True{} : Bool}
+  for +x: C.HV
+  for +u: C.ZV
+  for +ei: {C.eval.in(m, h, C.up(x)) == Some{u} : Maybe<&2, C.ZV>}
+  {C.eval.int(m, h, C.up(x)) == C.upM(C.eval.h(h, x)) : Maybe<&2, C.ZV>}
+
+# at GHC's Int, 64 bits
+law agree.int64:
+  for +h: C.HTm
+  for +e: {C.nosub(h) == True{} : Bool}
+  for +x: C.HV
+  for +u: C.ZV
+  for +ei: {C.eval.in(C.int.max(), h, C.up(x)) == Some{u} : Maybe<&2, C.ZV>}
+  {C.eval.int(C.int.max(), h, C.up(x)) == C.upM(C.eval.h(h, x)) : Maybe<&2, C.ZV>}
+
+# x + x
+def hdbl() -> C.HTm:
+  C.HComp{C.HPrim{C.PAdd{}}, C.HPr{C.HId{}, C.HId{}}}
+
+law range.int8:
+  {C.eval.int(C.int8.max(), hdbl(), C.ZvNat{127n}) == Some{C.ZvNeg{1n}} : Maybe<&2, C.ZV>}
+
+law range.not:
+  for e: {C.eval.int(C.int8.max(), hdbl(), C.ZvNat{127n}) == C.eval.z(hdbl(), C.ZvNat{127n}) : Maybe<&2, C.ZV>}
+  Empty

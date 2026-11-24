@@ -323,8 +323,15 @@ HsPrelude's `HsInt`, an integer: `Pos{n}` is n, `Neg{n}` is -n (n at least
 Haskell's `div`, `mod`, `quot` and `rem`, `^`, comparisons, `show`, `succ`,
 `pred`, `toEnum`, `fromEnum`, `fromIntegral` and `toInteger` between them,
 literals and literal patterns below zero; `IntMap v` is `Map HsInt v` and
-`IntSet` `Set HsInt`. Int's 64-bit wrap-around is not modelled. A single
+`IntSet` `Set HsInt`. Int's 64-bit wrap-around is not written: F's Int
+is exact, right wherever a run stays in Int's range (`adj/`, section 8,
+proves that, and that it is wrong where a run overflows). A single
 module (hs1003) keeps Int as Nat, where nothing subtracts.
+
+A module alone (tests/hs, hs1003) skips spec, but survey, fold and law
+read every export through spec's local-pattern-binding rewrite (sp.pb,
+Survey's sv.read), so its `let (a, b) = e` and `let !x = e` fold as a
+package's do.
 
 crypton's `Digest SHA256` is HsPrelude's `HsDigest` (its 32 bytes): `hash` is
 SHA-256 written in Bend, `show` its hex text, `==` and `compare` its bytes'

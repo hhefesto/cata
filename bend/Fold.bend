@@ -11673,7 +11673,7 @@ def fd.hm.all(+gs: List<&2, Got>) -> List<&2, Got>:
 # a module of a package (px: what the modules before it gave, fd.px0() for
 # a module alone); the package after it
 def fd.module(+rounds: Nat, +bend: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: Px) -> IO(Px):
-  +xs = X.tsx.read(bytes)
+  +xs = V.sv.read(bytes)
   +m = V.sv.modname(xs)
   +tbs = fd.tbs(xs)
   +cs = fd.ctrs(xs)

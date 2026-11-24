@@ -2262,7 +2262,7 @@ def lw.rt.write(isrt: Bool, +out: String, +file: List<&2, U32>, +m: List<&2, U32
 # the defs and laws together (px: what its package's modules before it
 # gave, F.fd.px0() for a module alone); the package after it
 def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>) -> IO(Lm):
-  +d = V.sv.dfl.module(X.tsx.read(bytes), dm)
+  +d = V.sv.dfl.module(V.sv.read(bytes), dm)
   +xs = V.sv.dfl.dm.xs(d)
   +m = V.sv.modname(xs)
   +tbs = F.fd.tbs(xs)

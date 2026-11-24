@@ -2069,6 +2069,19 @@ a fresh `--verdict`, no cache, 55 s).
   specialiser's copies at the known function), dropped, so the fuel
   group no longer takes palg, patternRefs and its cata (3 defs fewer);
   hs1003's ledger line for line, 7,127 laws as before (both).
+- **Local pattern bindings in a module alone (Survey's sv.read, 11-23).**
+  `let (a, b) = e` and `let !x = e` were out (fold:form) in every run of
+  a module alone (tests/hs, hs1003), in a package's never: Fold takes a
+  local pattern binding as Spec's sp.pb writes it (its binders plain
+  locals, its pattern's type after it), and a module alone skips spec
+  (it keeps Int as Nat). Survey, fold and law now read every export
+  through sp.pb (sv.read), which changes nothing in spec's own output.
+  tests/hs (law-pb1): 34 modules with laws (31), 1,198 laws (1,142), all
+  the same through G(F(h)); PatBind's sumCount, mean and classify, Bang's
+  bangLet and bangWhere ok-law; a lazy tuple let whose unused part errs
+  (`let (h, k) = (head xs, 1) in if b then k else h` at []) is out on
+  its law (Bend matches the pair, so forces head), as the gate should.
+  Telomare (pkgd10): its Bend byte for byte pkgd9's, 420 laws the same.
 - **General recursion, in the model (7).** A fuelled def's end answers a
   default (fd.dv), and that stays (the user, 11-23: "make a suggestion
   and let's follow that"; the suggestion: keep the default, the theorem
@@ -2090,11 +2103,32 @@ a fresh `--verdict`, no cache, 55 s).
   `run.zsh`: PASS (`--verdict`, BendTT's kernel); three mutants (the fuel's
   end answering None, G's loop answering its default where it stops, b's
   default 0 instead of 7) each fail.
+- **Int's range, in the model (8).** GHC's Int has 64 bits; sections 5
+  and 6 had every integer (Integer's), and F's Nat (or HsInt) has every
+  integer too, so F is right at Int only where nothing overflows. The
+  model's evaluator at Int takes a range (`eval.zr r`, one evaluator:
+  `eval.z` is it at every integer): `eval.int m`, GHC's Int of range
+  -(m+1)..m ((+), (-) and literals wrap around modulo 2m + 2, div at
+  minBound by -1 an error, GHC.Real's overflowError; b'Nat'sub's own a -
+  b wraps inside its max 0), and `eval.in m`, the exact run with an error
+  where a number leaves the range. Proved, for every m: where h's run
+  stays in the range, GHC's Int answers what every integer answers
+  (`range.int`, `range.z`, one induction on h), so section 6 holds of
+  Int's own 64 bits there (`agree.int`; `agree.int64` at m = 2^63 - 1,
+  Core.bend's `int.max()`, a term: Bend's literals stop at 2^32 - 1 and
+  its Nat is unary, so no proof computes with it); and the hypothesis is
+  needed: x + x at 127 is -2 at Int8, 254 at every integer
+  (`range.int8`, `range.not`). The model's range is GHC's: `IntGhc.hs`
+  now also writes GHC's Int8 at its edges (minBound, maxBound and around
+  them, 121 pairs, all 8 primitives) into INT.bend, checked against
+  `z.primw` at range 127. `run.zsh` PASS, 40 laws, 40 proofs; mutants (no
+  wrap, no range check, every number in range, div at minBound by -1
+  answering, the modulus off by one) each fail.
 - **Outside the model.** Laziness beyond
   float-in (Bend is strict: a partial call's error is still the def's
   where Haskell never forces it in a lazy structure, a list's unforced
-  elements). Int's wrap-around (the model's Int is Integer's: (6) is
-  exact at Integer, and at Int up to overflow). And cata's real G keeps
+  elements). An overflowing run (section 8: F answers the exact number
+  where GHC's Int wraps; nothing in cata guards it). And cata's real G keeps
   h's Int (BendRt's numbers are any Num's): it has no underflow guard, so
   at Int it is the model's gz only on non-negative inputs, which are the
   laws' inputs.

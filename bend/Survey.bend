@@ -1,6 +1,7 @@
 import Base
 import ./a2b/Sys.bend as S
 import ./a2b/ToBend/Sexp.bend as X
+import ./Spec.bend as SP
 
 # Survey: which bindings of hs-export's modules (tools/hs-export/FORMAT.md)
 # fall in cata hs's first version, and why the others do not.  It
@@ -1917,10 +1918,25 @@ def sv.module.if(err: Bool, +file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb, 
     case False{}:
       sv.module.both(file, xs, tb, imp)
 
+# an export's items as survey, fold and law read them: each local pattern
+# binding's binders plain locals and its pattern's type after it, Spec's
+# sp.pb, so that a module alone (tests/hs, hs1003: no spec, Int kept Nat)
+# has its `let (a, b) = e` and `let !x = e` as a package's do; on spec's
+# own output sp.pb changes nothing
+def sv.pbs(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      SP.sp.pb(x) <> sv.pbs(t)
+
+def sv.read(bytes: List<&2, U32>) -> List<&2, X.Sx>:
+  sv.pbs(X.tsx.read(bytes))
+
 # a module's lines, from its export's bytes, and what its package has after
 # it (imp: what the package had before; sv.imp0() for a module alone)
 def sv.module(+file: List<&2, U32>, bytes: List<&2, U32>, +tb: Tb, +imp: Imp) -> Sv:
-  +xs = X.tsx.read(bytes)
+  +xs = sv.read(bytes)
   sv.module.if(sv.err(xs), file, xs, tb, imp)
 
 # the same, from its items (read at Integer where the default rule takes
@@ -1943,7 +1959,7 @@ def sv.run(xs: List<String>, +out: String, +tb: Tb, +pkg: Bool, +imp: Imp, dm: M
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +d : Dm <- IO.pure(Dm, sv.dfl.module(X.tsx.read(bytes), dm))
+        +d : Dm <- IO.pure(Dm, sv.dfl.module(sv.read(bytes), dm))
         +s : Sv <- IO.pure(Sv, sv.module.xs(S.b(f), sv.dfl.dm.xs(d), tb, imp))
         S.add(out, sv.sv.lines(s))
         sv.run(t, out, tb, pkg, sv.next(pkg, s), sv.dfl.next(pkg, sv.dfl.dm.m(d)))
