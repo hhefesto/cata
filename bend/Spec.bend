@@ -5648,14 +5648,57 @@ def sp.lm.put(x: X.Sx, +m: Lm, +u: Lu) -> X.Sx:
     case w:
       w
 
+# a use's dictionary bound where its local is not in scope (the evbinds of a
+# binding beside it: GHC gives each binding its own) is what it is bound to,
+# when that is ($fOrdInt, or in terms of what is in scope)
+def sp.lm.evbs(x: X.Sx) -> List<&2, Lb>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +y = {X.SxCons{h, t} : X.Sx}
+      +r = List.append(&2, Lb, sp.lm.evbs(h), sp.lm.evbs(t))
+      sp.if(List<&2, Lb>, sp.head.is(y, "evbind"), _ => Lb{sp.at(sp.at(y, 1n), 1n), sp.at(y, 2n)} <> r, _ => r)
+    case _:
+      Nil{}
+
+def sp.lm.putev(x: X.Sx, +evs: List<&2, Lb>) -> X.Sx:
+  match x:
+    case X.SxCons{+h, +t}:
+      +y = {X.SxCons{h, t} : X.Sx}
+      +d = sp.if(Maybe<&2, X.Sx>, sp.head.is(y, "l"), _ => sp.lm.lb(evs, y), _ => None{})
+      sp.if(X.Sx, Maybe.is_some(&2, X.Sx, d), _ => Maybe.default(&2, X.Sx, d, y), _ => X.SxCons{sp.lm.putev(h, evs), sp.lm.putev(t, evs)})
+    case w:
+      w
+
+def sp.lm.resolve(fuel: Nat, d: X.Sx, +evs: List<&2, Lb>) -> X.Sx:
+  match fuel:
+    case 0n:
+      d
+    case 1n+p:
+      sp.lm.resolve(p, sp.lm.putev(d, evs), evs)
+
+def sp.lm.resolves(ds: List<&2, X.Sx>, +evs: List<&2, Lb>) -> List<&2, X.Sx>:
+  match ds:
+    case d <> t:
+      sp.lm.resolve(6n, d, evs) <> sp.lm.resolves(t, evs)
+    case Nil{}:
+      Nil{}
+
+def sp.lm.resolved(u: Lu, +x: X.Sx) -> Lu:
+  match u:
+    case Lu{ts, ds, ok}:
+      Lu{ts, sp.lm.resolves(ds, sp.lm.evbs(x)), ok}
+
 # the first of ms that can be read so, done (None: none can)
 def sp.lm.try(+x: X.Sx, ms: List<&2, Lm>) -> Maybe<&2, X.Sx>:
   match ms:
     case +m <> t:
       +u = sp.lm.one(sp.lm.ext(sp.lm.uses(x, m), sp.lm.mvs(m)))
       +v = Maybe.default(&2, Lu, u, Lu{Nil{}, Nil{}, False{}})
-      +ok = sp.if(Bool, Maybe.is_some(&2, Lu, u), _ => sp.lm.scope.ok(x, v), _ => False{})
-      sp.if(Maybe<&2, X.Sx>, ok, _ => Some{sp.lm.put(x, m, v)}, _ => sp.lm.try(x, t))
+      +some = Maybe.is_some(&2, Lu, u)
+      +ok0 = sp.if(Bool, some, _ => sp.lm.scope.ok(x, v), _ => False{})
+      +w = sp.if(Lu, Bool.and(some, Bool.not(ok0)), _ => sp.lm.resolved(v, x), _ => v)
+      +ok = sp.if(Bool, Bool.or(ok0, Bool.not(some)), _ => ok0, _ => sp.lm.scope.ok(x, w))
+      sp.if(Maybe<&2, X.Sx>, ok, _ => Some{sp.lm.put(x, m, w)}, _ => sp.lm.try(x, t))
     case Nil{}:
       None{}
 
