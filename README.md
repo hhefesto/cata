@@ -193,6 +193,15 @@ y z`. A local's recursive reference (`self (l ..)`, a `where go` calling
 itself) is a local's, so its lifting passes the def's type parameters
 once.
 
+A list function at a lambda over run-time locals (`map (\x -> x + n) xs`,
+n a parameter, a pattern's or a let's variable) is the recursion it is, a
+local function (Spec's `sp.hf`: map, fmap, `<$>`, filter, foldr, foldl,
+foldl', any, all, concatMap, find, takeWhile, dropWhile, mapMaybe,
+zipWith), lifted with n a run-time parameter (tests/hs/HofLoc.hs), so
+that a caller can pass what it computes: `\x -> a1 (x + 1) ys`. An
+applied lambda is its body, the arguments put in or let (`sp.beta`). Both
+in a package and in a module alone.
+
 ## Monads
 
 GHC hands a do block over as its `>>=` and `>>`, and cata writes those at
@@ -227,7 +236,15 @@ logs `mempty`, `>>=` joins the two logs with `<>`. `writer` is `pure` at
 the inner monad of the pair, `lift` at `WriterT w` is `fmap` at the
 inner monad of a pair with `mempty`, and the constructor `WriterT`,
 `runWriterT` and `runWriter` are the term itself (a pattern `WriterT p`
-is `p`). At State, at ExceptT over State, at Either and at Maybe,
+is `p`). At `StateT s (Either e)`: StateT's newtype, `s -> m (a, s)`,
+so `S -> Either E (A & S)`, a State whose step can fail, with the
+prelude's `hs.ste.*` (`>>=` stops at a `Left`); at `StateT s ((,) w)`
+(the pair's own Writer monad, the log first), `S -> W & A & S`, the
+prelude's `hs.stp.*`, which take w's `mempty` and `<>` as `hs.wr.*` do:
+at both `>>=`, `>>`, `pure`, `fmap`, `<*>` (as `>>=`), mtl's `get`, `put`,
+`modify`, `gets`, `lift` (the inner monad's term with the state passed
+through), `evalStateT`, `execStateT` and `runStateT`, and `throwError`
+at Either's. At State, at ExceptT over State, at Either and at Maybe,
 Control.Monad's `mapM_`/`forM_`/`traverse_`/`for_`, `mapM`/`forM`/`traverse`
 (at a list), `foldM`, `filterM` and `zipWithM_` are the prelude's (the
 function a template, so a closed one): State's and ExceptT's in the
@@ -323,8 +340,10 @@ cost: `empty`, `singleton`, `insert`, `insertWith`, `lookup`, `member`,
 `union`. Each takes compare at the key as a template: `Nat.cmp`
 at Int, HsPrelude's `HsCmp.char`, `HsCmp.bool`, `HsCmp.unit`, and
 `HsCmp.list`, `HsCmp.pair`, `HsCmp.maybe` given compare at the parts (a
-String key is a list of Char). A key of any other type (the module's own,
-whose `compare` is not written yet) is out, `fold:ord-at-type`.
+String key is a list of Char), `HsCmp.either`, `HsCmp.cmp` (Ordering),
+`HsCmp.map` and `HsCmp.set`, and `T.cmp` at a module's own type whose Ord
+is derived (see "Equality"). A key of any other type is out,
+`fold:ord-at-type`.
 
 In the specialiser's output (a package through `spec`) `Int` and `Integer` are
 HsPrelude's `HsInt`, an integer: `Pos{n}` is n, `Neg{n}` is -n (n at least
@@ -461,8 +480,9 @@ model's `fixShowsPrec` (`show`, `shows`, `showList` with it), copied at f: a
 fold to the text a node shows unparenthesised, `showParen (d >= 11)` at
 precedence d, its children's text handed to `liftShowsPrec` at the
 precedence it asks for (exact when the Show1 only prepends text; the laws
-hold it to GHC's), f's Functor needed for the fold. Show at a list or a
-Maybe of the package's own type or of a Fix, at Map and Set: out.
+hold it to GHC's), f's Functor needed for the fold. Show at a list, a
+Maybe, a pair, a Map or a Set of the package's own types is base's
+instance at its parts (Spec's `sp.shw`).
 
 GHC.Prim's `coerce` (a newtype's derived instance, GeneralizedNewtypeDeriving,
 is coerce of its field type's, and the specialiser copies it as it copies
@@ -491,7 +511,12 @@ A clause whose guards can all fail goes on to the next clause (Fold's
 `fd.ft`): the last else of its ifs is a call of a lifted def of its
 pattern variables (Spec's `sp.ftw` names its wildcards), whose clauses are
 the later ones read at what its patterns already say. Out: where no clause
-is left (GHC's PatternMatchFail: `fold:guard-falls-through`).
+is left (GHC's PatternMatchFail: `fold:guard-falls-through`). A pattern
+guard (`| Just v <- look k env, v > 1`) is a case on its value, lifted,
+the guards after it in the pattern's branch and the rest of the chain in
+the others (Fold's `fd.pg`). A case on a binder Bend may not match there
+(Bend matches binders in their order, so not one before the last matched)
+is a def of its own too (`fd.env.al`).
 
 An `if` or a `let` that is an application's argument or function part
 goes out over it first (the specialiser's `sp.ifl`): `f (if c then a else
@@ -499,8 +524,9 @@ b)` is `if c then f a else f b` and `f (let ds in e)` is `let ds in f e`
 (the locals are numbered apart; the values are the same), so that the if
 is where its type is known, a body's or a branch's (EAL's `mergeClasses`:
 `pure $ if la >= lb then a else b`). Not over `&&` and `||`, lazy in
-their second argument, and not out of a lambda or a `case` (an if there
-is still `fold:if-in-argument`). Out of a tuple's element too
+their second argument, and not out of a lambda or a `case`. A scrutinee,
+a condition and a list's element are typed (Fold's `fd.typed`), so an if,
+let or case there needs no such move. Out of a tuple's element too
 (`sp.ifl.tup`): `(.., let ds in e, ..)` is `let ds in (.., e, ..)` and
 `(.., if c then a else b, ..)` is `if c then (.., a, ..) else (.., b,
 ..)` (Bend builds a tuple's elements with the tuple), as a record update
@@ -579,8 +605,20 @@ function type (`fun1' = error "not implemented"`), takes a parameter for
 each arrow of its answer and errs at the last result (Fold's `fd.ee`,
 tests/hs/Stub.hs): an Either holds no function.
 
-A partial call under a lambda (a monad's continuation, a function
-argument, a cata's algebra) is out for now (`fold:partial-in-lambda`).
+A partial call in the lambda of a list function (map, foldr, foldl,
+filter, any, all, zipWith, mapMaybe) is the prelude's `HsPt` of it, whose
+function answers the Either: the first failure, from the left (foldr's
+from the right), any and all stopping as Haskell's do (Fold's `fd.pt.ho`,
+tests/hs/PartLam.hs). F is strict there as everywhere: `length (map head
+[[]])` is 1 in Haskell and a failure in F, and the laws leave such a def
+out. A partial def written point-free (`first = head`, `isVowel . head`)
+takes its lambda's variables as parameters (`fd.el`). Under any other
+lambda (a monad's continuation, a cata's algebra) a partial call is out
+(`fold:partial-in-lambda`).
+
+Natural's `-` is partial too (GHC's ArithException Underflow below 0):
+`HsNum.sub`, "arithmetic underflow" (tests/hs/NatSub.hs). Int's `-` in a
+module alone, where Int is Nat, is out (`int-sub`).
 
 A partial def's law runs GHC's call under `LawEw`, whose `lawSx` turns
 an `ErrorCall m` into `Inl m` (an `ArithException` into `Inl` of its
@@ -600,8 +638,14 @@ instance is written by hand (`fold:eq-instance`); a type inside a list or a
 Maybe of its own (`fold:eq-nested`: the call of T.eq sits in a template
 argument, where Bend sees no decreasing call) or two types calling each
 other's (`fold:eq-mutual`); a type of an earlier module whose T.eq is out
-(`fold:eq-imported:NAME`); `==` at a type variable (`fold:eq-at-tyvar`) and
-`<`, `compare`, `max`... at any of these types (`fold:ord-at-type`).
+(`fold:eq-imported:NAME`); `==` at a type variable (`fold:eq-at-tyvar`).
+
+`<`, `<=`, `>`, `>=`, `compare`, `max` and `min` at these types go the
+same way: a derived Ord is `T.cmp` (the constructors in their order, then
+the fields, left to right, as GHC derives it), the prelude's `HsCmp.*` at
+lists, Maybe, Either, pairs, Ordering, Maps and Sets, max and min
+Haskell's defaults (Fold's `fd.cmp`, tests/hs/OrdT.hs). Out: a
+hand-written Ord, and T.eq's other reasons, as `fold:ord-*`.
 
 ## cata as a functor: the cache, the way back, the squares
 

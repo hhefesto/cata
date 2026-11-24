@@ -133,18 +133,19 @@ def HsList.minimumBy(~A: Data, ~cmp: A -> A -> Cmp, xs: List<&2, A>) -> Either<&
       Inr{HsList.minimum.go(~A, ~cmp, t, x)}
 
 # foldr1 and foldl1 (Foldable's, at a list)
-def HsList.foldr1.go(~A: Data, ~f: A -> A -> A, xs: List<&2, A>, x: A) -> A:
+def HsList.foldr1.go(~A: Data, ~f: A -> A -> A, xs: List<&2, A>, +x: A) -> A:
   match xs:
     case Nil{}:
       x
-    case y <> t:
-      f(x, HsList.foldr1.go(~A, ~f, t, y))
+    case +y <> t:
+      +r = HsList.foldr1.go(~A, ~f, t, y)
+      f(x, r)
 
-def HsList.foldl1.go(~A: Data, ~f: A -> A -> A, xs: List<&2, A>, acc: A) -> A:
+def HsList.foldl1.go(~A: Data, ~f: A -> A -> A, xs: List<&2, A>, +acc: A) -> A:
   match xs:
     case Nil{}:
       acc
-    case y <> t:
+    case +y <> t:
       HsList.foldl1.go(~A, ~f, t, f(acc, y))
 
 def HsList.foldr1(~A: Data, ~f: A -> A -> A, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, A>:
@@ -180,6 +181,19 @@ def HsNum.mod(a: Nat, b: Nat) -> Either<&2, &2, List<&2, Char>, Nat>:
       Inl{String.to_list("divide by zero")}
     case 1n+q:
       Inr{Nat.mod(a, 1n+q)}
+
+# Natural's (-), below 0 GHC's ArithException Underflow (Spec writes the
+# method at Natural HsPrelude.N.natSub, in a module alone and in a package)
+def HsNum.sub(a: Nat, b: Nat) -> Either<&2, &2, List<&2, Char>, Nat>:
+  match a b:
+    case 0n 0n:
+      Inr{0n}
+    case 0n 1n+q:
+      Inl{String.to_list("arithmetic underflow")}
+    case 1n+p 0n:
+      Inr{1n+p}
+    case 1n+p 1n+q:
+      HsNum.sub(p, q)
 
 # at HsInt (Int and Integer): 0 is Pos{0n} only
 def HsNum.idiv(a: HsInt, b: HsInt) -> Either<&2, &2, List<&2, Char>, HsInt>:
@@ -218,3 +232,94 @@ def HsNum.rdiv(a: HsRational, b: HsRational) -> Either<&2, &2, List<&2, Char>, H
       Inl{String.to_list("Ratio has zero denominator")}
     case c:
       Inr{HsRational.div(a, c)}
+
+# The list functions given a partial function, one that answers the Either
+# (Fold.bend's fd.pt.ho): the first failure, left to right (foldr's from
+# the right), any and all stopping as Haskell's do.
+def HsPt.bind(-A: Data, -B: Data, m: Either<&2, &2, List<&2, Char>, A>, k: A -> Either<&2, &2, List<&2, Char>, B>) -> Either<&2, &2, List<&2, Char>, B>:
+  match m:
+    case Inl{e}:
+      Inl{e}
+    case Inr{a}:
+      k(a)
+
+def HsPt.map(~A: Data, ~B: Data, ~f: A -> Either<&2, &2, List<&2, Char>, B>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, List<&2, B>>:
+  match xs:
+    case Nil{}:
+      Inr{[]}
+    case +x <> t:
+      HsPt.bind(B, List<&2, B>, f(x), b => HsPt.bind(List<&2, B>, List<&2, B>, HsPt.map(~A, ~B, ~f, t), bs => Inr{b <> bs}))
+
+def HsPt.foldr(~A: Data, ~B: Data, ~f: A -> B -> Either<&2, &2, List<&2, Char>, B>, xs: List<&2, A>, z: B) -> Either<&2, &2, List<&2, Char>, B>:
+  match xs:
+    case Nil{}:
+      Inr{z}
+    case +x <> t:
+      HsPt.bind(B, B, HsPt.foldr(~A, ~B, ~f, t, z), +r => f(x)(r))
+
+def HsPt.foldl(~A: Data, ~B: Data, ~f: B -> A -> Either<&2, &2, List<&2, Char>, B>, xs: List<&2, A>, +acc: B) -> Either<&2, &2, List<&2, Char>, B>:
+  match xs:
+    case Nil{}:
+      Inr{acc}
+    case +x <> t:
+      HsPt.bind(B, B, f(acc)(x), r => HsPt.foldl(~A, ~B, ~f, t, r))
+
+def HsPt.keep(-A: Data, x: A, k: Bool, r: List<&2, A>) -> List<&2, A>:
+  match k:
+    case True{}:
+      x <> r
+    case False{}:
+      r
+
+def HsPt.filter(~A: Data, ~p: A -> Either<&2, &2, List<&2, Char>, Bool>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, List<&2, A>>:
+  match xs:
+    case Nil{}:
+      Inr{[]}
+    case +x <> t:
+      HsPt.bind(Bool, List<&2, A>, p(x), k => HsPt.bind(List<&2, A>, List<&2, A>, HsPt.filter(~A, ~p, t), r => Inr{HsPt.keep(A, x, k, r)}))
+
+def HsPt.stop(v: Bool, at: Bool, rest: Unit -> Either<&2, &2, List<&2, Char>, Bool>) -> Either<&2, &2, List<&2, Char>, Bool>:
+  match v at:
+    case True{} True{}:
+      Inr{True{}}
+    case False{} False{}:
+      Inr{False{}}
+    case _ _:
+      rest(Unit{})
+
+def HsPt.any(~a: Quant, ~A: Data, ~p: A -> Either<&2, &2, List<&2, Char>, Bool>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, Bool>:
+  match xs:
+    case Nil{}:
+      Inr{False{}}
+    case +x <> t:
+      HsPt.bind(Bool, Bool, p(x), v => HsPt.stop(v, True{}, _ => HsPt.any(~a, ~A, ~p, t)))
+
+def HsPt.all(~a: Quant, ~A: Data, ~p: A -> Either<&2, &2, List<&2, Char>, Bool>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, Bool>:
+  match xs:
+    case Nil{}:
+      Inr{True{}}
+    case +x <> t:
+      HsPt.bind(Bool, Bool, p(x), v => HsPt.stop(v, False{}, _ => HsPt.all(~a, ~A, ~p, t)))
+
+def HsPt.zipWith(~A: Data, ~B: Data, ~C: Data, ~f: A -> B -> Either<&2, &2, List<&2, Char>, C>, xs: List<&2, A>, ys: List<&2, B>) -> Either<&2, &2, List<&2, Char>, List<&2, C>>:
+  match xs ys:
+    case Nil{} _:
+      Inr{[]}
+    case _ Nil{}:
+      Inr{[]}
+    case +x <> t +y <> u:
+      HsPt.bind(C, List<&2, C>, f(x)(y), c => HsPt.bind(List<&2, C>, List<&2, C>, HsPt.zipWith(~A, ~B, ~C, ~f, t, u), cs => Inr{c <> cs}))
+
+def HsPt.maybe(-B: Data, m: Maybe<&2, B>, r: List<&2, B>) -> List<&2, B>:
+  match m:
+    case Some{b}:
+      b <> r
+    case None{}:
+      r
+
+def HsPt.mapMaybe(~A: Data, ~B: Data, ~f: A -> Either<&2, &2, List<&2, Char>, Maybe<&2, B>>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, List<&2, B>>:
+  match xs:
+    case Nil{}:
+      Inr{[]}
+    case +x <> t:
+      HsPt.bind(Maybe<&2, B>, List<&2, B>, f(x), m => HsPt.bind(List<&2, B>, List<&2, B>, HsPt.mapMaybe(~A, ~B, ~f, t), r => Inr{HsPt.maybe(B, m, r)}))

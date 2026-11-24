@@ -1156,8 +1156,11 @@ def lw.lines(ps: List<&2, Pl>) -> List<&2, U32>:
     case Nil{}:
       Nil{}
 
+# (the last line ends GHCi at once: a law out of time whose thread never
+# allocates, `replace "" "" s`, is left running, and GHC's own exit waits
+# for it, hs1003's 00632)
 def lw.script(+m: List<&2, U32>, ds: List<&2, Dd>, ps: List<&2, Pl>) -> List<&2, U32>:
-  lw.cat3(S.b(lw.ghci.pre()), lw.insts(m, ds), lw.lines(ps))
+  lw.cat3(S.b(lw.ghci.pre()), lw.insts(m, ds), lw.cat(lw.lines(ps), S.b(":!kill -9 $PPID\n")))
 
 # The laws ---------------------------------------------------------------------------
 
@@ -1653,7 +1656,7 @@ def lw.gate.step(g: F.Gs, +r: Io, +dt: List<&2, T.BItem>) -> F.Gs:
     case F.Gs{+its, +o, False{}}:
       +out = lw.io.out(r)
       +ls = S.split(out, 10)
-      +who = F.fd.gate.who(F.fd.errline(ls), lw.io.text(r))
+      +who = F.fd.gate.who2(F.fd.tpl.loc(ls), ls, lw.io.text(r), its)
       +why = F.fd.errwhy(ls)
       Bool.pick(F.Gs, S.prefix(out, S.b("ALL PROOFS CHECK")), F.Gs{its, o, True{}}, lw.gate.fix(F.fd.fu.can(who, why, its, dt), who, its, o, why, dt))
 

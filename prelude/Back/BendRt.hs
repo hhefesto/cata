@@ -119,6 +119,8 @@ b'String'append a b = a ++ (b :: String)
 b'Cmp'is_eq o = o == EQ
 b'Cmp'is_lt o = o == LT
 b'Cmp'is_gt o = o == GT
+b'Cmp'is_le c = c /= GT
+b'Cmp'is_ge c = c /= LT
 
 b'List'append xs ys = xs ++ ys
 b'List'length xs = genericLength xs
@@ -178,6 +180,14 @@ b'HsPrelude'HsList'foldr :: (a -> b -> b) -> [a] -> b -> b
 b'HsPrelude'HsList'foldr f xs z = foldr f z xs
 b'HsPrelude'HsList'foldl :: (b -> a -> b) -> [a] -> b -> b
 b'HsPrelude'HsList'foldl f xs z = foldl f z xs
+b'HsPrelude'HsList'foldrc :: (a -> b -> b) -> [a] -> b -> b
+b'HsPrelude'HsList'foldrc f xs z = foldr f z xs
+b'HsPrelude'HsList'foldlc :: (b -> a -> b) -> [a] -> b -> b
+b'HsPrelude'HsList'foldlc f xs z = foldl f z xs
+b'HsPrelude'HsList'anyc :: (a -> Bool) -> [a] -> Bool
+b'HsPrelude'HsList'anyc f xs = any f xs
+b'HsPrelude'HsList'allc :: (a -> Bool) -> [a] -> Bool
+b'HsPrelude'HsList'allc f xs = all f xs
 b'HsPrelude'HsList'fst = fst
 b'HsPrelude'HsList'snd = snd
 b'HsPrelude'HsList'swap (a, b) = (b, a)
@@ -356,8 +366,28 @@ b'HsPrelude'HsList'index xs n = if n < 0 then Left "Prelude.!!: negative index" 
 b'HsPrelude'HsList'index'go xs n = b'HsPrelude'HsList'index xs n
 -- div, mod, quot and rem by what may be 0 (HsNum: GHC's DivideByZero,
 -- shown "divide by zero"); at Nat (non-negative) quot is div, rem mod
+-- the list functions given a partial function (prelude/HsPartial.bend's HsPt)
+b'HsPrelude'HsPt'bind m k = m >>= k
+b'HsPrelude'HsPt'map :: (a -> Either String b) -> [a] -> Either String [b]
+b'HsPrelude'HsPt'map f xs = mapM f xs
+b'HsPrelude'HsPt'foldr :: (a -> b -> Either String b) -> [a] -> b -> Either String b
+b'HsPrelude'HsPt'foldr f xs z = case xs of { [] -> Right z; (x : t) -> b'HsPrelude'HsPt'foldr f t z >>= \r -> f x r }
+b'HsPrelude'HsPt'foldl :: (b -> a -> Either String b) -> [a] -> b -> Either String b
+b'HsPrelude'HsPt'foldl f xs acc = case xs of { [] -> Right acc; (x : t) -> f acc x >>= \r -> b'HsPrelude'HsPt'foldl f t r }
+b'HsPrelude'HsPt'filter :: (a -> Either String Bool) -> [a] -> Either String [a]
+b'HsPrelude'HsPt'filter p xs = case xs of { [] -> Right []; (x : t) -> p x >>= \k -> (if k then (x :) else id) <$> b'HsPrelude'HsPt'filter p t }
+b'HsPrelude'HsPt'any :: (a -> Either String Bool) -> [a] -> Either String Bool
+b'HsPrelude'HsPt'any p xs = case xs of { [] -> Right False; (x : t) -> p x >>= \v -> if v then Right True else b'HsPrelude'HsPt'any p t }
+b'HsPrelude'HsPt'all :: (a -> Either String Bool) -> [a] -> Either String Bool
+b'HsPrelude'HsPt'all p xs = case xs of { [] -> Right True; (x : t) -> p x >>= \v -> if v then b'HsPrelude'HsPt'all p t else Right False }
+b'HsPrelude'HsPt'zipWith :: (a -> b -> Either String c) -> [a] -> [b] -> Either String [c]
+b'HsPrelude'HsPt'zipWith f xs ys = sequence (zipWith f xs ys)
+b'HsPrelude'HsPt'mapMaybe :: (a -> Either String (Maybe b)) -> [a] -> Either String [b]
+b'HsPrelude'HsPt'mapMaybe f xs = case xs of { [] -> Right []; (x : t) -> f x >>= \m -> maybe id (:) m <$> b'HsPrelude'HsPt'mapMaybe f t }
 b'HsPrelude'HsNum'div :: Integral a => a -> a -> Either String a
 b'HsPrelude'HsNum'div a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
+b'HsPrelude'HsNum'sub :: (Ord a, Num a) => a -> a -> Either String a
+b'HsPrelude'HsNum'sub a b = if a < b then Left "arithmetic underflow" else Right (a - b)
 b'HsPrelude'HsNum'mod :: Integral a => a -> a -> Either String a
 b'HsPrelude'HsNum'mod a b = if b == 0 then Left "divide by zero" else Right (a `mod` b)
 b'HsPrelude'HsNum'idiv :: Integral a => a -> a -> Either String a
@@ -420,6 +450,24 @@ b'HsPrelude'HsCmp'maybe cmp a b = case (a, b) of
   (Just x, Just y) -> cmp x y
 b'HsPrelude'HsCmp'pair ca cb (a, b) (c, d) = case ca a c of { EQ -> cb b d; o -> o }
 b'HsPrelude'HsCmp'on c lt eq gt = case c of { LT -> lt (); EQ -> eq (); GT -> gt () }
+b'HsPrelude'HsCmp'either ca cb a b = case (a, b) of
+  (Left x, Left y) -> ca x y
+  (Left _, Right _) -> LT
+  (Right _, Left _) -> GT
+  (Right x, Right y) -> cb x y
+b'HsPrelude'HsCmp'cmp a b = compare a (b :: Ordering)
+b'HsPrelude'HsCmp'map ck cv a b = case (a, b) of
+  (B'HsPrelude'HsMap'Tip, B'HsPrelude'HsMap'Tip) -> EQ
+  (B'HsPrelude'HsMap'Tip, _) -> LT
+  (_, B'HsPrelude'HsMap'Tip) -> GT
+  (B'HsPrelude'HsMap'Bin k v s, B'HsPrelude'HsMap'Bin l w t) -> case ck k l of { EQ -> case cv v w of { EQ -> b'HsPrelude'HsCmp'map ck cv s t; o -> o }; o -> o }
+b'HsPrelude'HsCmp'set ck a b = case (a, b) of
+  (B'HsPrelude'HsSet'Tip, B'HsPrelude'HsSet'Tip) -> EQ
+  (B'HsPrelude'HsSet'Tip, _) -> LT
+  (_, B'HsPrelude'HsSet'Tip) -> GT
+  (B'HsPrelude'HsSet'Bin k s, B'HsPrelude'HsSet'Bin l t) -> case ck k l of { EQ -> b'HsPrelude'HsCmp'set ck s t; o -> o }
+b'HsPrelude'HsCmp'max cmp a b = if cmp a b /= GT then b else a
+b'HsPrelude'HsCmp'min cmp a b = if cmp a b /= GT then a else b
 b'hs'eq'cmp a b = a == (b :: Ordering)
 b'hs'eq'unit a b = a == (b :: ())
 b'hs'eq'either ea eb a b = case (a, b) of
@@ -751,6 +799,8 @@ b'hs'state'zipwithm_ f xs ys = case (xs, ys) of { (x : xt, y : yt) -> b'hs'state
 
 -- HsPrelude's show at a pair, a Map, a Set; first at a pair
 b'HsPrelude'HsShow'pair sa sb (a, b) r = '(' : sa 0 a (',' : sb 0 b (')' : r))
+b'HsPrelude'HsShow'listP sp _ xs r = b'HsPrelude'HsShow'list (\y t -> sp 0 y t) xs r
+b'HsPrelude'HsShow'pairP sa sb _ p r = b'HsPrelude'HsShow'pair sa sb p r
 b'HsPrelude'HsShow'map sk sv d m r = b'HsPrelude'HsShow'paren (d >= 11) (\s -> "fromList " ++ b'HsPrelude'HsShow'list (\y t -> b'HsPrelude'HsShow'pair sk sv y t) (b'HsPrelude'HsMap'toList m) s) r
 b'HsPrelude'HsShow'set sk d m r = b'HsPrelude'HsShow'paren (d >= 11) (\s -> "fromList " ++ b'HsPrelude'HsShow'list (\y t -> sk 0 y t) (b'HsPrelude'HsSet'toList m) s) r
 b'HsPrelude'HsList'first'pair f (a, c) = (f a, c)
@@ -799,6 +849,33 @@ b'hs'exs'seq xs = case xs of { [] -> b'hs'exs'pure []; h : t -> b'hs'exs'bind h 
 b'hs'exs'keep k x ys = if k then x : ys else ys
 b'hs'exs'filterm p xs = case xs of { [] -> b'hs'exs'pure []; h : t -> b'hs'exs'bind (p h) (\k -> b'hs'exs'map (\ys -> b'hs'exs'keep k h ys) (b'hs'exs'filterm p t)) }
 b'hs'exs'zipwithm_ f xs ys = case (xs, ys) of { (x : xt, y : yt) -> b'hs'exs'bind (f x y) (\_ -> b'hs'exs'zipwithm_ f xt yt); _ -> b'hs'exs'pure () }
+
+-- StateT s (Either e) a and StateT s ((,) w) a as each module's prelude
+-- has them (hs.ste.*, hs.stp.*: s -> Either e (a, s), s -> (w, (a, s));
+-- hs.stp's defs take w's mempty and <> first, as the fold writes them)
+b'hs'ste'bind m f = \s -> case m s of { Left e -> Left e; Right (a, s') -> f a s' }
+b'hs'ste'pure a = \s -> Right (a, s)
+b'hs'ste'throw e = \_ -> Left e
+b'hs'ste'map f m = \s -> case m s of { Left e -> Left e; Right (a, s') -> Right (f a, s') }
+b'hs'ste'get = \s -> Right (s, s)
+b'hs'ste'put s = \_ -> Right ((), s)
+b'hs'ste'modify f = \s -> Right ((), f s)
+b'hs'ste'gets f = \s -> Right (f s, s)
+b'hs'ste'lift m = \s -> case m of { Left e -> Left e; Right a -> Right (a, s) }
+b'hs'ste'eval m s = case m s of { Left e -> Left e; Right (a, _) -> Right a }
+b'hs'ste'exec m s = case m s of { Left e -> Left e; Right (_, s') -> Right s' }
+b'hs'ste'run m s = m s
+b'hs'stp'bind mt app m f = \s -> case m s of { (w, (a, s')) -> case f a s' of { (v, r) -> (app w v, r) } }
+b'hs'stp'pure mt app a = \s -> (mt, (a, s))
+b'hs'stp'map mt app f m = \s -> case m s of { (w, (a, s')) -> (w, (f a, s')) }
+b'hs'stp'get mt app = \s -> (mt, (s, s))
+b'hs'stp'put mt app s = \_ -> (mt, ((), s))
+b'hs'stp'modify mt app f = \s -> (mt, ((), f s))
+b'hs'stp'gets mt app f = \s -> (mt, (f s, s))
+b'hs'stp'lift m = \s -> case m of { (w, a) -> (w, (a, s)) }
+b'hs'stp'eval m s = case m s of { (w, (a, _)) -> (w, a) }
+b'hs'stp'exec m s = case m s of { (w, (_, s')) -> (w, s') }
+b'hs'stp'run m s = m s
 
 -- zipWith f [n ..] xs at an enumeration's successor, second at a pair,
 -- show by showsPrec 0 (the prelude's HsList.zipWithFrom, .second.pair,

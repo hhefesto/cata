@@ -1,13 +1,13 @@
 #!/usr/bin/env zsh
 # laws.zsh LAWOUT: tests/back/run.zsh's comparison (h against G(F(h)), GHC the
-# oracle) on a law --package run's output (ledger keys tsp60/NAME.sexp).
+# oracle) on a law --package run's output (ledger keys PFX/NAME.sexp, PFX tsp60).
 # Each module with a laws' script: GHCi runs it against LAWOUT/hs/NAME.hs
 # (with BendRt) into LAWOUT/hs/NAME.ghc; each law of an ok-law def compared.
 set -u
 zmodload zsh/parameter
 work=${1:A}
-rt=~/src/cata-ct/prelude/Back
-ghc=$(readlink -f ~/src/cata/run/gcroot-ghc-telomare)/bin/ghc
+rt=${RT:-${0:A:h:h:h}/prelude/Back} pfx=${PFX:-tsp60}
+ghc=${GHCI:-$(readlink -f ~/src/cata/run/gcroot-ghc-telomare)/bin/ghc}
 ${0:A:h}/tree.zsh $work/hs $work/tree
 names=()
 for g in $work/*.ghci(N); do
@@ -24,7 +24,7 @@ for n in $names; do
   N=$((N + 1))
   out=$work/hs/$n.ghc
   if grep -q -e "$n\.hs:[0-9]*:[0-9]*: error" -e "BendRt\.hs:[0-9]*:[0-9]*: error" $out; then ld="does not load"; else ld=loads; L=$((L + 1)); fi
-  oks=(${(f)"$(awk -F'\t' -v f="tsp60/$n.sexp" '$1 == f && $3 == "ok-law" {print $2}' $work/ledger.tsv)"})
+  oks=(${(f)"$(awk -F'\t' -v f="$pfx/$n.sexp" '$1 == f && $3 == "ok-law" {print $2}' $work/ledger.tsv)"})
   O=$((O + ${#oks}))
   t=0 s=0 r=0 d=0 m=0 x=0
   while IFS= read -r line; do

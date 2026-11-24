@@ -171,16 +171,18 @@ exportGhc file = do
 -- Naming -------------------------------------------------------------------
 
 -- | The export's state: each local binder's number (in order of first
---   sight, so the numbering is the same on every run), and the monomorphic
---   Ids of the enclosing AbsBinds, each mapped to its polymorphic Id.
+--   sight, so the numbering is the same on every run), the monomorphic
+--   Ids of the enclosing AbsBinds, each mapped to its polymorphic Id, and the
+--   type variables in scope with their names.
 data St = St
   { stLocal :: !(M.Map Integer Int)
   , stNext :: !Int
   , stMono :: !(M.Map Integer Id)
+  , stTvs :: !Tvs
   }
 
 st0 :: St
-st0 = St M.empty 0 M.empty
+st0 = St M.empty 0 M.empty M.empty
 
 type M = State St
 
@@ -227,24 +229,63 @@ localS v = do
 binderS :: Id -> M Sexp
 binderS v = do
   x <- varS v
-  pure (tagged "bv" [x, typeS (idType v)])
+  t <- typeS (idType v)
+  pure (tagged "bv" [x, t])
 
 unsupported :: Data a => a -> Sexp
 unsupported x = tagged "unsupported" [S (showConstr (toConstr x))]
 
 -- Types --------------------------------------------------------------------
 
-typeS :: Type -> Sexp
-typeS = \case
-  TyVarTy v -> tagged "tv" [S (getOccString v)]
-  AppTy a b -> tagged "tapp" [typeS a, typeS b]
-  TyConApp tc args -> tagged "tc" (S (modOf tc) : S (getOccString tc) : map typeS (filterOutInvisibleTypes tc args))
-  FunTy {ft_af = af, ft_arg = a, ft_res = r} -> tagged (funTag af) [typeS a, typeS r]
-  ForAllTy (Bndr v _) b -> tagged "tforall" [S (getOccString v), typeS b]
+-- | Types, the type variables named by their scope: a variable is its own
+--   name, or with a number after it where another one of that name is in
+--   scope (an instance's a and its method's own a, which GHC prints alike).
+type Tvs = M.Map Integer String
+
+bindTv :: TyVar -> Tvs -> Tvs
+bindTv v env
+  | M.member (keyOf v) env = env
+  | otherwise = M.insert (keyOf v) (fresh (getOccString v : [getOccString v ++ show n | n <- [1 :: Int ..]])) env
+  where
+    used = M.elems env
+    fresh = head . dropWhile (`elem` used)
+
+tvName :: Tvs -> TyVar -> String
+tvName env v = M.findWithDefault (getOccString v) (keyOf v) env
+
+-- | Run with more type variables in scope, then as before.
+withTvs :: [TyVar] -> M a -> M a
+withTvs vs m = do
+  old <- gets stTvs
+  modify' (\st -> st {stTvs = foldl (flip bindTv) (stTvs st) vs})
+  x <- m
+  modify' (\st -> st {stTvs = old})
+  pure x
+
+tvS :: TyVar -> M Sexp
+tvS v = (\env -> S (tvName env v)) <$> gets stTvs
+
+-- | The type variables a wrapper binds, outermost first.
+wrapTvs :: HsWrapper -> [TyVar]
+wrapTvs = \case
+  WpCompose a b -> wrapTvs a ++ wrapTvs b
+  WpTyLam v -> [v]
+  _ -> []
+
+typeS :: Type -> M Sexp
+typeS t = (\env -> tyS env t) <$> gets stTvs
+
+tyS :: Tvs -> Type -> Sexp
+tyS env = \case
+  TyVarTy v -> tagged "tv" [S (tvName env v)]
+  AppTy a b -> tagged "tapp" [tyS env a, tyS env b]
+  TyConApp tc args -> tagged "tc" (S (modOf tc) : S (getOccString tc) : map (tyS env) (filterOutInvisibleTypes tc args))
+  FunTy {ft_af = af, ft_arg = a, ft_res = r} -> tagged (funTag af) [tyS env a, tyS env r]
+  ForAllTy (Bndr v _) b -> let env' = bindTv v env in tagged "tforall" [S (tvName env' v), tyS env' b]
   LitTy (NumTyLit n) -> tagged "tnum" [I n]
   LitTy (StrTyLit s) -> tagged "tstr" [S (unpackFS s)]
   LitTy (CharTyLit c) -> tagged "tchar" [S [c]]
-  CastTy t _ -> typeS t
+  CastTy t _ -> tyS env t
   CoercionTy _ -> A "tcoercion"
 
 funTag :: FunTyFlag -> String
@@ -281,12 +322,12 @@ tyConS tc
       pure $ tagged "class"
         [ S (getOccString tc)
         , list [S (getOccString v) | v <- classTyVars cls]
-        , list [tagged "method" [S (getOccString m), typeS (idType m)] | m <- classMethods cls]
-        , list (map typeS (classSCTheta cls))
+        , list [tagged "method" [S (getOccString m), tyS M.empty (idType m)] | m <- classMethods cls]
+        , list (map (tyS M.empty) (classSCTheta cls))
         , spanS (getSrcSpan tc)
         ]
   | Just (tvs, rhs) <- synTyConDefn_maybe tc =
-      pure $ tagged "synonym" [S (getOccString tc), list [S (getOccString v) | v <- tvs], typeS rhs, spanS (getSrcSpan tc)]
+      pure $ tagged "synonym" [S (getOccString tc), list [S (getOccString v) | v <- tvs], tyS M.empty rhs, spanS (getSrcSpan tc)]
   | isAlgTyCon tc =
       pure $ tagged (if isNewTyCon tc then "newtype" else "data")
         [ S (getOccString tc)
@@ -302,20 +343,20 @@ tyConS tc
       tagged "con"
         [ S (getOccString dc)
         , list [S (getOccString (flSelector fl)) | fl <- dataConFieldLabels dc]
-        , list [typeS t | Scaled _ t <- dataConOrigArgTys dc]
+        , list [tyS M.empty t | Scaled _ t <- dataConOrigArgTys dc]
         , tagged "ex" [I (toInteger (length (dataConExTyCoVars dc))), I (toInteger (length (dataConTheta dc)))]
         ]
 
 -- (faminst FAMMOD FAM (ARG...) RHS): a type family's instance, its
 -- arguments' variables free (an associated type's too)
 famInstS :: FamInst -> Sexp
-famInstS fi = tagged "faminst" [S (modOf (fi_fam fi)), S (getOccString (fi_fam fi)), list (map typeS (fi_tys fi)), typeS (fi_rhs fi)]
+famInstS fi = tagged "faminst" [S (modOf (fi_fam fi)), S (getOccString (fi_fam fi)), list (map (tyS M.empty) (fi_tys fi)), tyS M.empty (fi_rhs fi)]
 
 instS :: ClsInst -> M Sexp
 instS ci = do
   d <- varS (is_dfun ci)
   let (_, _, cls, _) = tcSplitDFunTy (idType (is_dfun ci))
-  pure $ tagged "instance" [S (modOf (is_cls ci)), S (getOccString (is_cls ci)), list (map typeS (is_tys ci)), d, spanS (getSrcSpan (is_dfun ci)), clsInfoS cls]
+  pure $ tagged "instance" [S (modOf (is_cls ci)), S (getOccString (is_cls ci)), list (map (tyS M.empty) (is_tys ci)), d, spanS (getSrcSpan (is_dfun ci)), clsInfoS cls]
 
 -- (cls (TV...) (METHOD...) NSUPER): an instance's class, its dictionary's
 -- fields: NSUPER superclasses, then the methods in this order
@@ -340,9 +381,9 @@ bindS lb@(L _ b) = case b of
         pure (tagged "patbind" [tagged "pbang" [tagged "pvar" [x]], spanS (getLocA lb), r])
   FunBind {fun_id = L _ f, fun_matches = mg, fun_ext = (w, _)} -> do
     f' <- varS f
-    m <- mgS mg
-    wr <- wrapS w (A "hole")
-    pure (tagged "fun" [f', typeS (idType f), spanS (getLocA lb), m, wr])
+    t <- typeS (idType f)
+    (m, wr) <- withTvs (wrapTvs w) ((,) <$> mgS mg <*> wrapS w (A "hole"))
+    pure (tagged "fun" [f', t, spanS (getLocA lb), m, wr])
   PatBind {pat_lhs = p, pat_rhs = rhs} -> do
     p' <- lpatS p
     r <- grhssS rhs
@@ -350,17 +391,21 @@ bindS lb@(L _ b) = case b of
   VarBind {var_id = v, var_rhs = e} -> do
     v' <- varS v
     e' <- lexprS e
-    pure (tagged "varbind" [v', typeS (idType v), e'])
+    t <- typeS (idType v)
+    pure (tagged "varbind" [v', t, e'])
   XHsBindsLR ab -> do
     modify' (\st -> st {stMono = foldr (\e -> M.insert (keyOf (abe_mono e)) (abe_poly e)) (stMono st) (abs_exports ab)})
-    evs <- mapM binderS (abs_ev_vars ab)
+    let tvs = withTvs (abs_tvs ab)
+    evs <- tvs (mapM binderS (abs_ev_vars ab))
     exps <- forM (abs_exports ab) $ \e -> do
       p <- varS (abe_poly e)
-      pure (tagged "export" [p, typeS (idType (abe_poly e))])
-    ebs <- mapM evBindsS (abs_ev_binds ab)
-    bs <- mapM bindS (bagToList (abs_binds ab))
+      t <- typeS (idType (abe_poly e))
+      pure (tagged "export" [p, t])
+    ebs <- tvs (mapM evBindsS (abs_ev_binds ab))
+    bs <- tvs (mapM bindS (bagToList (abs_binds ab)))
+    vs <- tvs (mapM tvS (abs_tvs ab))
     pure $ tagged "abs"
-      [ list [S (getOccString v) | v <- abs_tvs ab]
+      [ list vs
       , list evs
       , list exps
       , list ebs
@@ -372,15 +417,17 @@ bindS lb@(L _ b) = case b of
 mgS :: MatchGroup GhcTc (LHsExpr GhcTc) -> M Sexp
 mgS (MG ext (L _ alts)) = do
   ms <- mapM matchS alts
+  as <- mapM typeS [t | Scaled _ t <- mg_arg_tys ext]
+  r <- typeS (mg_res_ty ext)
   pure $ tagged "matches"
-    [ list [typeS t | Scaled _ t <- mg_arg_tys ext]
-    , typeS (mg_res_ty ext)
+    [ list as
+    , r
     , A (case mg_origin ext of FromSource -> "source"; Generated {} -> "generated")
     , list ms
     ]
 
 matchS :: LMatch GhcTc (LHsExpr GhcTc) -> M Sexp
-matchS (L _ m) = do
+matchS (L _ m) = withTvs (concatMap patTvs (m_pats m)) $ do
   ps <- mapM lpatS (m_pats m)
   g <- grhssS (m_grhss m)
   pure (tagged "match" [list ps, g])
@@ -434,7 +481,7 @@ evBindS eb = do
 evTermS :: EvTerm -> M Sexp
 evTermS = \case
   EvExpr ce -> coreS ce
-  EvTypeable t _ -> pure (tagged "typeable" [typeS t])
+  EvTypeable t _ -> (\t' -> tagged "typeable" [t']) <$> typeS t
   EvFun {} -> pure (A "evfun")
 
 -- | Evidence is a Core expression: dictionary functions applied to types
@@ -442,7 +489,7 @@ evTermS = \case
 coreS :: CoreExpr -> M Sexp
 coreS = \case
   Var v -> varS v
-  App f (Type t) -> (\f' -> tagged "tyapp" [f', typeS t]) <$> coreS f
+  App f (Type t) -> (\f' t' -> tagged "tyapp" [f', t']) <$> coreS f <*> typeS t
   App f (Coercion _) -> coreS f
   App f a -> do
     f' <- coreS f
@@ -450,7 +497,7 @@ coreS = \case
     pure (tagged "evapp" [f', a'])
   Cast e _ -> coreS e
   Tick _ e -> coreS e
-  Type t -> pure (typeS t)
+  Type t -> typeS t
   Lit l -> pure (tagged "corelit" [S (showPprUnsafe l)])
   _ -> pure (A "core-other")
 
@@ -458,9 +505,9 @@ wrapS :: HsWrapper -> Sexp -> M Sexp
 wrapS w e = case w of
   WpHole -> pure e
   WpCompose a b -> wrapS b e >>= wrapS a
-  WpTyApp t -> pure (tagged "tyapp" [e, typeS t])
+  WpTyApp t -> (\t' -> tagged "tyapp" [e, t']) <$> typeS t
   WpEvApp ev -> (\d -> tagged "evapp" [e, d]) <$> evTermS ev
-  WpTyLam v -> pure (tagged "tylam" [S (getOccString v), e])
+  WpTyLam v -> (\v' -> tagged "tylam" [v', e]) <$> tvS v
   WpEvLam v -> (\b -> tagged "evlam" [b, e]) <$> binderS v
   WpLet ebs -> (\bs -> tagged "evlet" [bs, e]) <$> evBindsS ebs
   WpCast _ -> pure (tagged "cast" [e])
@@ -483,7 +530,7 @@ exprS ex = case ex of
     f' <- lexprS f
     a' <- lexprS a
     pure (tagged "app" [f', a'])
-  HsAppType ty e _ -> (\e' -> tagged "tyapp" [e', typeS ty]) <$> lexprS e
+  HsAppType ty e _ -> (\e' t' -> tagged "tyapp" [e', t']) <$> lexprS e <*> typeS ty
   NegApp _ e se -> do
     e' <- lexprS e
     n <- syntaxS se
@@ -499,13 +546,13 @@ exprS ex = case ex of
     t' <- lexprS t
     e' <- lexprS e
     pure (tagged "if" [c', t', e'])
-  HsMultiIf ty grhss -> (\gs -> tagged "multiif" [typeS ty, list gs]) <$> mapM grhsS grhss
+  HsMultiIf ty grhss -> (\gs t -> tagged "multiif" [t, list gs]) <$> mapM grhsS grhss <*> typeS ty
   HsLet _ bs body -> do
     bs' <- localBindsS bs
     b <- lexprS body
     pure (tagged "let" [bs', b])
-  HsDo ty flav (L _ stmts) -> (\ss -> tagged "do" [A (doName flav), typeS ty, list ss]) <$> mapM stmtS stmts
-  ExplicitList ty es -> (\es' -> tagged "list" [typeS ty, list es']) <$> mapM lexprS es
+  HsDo ty flav (L _ stmts) -> (\ss t -> tagged "do" [A (doName flav), t, list ss]) <$> mapM stmtS stmts <*> typeS ty
+  ExplicitList ty es -> (\es' t -> tagged "list" [t, list es']) <$> mapM lexprS es <*> typeS ty
   RecordCon {rcon_con = L _ con, rcon_flds = flds} -> do
     fs <- forM (rec_flds flds) $ \(L _ fb) -> do
       sel <- varS (foExt (unLoc (hfbLHS fb)))
@@ -523,7 +570,7 @@ exprS ex = case ex of
     pure (tagged "arith" [w', i])
   HsPragE _ _ e -> lexprS e
   XExpr x -> case x of
-    WrapExpr (HsWrap w e) -> exprS e >>= wrapS w
+    WrapExpr (HsWrap w e) -> withTvs (wrapTvs w) (exprS e >>= wrapS w)
     ExpandedThingTc orig e -> (\e' -> tagged "expanded" [origS orig, e']) <$> exprS e
     ConLikeTc con _ _ -> pure (conLikeS con)
     HsTick _ e -> lexprS e
@@ -553,7 +600,7 @@ doName = \case
 tupArgS :: HsTupArg GhcTc -> M Sexp
 tupArgS = \case
   Present _ e -> lexprS e
-  Missing (Scaled _ t) -> pure (tagged "missing" [typeS t])
+  Missing (Scaled _ t) -> (\t' -> tagged "missing" [t']) <$> typeS t
 
 syntaxS :: SyntaxExpr GhcTc -> M Sexp
 syntaxS = \case
@@ -572,8 +619,8 @@ litS l = case l of
   HsInt _ il -> tagged "int" [I (il_value il)]
   HsIntPrim _ n -> tagged "intprim" [I n]
   HsWordPrim _ n -> tagged "wordprim" [I n]
-  HsInteger _ n t -> tagged "integer" [I n, typeS t]
-  HsRat _ fl t -> tagged "rat" [fracS fl, typeS t]
+  HsInteger _ n t -> tagged "integer" [I n, tyS M.empty t]
+  HsRat _ fl t -> tagged "rat" [fracS fl, tyS M.empty t]
   HsStringPrim _ bs -> tagged "stringprim" [S (map (toEnum . fromIntegral) (BS.unpack bs))]
   HsWord64Prim _ n -> tagged "wordprim" [I n]
   HsInt64Prim _ n -> tagged "intprim" [I n]
@@ -597,16 +644,31 @@ overLitS (OverLit ext val) = do
         HsIntegral il -> tagged "int" [I (il_value il)]
         HsFractional fl -> fracS fl
         HsIsString _ fs -> tagged "string" [S (unpackFS fs)]
-  pure (tagged "olit" [v, typeS (ol_type ext), w])
+  t <- typeS (ol_type ext)
+  pure (tagged "olit" [v, t, w])
 
 -- Patterns -----------------------------------------------------------------
 
 lpatS :: LPat GhcTc -> M Sexp
 lpatS (L _ p) = patS p
 
+-- | The type variables a pattern binds (an existential constructor's).
+patTvs :: LPat GhcTc -> [TyVar]
+patTvs (L _ p) = case p of
+  LazyPat _ q -> patTvs q
+  AsPat _ _ q -> patTvs q
+  ParPat _ q -> patTvs q
+  BangPat _ q -> patTvs q
+  ListPat _ qs -> concatMap patTvs qs
+  TuplePat _ qs _ -> concatMap patTvs qs
+  ConPat ext _ details -> cpt_tvs ext ++ concatMap patTvs (hsConPatArgs details)
+  ViewPat _ _ q -> patTvs q
+  SigPat _ q _ -> patTvs q
+  _ -> []
+
 patS :: Pat GhcTc -> M Sexp
 patS p = case p of
-  WildPat ty -> pure (tagged "pwild" [typeS ty])
+  WildPat ty -> (\t -> tagged "pwild" [t]) <$> typeS ty
   VarPat _ (L _ v) -> (\b -> tagged "pvar" [b]) <$> binderS v
   LazyPat _ q -> (\x -> tagged "plazy" [x]) <$> lpatS q
   AsPat _ (L _ v) q -> do
@@ -615,7 +677,7 @@ patS p = case p of
     pure (tagged "pas" [b, q'])
   ParPat _ q -> lpatS q
   BangPat _ q -> (\x -> tagged "pbang" [x]) <$> lpatS q
-  ListPat ty qs -> (\xs -> tagged "plist" [typeS ty, list xs]) <$> mapM lpatS qs
+  ListPat ty qs -> (\xs t -> tagged "plist" [t, list xs]) <$> mapM lpatS qs <*> typeS ty
   TuplePat _ qs _ -> (\xs -> tagged "ptuple" [list xs]) <$> mapM lpatS qs
   ConPat ext (L _ con) details -> do
     args <- case details of
@@ -627,7 +689,8 @@ patS p = case p of
           v <- lpatS (hfbRHS fb)
           pure (tagged "pfield" [sel, v])
         pure (tagged "fields" fs)
-    pure (tagged "pcon" [conLikeS con, list (map typeS (cpt_arg_tys ext)), args])
+    ts <- mapM typeS (cpt_arg_tys ext)
+    pure (tagged "pcon" [conLikeS con, list ts, args])
   ViewPat _ e q -> do
     e' <- lexprS e
     q' <- lpatS q
@@ -635,7 +698,8 @@ patS p = case p of
   LitPat _ l -> pure (tagged "plit" [litS l])
   NPat ty (L _ ol) neg _ -> do
     o <- overLitS ol
-    pure (tagged "pnlit" [o, A (maybe "pos" (const "neg") neg), typeS ty])
+    t <- typeS ty
+    pure (tagged "pnlit" [o, A (maybe "pos" (const "neg") neg), t])
   NPlusKPat _ (L _ v) (L _ ol) _ _ _ -> do
     b <- binderS v
     o <- overLitS ol

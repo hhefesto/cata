@@ -45,14 +45,14 @@ def HsList.either.mapm_(~E: Data, ~A: Data, ~B: Data, ~f: A -> Either<&2, &2, E,
   match xs:
     case Nil{}:
       Inr{Unit{}}
-    case h <> t:
+    case +h <> t:
       HsList.either.then(~E, ~B, ~Unit, f(h), HsList.either.mapm_(~E, ~A, ~B, ~f, t))
 
 def HsList.either.mapm(~E: Data, ~A: Data, ~B: Data, ~f: A -> Either<&2, &2, E, B>, xs: List<&2, A>) -> Either<&2, &2, E, List<&2, B>>:
   match xs:
     case Nil{}:
       Inr{Nil{}}
-    case h <> t:
+    case +h <> t:
       HsList.either.cons(~E, ~B, f(h), HsList.either.mapm(~E, ~A, ~B, ~f, t))
 
 # sequence (sequenceA) at a list: mapM id
@@ -63,11 +63,11 @@ def HsList.either.seq(~E: Data, ~B: Data, xs: List<&2, Either<&2, &2, E, B>>) ->
     case h <> t:
       HsList.either.cons(~E, ~B, h, HsList.either.seq(~E, ~B, t))
 
-def HsList.either.step(~E: Data, ~A: Data, ~B: Data, ~f: B -> A -> Either<&2, &2, E, B>, acc: Either<&2, &2, E, B>, h: A) -> Either<&2, &2, E, B>:
+def HsList.either.step(~E: Data, ~A: Data, ~B: Data, ~f: B -> A -> Either<&2, &2, E, B>, acc: Either<&2, &2, E, B>, +h: A) -> Either<&2, &2, E, B>:
   match acc:
     case Inl{e}:
       Inl{e}
-    case Inr{z}:
+    case Inr{+z}:
       f(z)(h)
 
 def HsList.either.foldm.go(~E: Data, ~A: Data, ~B: Data, ~f: B -> A -> Either<&2, &2, E, B>, xs: List<&2, A>, acc: Either<&2, &2, E, B>) -> Either<&2, &2, E, B>:
@@ -89,7 +89,7 @@ def HsList.either.filterm(~E: Data, ~A: Data, ~p: A -> Either<&2, &2, E, Bool>, 
 
 def HsList.either.zipwithm_(~E: Data, ~A: Data, ~B: Data, ~C: Data, ~f: A -> B -> Either<&2, &2, E, C>, xs: List<&2, A>, ys: List<&2, B>) -> Either<&2, &2, E, Unit>:
   match xs ys:
-    case x <> xt y <> yt:
+    case +x <> xt +y <> yt:
       HsList.either.then(~E, ~C, ~Unit, f(x)(y), HsList.either.zipwithm_(~E, ~A, ~B, ~C, ~f, xt, yt))
     case _ _:
       Inr{Unit{}}
@@ -124,14 +124,14 @@ def HsList.maybe.mapm_(~A: Data, ~B: Data, ~f: A -> Maybe<&2, B>, xs: List<&2, A
   match xs:
     case Nil{}:
       Some{Unit{}}
-    case h <> t:
+    case +h <> t:
       HsList.maybe.then(~B, ~Unit, f(h), HsList.maybe.mapm_(~A, ~B, ~f, t))
 
 def HsList.maybe.mapm(~A: Data, ~B: Data, ~f: A -> Maybe<&2, B>, xs: List<&2, A>) -> Maybe<&2, List<&2, B>>:
   match xs:
     case Nil{}:
       Some{Nil{}}
-    case h <> t:
+    case +h <> t:
       HsList.maybe.cons(~B, f(h), HsList.maybe.mapm(~A, ~B, ~f, t))
 
 # sequence (sequenceA) at a list: mapM id
@@ -142,11 +142,11 @@ def HsList.maybe.seq(~B: Data, xs: List<&2, Maybe<&2, B>>) -> Maybe<&2, List<&2,
     case h <> t:
       HsList.maybe.cons(~B, h, HsList.maybe.seq(~B, t))
 
-def HsList.maybe.step(~A: Data, ~B: Data, ~f: B -> A -> Maybe<&2, B>, acc: Maybe<&2, B>, h: A) -> Maybe<&2, B>:
+def HsList.maybe.step(~A: Data, ~B: Data, ~f: B -> A -> Maybe<&2, B>, acc: Maybe<&2, B>, +h: A) -> Maybe<&2, B>:
   match acc:
     case None{}:
       None{}
-    case Some{z}:
+    case Some{+z}:
       f(z)(h)
 
 def HsList.maybe.foldm.go(~A: Data, ~B: Data, ~f: B -> A -> Maybe<&2, B>, xs: List<&2, A>, acc: Maybe<&2, B>) -> Maybe<&2, B>:
@@ -168,7 +168,7 @@ def HsList.maybe.filterm(~A: Data, ~p: A -> Maybe<&2, Bool>, xs: List<&2, A>) ->
 
 def HsList.maybe.zipwithm_(~A: Data, ~B: Data, ~C: Data, ~f: A -> B -> Maybe<&2, C>, xs: List<&2, A>, ys: List<&2, B>) -> Maybe<&2, Unit>:
   match xs ys:
-    case x <> xt y <> yt:
+    case +x <> xt +y <> yt:
       HsList.maybe.then(~C, ~Unit, f(x)(y), HsList.maybe.zipwithm_(~A, ~B, ~C, ~f, xt, yt))
     case _ _:
       Some{Unit{}}

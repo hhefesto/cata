@@ -17,10 +17,12 @@ import Prelude hiding (concatMap, filter, foldl, foldl', foldr, until)
 
 import Control.Applicative (Alternative (..))
 import Control.Comonad.Trans.Cofree (CofreeF (..))
+import qualified Control.Comonad.Cofree as C
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Show1 (..))
 import Data.Functor.Foldable (cata)
+import qualified Data.Map as Map
 import GHC.Show (showList__)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
@@ -172,3 +174,118 @@ filter _pred [] = []
 filter pred (x : xs)
   | pred x = x : filter pred xs
   | otherwise = filter pred xs
+
+-- | GHC.Show's showsPrec at Maybe, a list and a pair, given showsPrec at the
+-- parts (Spec's sp.shw writes it so at one of the package's types): a type
+-- that holds a Maybe of itself (telomare's LocTag) shows it by a copy that
+-- calls its own showsPrec, not by a template given it.
+showMaybeWith :: forall a. (Int -> a -> ShowS) -> Int -> Maybe a -> ShowS
+showMaybeWith sp d m s = case m of
+  Nothing -> showString "Nothing" s
+  Just x -> showParen (d >= 11) (\r -> showString "Just " (sp 11 x r)) s
+
+showListWith :: forall a. (Int -> a -> ShowS) -> Int -> [a] -> ShowS
+showListWith sp d [] s = '[' : ']' : s
+showListWith sp d (x : xs) s = '[' : sp 0 x (showListRest sp xs s)
+
+showListRest :: forall a. (Int -> a -> ShowS) -> [a] -> ShowS
+showListRest sp [] s = ']' : s
+showListRest sp (y : ys) s = ',' : sp 0 y (showListRest sp ys s)
+
+showPairWith :: forall a b. (Int -> a -> ShowS) -> (Int -> b -> ShowS) -> Int -> (a, b) -> ShowS
+showPairWith sp sq d (a, b) s = '(' : sp 0 a (',' : sq 0 b (')' : s))
+
+-- | base's monadic list functions, its definitions, at a monad cata's
+-- prelude has none for (Identity, ReaderT, WriterT, a StateT over another
+-- monad, the package's own): Spec writes traverse, mapM, forM, for, mapM_,
+-- forM_, traverse_, for_, foldM, sequence and sequenceA at a list as these,
+-- at the monad then the method's types (sp.pc.ltab).
+listTraverse :: forall f a b. Applicative f => (a -> f b) -> [a] -> f [b]
+listTraverse f [] = pure []
+listTraverse f (x : xs) = liftA2 (:) (f x) (listTraverse f xs)
+
+listFor :: forall f a b. Applicative f => [a] -> (a -> f b) -> f [b]
+listFor xs f = listTraverse f xs
+
+listMapM :: forall m a b. Monad m => (a -> m b) -> [a] -> m [b]
+listMapM f [] = pure []
+listMapM f (x : xs) = f x >>= \y -> fmap (y :) (listMapM f xs)
+
+listForM :: forall m a b. Monad m => [a] -> (a -> m b) -> m [b]
+listForM xs f = listMapM f xs
+
+listTraverse_ :: forall f a b. Applicative f => (a -> f b) -> [a] -> f ()
+listTraverse_ f [] = pure ()
+listTraverse_ f (x : xs) = liftA2 (\_ u -> u) (f x) (listTraverse_ f xs)
+
+listFor_ :: forall f a b. Applicative f => [a] -> (a -> f b) -> f ()
+listFor_ xs f = listTraverse_ f xs
+
+listMapM_ :: forall m a b. Monad m => (a -> m b) -> [a] -> m ()
+listMapM_ f [] = pure ()
+listMapM_ f (x : xs) = f x >>= \_ -> listMapM_ f xs
+
+listForM_ :: forall m a b. Monad m => [a] -> (a -> m b) -> m ()
+listForM_ xs f = listMapM_ f xs
+
+listFoldM :: forall m b a. Monad m => (b -> a -> m b) -> b -> [a] -> m b
+listFoldM f z [] = pure z
+listFoldM f z (x : xs) = f z x >>= \y -> listFoldM f y xs
+
+listSequenceA :: forall f a. Applicative f => [f a] -> f [a]
+listSequenceA [] = pure []
+listSequenceA (x : xs) = liftA2 (:) x (listSequenceA xs)
+
+listSequence :: forall m a. Monad m => [m a] -> m [a]
+listSequence [] = pure []
+listSequence (x : xs) = x >>= \y -> fmap (y :) (listSequence xs)
+
+-- | base's Traversable at Maybe
+maybeTraverse :: forall f a b. Applicative f => (a -> f b) -> Maybe a -> f (Maybe b)
+maybeTraverse f Nothing = pure Nothing
+maybeTraverse f (Just x) = fmap Just (f x)
+
+maybeSequenceA :: forall f a. Applicative f => Maybe (f a) -> f (Maybe a)
+maybeSequenceA Nothing = pure Nothing
+maybeSequenceA (Just x) = fmap Just x
+
+-- | base's Semigroup and Monoid at Maybe
+maybeAppend :: forall a. Semigroup a => Maybe a -> Maybe a -> Maybe a
+maybeAppend Nothing b = b
+maybeAppend a Nothing = a
+maybeAppend (Just a) (Just b) = Just (a <> b)
+
+maybeMempty :: forall a. Maybe a
+maybeMempty = Nothing
+
+-- | Data.Foldable's defaults at a package's own Foldable (a derived one has
+-- its foldr; toList and foldl' are the class's defaults)
+toListDefault :: forall t a. Foldable t => t a -> [a]
+toListDefault t = F.foldr (:) [] t
+
+foldlDefault :: forall t b a. Foldable t => (b -> a -> b) -> b -> t a -> b
+foldlDefault f z t = foldl f z (toListDefault t)
+
+-- | containers' mapKeys: fromList of the pairs, the greatest old key kept
+-- where two map to one
+mapKeys :: forall k2 k1 a. Ord k2 => (k1 -> k2) -> Map.Map k1 a -> Map.Map k2 a
+mapKeys f m = Map.fromList (map (\(k, x) -> (f k, x)) (Map.toList m))
+
+-- | recursion-schemes' ana at free's Cofree f l and at data-fix's Fix f
+-- (base's definition, embed . fmap (ana g) . g): fuel, as any recursion
+-- Bend sees nothing shrink in
+anaCofree :: forall f l a. Functor f => (a -> CofreeF f l a) -> a -> C.Cofree f l
+anaCofree g x = case g x of
+  l :< fx -> l C.:< fmap (\y -> anaCofree g y) fx
+
+anaFix :: forall f a. Functor f => (a -> f a) -> a -> Fix f
+anaFix g x = Fix (fmap (\y -> anaFix g y) (g x))
+
+-- | lens's transform at free's Cofree f l (its Plated instance there is the
+-- Traversable's children), the children first
+transformCofree :: forall f l. Functor f => (C.Cofree f l -> C.Cofree f l) -> C.Cofree f l -> C.Cofree f l
+transformCofree g (l C.:< fx) = g (l C.:< fmap (\y -> transformCofree g y) fx)
+
+-- | GHC.Show's default showsPrec (an instance that defines show)
+showsPrecDefault :: forall a. (a -> String) -> Int -> a -> ShowS
+showsPrecDefault sh _ x s = sh x ++ s

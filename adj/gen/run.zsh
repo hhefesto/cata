@@ -11,7 +11,13 @@
 #      cata's own F takes them, as one package: how many of the programs it
 #      takes (the model's F takes every one), and why not the rest; each
 #      law is GHC's answer at an input, checked by Bend
-#   BEND the bend, GHC a directory holding ghc and runghc, HSX hs-export.
+#   3. the way back: G(F(h)), each taken program, against h in GHC at those
+#      laws (tests/telomare/laws.zsh): differ 0 and missing 0, else FAIL
+#   BEND the bend, GHC a directory holding ghc and runghc, HSX hs-export;
+#   PKGDB the package database of a GHC with free, data-fix and
+#   recursion-schemes (a GHC with telomare's packages', GHC that GHC's bin),
+#   which prelude/Cata/Base.hs imports: without it the model does not export
+#   and cata has no copies of foldr at a lambda over locals.
 # Prints PASS when no answer differs.  OUT is made anew.
 set -u
 here=${0:A:h}
@@ -36,11 +42,16 @@ bad=$D
 if [[ -n ${SPEC:-} && -n ${LAW:-} ]]; then
   pre=${here:h:h}/prelude
   mkdir -p $out/ex $out/o $out/l
-  { print -- "-i$out/src"; print -- "-i$pre"; print -- "-XHaskell2010"; print -- "--"; print -- "$pre/Cata/Base.hs"; print -l $out/src/*.hs } > $out/args
+  { print -- "-i$out/src"; print -- "-i$pre"; print -- "-XHaskell2010"; [[ -n ${PKGDB:-} ]] && print -l -- "-package-db" $PKGDB; print -- "--"; print -- "$pre/Cata/Base.hs"; print -l $out/src/*.hs } > $out/args
   ${HSX:-hs-export} --package $out/ex $out/args > $out/ex.log 2>&1 || { tail -5 $out/ex.log; exit 1 }
+  grep -q '^(error ' $out/ex/Cata_Base.sexp && { print "the model, prelude/Cata/Base.hs, does not export (PKGDB)"; exit 1 }
   $SPEC $out/o $(cat $out/ex/modules.txt) > $out/o.log 2>&1 || { tail -5 $out/o.log; exit 1 }
-  (cd $out && BEND=$bend GHC="$(whence -p ghc) -i$out/src -i$pre -XHaskell2010 -fobject-code -outputdir $out/obj" nice -n 10 ${LAW:A} --package l $(sed "s#^$out/##" o/modules.txt) > l.log 2>&1) || { tail -5 $out/l.log; exit 1 }
+  (cd $out && CATA_BEND2HS=1 BEND=$bend GHC="$(whence -p ghc) -i$out/src -i$pre -XHaskell2010 -fobject-code -outputdir $out/obj" nice -n 10 ${LAW:A} --package l $(sed "s#^$out/##" o/modules.txt) > l.log 2>&1) || { tail -5 $out/l.log; exit 1 }
   awk -F'\t' '$1 ~ /Frag[0-9]+\.sexp$/ && $2 ~ /^d[0-9]+$/ {n++; c[$3]++; if ($3 == "ok-law") {split($4, a, ":"); w += a[2]} if ($3 == "out") {r = $4; sub(/^(law|check):.*/, "&", r); sub(/:.*/, "", r); if (r == "fold") r = $4; o[r]++}}
     END {printf "cata itself: %d programs, taken %d (ok-law %d with %d laws, ok-check %d, ok-type %d), out %d\n", n, n - c["out"], c["ok-law"], w, c["ok-check"], c["ok-type"], c["out"]; for (k in o) printf "  out %d %s\n", o[k], k}' $out/l/ledger.tsv | sort -k1,1 -k3,3rn
+  # 3. the way back: G(F(h)) (law's OUT/hs) in GHC, law by law, against h
+  back=$(PFX=o GHCI=$(whence -p ghc) $here/../../tests/telomare/laws.zsh $out/l 2>&1)
+  print "G: ${${(f)back}[-1]}"
+  [[ $back == *", differ 0, missing 0 "* ]] || bad=$((bad + 1))
 fi
 if (( bad == 0 )); then print PASS; else print FAIL; exit 1; fi
