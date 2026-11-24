@@ -126,9 +126,15 @@ and so does cata, never with `@unsafe`:
   bend branch's mutual walks are: `HEAD.mu.In` has a constructor for each
   member holding its arguments, and the answer is theirs when they share
   it, else `HEAD.mu.Out`'s constructor for the member (`HEAD.mu.outK`
-  takes it out). Each member is a call of `HEAD.mu` at its constructor. A
-  group whose members take type or template parameters, or do not fold
-  whole, is left as it was. A member whose answer is a function (written
+  takes it out). Each member is a call of `HEAD.mu` at its constructor.
+  Members that lead with the same template parameters and pass them on
+  unchanged at every call of a member (wordsWhen's `~p: Char -> Bool`,
+  which the defs lifted out of it take too) keep them as `HEAD.mu`'s own,
+  in front of the fuel: Bend takes such a cycle only as one def (a
+  template calls only templates declared above it). A type parameter
+  among them (`~A: Data`) is `HEAD.mu.In`'s too, when the members share
+  their answer. A group whose members take other type or template
+  parameters, or do not fold whole, is left as it was. A member whose answer is a function (written
   point-free, `freeD = cata alg`) takes its arguments as parameters of
   its own in the group (`HEAD.mu.Out`'s fields are data, and a function
   is not): its body is applied to them, its calls in the group are given

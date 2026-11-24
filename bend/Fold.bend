@@ -4006,12 +4006,29 @@ def fd.pm.of(ns: List<&2, List<&2, U32>>, +var: Bool, +i: Nat) -> Pm:
 def fd.pm(+col: List<&2, T.Bt>, +i: Nat) -> Pm:
   fd.pm.of(fd.names(col), fd.allvar(col), i)
 
-def fd.pms(k: Nat, +i: Nat, +cls: List<&2, R>) -> List<&2, Pm>:
+def fd.pm.x(p: Pm) -> List<&2, U32>:
+  match p:
+    case Pm{x, s}:
+      x
+
+# a split parameter named as a clause names it, and an earlier parameter
+# named so too (hs1003's 00616: conjunction Yes a = a; conjunction a Yes =
+# a, both a): xI instead (each case binds the clause's own names)
+def fd.pm.fresh(p: Pm, +seen: List<&2, List<&2, U32>>, +i: Nat) -> Pm:
+  match p:
+    case Pm{+x, +s}:
+      Bool.pick(Pm, Bool.and(s, S.mem(x, seen)), Pm{fd.cat(S.b("x"), fd.nshow(i)), s}, Pm{x, s})
+
+def fd.pms.go(k: Nat, +i: Nat, +cls: List<&2, R>, +seen: List<&2, List<&2, U32>>) -> List<&2, Pm>:
   match k:
     case 0n:
       Nil{}
     case 1n+p:
-      fd.pm(fd.col(cls, i), i) <> fd.pms(p, 1n+i, cls)
+      +m = fd.pm.fresh(fd.pm(fd.col(cls, i), i), seen, i)
+      m <> fd.pms.go(p, 1n+i, cls, fd.pm.x(m) <> seen)
+
+def fd.pms(k: Nat, +i: Nat, +cls: List<&2, R>) -> List<&2, Pm>:
+  fd.pms.go(k, i, cls, Nil{})
 
 def fd.anysplit(pms: List<&2, Pm>) -> Bool:
   match pms:
@@ -7901,6 +7918,15 @@ def fd.mu.inc(+g: List<&2, U32>, +i: Nat) -> List<&2, U32>:
 def fd.mu.outp(+g: List<&2, U32>, +i: Nat) -> List<&2, U32>:
   fd.cat(g, fd.cat(S.b(".out"), fd.nshow(i)))
 
+# a call's arguments in the group: its first k (the templates, fd.mu.lok),
+# the fuel, the rest as member i's constructor c of g.In
+def fd.mu.cargs(k: Nat, a: T.Bt, f: T.Bt, +c: List<&2, U32>) -> T.Bt:
+  match k a:
+    case 1n+j T.BtArgs{h, t}:
+      T.BtArgs{h, fd.mu.cargs(j, t, f, c)}
+    case _ rest:
+      T.tba.args([f, T.BtCon{c, rest}])
+
 # a call of member i of the defs being fuelled: in a group (mu), the
 # group's def at member i's constructor, its answer taken out unless the
 # members share it (same); alone, its .fu with the fuel after the first k
@@ -7911,9 +7937,9 @@ def fd.fu.app(idx: Maybe<&2, Nat>, x: List<&2, U32>, a: T.Bt, +mu: Bool, +g: Lis
     case Some{i} False{} _:
       T.BtApp{T.BtVar{fd.cat(g, S.b(".fu"))}, fd.fu.args(k, a, f)}
     case Some{+i} True{} True{}:
-      T.BtApp{T.BtVar{g}, T.tba.args([f, T.BtCon{fd.mu.inc(g, i), a}])}
+      T.BtApp{T.BtVar{g}, fd.mu.cargs(k, a, f, fd.mu.inc(g, i))}
     case Some{+i} True{} False{}:
-      T.BtApp{T.BtVar{fd.mu.outp(g, i)}, T.tba.args([T.BtApp{T.BtVar{g}, T.tba.args([f, T.BtCon{fd.mu.inc(g, i), a}])}])}
+      T.BtApp{T.BtVar{fd.mu.outp(g, i)}, T.tba.args([T.BtApp{T.BtVar{g}, fd.mu.cargs(k, a, f, fd.mu.inc(g, i))}])}
 
 # t with each call of a member of ms made as fd.fu.app makes it
 def fd.fu.rw(t: T.Bt, +ms: List<&2, List<&2, U32>>, +mu: Bool, +g: List<&2, U32>, +k: Nat, +f: T.Bt, +same: Bool) -> T.Bt:
@@ -8251,11 +8277,163 @@ def fd.mu.anytpl(ps: List<&2, T.BParam>) -> Bool:
     case h <> t:
       fd.mu.anytpl(t)
 
-# whether a member can be merged: no type or template parameter, no ?TODO
+# The group's templates (11-23). Members that lead with the same template
+# parameters (wordsWhen's ~p: Char -> Bool, which its lifted defs take
+# too) and pass them on unchanged at every call of a member keep them as
+# g's own, in front of the fuel, and g.In takes the rest: a template the
+# same at every call is the same in g's body. Bend refuses the group
+# unmerged (a template calls only templates declared above it, and a cycle
+# has no such order). A type parameter (~A: Data) is g.In's too (-A:
+# Data), when the members share their answer's type (g.Out takes none);
+# a higher kind (Data -> Data) stays a reason not to merge.
+def fd.mu.tpl1(p: T.BParam) -> Bool:
+  match p:
+    case T.BParam{T.BmTpl{}, x, ty}:
+      +s = P.tpr.t(ty, P.TpLoose{}, 0n, Nil{})
+      Bool.or(S.eq(s, S.b("Data")), Bool.not(Bool.or(S.infix(s, S.b("Data")), S.infix(s, S.b("Type")))))
+    case _:
+      False{}
+
+# the first k parameters' type parameters (~A: Data), as g.In's (-A: Data)
+def fd.mu.tparams(k: Nat, ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match k ps:
+    case 1n+j T.BParam{m, +x, ty} <> t:
+      +r = fd.mu.tparams(j, t)
+      Bool.pick(List<&2, T.BParam>, S.eq(P.tpr.t(ty, P.TpLoose{}, 0n, Nil{}), S.b("Data")), T.BParam{T.BmErased{}, x, fd.v("Data")} <> r, r)
+    case _ _:
+      Nil{}
+
+def fd.mu.tvars(ps: List<&2, T.BParam>) -> List<&2, T.Bt>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      T.BtVar{x} <> fd.mu.tvars(t)
+    case Nil{}:
+      Nil{}
+
+# g.In's type, at its type parameters
+def fd.mu.inty(+n: List<&2, U32>, tps: List<&2, T.BParam>) -> T.Bt:
+  match tps:
+    case Nil{}:
+      T.BtVar{n}
+    case +h <> t:
+      T.BtTyApp{n, T.tba.args(fd.mu.tvars(h <> t))}
+
+# the first k parameters are templates fd.mu.tpl1 takes
+def fd.mu.tpls(k: Nat, ps: List<&2, T.BParam>) -> Bool:
+  match k ps:
+    case 0n _:
+      True{}
+    case 1n+j h <> t:
+      Bool.and(fd.mu.tpl1(h), fd.mu.tpls(j, t))
+    case _ _:
+      False{}
+
+# the first k parameters as text (name: type; each)
+def fd.mu.ltext(k: Nat, ps: List<&2, T.BParam>) -> List<&2, U32>:
+  match k ps:
+    case 1n+j T.BParam{m, x, ty} <> t:
+      fd.cat(x, 58 <> P.tpr.t(ty, P.TpLoose{}, 0n, 59 <> fd.mu.ltext(j, t)))
+    case _ _:
+      Nil{}
+
+# the first k parameters' names
+def fd.mu.lvars(k: Nat, ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match k ps:
+    case 1n+j T.BParam{m, x, ty} <> t:
+      x <> fd.mu.lvars(j, t)
+    case _ _:
+      Nil{}
+
+def fd.mu.ps(it: T.BItem) -> List<&2, T.BParam>:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      ps
+    case _:
+      Nil{}
+
+# the members' leading templates: the first member's count
+def fd.mu.lk(ds: List<&2, T.BItem>) -> Nat:
+  match ds:
+    case h <> t:
+      fd.fu.lead(fd.mu.ps(h))
+    case Nil{}:
+      0n
+
+# the first k arguments of a call are the templates vs, passed on
+def fd.mu.tcargs(vs: List<&2, List<&2, U32>>, a: T.Bt) -> Bool:
+  match vs a:
+    case Nil{} _:
+      True{}
+    case v <> t T.BtArgs{T.BtTplArg{T.BtVar{y}}, rest}:
+      Bool.and(S.eq(v, y), fd.mu.tcargs(t, rest))
+    case _ _:
+      False{}
+
+# every call of a member in t passes the templates vs on (with none, every
+# call does)
+def fd.mu.tc(t: T.Bt, +ms: List<&2, List<&2, U32>>, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      Bool.and(Bool.or(Bool.not(S.mem(x, ms)), fd.mu.tcargs(vs, a)), fd.mu.tc(a, ms, vs))
+    case T.BtApp{h, a}:
+      Bool.and(fd.mu.tc(h, ms, vs), fd.mu.tc(a, ms, vs))
+    case T.BtTplArg{a}:
+      fd.mu.tc(a, ms, vs)
+    case T.BtLam{m, x, b}:
+      fd.mu.tc(b, ms, vs)
+    case T.BtCon{c, a}:
+      fd.mu.tc(a, ms, vs)
+    case T.BtEq{ty, a, b}:
+      Bool.and(fd.mu.tc(a, ms, vs), fd.mu.tc(b, ms, vs))
+    case T.BtSucc{a}:
+      fd.mu.tc(a, ms, vs)
+    case T.BtAnn{a, ty}:
+      fd.mu.tc(a, ms, vs)
+    case T.BtMatch{xs, cs}:
+      Bool.and(fd.mu.tc(xs, ms, vs), fd.mu.tc(cs, ms, vs))
+    case T.BtExpr{e}:
+      fd.mu.tc(e, ms, vs)
+    case T.BtRw{e, p, b}:
+      Bool.and(fd.mu.tc(e, ms, vs), fd.mu.tc(b, ms, vs))
+    case T.BtLet{x, v, b}:
+      Bool.and(fd.mu.tc(v, ms, vs), fd.mu.tc(b, ms, vs))
+    case T.BtCase{p, b, rest}:
+      Bool.and(fd.mu.tc(b, ms, vs), fd.mu.tc(rest, ms, vs))
+    case T.BtArgs{a, rest}:
+      Bool.and(fd.mu.tc(a, ms, vs), fd.mu.tc(rest, ms, vs))
+    case u:
+      True{}
+
+# each member leads with the first's k templates, the same text, and its
+# body passes them on at each call of a member
+def fd.mu.lsame(ds: List<&2, T.BItem>, +ms: List<&2, List<&2, U32>>, +k: Nat, +txt: List<&2, U32>, +vs: List<&2, List<&2, U32>>) -> Bool:
+  match ds:
+    case Nil{}:
+      True{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      Bool.and(Bool.and(Nat.is_eq(fd.fu.lead(ps), k), S.eq(fd.mu.ltext(k, ps), txt)), Bool.and(fd.mu.tc(b, ms, vs), fd.mu.lsame(t, ms, k, txt, vs)))
+    case h <> t:
+      fd.mu.lsame(t, ms, k, txt, vs)
+
+def fd.mu.ps0(ds: List<&2, T.BItem>) -> List<&2, T.BParam>:
+  match ds:
+    case h <> t:
+      fd.mu.ps(h)
+    case Nil{}:
+      Nil{}
+
+def fd.mu.lok(+ds: List<&2, T.BItem>, +ms: List<&2, List<&2, U32>>) -> Bool:
+  +k = fd.mu.lk(ds)
+  +ps = fd.mu.ps0(ds)
+  fd.mu.lsame(ds, ms, k, fd.mu.ltext(k, ps), fd.mu.lvars(k, ps))
+
+# whether a member can be merged: no type parameter, templates only in
+# front (the group's own, fd.mu.lok), no ?TODO
 def fd.mu.ok1(it: T.BItem) -> Bool:
   match it:
     case T.BiDef{n, +ps, r, +b, d}:
-      Bool.and(Nat.is_eq(fd.fu.lead(ps), 0n), Bool.and(Bool.not(fd.mu.anytpl(ps)), List.is_empty(&2, List<&2, U32>, T.tba.todos(b, Nil{}))))
+      +k = fd.fu.lead(ps)
+      Bool.and(fd.mu.tpls(k, ps), Bool.and(Bool.not(fd.mu.anytpl(List.drop(&2, T.BParam, ps, k))), List.is_empty(&2, List<&2, U32>, T.tba.todos(b, Nil{}))))
     case _:
       False{}
 
@@ -8291,14 +8469,14 @@ def fd.mu.fields(ps: List<&2, T.BParam>) -> List<&2, T.BField>:
     case T.BParam{m, x, ty} <> t:
       T.BField{x, ty} <> fd.mu.fields(t)
 
-def fd.mu.inctors(ds: List<&2, T.BItem>, +g: List<&2, U32>, +i: Nat) -> List<&2, T.BCtor>:
+def fd.mu.inctors(ds: List<&2, T.BItem>, +g: List<&2, U32>, +k: Nat, +i: Nat) -> List<&2, T.BCtor>:
   match ds:
     case Nil{}:
       Nil{}
     case T.BiDef{n, ps, r, b, d} <> t:
-      T.BCtor{fd.mu.inc(g, i), fd.mu.fields(ps)} <> fd.mu.inctors(t, g, 1n+i)
+      T.BCtor{fd.mu.inc(g, i), fd.mu.fields(List.drop(&2, T.BParam, ps, k))} <> fd.mu.inctors(t, g, k, 1n+i)
     case h <> t:
-      fd.mu.inctors(t, g, 1n+i)
+      fd.mu.inctors(t, g, k, 1n+i)
 
 def fd.mu.oc(+g: List<&2, U32>, +i: Nat) -> List<&2, U32>:
   fd.cat(g, fd.cat(S.b(".Out.O"), fd.nshow(i)))
@@ -8344,15 +8522,15 @@ def fd.mu.wrap.if(same: Bool, b: T.Bt, +c: List<&2, U32>) -> T.Bt:
 
 # g's cases: member i's constructor, its body (calls of members made calls
 # of g), its answer as g.Out's when the members do not share theirs
-def fd.mu.cases(ds: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +g: List<&2, U32>, +same: Bool, +i: Nat) -> T.Bt:
+def fd.mu.cases(ds: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +g: List<&2, U32>, +same: Bool, +k: Nat, +i: Nat) -> T.Bt:
   match ds:
     case Nil{}:
       T.BtCEnd{}
     case T.BiDef{n, +ps, r, b, d} <> t:
-      +b2 = fd.mu.wrap.if(same, fd.fu.rw(b, ns, True{}, g, 0n, T.BtVar{S.b("fuel_p")}, same), fd.mu.oc(g, i))
-      T.BtCase{T.tba.args([T.BtCon{fd.mu.inc(g, i), T.tba.args(fd.mu.pvs(ps, b2))}]), b2, fd.mu.cases(t, ns, g, same, 1n+i)}
+      +b2 = fd.mu.wrap.if(same, fd.fu.rw(b, ns, True{}, g, k, T.BtVar{S.b("fuel_p")}, same), fd.mu.oc(g, i))
+      T.BtCase{T.tba.args([T.BtCon{fd.mu.inc(g, i), T.tba.args(fd.mu.pvs(List.drop(&2, T.BParam, ps, k), b2))}]), b2, fd.mu.cases(t, ns, g, same, k, 1n+i)}
     case h <> t:
-      fd.mu.cases(t, ns, g, same, 1n+i)
+      fd.mu.cases(t, ns, g, same, k, 1n+i)
 
 def fd.mu.doc(+ns: List<&2, List<&2, U32>>) -> List<&2, U32>:
   fd.cat(S.b("generated: fuel: the mutual recursion of "), S.join(ns, 32))
@@ -8558,13 +8736,13 @@ def fd.mu.sats(ds: List<&2, T.BItem>, +ks: List<&2, Mab>) -> List<&2, T.BItem>:
       h <> fd.mu.sats(t, ks)
 
 # the members, each a call of g at its constructor
-def fd.mu.wrappers(ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +g: List<&2, U32>, +same: Bool, +i: Nat) -> List<&2, T.BItem>:
+def fd.mu.wrappers(ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +g: List<&2, U32>, +same: Bool, +k: Nat, +i: Nat) -> List<&2, T.BItem>:
   match ds os:
     case T.BiDef{n, +ps, r, b, d} <> t T.BiDef{n0, +ps0, r0, b0, d0} <> u:
-      +call = {T.BtApp{T.BtVar{g}, T.tba.args([fd.fu.max(), T.BtCon{fd.mu.inc(g, i), fd.fu.pargs(ps)}])} : T.Bt}
-      T.BiDef{n0, ps0, r0, T.BtExpr{fd.mu.lams(List.drop(&2, T.BParam, ps, List.length(&2, T.BParam, ps0)), fd.mu.wrap.call(same, call, fd.mu.outp(g, i)))}, [S.b("fuel: a call of the group's def, from 2^32 - 1")]} <> fd.mu.wrappers(t, u, g, same, 1n+i)
+      +call = {T.BtApp{T.BtVar{g}, fd.mu.cargs(k, fd.fu.pargs(ps), fd.fu.max(), fd.mu.inc(g, i))} : T.Bt}
+      T.BiDef{n0, ps0, r0, T.BtExpr{fd.mu.lams(List.drop(&2, T.BParam, ps, List.length(&2, T.BParam, ps0)), fd.mu.wrap.call(same, call, fd.mu.outp(g, i)))}, [S.b("fuel: a call of the group's def, from 2^32 - 1")]} <> fd.mu.wrappers(t, u, g, same, k, 1n+i)
     case h <> t o <> u:
-      fd.mu.wrappers(t, u, g, same, 1n+i)
+      fd.mu.wrappers(t, u, g, same, k, 1n+i)
     case _ _:
       Nil{}
 
@@ -8603,13 +8781,15 @@ def fd.mu.r0(ds: List<&2, T.BItem>) -> T.Bt:
 def fd.mu.items(+ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   +g = fd.cat(fd.mu.head(ns), S.b(".mu"))
   +same = fd.mu.same(ds, fd.mu.first(ds))
-  +tin = {T.BiType{fd.cat(g, S.b(".In")), Nil{}, fd.v("Data"), fd.mu.inctors(ds, g, 0n), [S.b("generated: fuel: the group's arguments")]} : T.BItem}
+  +k = fd.mu.lk(ds)
+  +tps = fd.mu.tparams(k, fd.mu.ps0(ds))
+  +tin = {T.BiType{fd.cat(g, S.b(".In")), tps, fd.v("Data"), fd.mu.inctors(ds, g, k, 0n), [S.b("generated: fuel: the group's arguments")]} : T.BItem}
   +tout = {T.BiType{fd.cat(g, S.b(".Out")), Nil{}, fd.v("Data"), fd.mu.outctors(ds, g, 0n), [S.b("generated: fuel: the group's answers")]} : T.BItem}
   +tys = {tout <> List.append(&2, T.BItem, its, dt) : List<&2, T.BItem>}
   +r = Bool.pick(T.Bt, same, fd.mu.r0(ds), T.BtVar{fd.cat(g, S.b(".Out"))})
-  +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(T.BmCopy{})]), T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), fd.mu.cases(ds, ns, g, same, 0n)}, T.BtCEnd{}}}} : T.Bt}
-  +gdef = {T.BiDef{g, [T.BParam{T.BmLive{}, S.b("fuel_"), fd.ty0("Nat")}, T.BParam{T.BmLive{}, S.b("in_"), T.BtVar{fd.cat(g, S.b(".In"))}}], r, body, [fd.mu.doc(ns)]} : T.BItem}
-  List.concat(&2, T.BItem, [[tin], Bool.pick(List<&2, T.BItem>, same, Nil{}, tout <> fd.mu.outs(ds, g, tys, 0n)), [gdef], fd.mu.wrappers(ds, os, g, same, 0n)])
+  +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(T.BmCopy{})]), T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), fd.mu.cases(ds, ns, g, same, k, 0n)}, T.BtCEnd{}}}} : T.Bt}
+  +gdef = {T.BiDef{g, List.append(&2, T.BParam, List.take(&2, T.BParam, fd.mu.ps0(ds), k), [T.BParam{T.BmLive{}, S.b("fuel_"), fd.ty0("Nat")}, T.BParam{T.BmLive{}, S.b("in_"), fd.mu.inty(fd.cat(g, S.b(".In")), tps)}]), r, body, [fd.mu.doc(ns)]} : T.BItem}
+  List.concat(&2, T.BItem, [[tin], Bool.pick(List<&2, T.BItem>, same, Nil{}, tout <> fd.mu.outs(ds, g, tys, 0n)), [gdef], fd.mu.wrappers(ds, os, g, same, k, 0n)])
 
 def fd.mu.dput(b: Bool, h: T.BItem, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match b:
@@ -8631,7 +8811,8 @@ def fd.mu.one(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&
   +abs = fd.mu.abs(ds0)
   +ds = fd.mu.sats(fd.mu.abits(abs), fd.mu.abks(abs))
   +new = fd.mu.items(ds, ds0, ns, its, dt)
-  Bool.pick(List<&2, T.BItem>, Bool.and(fd.mu.ok(ds), List.is_empty(&2, List<&2, U32>, fd.todos.all(new, Nil{}))), List.append(&2, T.BItem, fd.mu.drop(its, ns), new), its)
+  +notps = Bool.or(fd.mu.same(ds, fd.mu.first(ds)), List.is_empty(&2, T.BParam, fd.mu.tparams(fd.mu.lk(ds), fd.mu.ps0(ds))))
+  Bool.pick(List<&2, T.BItem>, Bool.and(Bool.and(Bool.and(fd.mu.ok(ds), fd.mu.lok(ds, ns)), notps), List.is_empty(&2, List<&2, U32>, fd.todos.all(new, Nil{}))), List.append(&2, T.BItem, fd.mu.drop(its, ns), new), its)
 
 def fd.mu.each(gs: List<&2, List<&2, List<&2, U32>>>, its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match gs:
