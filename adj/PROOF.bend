@@ -22,6 +22,21 @@ def P.F.case(f, g):
 def P.F.fold(z, s):
   {==}
 
+def P.F.unit():
+  {==}
+
+def P.F.nil():
+  {==}
+
+def P.F.cons(a, b):
+  {==}
+
+def P.F.dist():
+  {==}
+
+def P.F.foldE(z, s):
+  {==}
+
 def P.G.id():
   {==}
 
@@ -29,6 +44,12 @@ def P.G.comp(g, f):
   {==}
 
 def P.G.fold(z, s):
+  {==}
+
+def P.G.cons(a, b):
+  {==}
+
+def P.G.foldE(z, s):
   {==}
 
 # values: by induction on the value
@@ -288,6 +309,52 @@ def L.if.F(c: Maybe<&2, C.HV>, a: Maybe<&2, C.HV>, e: Maybe<&2, C.HV>) -> {C.enc
         case C.HvCons{h, t}:
           {==}
 
+def L.cons.F(r: Maybe<&2, C.HV>, s: Maybe<&2, C.HV>) -> {C.encM(C.h.cons(r, s)) == C.b.cons(C.encM(r), C.encM(s)) : Maybe<&2, C.BV>}:
+  match r s:
+    case Some{u} Some{v}:
+      {==}
+    case Some{u} None{}:
+      {==}
+    case None{} Some{v}:
+      {==}
+    case None{} None{}:
+      {==}
+
+def L.dist.F(x: C.HV) -> {C.encM(C.h.dist(x)) == C.b.dist(C.enc(x)) : Maybe<&2, C.BV>}:
+  match x:
+    case C.HvPair{e, q}:
+      match q:
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{a, b}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, t}:
+          {==}
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{a}:
+      {==}
+    case C.HvInr{b}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      {==}
+
 # a bind: F's continuation means Haskell's at every value
 def L.bind.F(r: Maybe<&2, C.HV>, -kh: C.HV -> Maybe<&2, C.HV>, -kb: C.BV -> Maybe<&2, C.BV>, ih: @v: C.HV -> {C.encM(kh(v)) == kb(C.enc(v)) : Maybe<&2, C.BV>}) -> {C.encM(Maybe.bind(&2, C.HV, C.HV, r, kh)) == Maybe.bind(&2, C.BV, C.BV, C.encM(r), kb) : Maybe<&2, C.BV>}:
   match r:
@@ -358,6 +425,51 @@ def P.sq.F(t, x):
         case C.HvUnit{}:
           {==}
         case C.HvPair{a, b}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+    case C.HUnit{}:
+      {==}
+    case C.HNil{}:
+      {==}
+    case C.HCons{a, b}:
+      %P.sq.F(a, x) : {C.encM(C.h.cons(C.eval.h(a, x), C.eval.h(b, x))) == C.b.cons(_, C.eval.b(C.F(b), C.enc(x))) : Maybe<&2, C.BV>}
+      %P.sq.F(b, x) : {C.encM(C.h.cons(C.eval.h(a, x), C.eval.h(b, x))) == C.b.cons(C.encM(C.eval.h(a, x)), _) : Maybe<&2, C.BV>}
+      L.cons.F(C.eval.h(a, x), C.eval.h(b, x))
+    case C.HDist{}:
+      L.dist.F(x)
+    case C.HFoldE{z, s}:
+      match x:
+        case C.HvPair{+e, l}:
+          match l:
+            case C.HvNil{}:
+              P.sq.F(z, e)
+            case C.HvCons{hd, tl}:
+              %P.sq.F(t, C.HvPair{e, tl}) : {C.encM(Maybe.bind(&2, C.HV, C.HV, C.eval.h(t, C.HvPair{e, tl}), r => C.eval.h(s, C.HvPair{e, C.HvPair{hd, r}}))) == Maybe.bind(&2, C.BV, C.BV, _, r => C.eval.b(C.F(s), C.BvPair{C.enc(e), C.BvPair{C.enc(hd), r}})) : Maybe<&2, C.BV>}
+              L.bind.F(C.eval.h(t, C.HvPair{e, tl}), r => C.eval.h(s, C.HvPair{e, C.HvPair{hd, r}}), r => C.eval.b(C.F(s), C.BvPair{C.enc(e), C.BvPair{C.enc(hd), r}}), v => P.sq.F(s, C.HvPair{e, C.HvPair{hd, v}}))
+            case C.HvNat{n}:
+              {==}
+            case C.HvBool{b}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, b}:
+              {==}
+            case C.HvInl{a}:
+              {==}
+            case C.HvInr{b}:
+              {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{hd, tl}:
+          {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
           {==}
         case C.HvInl{a}:
           {==}
@@ -448,6 +560,52 @@ def L.if.G(c: Maybe<&2, C.BV>, a: Maybe<&2, C.BV>, e: Maybe<&2, C.BV>) -> {C.dec
         case C.BvCons{h, t}:
           {==}
 
+def L.cons.G(r: Maybe<&2, C.BV>, s: Maybe<&2, C.BV>) -> {C.decM(C.b.cons(r, s)) == C.h.cons(C.decM(r), C.decM(s)) : Maybe<&2, C.HV>}:
+  match r s:
+    case Some{u} Some{v}:
+      {==}
+    case Some{u} None{}:
+      {==}
+    case None{} Some{v}:
+      {==}
+    case None{} None{}:
+      {==}
+
+def L.dist.G(y: C.BV) -> {C.decM(C.b.dist(y)) == C.h.dist(C.dec(y)) : Maybe<&2, C.HV>}:
+  match y:
+    case C.BvPair{e, q}:
+      match q:
+        case C.BvInl{a}:
+          {==}
+        case C.BvInr{b}:
+          {==}
+        case C.BvNat{n}:
+          {==}
+        case C.BvBool{b}:
+          {==}
+        case C.BvUnit{}:
+          {==}
+        case C.BvPair{a, b}:
+          {==}
+        case C.BvNil{}:
+          {==}
+        case C.BvCons{h, t}:
+          {==}
+    case C.BvNat{n}:
+      {==}
+    case C.BvBool{b}:
+      {==}
+    case C.BvUnit{}:
+      {==}
+    case C.BvInl{a}:
+      {==}
+    case C.BvInr{b}:
+      {==}
+    case C.BvNil{}:
+      {==}
+    case C.BvCons{h, t}:
+      {==}
+
 def L.bind.G(r: Maybe<&2, C.BV>, -kb: C.BV -> Maybe<&2, C.BV>, -kh: C.HV -> Maybe<&2, C.HV>, ih: @w: C.BV -> {C.decM(kb(w)) == kh(C.dec(w)) : Maybe<&2, C.HV>}) -> {C.decM(Maybe.bind(&2, C.BV, C.BV, r, kb)) == Maybe.bind(&2, C.HV, C.HV, C.decM(r), kh) : Maybe<&2, C.HV>}:
   match r:
     case None{}:
@@ -516,6 +674,51 @@ def P.sq.G(t, y):
         case C.BvUnit{}:
           {==}
         case C.BvPair{a, b}:
+          {==}
+        case C.BvInl{a}:
+          {==}
+        case C.BvInr{b}:
+          {==}
+    case C.BUnit{}:
+      {==}
+    case C.BNil{}:
+      {==}
+    case C.BCons{a, b}:
+      %P.sq.G(a, y) : {C.decM(C.b.cons(C.eval.b(a, y), C.eval.b(b, y))) == C.h.cons(_, C.eval.h(C.G(b), C.dec(y))) : Maybe<&2, C.HV>}
+      %P.sq.G(b, y) : {C.decM(C.b.cons(C.eval.b(a, y), C.eval.b(b, y))) == C.h.cons(C.decM(C.eval.b(a, y)), _) : Maybe<&2, C.HV>}
+      L.cons.G(C.eval.b(a, y), C.eval.b(b, y))
+    case C.BDist{}:
+      L.dist.G(y)
+    case C.BFoldE{z, s}:
+      match y:
+        case C.BvPair{+e, l}:
+          match l:
+            case C.BvNil{}:
+              P.sq.G(z, e)
+            case C.BvCons{hd, tl}:
+              %P.sq.G(t, C.BvPair{e, tl}) : {C.decM(Maybe.bind(&2, C.BV, C.BV, C.eval.b(t, C.BvPair{e, tl}), r => C.eval.b(s, C.BvPair{e, C.BvPair{hd, r}}))) == Maybe.bind(&2, C.HV, C.HV, _, r => C.eval.h(C.G(s), C.HvPair{C.dec(e), C.HvPair{C.dec(hd), r}})) : Maybe<&2, C.HV>}
+              L.bind.G(C.eval.b(t, C.BvPair{e, tl}), r => C.eval.b(s, C.BvPair{e, C.BvPair{hd, r}}), r => C.eval.h(C.G(s), C.HvPair{C.dec(e), C.HvPair{C.dec(hd), r}}), w => P.sq.G(s, C.BvPair{e, C.BvPair{hd, w}}))
+            case C.BvNat{n}:
+              {==}
+            case C.BvBool{b}:
+              {==}
+            case C.BvUnit{}:
+              {==}
+            case C.BvPair{a, b}:
+              {==}
+            case C.BvInl{a}:
+              {==}
+            case C.BvInr{b}:
+              {==}
+        case C.BvNil{}:
+          {==}
+        case C.BvCons{hd, tl}:
+          {==}
+        case C.BvNat{n}:
+          {==}
+        case C.BvBool{b}:
+          {==}
+        case C.BvUnit{}:
           {==}
         case C.BvInl{a}:
           {==}
@@ -1040,6 +1243,52 @@ def L.z.if(c: Maybe<&2, C.HV>, a: Maybe<&2, C.HV>, e: Maybe<&2, C.HV>) -> {C.upM
         case C.HvCons{h, t}:
           {==}
 
+def L.z.cons(r: Maybe<&2, C.HV>, s: Maybe<&2, C.HV>) -> {C.upM(C.h.cons(r, s)) == C.z.cons(C.upM(r), C.upM(s)) : Maybe<&2, C.ZV>}:
+  match r s:
+    case Some{u} Some{v}:
+      {==}
+    case Some{u} None{}:
+      {==}
+    case None{} Some{v}:
+      {==}
+    case None{} None{}:
+      {==}
+
+def L.z.dist(x: C.HV) -> {C.upM(C.h.dist(x)) == C.z.dist(C.up(x)) : Maybe<&2, C.ZV>}:
+  match x:
+    case C.HvPair{e, q}:
+      match q:
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvPair{a, b}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, t}:
+          {==}
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{a}:
+      {==}
+    case C.HvInr{b}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      {==}
+
 def L.z.bind(r: Maybe<&2, C.HV>, -kh: C.HV -> Maybe<&2, C.HV>, -kz: C.ZV -> Maybe<&2, C.ZV>, ih: @v: C.HV -> {C.upM(kh(v)) == kz(C.up(v)) : Maybe<&2, C.ZV>}) -> {C.upM(Maybe.bind(&2, C.HV, C.HV, r, kh)) == Maybe.bind(&2, C.ZV, C.ZV, C.upM(r), kz) : Maybe<&2, C.ZV>}:
   match r:
     case None{}:
@@ -1109,6 +1358,51 @@ def L.agree(+t: C.HTm, +e: {C.nosub(t) == True{} : Bool}, +x: C.HV) -> {C.upM(C.
         case C.HvUnit{}:
           {==}
         case C.HvPair{a, b}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+    case C.HUnit{}:
+      {==}
+    case C.HNil{}:
+      {==}
+    case C.HCons{a, b}:
+      %L.agree(a, L.and.l(C.nosub(a), C.nosub(b), e), x) : {C.upM(C.h.cons(C.eval.h(a, x), C.eval.h(b, x))) == C.z.cons(_, C.eval.z(b, C.up(x))) : Maybe<&2, C.ZV>}
+      %L.agree(b, L.and.r(C.nosub(a), C.nosub(b), e), x) : {C.upM(C.h.cons(C.eval.h(a, x), C.eval.h(b, x))) == C.z.cons(C.upM(C.eval.h(a, x)), _) : Maybe<&2, C.ZV>}
+      L.z.cons(C.eval.h(a, x), C.eval.h(b, x))
+    case C.HDist{}:
+      L.z.dist(x)
+    case C.HFoldE{z, s}:
+      match x:
+        case C.HvPair{+v, l}:
+          match l:
+            case C.HvNil{}:
+              L.agree(z, L.and.l(C.nosub(z), C.nosub(s), e), v)
+            case C.HvCons{hd, tl}:
+              %L.agree(t, e, C.HvPair{v, tl}) : {C.upM(Maybe.bind(&2, C.HV, C.HV, C.eval.h(t, C.HvPair{v, tl}), r => C.eval.h(s, C.HvPair{v, C.HvPair{hd, r}}))) == Maybe.bind(&2, C.ZV, C.ZV, _, r => C.eval.z(s, C.ZvPair{C.up(v), C.ZvPair{C.up(hd), r}})) : Maybe<&2, C.ZV>}
+              L.z.bind(C.eval.h(t, C.HvPair{v, tl}), r => C.eval.h(s, C.HvPair{v, C.HvPair{hd, r}}), r => C.eval.z(s, C.ZvPair{C.up(v), C.ZvPair{C.up(hd), r}}), w => L.agree(s, L.and.r(C.nosub(z), C.nosub(s), e), C.HvPair{v, C.HvPair{hd, w}}))
+            case C.HvNat{n}:
+              {==}
+            case C.HvBool{b}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, b}:
+              {==}
+            case C.HvInl{a}:
+              {==}
+            case C.HvInr{b}:
+              {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{hd, tl}:
+          {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
           {==}
         case C.HvInl{a}:
           {==}
@@ -1688,6 +1982,19 @@ def L.rg.pair(a1: Maybe<&2, C.ZV>, b1: Maybe<&2, C.ZV>, -a2: Maybe<&2, C.ZV>, -b
           %Equal.sym(Maybe<&2, C.ZV>, b2, Some{q}, hb(q, {==})) : {C.z.pair(Some{p}, _) == Some{u} : Maybe<&2, C.ZV>}
           e
 
+def L.rg.cons(a1: Maybe<&2, C.ZV>, b1: Maybe<&2, C.ZV>, -a2: Maybe<&2, C.ZV>, -b2: Maybe<&2, C.ZV>, ha: @y: C.ZV -> {a1 == Some{y} : Maybe<&2, C.ZV>} -> {a2 == Some{y} : Maybe<&2, C.ZV>}, hb: @y: C.ZV -> {b1 == Some{y} : Maybe<&2, C.ZV>} -> {b2 == Some{y} : Maybe<&2, C.ZV>}, +u: C.ZV, e: {C.z.cons(a1, b1) == Some{u} : Maybe<&2, C.ZV>}) -> {C.z.cons(a2, b2) == Some{u} : Maybe<&2, C.ZV>}:
+  match a1:
+    case None{}:
+      Empty.absurd({C.z.cons(a2, b2) == Some{u} : Maybe<&2, C.ZV>}, L.none.some.z(u, e))
+    case Some{+p}:
+      match b1:
+        case None{}:
+          Empty.absurd({C.z.cons(a2, b2) == Some{u} : Maybe<&2, C.ZV>}, L.none.some.z(u, e))
+        case Some{+q}:
+          %Equal.sym(Maybe<&2, C.ZV>, a2, Some{p}, ha(p, {==})) : {C.z.cons(_, b2) == Some{u} : Maybe<&2, C.ZV>}
+          %Equal.sym(Maybe<&2, C.ZV>, b2, Some{q}, hb(q, {==})) : {C.z.cons(Some{p}, _) == Some{u} : Maybe<&2, C.ZV>}
+          e
+
 def L.rg.if(c1: Maybe<&2, C.ZV>, a1: Maybe<&2, C.ZV>, d1: Maybe<&2, C.ZV>, -c2: Maybe<&2, C.ZV>, -a2: Maybe<&2, C.ZV>, -d2: Maybe<&2, C.ZV>, hc: @y: C.ZV -> {c1 == Some{y} : Maybe<&2, C.ZV>} -> {c2 == Some{y} : Maybe<&2, C.ZV>}, ha: @y: C.ZV -> {a1 == Some{y} : Maybe<&2, C.ZV>} -> {a2 == Some{y} : Maybe<&2, C.ZV>}, hd: @y: C.ZV -> {d1 == Some{y} : Maybe<&2, C.ZV>} -> {d2 == Some{y} : Maybe<&2, C.ZV>}, +u: C.ZV, e: {C.z.if(c1, a1, d1) == Some{u} : Maybe<&2, C.ZV>}) -> {C.z.if(c2, a2, d2) == Some{u} : Maybe<&2, C.ZV>}:
   match c1:
     case None{}:
@@ -1783,6 +2090,52 @@ def L.rg.ev(+o: RgLe, +t: C.HTm, +v: C.ZV, +u: C.ZV, e: {C.eval.zr(L.lo(o), t, v
           e
         case C.ZvInr{q}:
           e
+    case C.HUnit{}:
+      e
+    case C.HNil{}:
+      e
+    case C.HCons{+a, +b}:
+      L.rg.cons(C.eval.zr(L.lo(o), a, v), C.eval.zr(L.lo(o), b, v), C.eval.zr(L.hi(o), a, v), C.eval.zr(L.hi(o), b, v), y => ey => L.rg.ev(o, a, v, y, ey), y => ey => L.rg.ev(o, b, v, y, ey), u, e)
+    case C.HDist{}:
+      e
+    case C.HFoldE{+z, +s}:
+      match v:
+        case C.ZvPair{+w, l}:
+          match l:
+            case C.ZvNil{}:
+              L.rg.ev(o, z, w, u, e)
+            case C.ZvCons{+hd, +tl}:
+              L.rg.bind(C.eval.zr(L.lo(o), t, C.ZvPair{w, tl}), C.eval.zr(L.hi(o), t, C.ZvPair{w, tl}), y => ey => L.rg.ev(o, t, C.ZvPair{w, tl}, y, ey), q => C.eval.zr(L.lo(o), s, C.ZvPair{w, C.ZvPair{hd, q}}), q => C.eval.zr(L.hi(o), s, C.ZvPair{w, C.ZvPair{hd, q}}), y => k => ek => L.rg.ev(o, s, C.ZvPair{w, C.ZvPair{hd, y}}, k, ek), u, e)
+            case C.ZvNat{q}:
+              e
+            case C.ZvNeg{q}:
+              e
+            case C.ZvBool{q}:
+              e
+            case C.ZvUnit{}:
+              e
+            case C.ZvPair{q, r}:
+              e
+            case C.ZvInl{q}:
+              e
+            case C.ZvInr{q}:
+              e
+        case C.ZvNil{}:
+          e
+        case C.ZvCons{q, r}:
+          e
+        case C.ZvNat{q}:
+          e
+        case C.ZvNeg{q}:
+          e
+        case C.ZvBool{q}:
+          e
+        case C.ZvUnit{}:
+          e
+        case C.ZvInl{q}:
+          e
+        case C.ZvInr{q}:
+          e
     case C.HErr{}:
       e
 
@@ -1841,6 +2194,54 @@ def L.lz.pair(r1: Maybe<&2, C.HV>, r2: Maybe<&2, C.HV>, -l1: Maybe<&2, C.LV>, -l
           %Equal.sym(Maybe<&2, C.LV>, l1, Some{C.lz(p)}, h1(p, {==})) : {Some{C.LvPair{_, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}
           %Equal.sym(Maybe<&2, C.LV>, l2, Some{C.lz(q)}, h2(q, {==})) : {Some{C.LvPair{Some{C.lz(p)}, _}} == Some{C.lz(v)} : Maybe<&2, C.LV>}
           L.lz.cong(Some{C.HvPair{p, q}}, v, e)
+
+def L.lz.cons(r1: Maybe<&2, C.HV>, r2: Maybe<&2, C.HV>, -l1: Maybe<&2, C.LV>, -l2: Maybe<&2, C.LV>, h1: @y: C.HV -> {r1 == Some{y} : Maybe<&2, C.HV>} -> {l1 == Some{C.lz(y)} : Maybe<&2, C.LV>}, h2: @y: C.HV -> {r2 == Some{y} : Maybe<&2, C.HV>} -> {l2 == Some{C.lz(y)} : Maybe<&2, C.LV>}, +v: C.HV, e: {C.h.cons(r1, r2) == Some{v} : Maybe<&2, C.HV>}) -> {Some{C.LvCons{l1, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  match r1:
+    case None{}:
+      Empty.absurd({Some{C.LvCons{l1, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case Some{+p}:
+      match r2:
+        case None{}:
+          Empty.absurd({Some{C.LvCons{l1, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case Some{+q}:
+          %Equal.sym(Maybe<&2, C.LV>, l1, Some{C.lz(p)}, h1(p, {==})) : {Some{C.LvCons{_, l2}} == Some{C.lz(v)} : Maybe<&2, C.LV>}
+          %Equal.sym(Maybe<&2, C.LV>, l2, Some{C.lz(q)}, h2(q, {==})) : {Some{C.LvCons{Some{C.lz(p)}, _}} == Some{C.lz(v)} : Maybe<&2, C.LV>}
+          L.lz.cong(Some{C.HvCons{p, q}}, v, e)
+
+def L.lz.dist(x: C.HV, +v: C.HV, e: {C.h.dist(x) == Some{v} : Maybe<&2, C.HV>}) -> {C.l.dist(Some{C.lz(x)}) == Some{C.lz(v)} : Maybe<&2, C.LV>}:
+  match x:
+    case C.HvPair{p, q}:
+      match q:
+        case C.HvInl{a}:
+          L.lz.cong(Some{C.HvInl{C.HvPair{p, a}}}, v, e)
+        case C.HvInr{b}:
+          L.lz.cong(Some{C.HvInr{C.HvPair{p, b}}}, v, e)
+        case C.HvNat{n}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{b}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvPair{a, b}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNil{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvCons{h, t}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvNat{n}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvBool{b}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvUnit{}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvInl{a}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvInr{b}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvNil{}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HvCons{h, t}:
+      Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
 
 def L.lz.if(rc: Maybe<&2, C.HV>, ra: Maybe<&2, C.HV>, rd: Maybe<&2, C.HV>, -lc: Maybe<&2, C.LV>, -la: Maybe<&2, C.LV>, -ld: Maybe<&2, C.LV>, hc: @y: C.HV -> {rc == Some{y} : Maybe<&2, C.HV>} -> {lc == Some{C.lz(y)} : Maybe<&2, C.LV>}, ha: @y: C.HV -> {ra == Some{y} : Maybe<&2, C.HV>} -> {la == Some{C.lz(y)} : Maybe<&2, C.LV>}, hd: @y: C.HV -> {rd == Some{y} : Maybe<&2, C.HV>} -> {ld == Some{C.lz(y)} : Maybe<&2, C.LV>}, +v: C.HV, e: {C.h.if(rc, ra, rd) == Some{v} : Maybe<&2, C.HV>}) -> {C.l.if(lc, la, ld) == Some{C.lz(v)} : Maybe<&2, C.LV>}:
   match rc:
@@ -2031,6 +2432,48 @@ def L.lz.sq(+t: C.HTm, +x: C.HV, +v: C.HV, e: {C.eval.h(t, x) == Some{v} : Maybe
           Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
         case C.HvInr{q}:
           Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HUnit{}:
+      L.lz.cong(Some{C.HvUnit{}}, v, e)
+    case C.HNil{}:
+      L.lz.cong(Some{C.HvNil{}}, v, e)
+    case C.HCons{+a, +b}:
+      L.lz.cons(C.eval.h(a, x), C.eval.h(b, x), C.eval.lz(a, Some{C.lz(x)}), C.eval.lz(b, Some{C.lz(x)}), y => ey => L.lz.sq(a, x, y, ey), y => ey => L.lz.sq(b, x, y, ey), v, e)
+    case C.HDist{}:
+      L.lz.dist(x, v, e)
+    case C.HFoldE{+z, +s}:
+      match x:
+        case C.HvPair{+w, l}:
+          match l:
+            case C.HvNil{}:
+              L.lz.sq(z, w, v, e)
+            case C.HvCons{+hd, +tl}:
+              L.lz.comp(C.eval.h(t, C.HvPair{w, tl}), C.eval.lz(t, Some{C.lz(C.HvPair{w, tl})}), y => ey => L.lz.sq(t, C.HvPair{w, tl}, y, ey), r => C.eval.h(s, C.HvPair{w, C.HvPair{hd, r}}), q => C.eval.lz(s, Some{C.LvPair{Some{C.lz(w)}, Some{C.LvPair{Some{C.lz(hd)}, q}}}}), y => k => ek => L.lz.sq(s, C.HvPair{w, C.HvPair{hd, y}}, k, ek), v, e)
+            case C.HvNat{q}:
+              Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+            case C.HvBool{q}:
+              Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+            case C.HvUnit{}:
+              Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+            case C.HvPair{q, r}:
+              Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+            case C.HvInl{q}:
+              Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+            case C.HvInr{q}:
+              Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNil{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvCons{q, r}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvNat{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInl{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInr{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
     case C.HErr{}:
       Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
 
@@ -2054,3 +2497,425 @@ def L.bfe() -> C.BTm:
 
 def P.adj.FG.lazy.not(adj):
   L.none.some.b(C.BvNat{1n}, adj(C.HLit{1n}, L.bfe(), x => v => e => e, C.BvUnit{}, C.BvNat{1n}, {==}))
+
+# 10. Int as HsInt
+
+# a bind's functions equal at every value
+def L.zz.bind(r: Maybe<&2, C.ZV>, -k1: C.ZV -> Maybe<&2, C.ZV>, -k2: C.ZV -> Maybe<&2, C.ZV>, ih: @v: C.ZV -> {k1(v) == k2(v) : Maybe<&2, C.ZV>}) -> {Maybe.bind(&2, C.ZV, C.ZV, r, k1) == Maybe.bind(&2, C.ZV, C.ZV, r, k2) : Maybe<&2, C.ZV>}:
+  match r:
+    case None{}:
+      {==}
+    case Some{v}:
+      ih(v)
+
+def P.sq.F.z(r, t, v):
+  match t:
+    case C.HId{}:
+      {==}
+    case C.HComp{g, f}:
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(f), v), C.eval.zr(r, f, v), P.sq.F.z(r, f, v)) : {Maybe.bind(&2, C.ZV, C.ZV, _, y => C.eval.bz(r, C.F(g), y)) == Maybe.bind(&2, C.ZV, C.ZV, C.eval.zr(r, f, v), y => C.eval.zr(r, g, y)) : Maybe<&2, C.ZV>}
+      L.zz.bind(C.eval.zr(r, f, v), y => C.eval.bz(r, C.F(g), y), y => C.eval.zr(r, g, y), y => P.sq.F.z(r, g, y))
+    case C.HFst{}:
+      {==}
+    case C.HSnd{}:
+      {==}
+    case C.HPr{f, g}:
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(f), v), C.eval.zr(r, f, v), P.sq.F.z(r, f, v)) : {C.z.pair(_, C.eval.bz(r, C.F(g), v)) == C.z.pair(C.eval.zr(r, f, v), C.eval.zr(r, g, v)) : Maybe<&2, C.ZV>}
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(g), v), C.eval.zr(r, g, v), P.sq.F.z(r, g, v)) : {C.z.pair(C.eval.zr(r, f, v), _) == C.z.pair(C.eval.zr(r, f, v), C.eval.zr(r, g, v)) : Maybe<&2, C.ZV>}
+      {==}
+    case C.HInl{}:
+      {==}
+    case C.HInr{}:
+      {==}
+    case C.HCase{f, g}:
+      match v:
+        case C.ZvInl{a}:
+          P.sq.F.z(r, f, a)
+        case C.ZvInr{b}:
+          P.sq.F.z(r, g, b)
+        case C.ZvNat{n}:
+          {==}
+        case C.ZvNeg{n}:
+          {==}
+        case C.ZvBool{b}:
+          {==}
+        case C.ZvUnit{}:
+          {==}
+        case C.ZvPair{a, b}:
+          {==}
+        case C.ZvNil{}:
+          {==}
+        case C.ZvCons{h, tl}:
+          {==}
+    case C.HLit{n}:
+      {==}
+    case C.HPrim{p}:
+      {==}
+    case C.HIf{c, a, e}:
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(c), v), C.eval.zr(r, c, v), P.sq.F.z(r, c, v)) : {C.z.if(_, C.eval.bz(r, C.F(a), v), C.eval.bz(r, C.F(e), v)) == C.z.if(C.eval.zr(r, c, v), C.eval.zr(r, a, v), C.eval.zr(r, e, v)) : Maybe<&2, C.ZV>}
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(a), v), C.eval.zr(r, a, v), P.sq.F.z(r, a, v)) : {C.z.if(C.eval.zr(r, c, v), _, C.eval.bz(r, C.F(e), v)) == C.z.if(C.eval.zr(r, c, v), C.eval.zr(r, a, v), C.eval.zr(r, e, v)) : Maybe<&2, C.ZV>}
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(e), v), C.eval.zr(r, e, v), P.sq.F.z(r, e, v)) : {C.z.if(C.eval.zr(r, c, v), C.eval.zr(r, a, v), _) == C.z.if(C.eval.zr(r, c, v), C.eval.zr(r, a, v), C.eval.zr(r, e, v)) : Maybe<&2, C.ZV>}
+      {==}
+    case C.HFold{z, s}:
+      match v:
+        case C.ZvNil{}:
+          P.sq.F.z(r, z, C.ZvUnit{})
+        case C.ZvCons{hd, tl}:
+          %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(t), tl), C.eval.zr(r, t, tl), P.sq.F.z(r, t, tl)) : {Maybe.bind(&2, C.ZV, C.ZV, _, q => C.eval.bz(r, C.F(s), C.ZvPair{hd, q})) == Maybe.bind(&2, C.ZV, C.ZV, C.eval.zr(r, t, tl), q => C.eval.zr(r, s, C.ZvPair{hd, q})) : Maybe<&2, C.ZV>}
+          L.zz.bind(C.eval.zr(r, t, tl), q => C.eval.bz(r, C.F(s), C.ZvPair{hd, q}), q => C.eval.zr(r, s, C.ZvPair{hd, q}), q => P.sq.F.z(r, s, C.ZvPair{hd, q}))
+        case C.ZvNat{n}:
+          {==}
+        case C.ZvNeg{n}:
+          {==}
+        case C.ZvBool{b}:
+          {==}
+        case C.ZvUnit{}:
+          {==}
+        case C.ZvPair{a, b}:
+          {==}
+        case C.ZvInl{a}:
+          {==}
+        case C.ZvInr{b}:
+          {==}
+    case C.HUnit{}:
+      {==}
+    case C.HNil{}:
+      {==}
+    case C.HCons{a, b}:
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(a), v), C.eval.zr(r, a, v), P.sq.F.z(r, a, v)) : {C.z.cons(_, C.eval.bz(r, C.F(b), v)) == C.z.cons(C.eval.zr(r, a, v), C.eval.zr(r, b, v)) : Maybe<&2, C.ZV>}
+      %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(b), v), C.eval.zr(r, b, v), P.sq.F.z(r, b, v)) : {C.z.cons(C.eval.zr(r, a, v), _) == C.z.cons(C.eval.zr(r, a, v), C.eval.zr(r, b, v)) : Maybe<&2, C.ZV>}
+      {==}
+    case C.HDist{}:
+      {==}
+    case C.HFoldE{z, s}:
+      match v:
+        case C.ZvPair{+w, l}:
+          match l:
+            case C.ZvNil{}:
+              P.sq.F.z(r, z, w)
+            case C.ZvCons{hd, tl}:
+              %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(t), C.ZvPair{w, tl}), C.eval.zr(r, t, C.ZvPair{w, tl}), P.sq.F.z(r, t, C.ZvPair{w, tl})) : {Maybe.bind(&2, C.ZV, C.ZV, _, q => C.eval.bz(r, C.F(s), C.ZvPair{w, C.ZvPair{hd, q}})) == Maybe.bind(&2, C.ZV, C.ZV, C.eval.zr(r, t, C.ZvPair{w, tl}), q => C.eval.zr(r, s, C.ZvPair{w, C.ZvPair{hd, q}})) : Maybe<&2, C.ZV>}
+              L.zz.bind(C.eval.zr(r, t, C.ZvPair{w, tl}), q => C.eval.bz(r, C.F(s), C.ZvPair{w, C.ZvPair{hd, q}}), q => C.eval.zr(r, s, C.ZvPair{w, C.ZvPair{hd, q}}), q => P.sq.F.z(r, s, C.ZvPair{w, C.ZvPair{hd, q}}))
+            case C.ZvNat{n}:
+              {==}
+            case C.ZvNeg{n}:
+              {==}
+            case C.ZvBool{b}:
+              {==}
+            case C.ZvUnit{}:
+              {==}
+            case C.ZvPair{a, b}:
+              {==}
+            case C.ZvInl{a}:
+              {==}
+            case C.ZvInr{b}:
+              {==}
+        case C.ZvNil{}:
+          {==}
+        case C.ZvCons{hd, tl}:
+          {==}
+        case C.ZvNat{n}:
+          {==}
+        case C.ZvNeg{n}:
+          {==}
+        case C.ZvBool{b}:
+          {==}
+        case C.ZvUnit{}:
+          {==}
+        case C.ZvInl{a}:
+          {==}
+        case C.ZvInr{b}:
+          {==}
+    case C.HErr{}:
+      {==}
+
+# F after G is the identity, so G's square is F's at G b
+def L.FG.id(b: C.BTm) -> {C.F(C.G(b)) == b : C.BTm}:
+  match b:
+    case C.BId{}:
+      {==}
+    case C.BComp{g, f}:
+      %L.FG.id(g) : {C.BComp{C.F(C.G(g)), C.F(C.G(f))} == C.BComp{_, f} : C.BTm}
+      %L.FG.id(f) : {C.BComp{C.F(C.G(g)), C.F(C.G(f))} == C.BComp{C.F(C.G(g)), _} : C.BTm}
+      {==}
+    case C.BFst{}:
+      {==}
+    case C.BSnd{}:
+      {==}
+    case C.BPr{f, g}:
+      %L.FG.id(f) : {C.BPr{C.F(C.G(f)), C.F(C.G(g))} == C.BPr{_, g} : C.BTm}
+      %L.FG.id(g) : {C.BPr{C.F(C.G(f)), C.F(C.G(g))} == C.BPr{C.F(C.G(f)), _} : C.BTm}
+      {==}
+    case C.BInl{}:
+      {==}
+    case C.BInr{}:
+      {==}
+    case C.BCase{f, g}:
+      %L.FG.id(f) : {C.BCase{C.F(C.G(f)), C.F(C.G(g))} == C.BCase{_, g} : C.BTm}
+      %L.FG.id(g) : {C.BCase{C.F(C.G(f)), C.F(C.G(g))} == C.BCase{C.F(C.G(f)), _} : C.BTm}
+      {==}
+    case C.BLit{n}:
+      {==}
+    case C.BPrim{p}:
+      {==}
+    case C.BIf{c, a, e}:
+      %L.FG.id(c) : {C.BIf{C.F(C.G(c)), C.F(C.G(a)), C.F(C.G(e))} == C.BIf{_, a, e} : C.BTm}
+      %L.FG.id(a) : {C.BIf{C.F(C.G(c)), C.F(C.G(a)), C.F(C.G(e))} == C.BIf{C.F(C.G(c)), _, e} : C.BTm}
+      %L.FG.id(e) : {C.BIf{C.F(C.G(c)), C.F(C.G(a)), C.F(C.G(e))} == C.BIf{C.F(C.G(c)), C.F(C.G(a)), _} : C.BTm}
+      {==}
+    case C.BFold{z, s}:
+      %L.FG.id(z) : {C.BFold{C.F(C.G(z)), C.F(C.G(s))} == C.BFold{_, s} : C.BTm}
+      %L.FG.id(s) : {C.BFold{C.F(C.G(z)), C.F(C.G(s))} == C.BFold{C.F(C.G(z)), _} : C.BTm}
+      {==}
+    case C.BUnit{}:
+      {==}
+    case C.BNil{}:
+      {==}
+    case C.BCons{f, g}:
+      %L.FG.id(f) : {C.BCons{C.F(C.G(f)), C.F(C.G(g))} == C.BCons{_, g} : C.BTm}
+      %L.FG.id(g) : {C.BCons{C.F(C.G(f)), C.F(C.G(g))} == C.BCons{C.F(C.G(f)), _} : C.BTm}
+      {==}
+    case C.BDist{}:
+      {==}
+    case C.BFoldE{z, s}:
+      %L.FG.id(z) : {C.BFoldE{C.F(C.G(z)), C.F(C.G(s))} == C.BFoldE{_, s} : C.BTm}
+      %L.FG.id(s) : {C.BFoldE{C.F(C.G(z)), C.F(C.G(s))} == C.BFoldE{C.F(C.G(z)), _} : C.BTm}
+      {==}
+    case C.BFail{}:
+      {==}
+
+def P.sq.G.z(r, b, v):
+  %L.FG.id(b) : {C.eval.zr(r, C.G(b), v) == C.eval.bz(r, _, v) : Maybe<&2, C.ZV>}
+  Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(C.G(b)), v), C.eval.zr(r, C.G(b), v), P.sq.F.z(r, C.G(b), v))
+
+# an answer through an equation
+def L.eqto(-p: Maybe<&2, C.ZV>, -q: Maybe<&2, C.ZV>, -u: C.ZV, e: {p == q : Maybe<&2, C.ZV>}, ep: {p == Some{u} : Maybe<&2, C.ZV>}) -> {q == Some{u} : Maybe<&2, C.ZV>}:
+  %e : {_ == Some{u} : Maybe<&2, C.ZV>}
+  ep
+
+# F's Bend at v from h's answer there, and back; G's Haskell's from b's
+def L.Fz.up(+r: C.Rg, +h: C.HTm, +v: C.ZV, -u: C.ZV, e: {C.eval.zr(r, h, v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.bz(r, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.eqto(C.eval.zr(r, h, v), C.eval.bz(r, C.F(h), v), u, Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(h), v), C.eval.zr(r, h, v), P.sq.F.z(r, h, v)), e)
+
+def L.Fz.down(+r: C.Rg, +h: C.HTm, +v: C.ZV, -u: C.ZV, e: {C.eval.bz(r, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.zr(r, h, v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.eqto(C.eval.bz(r, C.F(h), v), C.eval.zr(r, h, v), u, P.sq.F.z(r, h, v), e)
+
+def L.Gz.up(+r: C.Rg, +b: C.BTm, +v: C.ZV, -u: C.ZV, e: {C.eval.bz(r, b, v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.zr(r, C.G(b), v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.eqto(C.eval.bz(r, b, v), C.eval.zr(r, C.G(b), v), u, Equal.sym(Maybe<&2, C.ZV>, C.eval.zr(r, C.G(b), v), C.eval.bz(r, b, v), P.sq.G.z(r, b, v)), e)
+
+def L.Gz.down(+r: C.Rg, +b: C.BTm, +v: C.ZV, -u: C.ZV, e: {C.eval.zr(r, C.G(b), v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.bz(r, b, v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.eqto(C.eval.zr(r, C.G(b), v), C.eval.bz(r, b, v), u, P.sq.G.z(r, b, v), e)
+
+def L.FGz.l(+r: C.Rg, +h: C.HTm, +b: C.BTm, le: P.Le.z(v => C.eval.bz(r, C.F(h), v), v => C.eval.bz(r, b, v)), +v: C.ZV, +u: C.ZV, e: {C.eval.zr(r, h, v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.zr(r, C.G(b), v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.Gz.up(r, b, v, u, le(v, u, L.Fz.up(r, h, v, u, e)))
+
+def P.adj.FG.z.l(r, h, b, le):
+  v => u => e => L.FGz.l(r, h, b, le, v, u, e)
+
+def L.FGz.r(+r: C.Rg, +h: C.HTm, +b: C.BTm, le: P.Le.z(v => C.eval.zr(r, h, v), v => C.eval.zr(r, C.G(b), v)), +v: C.ZV, +u: C.ZV, e: {C.eval.bz(r, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.bz(r, b, v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.Gz.down(r, b, v, u, le(v, u, L.Fz.down(r, h, v, u, e)))
+
+def P.adj.FG.z.r(r, h, b, le):
+  v => u => e => L.FGz.r(r, h, b, le, v, u, e)
+
+def L.GFz.l(+r: C.Rg, +h: C.HTm, +b: C.BTm, le: P.Le.z(v => C.eval.zr(r, C.G(b), v), v => C.eval.zr(r, h, v)), +v: C.ZV, +u: C.ZV, e: {C.eval.bz(r, b, v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.bz(r, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.Fz.up(r, h, v, u, le(v, u, L.Gz.up(r, b, v, u, e)))
+
+def P.adj.GF.z.l(r, h, b, le):
+  v => u => e => L.GFz.l(r, h, b, le, v, u, e)
+
+def L.GFz.r(+r: C.Rg, +h: C.HTm, +b: C.BTm, le: P.Le.z(v => C.eval.bz(r, b, v), v => C.eval.bz(r, C.F(h), v)), +v: C.ZV, +u: C.ZV, e: {C.eval.zr(r, C.G(b), v) == Some{u} : Maybe<&2, C.ZV>}) -> {C.eval.zr(r, h, v) == Some{u} : Maybe<&2, C.ZV>}:
+  L.Fz.down(r, h, v, u, le(v, u, L.Gz.down(r, b, v, u, e)))
+
+def P.adj.GF.z.r(r, h, b, le):
+  v => u => e => L.GFz.r(r, h, b, le, v, u, e)
+
+def P.hsint.int(m, h, v, u, e):
+  P.range.int(m, h, v, u, L.Fz.down(C.RgIn{m}, h, v, u, e))
+
+def P.hsint.all(m, h, v, u, e):
+  L.Fz.up(C.RgAll{}, h, v, u, P.range.z(m, h, v, u, L.Fz.down(C.RgIn{m}, h, v, u, e)))
+
+def P.hsint.not(e):
+  %e : L.isnat(_)
+  Unit{}
+
+# 11. Variables
+
+# a let's value after its environment
+def L.cc.let(m: Maybe<&2, C.HV>, -env: C.HV, -k: C.HV -> Maybe<&2, C.HV>) -> {Maybe.bind(&2, C.HV, C.HV, C.h.pair(Some{env}, m), k) == Maybe.bind(&2, C.HV, C.HV, m, v => k(C.HvPair{env, v})) : Maybe<&2, C.HV>}:
+  match m:
+    case None{}:
+      {==}
+    case Some{v}:
+      {==}
+
+# a bind's functions equal at every value
+def L.hh.bind(r: Maybe<&2, C.HV>, -k1: C.HV -> Maybe<&2, C.HV>, -k2: C.HV -> Maybe<&2, C.HV>, ih: @v: C.HV -> {k1(v) == k2(v) : Maybe<&2, C.HV>}) -> {Maybe.bind(&2, C.HV, C.HV, r, k1) == Maybe.bind(&2, C.HV, C.HV, r, k2) : Maybe<&2, C.HV>}:
+  match r:
+    case None{}:
+      {==}
+    case Some{v}:
+      ih(v)
+
+def L.cc.var(i: Nat, env: C.HV) -> {C.eval.h(C.cc.var(i), env) == C.ev.look(i, env) : Maybe<&2, C.HV>}:
+  match i:
+    case 0n:
+      {==}
+    case 1n+j:
+      L.hh.bind(C.h.fst(env), e => C.eval.h(C.cc.var(j), e), e => C.ev.look(j, e), e => L.cc.var(j, e))
+
+def P.cc.ok(t, env):
+  match t:
+    case C.EVar{i}:
+      L.cc.var(i, env)
+    case C.ELit{n}:
+      {==}
+    case C.EUnit{}:
+      {==}
+    case C.EPair{a, b}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {C.h.pair(_, C.eval.h(C.cc(b), env)) == C.h.pair(C.ev(a, env), C.ev(b, env)) : Maybe<&2, C.HV>}
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(b), env), C.ev(b, env), P.cc.ok(b, env)) : {C.h.pair(C.ev(a, env), _) == C.h.pair(C.ev(a, env), C.ev(b, env)) : Maybe<&2, C.HV>}
+      {==}
+    case C.EFst{a}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {Maybe.bind(&2, C.HV, C.HV, _, y => C.h.fst(y)) == Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => C.h.fst(v)) : Maybe<&2, C.HV>}
+      {==}
+    case C.ESnd{a}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {Maybe.bind(&2, C.HV, C.HV, _, y => C.h.snd(y)) == Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => C.h.snd(v)) : Maybe<&2, C.HV>}
+      {==}
+    case C.EInl{a}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {Maybe.bind(&2, C.HV, C.HV, _, y => Some{C.HvInl{y}}) == Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => Some{C.HvInl{v}}) : Maybe<&2, C.HV>}
+      {==}
+    case C.EInr{a}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {Maybe.bind(&2, C.HV, C.HV, _, y => Some{C.HvInr{y}}) == Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => Some{C.HvInr{v}}) : Maybe<&2, C.HV>}
+      {==}
+    case C.ENil{}:
+      {==}
+    case C.ECons{a, b}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {C.h.cons(_, C.eval.h(C.cc(b), env)) == C.h.cons(C.ev(a, env), C.ev(b, env)) : Maybe<&2, C.HV>}
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(b), env), C.ev(b, env), P.cc.ok(b, env)) : {C.h.cons(C.ev(a, env), _) == C.h.cons(C.ev(a, env), C.ev(b, env)) : Maybe<&2, C.HV>}
+      {==}
+    case C.EPrim{p, a, b}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {Maybe.bind(&2, C.HV, C.HV, C.h.pair(_, C.eval.h(C.cc(b), env)), y => C.h.prim(p, y)) == Maybe.bind(&2, C.HV, C.HV, C.h.pair(C.ev(a, env), C.ev(b, env)), v => C.h.prim(p, v)) : Maybe<&2, C.HV>}
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(b), env), C.ev(b, env), P.cc.ok(b, env)) : {Maybe.bind(&2, C.HV, C.HV, C.h.pair(C.ev(a, env), _), y => C.h.prim(p, y)) == Maybe.bind(&2, C.HV, C.HV, C.h.pair(C.ev(a, env), C.ev(b, env)), v => C.h.prim(p, v)) : Maybe<&2, C.HV>}
+      {==}
+    case C.EIf{c, a, e}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(c), env), C.ev(c, env), P.cc.ok(c, env)) : {C.h.if(_, C.eval.h(C.cc(a), env), C.eval.h(C.cc(e), env)) == C.h.if(C.ev(c, env), C.ev(a, env), C.ev(e, env)) : Maybe<&2, C.HV>}
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {C.h.if(C.ev(c, env), _, C.eval.h(C.cc(e), env)) == C.h.if(C.ev(c, env), C.ev(a, env), C.ev(e, env)) : Maybe<&2, C.HV>}
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(e), env), C.ev(e, env), P.cc.ok(e, env)) : {C.h.if(C.ev(c, env), C.ev(a, env), _) == C.h.if(C.ev(c, env), C.ev(a, env), C.ev(e, env)) : Maybe<&2, C.HV>}
+      {==}
+    case C.ELet{a, b}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(a), env), C.ev(a, env), P.cc.ok(a, env)) : {Maybe.bind(&2, C.HV, C.HV, C.h.pair(Some{env}, _), y => C.eval.h(C.cc(b), y)) == Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => C.ev(b, C.HvPair{env, v})) : Maybe<&2, C.HV>}
+      %Equal.sym(Maybe<&2, C.HV>, Maybe.bind(&2, C.HV, C.HV, C.h.pair(Some{env}, C.ev(a, env)), y => C.eval.h(C.cc(b), y)), Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => C.eval.h(C.cc(b), C.HvPair{env, v})), L.cc.let(C.ev(a, env), env, y => C.eval.h(C.cc(b), y))) : {_ == Maybe.bind(&2, C.HV, C.HV, C.ev(a, env), v => C.ev(b, C.HvPair{env, v})) : Maybe<&2, C.HV>}
+      L.hh.bind(C.ev(a, env), v => C.eval.h(C.cc(b), C.HvPair{env, v}), v => C.ev(b, C.HvPair{env, v}), v => P.cc.ok(b, C.HvPair{env, v}))
+    case C.ECase{l, r}:
+      match env:
+        case C.HvPair{e, q}:
+          match q:
+            case C.HvInl{a}:
+              P.cc.ok(l, C.HvPair{e, a})
+            case C.HvInr{b}:
+              P.cc.ok(r, C.HvPair{e, b})
+            case C.HvNat{n}:
+              {==}
+            case C.HvBool{b}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, b}:
+              {==}
+            case C.HvNil{}:
+              {==}
+            case C.HvCons{h, tl}:
+              {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, tl}:
+          {==}
+    case C.EFold{z, s}:
+      match env:
+        case C.HvPair{+e, l}:
+          match l:
+            case C.HvNil{}:
+              P.cc.ok(z, e)
+            case C.HvCons{+hd, tl}:
+              %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc(t), C.HvPair{e, tl}), C.ev(t, C.HvPair{e, tl}), P.cc.ok(t, C.HvPair{e, tl})) : {Maybe.bind(&2, C.HV, C.HV, _, q => C.eval.h(C.cc(s), C.HvPair{C.HvPair{e, hd}, q})) == Maybe.bind(&2, C.HV, C.HV, C.ev(t, C.HvPair{e, tl}), q => C.ev(s, C.HvPair{C.HvPair{e, hd}, q})) : Maybe<&2, C.HV>}
+              L.hh.bind(C.ev(t, C.HvPair{e, tl}), q => C.eval.h(C.cc(s), C.HvPair{C.HvPair{e, hd}, q}), q => C.ev(s, C.HvPair{C.HvPair{e, hd}, q}), q => P.cc.ok(s, C.HvPair{C.HvPair{e, hd}, q}))
+            case C.HvNat{n}:
+              {==}
+            case C.HvBool{b}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, b}:
+              {==}
+            case C.HvInl{a}:
+              {==}
+            case C.HvInr{b}:
+              {==}
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{h, tl}:
+          {==}
+    case C.EErr{}:
+      {==}
+
+def P.cc.def.ok(t, x):
+  P.cc.ok(t, C.HvPair{C.HvUnit{}, x})
+
+def P.cc.F(t, x):
+  %P.cc.def.ok(t, x) : {C.encM(_) == C.eval.b(C.F(C.cc.def(t)), C.enc(x)) : Maybe<&2, C.BV>}
+  P.sq.F(C.cc.def(t), x)
+
+# the def's answer is its program's
+def L.ex.to(+t: C.Ex, +x: C.HV, -v: C.HV, e: {C.ev.def(t, x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.h(C.cc.def(t), x) == Some{v} : Maybe<&2, C.HV>}:
+  %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.cc.def(t), x), C.ev.def(t, x), P.cc.def.ok(t, x)) : {_ == Some{v} : Maybe<&2, C.HV>}
+  e
+
+def L.ex.of(+t: C.Ex, +x: C.HV, -v: C.HV, e: {C.eval.h(C.cc.def(t), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.ev.def(t, x) == Some{v} : Maybe<&2, C.HV>}:
+  %P.cc.def.ok(t, x) : {_ == Some{v} : Maybe<&2, C.HV>}
+  e
+
+def L.FGx.l(+t: C.Ex, +b: C.BTm, le: P.Le.b(C.F(C.cc.def(t)), b), +x: C.HV, +v: C.HV, e: {C.ev.def(t, x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  L.adj.l(C.cc.def(t), b, le, x, v, L.ex.to(t, x, v, e))
+
+def P.adj.FG.ex.l(t, b, le):
+  x => v => e => L.FGx.l(t, b, le, x, v, e)
+
+def L.FGx.le(+t: C.Ex, +b: C.BTm, le: P.Le.ex.l(t, b), +x: C.HV, +v: C.HV, e: {C.eval.h(C.cc.def(t), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  le(x, v, L.ex.of(t, x, v, e))
+
+def P.adj.FG.ex.r(t, b, le):
+  P.adj.FG.r(C.cc.def(t), b, x => v => e => L.FGx.le(t, b, le, x, v, e))
+
+def L.GFx.le(+t: C.Ex, +b: C.BTm, le: P.Le.ex.r(b, t), +x: C.HV, +v: C.HV, e: {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.h(C.cc.def(t), x) == Some{v} : Maybe<&2, C.HV>}:
+  L.ex.to(t, x, v, le(x, v, e))
+
+def P.adj.GF.ex.l(t, b, le):
+  P.adj.GF.l(C.cc.def(t), b, x => v => e => L.GFx.le(t, b, le, x, v, e))
+
+def L.GFx.r(+t: C.Ex, +b: C.BTm, le: P.Le.b(b, C.F(C.cc.def(t))), +x: C.HV, +v: C.HV, e: {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}) -> {C.ev.def(t, x) == Some{v} : Maybe<&2, C.HV>}:
+  L.ex.of(t, x, v, L.adj2.r(C.cc.def(t), b, le, x, v, e))
+
+def P.adj.GF.ex.r(t, b, le):
+  x => v => e => L.GFx.r(t, b, le, x, v, e)

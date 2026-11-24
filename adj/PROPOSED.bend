@@ -47,6 +47,29 @@ law F.fold:
   for s: C.HTm
   {C.F(C.HFold{z, s}) == C.BFold{C.F(z), C.F(s)} : C.BTm}
 
+# and on what a program with variables needs: unit, a list's two
+# constructors, a pair's distributivity over a sum (a case that uses the
+# variables around it), and a fold with an environment (a foldr whose
+# functions do)
+law F.unit:
+  {C.F(C.HUnit{}) == C.BUnit{} : C.BTm}
+
+law F.nil:
+  {C.F(C.HNil{}) == C.BNil{} : C.BTm}
+
+law F.cons:
+  for a: C.HTm
+  for b: C.HTm
+  {C.F(C.HCons{a, b}) == C.BCons{C.F(a), C.F(b)} : C.BTm}
+
+law F.dist:
+  {C.F(C.HDist{}) == C.BDist{} : C.BTm}
+
+law F.foldE:
+  for z: C.HTm
+  for s: C.HTm
+  {C.F(C.HFoldE{z, s}) == C.BFoldE{C.F(z), C.F(s)} : C.BTm}
+
 law G.id:
   {C.G(C.BId{}) == C.HId{} : C.HTm}
 
@@ -59,6 +82,16 @@ law G.fold:
   for z: C.BTm
   for s: C.BTm
   {C.G(C.BFold{z, s}) == C.HFold{C.G(z), C.G(s)} : C.HTm}
+
+law G.cons:
+  for a: C.BTm
+  for b: C.BTm
+  {C.G(C.BCons{a, b}) == C.HCons{C.G(a), C.G(b)} : C.HTm}
+
+law G.foldE:
+  for z: C.BTm
+  for s: C.BTm
+  {C.G(C.BFoldE{z, s}) == C.HFoldE{C.G(z), C.G(s)} : C.HTm}
 
 # on objects' elements: F's values and G's are each other's inverses
 law dec.enc:
@@ -410,3 +443,136 @@ def FG.lazy() -> Type:
 law adj.FG.lazy.not:
   for adj: FG.lazy()
   Empty
+
+# 10. Int as HsInt.  In a package (telomare's, xmonad's) F takes Int and
+# Integer to the prelude's HsInt, an integer, instead of Nat: so Bend's
+# values there are Int's own (ZV), eval.bz is Bend's meaning at them
+# (Core.bend), and the number a run makes is an integer's (RgAll) or stays
+# in a range with an error outside (RgIn).  Then the squares hold at every
+# value, negative ones too (sq.F.z, sq.G.z, at every range r), and F -| G
+# and G -| F both hold (adj.FG.z, adj.GF.z) with no hypothesis on h: where
+# adj.FG.int.not refutes F -| G for Nat, at -1, HsInt has -1.  What is
+# left is Int's 64 bits: where the run stays in them GHC's Int answers what
+# F's Bend answers (hsint.int), and not otherwise (hsint.not: 127 + 127 at
+# Int8).  A Nat, a negative number's absence, is the range's other reason,
+# so Nat is F's only where nothing subtracts (section 6).
+
+law sq.F.z:
+  for +r: C.Rg
+  for +t: C.HTm
+  for +v: C.ZV
+  {C.eval.bz(r, C.F(t), v) == C.eval.zr(r, t, v) : Maybe<&2, C.ZV>}
+
+law sq.G.z:
+  for +r: C.Rg
+  for +b: C.BTm
+  for +v: C.ZV
+  {C.eval.zr(r, C.G(b), v) == C.eval.bz(r, b, v) : Maybe<&2, C.ZV>}
+
+# F -| G: F h <= b exactly when h <= G b
+law adj.FG.z.l:
+  for +r: C.Rg
+  for +h: C.HTm
+  for +b: C.BTm
+  for le: Le.z(v => C.eval.bz(r, C.F(h), v), v => C.eval.bz(r, b, v))
+  Le.z(v => C.eval.zr(r, h, v), v => C.eval.zr(r, C.G(b), v))
+
+law adj.FG.z.r:
+  for +r: C.Rg
+  for +h: C.HTm
+  for +b: C.BTm
+  for le: Le.z(v => C.eval.zr(r, h, v), v => C.eval.zr(r, C.G(b), v))
+  Le.z(v => C.eval.bz(r, C.F(h), v), v => C.eval.bz(r, b, v))
+
+# G -| F: G b <= h exactly when b <= F h
+law adj.GF.z.l:
+  for +r: C.Rg
+  for +h: C.HTm
+  for +b: C.BTm
+  for le: Le.z(v => C.eval.zr(r, C.G(b), v), v => C.eval.zr(r, h, v))
+  Le.z(v => C.eval.bz(r, b, v), v => C.eval.bz(r, C.F(h), v))
+
+law adj.GF.z.r:
+  for +r: C.Rg
+  for +h: C.HTm
+  for +b: C.BTm
+  for le: Le.z(v => C.eval.bz(r, b, v), v => C.eval.bz(r, C.F(h), v))
+  Le.z(v => C.eval.zr(r, C.G(b), v), v => C.eval.zr(r, h, v))
+
+# GHC's Int answers what F's Bend answers where the Bend's run stays in
+# Int's range -(m+1)..m, and so does the unbounded integer
+law hsint.int:
+  for +m: Nat
+  for +h: C.HTm
+  for +v: C.ZV
+  for +u: C.ZV
+  for e: {C.eval.bz(C.RgIn{m}, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}
+  {C.eval.int(m, h, v) == Some{u} : Maybe<&2, C.ZV>}
+
+law hsint.all:
+  for +m: Nat
+  for +h: C.HTm
+  for +v: C.ZV
+  for +u: C.ZV
+  for e: {C.eval.bz(C.RgIn{m}, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}
+  {C.eval.bz(C.RgAll{}, C.F(h), v) == Some{u} : Maybe<&2, C.ZV>}
+
+# and where it leaves it they differ: x + x at 127, Int8's and F's Bend
+law hsint.not:
+  for e: {C.eval.int(C.int8.max(), hdbl(), C.ZvNat{127n}) == C.eval.bz(C.RgAll{}, C.F(hdbl()), C.ZvNat{127n}) : Maybe<&2, C.ZV>}
+  Empty
+
+# 11. Variables.  The categories' programs are point-free; cata's Haskell
+# has variables, a let, a case, a foldr whose functions use what is around
+# them.  Ex is the fragment so written, ev its meaning, and cc compiles it
+# to the categories.  cc keeps the meaning (cc.ok), so F's Bend of a
+# program with variables means what the program means (cc.F), and F -| G
+# and G -| F hold of it as they do of the combinators (adj.FG.ex,
+# adj.GF.ex).
+
+law cc.ok:
+  for +t: C.Ex
+  for +env: C.HV
+  {C.eval.h(C.cc(t), env) == C.ev(t, env) : Maybe<&2, C.HV>}
+
+# a def of one argument
+law cc.def.ok:
+  for +t: C.Ex
+  for +x: C.HV
+  {C.eval.h(C.cc.def(t), x) == C.ev.def(t, x) : Maybe<&2, C.HV>}
+
+law cc.F:
+  for +t: C.Ex
+  for +x: C.HV
+  {C.encM(C.ev.def(t, x)) == C.eval.b(C.F(C.cc.def(t)), C.enc(x)) : Maybe<&2, C.BV>}
+
+# t <= G b: G's Haskell answers what the def \x -> t answers
+def Le.ex.l(+t: C.Ex, +b: C.BTm) -> Type:
+  @x: C.HV -> @v: C.HV -> {C.ev.def(t, x) == Some{v} : Maybe<&2, C.HV>} -> {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>}
+
+def Le.ex.r(+b: C.BTm, +t: C.Ex) -> Type:
+  @x: C.HV -> @v: C.HV -> {C.eval.h(C.G(b), x) == Some{v} : Maybe<&2, C.HV>} -> {C.ev.def(t, x) == Some{v} : Maybe<&2, C.HV>}
+
+law adj.FG.ex.l:
+  for +t: C.Ex
+  for +b: C.BTm
+  for le: Le.b(C.F(C.cc.def(t)), b)
+  Le.ex.l(t, b)
+
+law adj.FG.ex.r:
+  for +t: C.Ex
+  for +b: C.BTm
+  for le: Le.ex.l(t, b)
+  Le.b(C.F(C.cc.def(t)), b)
+
+law adj.GF.ex.l:
+  for +t: C.Ex
+  for +b: C.BTm
+  for le: Le.ex.r(b, t)
+  Le.b(b, C.F(C.cc.def(t)))
+
+law adj.GF.ex.r:
+  for +t: C.Ex
+  for +b: C.BTm
+  for le: Le.b(b, C.F(C.cc.def(t)))
+  Le.ex.r(b, t)

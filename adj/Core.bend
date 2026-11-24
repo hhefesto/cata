@@ -5,7 +5,10 @@
 #
 # The core is cata's fragment as combinators, point-free (the categories'
 # own structure, so F's compositionality is its definition): identities,
-# composition, pairs, sums, foldr over lists (lists' initial algebra), the
+# composition, unit, pairs, sums (and pairs' distributivity over them, what
+# a case that uses the variables around it needs), lists (their two
+# constructors, and foldr, lists' initial algebra, with an environment:
+# what a foldr whose functions use the variables around it needs), the
 # numbers' arithmetic and tests (at Int, at a range: every integer, or
 # Int's 64 bits), general recursion with fuel (near the end: a loop,
 # Haskell's until, and cata's fuelled def), and the primitives where the
@@ -117,6 +120,11 @@ type HTm is Data:
   HPrim{p: Prim}
   HIf{c: HTm, t: HTm, e: HTm}
   HFold{z: HTm, s: HTm}
+  HUnit{}
+  HNil{}
+  HCons{h: HTm, t: HTm}
+  HDist{}
+  HFoldE{z: HTm, s: HTm}
   HErr{}
 
 # A pair of numbers, the primitives' argument (anything else: NNo, an error)
@@ -246,6 +254,23 @@ def h.if(c: Maybe<&2, HV>, a: Maybe<&2, HV>, e: Maybe<&2, HV>) -> Maybe<&2, HV>:
     case _:
       None{}
 
+def h.cons(a: Maybe<&2, HV>, b: Maybe<&2, HV>) -> Maybe<&2, HV>:
+  match a b:
+    case Some{u} Some{v}:
+      Some{HvCons{u, v}}
+    case _ _:
+      None{}
+
+# a pair's second part's alternative, the first part with it
+def h.dist(x: HV) -> Maybe<&2, HV>:
+  match x:
+    case HvPair{e, HvInl{a}}:
+      Some{HvInl{HvPair{e, a}}}
+    case HvPair{e, HvInr{b}}:
+      Some{HvInr{HvPair{e, b}}}
+    case _:
+      None{}
+
 # Haskell's meaning: the answer of t at x, None an error
 def eval.h(+t: HTm, +x: HV) -> Maybe<&2, HV>:
   match t:
@@ -285,6 +310,22 @@ def eval.h(+t: HTm, +x: HV) -> Maybe<&2, HV>:
           Maybe.bind(&2, HV, HV, eval.h(t, tl), r => eval.h(s, HvPair{hd, r}))
         case _:
           None{}
+    case HUnit{}:
+      Some{HvUnit{}}
+    case HNil{}:
+      Some{HvNil{}}
+    case HCons{a, b}:
+      h.cons(eval.h(a, x), eval.h(b, x))
+    case HDist{}:
+      h.dist(x)
+    case HFoldE{z, s}:
+      match x:
+        case HvPair{+e, HvNil{}}:
+          eval.h(z, e)
+        case HvPair{+e, HvCons{hd, tl}}:
+          Maybe.bind(&2, HV, HV, eval.h(t, HvPair{e, tl}), r => eval.h(s, HvPair{e, HvPair{hd, r}}))
+        case _:
+          None{}
     case HErr{}:
       None{}
 
@@ -303,6 +344,11 @@ type BTm is Data:
   BPrim{p: Prim}
   BIf{c: BTm, t: BTm, e: BTm}
   BFold{z: BTm, s: BTm}
+  BUnit{}
+  BNil{}
+  BCons{h: BTm, t: BTm}
+  BDist{}
+  BFoldE{z: BTm, s: BTm}
   BFail{}
 
 def b.nn(y: BV) -> NN:
@@ -354,6 +400,22 @@ def b.if(c: Maybe<&2, BV>, a: Maybe<&2, BV>, e: Maybe<&2, BV>) -> Maybe<&2, BV>:
     case _:
       None{}
 
+def b.cons(a: Maybe<&2, BV>, b: Maybe<&2, BV>) -> Maybe<&2, BV>:
+  match a b:
+    case Some{u} Some{v}:
+      Some{BvCons{u, v}}
+    case _ _:
+      None{}
+
+def b.dist(y: BV) -> Maybe<&2, BV>:
+  match y:
+    case BvPair{e, BvInl{a}}:
+      Some{BvInl{BvPair{e, a}}}
+    case BvPair{e, BvInr{b}}:
+      Some{BvInr{BvPair{e, b}}}
+    case _:
+      None{}
+
 # Bend's meaning: the answer of b at y, None a failure value
 def eval.b(+t: BTm, +y: BV) -> Maybe<&2, BV>:
   match t:
@@ -393,6 +455,22 @@ def eval.b(+t: BTm, +y: BV) -> Maybe<&2, BV>:
           Maybe.bind(&2, BV, BV, eval.b(t, tl), r => eval.b(s, BvPair{hd, r}))
         case _:
           None{}
+    case BUnit{}:
+      Some{BvUnit{}}
+    case BNil{}:
+      Some{BvNil{}}
+    case BCons{a, b}:
+      b.cons(eval.b(a, y), eval.b(b, y))
+    case BDist{}:
+      b.dist(y)
+    case BFoldE{z, s}:
+      match y:
+        case BvPair{+e, BvNil{}}:
+          eval.b(z, e)
+        case BvPair{+e, BvCons{hd, tl}}:
+          Maybe.bind(&2, BV, BV, eval.b(t, BvPair{e, tl}), r => eval.b(s, BvPair{e, BvPair{hd, r}}))
+        case _:
+          None{}
     case BFail{}:
       None{}
 
@@ -427,6 +505,16 @@ def F(t: HTm) -> BTm:
       BIf{F(c), F(a), F(e)}
     case HFold{z, s}:
       BFold{F(z), F(s)}
+    case HUnit{}:
+      BUnit{}
+    case HNil{}:
+      BNil{}
+    case HCons{a, b}:
+      BCons{F(a), F(b)}
+    case HDist{}:
+      BDist{}
+    case HFoldE{z, s}:
+      BFoldE{F(z), F(s)}
     case HErr{}:
       BFail{}
 
@@ -457,6 +545,16 @@ def G(t: BTm) -> HTm:
       HIf{G(c), G(a), G(e)}
     case BFold{z, s}:
       HFold{G(z), G(s)}
+    case BUnit{}:
+      HUnit{}
+    case BNil{}:
+      HNil{}
+    case BCons{a, b}:
+      HCons{G(a), G(b)}
+    case BDist{}:
+      HDist{}
+    case BFoldE{z, s}:
+      HFoldE{G(z), G(s)}
     case BFail{}:
       HErr{}
 
@@ -499,6 +597,16 @@ def F.tot(t: HTm) -> BTm:
       BIf{F.tot(c), F.tot(a), F.tot(e)}
     case HFold{z, s}:
       BFold{F.tot(z), F.tot(s)}
+    case HUnit{}:
+      BUnit{}
+    case HNil{}:
+      BNil{}
+    case HCons{a, b}:
+      BCons{F.tot(a), F.tot(b)}
+    case HDist{}:
+      BDist{}
+    case HFoldE{z, s}:
+      BFoldE{F.tot(z), F.tot(s)}
     case HErr{}:
       BFail{}
 
@@ -1038,6 +1146,22 @@ def z.if(c: Maybe<&2, ZV>, a: Maybe<&2, ZV>, e: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
     case _:
       None{}
 
+def z.cons(a: Maybe<&2, ZV>, b: Maybe<&2, ZV>) -> Maybe<&2, ZV>:
+  match a b:
+    case Some{u} Some{v}:
+      Some{ZvCons{u, v}}
+    case _ _:
+      None{}
+
+def z.dist(v: ZV) -> Maybe<&2, ZV>:
+  match v:
+    case ZvPair{e, ZvInl{a}}:
+      Some{ZvInl{ZvPair{e, a}}}
+    case ZvPair{e, ZvInr{b}}:
+      Some{ZvInr{ZvPair{e, b}}}
+    case _:
+      None{}
+
 # Haskell's meaning at Int, at range r: the answer of t at v, None an
 # error
 def eval.zr(+r: Rg, +t: HTm, +v: ZV) -> Maybe<&2, ZV>:
@@ -1078,6 +1202,22 @@ def eval.zr(+r: Rg, +t: HTm, +v: ZV) -> Maybe<&2, ZV>:
           Maybe.bind(&2, ZV, ZV, eval.zr(r, t, tl), q => eval.zr(r, s, ZvPair{hd, q}))
         case _:
           None{}
+    case HUnit{}:
+      Some{ZvUnit{}}
+    case HNil{}:
+      Some{ZvNil{}}
+    case HCons{a, b}:
+      z.cons(eval.zr(r, a, v), eval.zr(r, b, v))
+    case HDist{}:
+      z.dist(v)
+    case HFoldE{z, s}:
+      match v:
+        case ZvPair{+e, ZvNil{}}:
+          eval.zr(r, z, e)
+        case ZvPair{+e, ZvCons{hd, tl}}:
+          Maybe.bind(&2, ZV, ZV, eval.zr(r, t, ZvPair{e, tl}), q => eval.zr(r, s, ZvPair{e, ZvPair{hd, q}}))
+        case _:
+          None{}
     case HErr{}:
       None{}
 
@@ -1108,6 +1248,10 @@ def nosub(t: HTm) -> Bool:
     case HIf{c, a, e}:
       Bool.and(nosub(c), Bool.and(nosub(a), nosub(e)))
     case HFold{z, s}:
+      Bool.and(nosub(z), nosub(s))
+    case HCons{a, b}:
+      Bool.and(nosub(a), nosub(b))
+    case HFoldE{z, s}:
       Bool.and(nosub(z), nosub(s))
     case _:
       True{}
@@ -1358,6 +1502,16 @@ def l.if(c: Maybe<&2, LV>, a: Maybe<&2, LV>, e: Maybe<&2, LV>) -> Maybe<&2, LV>:
     case _:
       None{}
 
+# a pair's second part's alternative looked at, the first part left alone
+def l.dist(x: Maybe<&2, LV>) -> Maybe<&2, LV>:
+  match x:
+    case Some{LvPair{e, Some{LvInl{a}}}}:
+      Some{LvInl{Some{LvPair{e, a}}}}
+    case Some{LvPair{e, Some{LvInr{b}}}}:
+      Some{LvInr{Some{LvPair{e, b}}}}
+    case _:
+      None{}
+
 # Haskell's lazy meaning: the answer of t at the thunk x (a pair's parts
 # computed only when looked at; a fold's recursive answer a thunk too)
 def eval.lz(+t: HTm, +x: Maybe<&2, LV>) -> Maybe<&2, LV>:
@@ -1398,5 +1552,243 @@ def eval.lz(+t: HTm, +x: Maybe<&2, LV>) -> Maybe<&2, LV>:
           eval.lz(s, Some{LvPair{hd, eval.lz(t, tl)}})
         case _:
           None{}
+    case HUnit{}:
+      Some{LvUnit{}}
+    case HNil{}:
+      Some{LvNil{}}
+    case HCons{a, b}:
+      Some{LvCons{eval.lz(a, x), eval.lz(b, x)}}
+    case HDist{}:
+      l.dist(x)
+    case HFoldE{z, s}:
+      match x:
+        case Some{LvPair{+e, Some{LvNil{}}}}:
+          eval.lz(z, e)
+        case Some{LvPair{+e, Some{LvCons{hd, tl}}}}:
+          eval.lz(s, Some{LvPair{e, Some{LvPair{hd, eval.lz(t, Some{LvPair{e, tl}})}}}})
+        case _:
+          None{}
     case HErr{}:
       None{}
+
+# Int as HsInt (PROPOSED.bend's section 10) ----------------------------------
+#
+# In a package (telomare's), F takes Int and Integer to HsPrelude's HsInt
+# (Spec.bend), an integer: HsInt.Pos{n} is n, HsInt.Neg{n} is -n (n at
+# least 1), one term per integer, as GHC's Integer has.  So at Int the
+# model writes Bend's values as Haskell's, ZV (ZvNat{n} is Pos{n},
+# ZvNeg{n} is Neg{n+1}), and Bend's primitives at HsInt mean the
+# integers' (z.atw): HsInt.add, HsInt.sub and HsInt.is_lt (HSINT.bend
+# proves the prelude's own agree with z.add, z.sub and z.lt at every pair),
+# HsNum.idiv and HsNum.imod (failure values at 0; HSINT.bend checks them on
+# a grid).  A run's range r is the same reading as Haskell's: every
+# integer (RgAll), or the run that stays in -(m+1)..m, an error where a
+# number leaves it (RgIn{m}); Bend's own runtime stops a run whose Nat
+# passes 2^48 - 1 (README, "Parsers"), so Bend's HsInt is RgIn{2^48 - 1}.
+# F and G are the same maps on programs; what changes is the values.
+
+# Bend's meaning at HsInt, at range r: the answer of t at v, None a failure
+# value
+def eval.bz(+r: Rg, +t: BTm, +v: ZV) -> Maybe<&2, ZV>:
+  match t:
+    case BId{}:
+      Some{v}
+    case BComp{g, f}:
+      Maybe.bind(&2, ZV, ZV, eval.bz(r, f, v), y => eval.bz(r, g, y))
+    case BFst{}:
+      z.fst(v)
+    case BSnd{}:
+      z.snd(v)
+    case BPr{f, g}:
+      z.pair(eval.bz(r, f, v), eval.bz(r, g, v))
+    case BInl{}:
+      Some{ZvInl{v}}
+    case BInr{}:
+      Some{ZvInr{v}}
+    case BCase{f, g}:
+      match v:
+        case ZvInl{a}:
+          eval.bz(r, f, a)
+        case ZvInr{b}:
+          eval.bz(r, g, b)
+        case _:
+          None{}
+    case BLit{n}:
+      z.rw(r, ZvNat{n})
+    case BPrim{p}:
+      z.primw(p, v, r)
+    case BIf{c, a, e}:
+      z.if(eval.bz(r, c, v), eval.bz(r, a, v), eval.bz(r, e, v))
+    case BFold{z, s}:
+      match v:
+        case ZvNil{}:
+          eval.bz(r, z, ZvUnit{})
+        case ZvCons{hd, tl}:
+          Maybe.bind(&2, ZV, ZV, eval.bz(r, t, tl), q => eval.bz(r, s, ZvPair{hd, q}))
+        case _:
+          None{}
+    case BUnit{}:
+      Some{ZvUnit{}}
+    case BNil{}:
+      Some{ZvNil{}}
+    case BCons{a, b}:
+      z.cons(eval.bz(r, a, v), eval.bz(r, b, v))
+    case BDist{}:
+      z.dist(v)
+    case BFoldE{z, s}:
+      match v:
+        case ZvPair{+e, ZvNil{}}:
+          eval.bz(r, z, e)
+        case ZvPair{+e, ZvCons{hd, tl}}:
+          Maybe.bind(&2, ZV, ZV, eval.bz(r, t, ZvPair{e, tl}), q => eval.bz(r, s, ZvPair{e, ZvPair{hd, q}}))
+        case _:
+          None{}
+    case BFail{}:
+      None{}
+
+# Bend's runtime's range: 2^48 - 1 (a term: Bend's literals stop at 2^32 - 1)
+def bend.max() -> Nat:
+  Nat.sub(Nat.mul(65536n, Nat.mul(65536n, 65536n)), 1n)
+
+# Variables (PROPOSED.bend's section 11) -----------------------------------------
+#
+# cata takes Haskell with variables; the categories' programs are
+# point-free.  Ex is the fragment as Haskell writes it, its variables
+# numbered from the innermost (a let, a case's and a fold's functions bind
+# one or two), and cc compiles it to the categories (Elliott, Compiling to
+# categories).  An environment is nested pairs, the innermost variable the
+# outermost pair's second part: ((((), x), y), z).  ECase and EFold look at
+# the innermost variable: `case s of Left a -> l; Right b -> r` is
+# ELet{s, ECase{l, r}}, and `foldr (\h q -> s) z xs` is
+# ELet{xs, EFold{z, s}}; l and r see the alternative in the variable's
+# place, z the environment without the list, and s that environment, h and
+# q.
+
+type Ex is Data:
+  EVar{i: Nat}
+  ELit{n: Nat}
+  EUnit{}
+  EPair{a: Ex, b: Ex}
+  EFst{a: Ex}
+  ESnd{a: Ex}
+  EInl{a: Ex}
+  EInr{a: Ex}
+  ENil{}
+  ECons{a: Ex, b: Ex}
+  EPrim{p: Prim, a: Ex, b: Ex}
+  EIf{c: Ex, t: Ex, e: Ex}
+  ELet{a: Ex, b: Ex}
+  ECase{l: Ex, r: Ex}
+  EFold{z: Ex, s: Ex}
+  EErr{}
+
+# a variable's value
+def ev.look(i: Nat, env: HV) -> Maybe<&2, HV>:
+  match i:
+    case 0n:
+      h.snd(env)
+    case 1n+j:
+      Maybe.bind(&2, HV, HV, h.fst(env), e => ev.look(j, e))
+
+# Haskell's (strict) meaning of an expression in an environment
+def ev(+t: Ex, +env: HV) -> Maybe<&2, HV>:
+  match t:
+    case EVar{i}:
+      ev.look(i, env)
+    case ELit{n}:
+      Some{HvNat{n}}
+    case EUnit{}:
+      Some{HvUnit{}}
+    case EPair{a, b}:
+      h.pair(ev(a, env), ev(b, env))
+    case EFst{a}:
+      Maybe.bind(&2, HV, HV, ev(a, env), v => h.fst(v))
+    case ESnd{a}:
+      Maybe.bind(&2, HV, HV, ev(a, env), v => h.snd(v))
+    case EInl{a}:
+      Maybe.bind(&2, HV, HV, ev(a, env), v => Some{HvInl{v}})
+    case EInr{a}:
+      Maybe.bind(&2, HV, HV, ev(a, env), v => Some{HvInr{v}})
+    case ENil{}:
+      Some{HvNil{}}
+    case ECons{a, b}:
+      h.cons(ev(a, env), ev(b, env))
+    case EPrim{p, a, b}:
+      Maybe.bind(&2, HV, HV, h.pair(ev(a, env), ev(b, env)), v => h.prim(p, v))
+    case EIf{c, a, e}:
+      h.if(ev(c, env), ev(a, env), ev(e, env))
+    case ELet{a, b}:
+      Maybe.bind(&2, HV, HV, ev(a, env), v => ev(b, HvPair{env, v}))
+    case ECase{l, r}:
+      match env:
+        case HvPair{e, HvInl{a}}:
+          ev(l, HvPair{e, a})
+        case HvPair{e, HvInr{b}}:
+          ev(r, HvPair{e, b})
+        case _:
+          None{}
+    case EFold{z, s}:
+      match env:
+        case HvPair{+e, HvNil{}}:
+          ev(z, e)
+        case HvPair{+e, HvCons{hd, tl}}:
+          Maybe.bind(&2, HV, HV, ev(t, HvPair{e, tl}), q => ev(s, HvPair{HvPair{e, hd}, q}))
+        case _:
+          None{}
+    case EErr{}:
+      None{}
+
+# a variable's projection
+def cc.var(i: Nat) -> HTm:
+  match i:
+    case 0n:
+      HSnd{}
+    case 1n+j:
+      HComp{cc.var(j), HFst{}}
+
+# (e, (h, q)) to ((e, h), q)
+def cc.assoc() -> HTm:
+  HPr{HPr{HFst{}, HComp{HFst{}, HSnd{}}}, HComp{HSnd{}, HSnd{}}}
+
+# an expression as a program of the category, from its environment
+def cc(t: Ex) -> HTm:
+  match t:
+    case EVar{i}:
+      cc.var(i)
+    case ELit{n}:
+      HLit{n}
+    case EUnit{}:
+      HUnit{}
+    case EPair{a, b}:
+      HPr{cc(a), cc(b)}
+    case EFst{a}:
+      HComp{HFst{}, cc(a)}
+    case ESnd{a}:
+      HComp{HSnd{}, cc(a)}
+    case EInl{a}:
+      HComp{HInl{}, cc(a)}
+    case EInr{a}:
+      HComp{HInr{}, cc(a)}
+    case ENil{}:
+      HNil{}
+    case ECons{a, b}:
+      HCons{cc(a), cc(b)}
+    case EPrim{p, a, b}:
+      HComp{HPrim{p}, HPr{cc(a), cc(b)}}
+    case EIf{c, a, e}:
+      HIf{cc(c), cc(a), cc(e)}
+    case ELet{a, b}:
+      HComp{cc(b), HPr{HId{}, cc(a)}}
+    case ECase{l, r}:
+      HComp{HCase{cc(l), cc(r)}, HDist{}}
+    case EFold{z, s}:
+      HFoldE{cc(z), HComp{cc(s), cc.assoc()}}
+    case EErr{}:
+      HErr{}
+
+# a def of one argument, its body an expression: \x -> t
+def cc.def(t: Ex) -> HTm:
+  HComp{cc(t), HPr{HUnit{}, HId{}}}
+
+def ev.def(+t: Ex, x: HV) -> Maybe<&2, HV>:
+  ev(t, HvPair{HvUnit{}, x})
