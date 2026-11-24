@@ -12394,11 +12394,14 @@ def fd.pt.ho.put(ok: Bool, s: String, k: Nat, b: T.Bt, r: T.Bt) -> Maybe<&2, Ho>
       None{}
 
 # (1: the function after one type, 2: two, 3: three)
+def fd.pt.ho.map(k: T.Bt, v: T.Bt) -> T.Bt:
+  T.BtTyApp{S.b("HsPrelude.HsMap"), T.tba.args([k, v])}
+
 def fd.pt.ho.of(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   match as:
     case T.BtTplArg{+a} <> T.BtTplArg{+b} <> T.BtTplArg{+c} <> +g <> t:
       +w = fd.pt.ho.lam(ks, g)
-      fd.pt.ho.put(Bool.and(w, fd.is(f, "HsPrelude.HsList.zipWith")), "HsPrelude.HsPt.zipWith", 3n, c, fd.list(c))
+      Bool.pick(Maybe<&2, Ho>, Bool.not(w), None{}, Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.zipWith"), "HsPrelude.HsPt.zipWith", 3n, c, fd.list(c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.map"), "HsPrelude.HsPt.mmap", 3n, c, fd.pt.ho.map(a, c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.mapWithKey"), "HsPrelude.HsPt.mmapk", 3n, c, fd.pt.ho.map(a, c)), fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.foldr"), "HsPrelude.HsPt.mfoldr", 3n, c, c)))))
     case _:
       None{}
 
@@ -12406,7 +12409,7 @@ def fd.pt.ho2(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe
   match as:
     case T.BtTplArg{+a} <> T.BtTplArg{+b} <> +g <> t:
       +w = fd.pt.ho.lam(ks, g)
-      Bool.pick(Maybe<&2, Ho>, Bool.not(w), None{}, Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "hs.map"), "HsPrelude.HsPt.map", 2n, b, fd.list(b)), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "HsPrelude.HsList.foldr"), fd.is(f, "HsPrelude.HsList.foldrc")), "HsPrelude.HsPt.foldr", 2n, b, b), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "HsPrelude.HsList.foldl"), fd.is(f, "HsPrelude.HsList.foldlc")), "HsPrelude.HsPt.foldl", 2n, b, b), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "List.any"), fd.is(f, "HsPrelude.HsList.anyc")), "HsPrelude.HsPt.any", 2n, fd.ty0("Bool"), fd.ty0("Bool")), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "List.all"), fd.is(f, "HsPrelude.HsList.allc")), "HsPrelude.HsPt.all", 2n, fd.ty0("Bool"), fd.ty0("Bool")), fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.mapMaybe"), "HsPrelude.HsPt.mapMaybe", 2n, T.BtTyApp{S.b("Maybe"), T.tba.args([fd.v("&2"), b])}, fd.list(b))))))))
+      Bool.pick(Maybe<&2, Ho>, Bool.not(w), None{}, Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.filter"), "HsPrelude.HsPt.mfilter", 2n, fd.ty0("Bool"), fd.pt.ho.map(a, b)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "hs.map"), "HsPrelude.HsPt.map", 2n, b, fd.list(b)), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "HsPrelude.HsList.foldr"), fd.is(f, "HsPrelude.HsList.foldrc")), "HsPrelude.HsPt.foldr", 2n, b, b), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "HsPrelude.HsList.foldl"), fd.is(f, "HsPrelude.HsList.foldlc")), "HsPrelude.HsPt.foldl", 2n, b, b), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "List.any"), fd.is(f, "HsPrelude.HsList.anyc")), "HsPrelude.HsPt.any", 2n, fd.ty0("Bool"), fd.ty0("Bool")), Maybe.or(&2, Ho, fd.pt.ho.put(Bool.or(fd.is(f, "List.all"), fd.is(f, "HsPrelude.HsList.allc")), "HsPrelude.HsPt.all", 2n, fd.ty0("Bool"), fd.ty0("Bool")), fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.mapMaybe"), "HsPrelude.HsPt.mapMaybe", 2n, T.BtTyApp{S.b("Maybe"), T.tba.args([fd.v("&2"), b])}, fd.list(b)))))))))
     case _:
       None{}
 
@@ -12471,7 +12474,7 @@ def fd.pt.hoq(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe
       None{}
 
 def fd.pt.ho(+f: List<&2, U32>, +ks: List<&2, Pt>, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
-  +c = Bool.or(Bool.or(S.prefix(f, S.b("List.")), S.prefix(f, S.b("HsPrelude.HsList."))), fd.is(f, "hs.map"))
+  +c = Bool.or(Bool.or(S.prefix(f, S.b("List.")), S.prefix(f, S.b("HsPrelude.HsList."))), Bool.or(fd.is(f, "hs.map"), S.prefix(f, S.b("HsPrelude.HsMap."))))
   fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => None{}))
 
 def fd.pt.ho.mode(m: Maybe<&2, Ho>, d: Ptm) -> Ptm:

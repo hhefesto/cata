@@ -414,6 +414,10 @@ b'HsPrelude'HsPt'cmaybe d f m = maybe d f m
 b'HsPrelude'HsPt'ceither f g m = either f g m
 b'HsPrelude'HsPt'errorq msg = Left msg
 b'HsPrelude'HsPt'undefq = Left "Prelude.undefined"
+b'HsPrelude'HsPt'mmap f m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> f v >>= \w -> b'HsPrelude'HsPt'mmap f t >>= \r -> Right (B'HsPrelude'HsMap'Bin k w r) }
+b'HsPrelude'HsPt'mmapk f m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> f k v >>= \w -> b'HsPrelude'HsPt'mmapk f t >>= \r -> Right (B'HsPrelude'HsMap'Bin k w r) }
+b'HsPrelude'HsPt'mfilter p m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> p v >>= \b -> b'HsPrelude'HsPt'mfilter p t >>= \r -> Right (if b then B'HsPrelude'HsMap'Bin k v r else r) }
+b'HsPrelude'HsPt'mfoldr f z m = case m of { B'HsPrelude'HsMap'Tip -> Right z; B'HsPrelude'HsMap'Bin _ v t -> b'HsPrelude'HsPt'mfoldr f z t >>= \r -> f v r }
 b'HsPrelude'HsNum'div :: Integral a => a -> a -> Either String a
 b'HsPrelude'HsNum'div a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
 b'HsPrelude'HsNum'sub :: (Ord a, Num a) => a -> a -> Either String a

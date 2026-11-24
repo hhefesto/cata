@@ -415,3 +415,40 @@ def HsPt.errorq(-q: Quant, -A: Kind(q), msg: List<&2, Char>) -> Either<&2, q, Li
 
 def HsPt.undefq(-q: Quant, -A: Kind(q)) -> Either<&2, q, List<&2, Char>, A>:
   Inl{String.to_list("Prelude.undefined")}
+
+# Data.Map's map, mapWithKey, filter and foldr given a partial function
+# (fd.pt.ho), in the keys' order (foldr's from the last)
+def HsPt.mmap(~K: Data, ~V: Data, ~W: Data, ~f: V -> Either<&2, &2, List<&2, Char>, W>, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, HsMap<K, W>>:
+  match m:
+    case HsMap.Tip{}:
+      Inr{HsMap.Tip{}}
+    case HsMap.Bin{k, v, t}:
+      HsPt.bind(W, HsMap<K, W>, f(v), w => HsPt.bind(HsMap<K, W>, HsMap<K, W>, HsPt.mmap(~K, ~V, ~W, ~f, t), r => Inr{HsMap.Bin{k, w, r}}))
+
+def HsPt.mmapk(~K: Data, ~V: Data, ~W: Data, ~f: K -> V -> Either<&2, &2, List<&2, Char>, W>, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, HsMap<K, W>>:
+  match m:
+    case HsMap.Tip{}:
+      Inr{HsMap.Tip{}}
+    case HsMap.Bin{+k, v, t}:
+      HsPt.bind(W, HsMap<K, W>, f(k)(v), w => HsPt.bind(HsMap<K, W>, HsMap<K, W>, HsPt.mmapk(~K, ~V, ~W, ~f, t), r => Inr{HsMap.Bin{k, w, r}}))
+
+def HsPt.mkeep(-K: Data, -V: Data, k: K, v: V, b: Bool, r: HsMap<K, V>) -> HsMap<K, V>:
+  match b:
+    case True{}:
+      HsMap.Bin{k, v, r}
+    case False{}:
+      r
+
+def HsPt.mfilter(~K: Data, ~V: Data, ~p: V -> Either<&2, &2, List<&2, Char>, Bool>, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, HsMap<K, V>>:
+  match m:
+    case HsMap.Tip{}:
+      Inr{HsMap.Tip{}}
+    case HsMap.Bin{k, +v, t}:
+      HsPt.bind(Bool, HsMap<K, V>, p(v), b => HsPt.bind(HsMap<K, V>, HsMap<K, V>, HsPt.mfilter(~K, ~V, ~p, t), r => Inr{HsPt.mkeep(K, V, k, v, b, r)}))
+
+def HsPt.mfoldr(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> Either<&2, &2, List<&2, Char>, B>, z: B, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, B>:
+  match m:
+    case HsMap.Tip{}:
+      Inr{z}
+    case HsMap.Bin{k, v, t}:
+      HsPt.bind(B, B, HsPt.mfoldr(~K, ~V, ~B, ~f, z, t), r => f(v)(r))
