@@ -6434,12 +6434,51 @@ def sp.zonk.at(+y: X.Sx) -> X.Sx:
 
 # the export's clauses and local pattern bindings as the fold reads them
 # (cts: the package's constructors, for a pattern's type)
+def sp.pb.tl(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      t
+    case z:
+      z
+
+# A pattern binding of an as pattern, `let v@p = e`, is two: v = e, and then
+# p = v (the fold's patbind takes a constructor's pattern).
+def sp.pb.isas.at(+abs: X.Sx) -> Bool:
+  +bs = sp.at(abs, 5n)
+  +b = sp.at(bs, 0n)
+  Bool.and(Bool.and(sp.head.is(abs, "abs"), Nat.is_eq(X.tsx.len(bs), 1n)), Bool.and(sp.head.is(b, "patbind"), sp.head.is(sp.at(b, 1n), "pas")))
+
+def sp.pb.isas(+n: X.Sx) -> Bool:
+  sp.if(Bool, sp.head.is(n, "nonrec"), _ => sp.pb.isas.at(sp.at(n, 1n)), _ => False{})
+
+def sp.pb.exp(es: List<&2, X.Sx>, +v: X.Sx) -> List<&2, X.Sx>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case +e <> t:
+      +rest = sp.pb.exp(t, v)
+      sp.if(List<&2, X.Sx>, sp.eq(sp.at(e, 1n), v), _ => rest, _ => e <> rest)
+
+def sp.pb.abs(+old: X.Sx, es: X.Sx, ev: X.Sx, b: X.Sx, +q: List<&2, X.Sx>) -> X.Sx:
+  sp.l(sp.a("nonrec") <> sp.l([sp.a("abs"), sp.at(old, 1n), sp.at(old, 2n), es, ev, sp.l([b])]) <> q)
+
+def sp.pb.as(+n: X.Sx, rest: X.Sx) -> X.Sx:
+  +abs = sp.at(n, 1n)
+  +q = List.drop(&2, X.Sx, sp.els(n), 2n)
+  +b = sp.at(sp.at(abs, 5n), 0n)
+  +bv = sp.at(sp.at(b, 1n), 1n)
+  +v = sp.at(bv, 1n)
+  +ty = sp.at(bv, 2n)
+  +fun = sp.l([sp.a("fun"), sp.l([sp.a("self"), v]), ty, sp.at(b, 2n), sp.l([sp.a("matches"), X.SxNil{}, ty, sp.a("source"), sp.l([sp.l([sp.a("match"), X.SxNil{}, sp.at(b, 3n)])])]), sp.a("hole")])
+  +pat = sp.l(sp.a("patbind") <> sp.at(sp.at(b, 1n), 2n) <> sp.at(b, 2n) <> sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, v])]), sp.l([sp.a("binds")])]) <> List.drop(&2, X.Sx, sp.els(b), 4n))
+  X.SxCons{sp.pb.abs(abs, sp.l([sp.l([sp.a("export"), v, ty])]), sp.at(abs, 4n), fun, q), X.SxCons{sp.pb.abs(abs, sp.l(sp.pb.exp(sp.els(sp.at(abs, 3n)), v)), sp.l([sp.l([sp.a("evbinds")])]), pat, q), rest}}
+
 def sp.pb(x: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
   match x:
     case X.SxCons{h, t}:
       +y = {X.SxCons{sp.pb(h, cts), sp.pb(t, cts)} : X.Sx}
       +a = sp.hd(y)
-      sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.pb.at(y, cts), _ => sp.if(X.Sx, sp.is(a, "match"), _ => sp.ftw.at(y), _ => sp.if(X.Sx, sp.is(a, "grhs"), _ => sp.ftw.grhs(y, cts), _ => sp.if(X.Sx, sp.is(a, "evapp"), _ => sp.natsub(y), _ => sp.if(X.Sx, sp.is(a, "arith"), _ => sp.arith(y), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.divmod(y), _ => sp.if(X.Sx, sp.is(a, "tc"), _ => sp.zonk.at(y), _ => y)))))))
+      sp.if(X.Sx, sp.pb.isas(sp.at(y, 0n)), _ => sp.pb.as(sp.at(y, 0n), sp.pb.tl(y)), _ => sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.pb.at(y, cts), _ => sp.if(X.Sx, sp.is(a, "match"), _ => sp.ftw.at(y), _ => sp.if(X.Sx, sp.is(a, "grhs"), _ => sp.ftw.grhs(y, cts), _ => sp.if(X.Sx, sp.is(a, "evapp"), _ => sp.natsub(y), _ => sp.if(X.Sx, sp.is(a, "arith"), _ => sp.arith(y), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.divmod(y), _ => sp.if(X.Sx, sp.is(a, "tc"), _ => sp.zonk.at(y), _ => y))))))))
     case z:
       z
 

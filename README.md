@@ -655,8 +655,20 @@ from the right), any and all stopping as Haskell's do (Fold's `fd.pt.ho`,
 tests/hs/PartLam.hs). F is strict there as everywhere: `length (map head
 [[]])` is 1 in Haskell and a failure in F, and the laws leave such a def
 out. A partial def written point-free (`first = head`, `isVowel . head`)
-takes its lambda's variables as parameters (`fd.el`). Under any other
-lambda (a monad's continuation, a cata's algebra) a partial call is out
+takes its lambda's variables as parameters (`fd.el`).
+
+A partial call in a monad's continuation is taken at Maybe, Either, State
+and ExceptT over State (and at `fmap`, `maybe` and `either`): the bind is
+the prelude's `HsPt` of it, whose continuation answers the Either (Fold's
+`fd.pt.hoq`). An action is a function of the state, and a partial one fails
+at the state it is run at, so a partial def that answers an action takes the
+state as its last parameter (`ps_s`) and answers `Either<String, result>`
+there; its body is applied to the state inside (`fd.pa`, tests/hs/pk/
+PartAct.hs). A def of the module that takes a function (a spec's copy of
+foldl, a data type's catamorphism) and is given a partial one has a variant,
+`NAME.pt<i>`, whose i-th parameter answers the Either (`fd.ph`,
+tests/hs/pk/PartLet.hs). In a function that is a field or an answer, or a
+cata's whose answer is a function, a partial call is out
 (`fold:partial-in-lambda`).
 
 Natural's `-` is partial too (GHC's ArithException Underflow below 0):

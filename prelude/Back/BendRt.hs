@@ -399,6 +399,26 @@ b'HsPrelude'HsPt'zipWith :: (a -> b -> Either String c) -> [a] -> [b] -> Either 
 b'HsPrelude'HsPt'zipWith f xs ys = sequence (zipWith f xs ys)
 b'HsPrelude'HsPt'mapMaybe :: (a -> Either String (Maybe b)) -> [a] -> Either String [b]
 b'HsPrelude'HsPt'mapMaybe f xs = case xs of { [] -> Right []; (x : t) -> f x >>= \m -> maybe id (:) m <$> b'HsPrelude'HsPt'mapMaybe f t }
+-- the partial binds at an answer that is no Data, and the monads' binds and
+-- maps, maybe and either given a partial function (Fold's fd.pt.hoq, fd.pa)
+b'HsPrelude'HsPt'bindq m k = m >>= k
+b'HsPrelude'HsPt'exs'bind p f = case p of { (Left e, s) -> Right (Left e, s); (Right a, s) -> f a s }
+b'HsPrelude'HsPt'exs'map f p = case p of { (Left e, s) -> Right (Left e, s); (Right a, s) -> f a >>= \b -> Right (Right b, s) }
+b'HsPrelude'HsPt'state'bind p f = case p of { (a, s) -> f a s }
+b'HsPrelude'HsPt'state'map f p = case p of { (a, s) -> f a >>= \b -> Right (b, s) }
+b'HsPrelude'HsPt'either'bind m f = case m of { Left e -> Right (Left e); Right a -> f a }
+b'HsPrelude'HsPt'either'map f m = case m of { Left e -> Right (Left e); Right a -> f a >>= \b -> Right (Right b) }
+b'HsPrelude'HsPt'maybe'bind m f = case m of { Nothing -> Right Nothing; Just a -> f a }
+b'HsPrelude'HsPt'maybe'map f m = case m of { Nothing -> Right Nothing; Just a -> f a >>= \b -> Right (Just b) }
+b'HsPrelude'HsPt'cmaybe d f m = maybe d f m
+b'HsPrelude'HsPt'ceither f g m = either f g m
+b'HsPrelude'HsPt'errorq msg = Left msg
+b'HsPrelude'HsPt'undefq = Left "Prelude.undefined"
+b'HsPrelude'HsPt'uncurry f p = case p of { (a, b) -> f a b }
+b'HsPrelude'HsPt'mmap f m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> f v >>= \w -> b'HsPrelude'HsPt'mmap f t >>= \r -> Right (B'HsPrelude'HsMap'Bin k w r) }
+b'HsPrelude'HsPt'mmapk f m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> f k v >>= \w -> b'HsPrelude'HsPt'mmapk f t >>= \r -> Right (B'HsPrelude'HsMap'Bin k w r) }
+b'HsPrelude'HsPt'mfilter p m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> p v >>= \b -> b'HsPrelude'HsPt'mfilter p t >>= \r -> Right (if b then B'HsPrelude'HsMap'Bin k v r else r) }
+b'HsPrelude'HsPt'mfoldr f z m = case m of { B'HsPrelude'HsMap'Tip -> Right z; B'HsPrelude'HsMap'Bin _ v t -> b'HsPrelude'HsPt'mfoldr f z t >>= \r -> f v r }
 b'HsPrelude'HsNum'div :: Integral a => a -> a -> Either String a
 b'HsPrelude'HsNum'div a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
 b'HsPrelude'HsNum'sub :: (Ord a, Num a) => a -> a -> Either String a
@@ -801,6 +821,8 @@ b'HsPrelude'HsShow'maybe sh d m r = case m of { Nothing -> "Nothing" ++ r; Just 
 
 -- State s a as each module's prelude has it (hs.state.*: s -> (a, s))
 b'hs'state'bind m f = \s -> let (a, s') = m s in f a s'
+b'hs'state'bind'go p f = let (a, s) = p in f a s
+b'hs'state'map'go f p = let (a, s) = p in (f a, s)
 b'hs'state'pure a = \s -> (a, s)
 b'hs'state'map f m = \s -> let (a, s') = m s in (f a, s')
 b'hs'state'ap mf m = \s -> let (f, s') = mf s in b'hs'state'map f m s'
@@ -879,6 +901,8 @@ b'hs'wre'map mt app f x = case x of { Left e -> Left e; Right (a, w) -> Right (f
 -- ExceptT e (State s) a as each module's prelude has it (hs.exs.*:
 -- s -> (Either e a, s), >>= stops at a Left and keeps the state)
 b'hs'exs'bind m f = \s -> case m s of { (Left e, s') -> (Left e, s'); (Right a, s') -> f a s' }
+b'hs'exs'bind'p p f = case p of { (Left e, s) -> (Left e, s); (Right a, s) -> f a s }
+b'hs'exs'map'go f p = let (r, s') = p in (fmap f r, s')
 b'hs'exs'pure a = \s -> (Right a, s)
 b'hs'exs'throw e = \s -> (Left e, s)
 b'hs'exs'map f m = \s -> let (r, s') = m s in (fmap f r, s')

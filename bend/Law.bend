@@ -839,37 +839,103 @@ def lw.out.num(sg: Bool, neg: Bool, +n: List<&2, U32>) -> T.Bt:
     case False{} True{}:
       T.BtTodo{S.b("law:negative-answer")}
 
-# an answer in Bend; a negative number has none (the fold's Int is Nat).
-# It recurses on the tree's own parts (a string's answer is as long as the
-# string)
-def lw.out(x: X.Sx, k: Ok, mode: Vm, +sg: Bool) -> T.Bt:
+# the answer's type, walked with it: a list's element, a tuple's and a
+# constructor's fields (a spine), a spine's head and rest; HyNo where it is
+# not known (another module's type)
+def lw.ot.no() -> Hy:
+  HyNo{Nil{}}
+
+def lw.ot.hd(h: Hy) -> Hy:
+  match h:
+    case HyArgs{a, r}:
+      a
+    case _:
+      lw.ot.no()
+
+def lw.ot.tl(h: Hy) -> Hy:
+  match h:
+    case HyArgs{a, r}:
+      r
+    case _:
+      lw.ot.no()
+
+def lw.ot.elem(h: Hy) -> Hy:
+  match h:
+    case HyList{a}:
+      a
+    case _:
+      lw.ot.no()
+
+def lw.ot.tup(h: Hy) -> Hy:
+  match h:
+    case HyT2{a, b}:
+      HyArgs{a, HyArgs{b, HyANil{}}}
+    case HyT3{a, b, c}:
+      HyArgs{a, HyArgs{b, HyArgs{c, HyANil{}}}}
+    case _:
+      lw.ot.no()
+
+def lw.ot.ck(cs: List<&2, Ck>, +c: List<&2, U32>) -> Hy:
+  match cs:
+    case Ck{hs, b, fs} <> t:
+      Bool.pick(Hy, S.eq(b, c), fs, lw.ot.ck(t, c))
+    case Nil{}:
+      lw.ot.no()
+
+def lw.ot.con(h: Hy, +c: List<&2, U32>, +le: Le, +dds: List<&2, Dd>) -> Hy:
+  match h:
+    case HyMaybe{a}:
+      HyArgs{a, HyANil{}}
+    case HyEither{a, b}:
+      HyArgs{Bool.pick(Hy, S.eq(c, S.b("Inl")), a, b), HyANil{}}
+    case HyUser{+n, args}:
+      lw.ot.ck(lw.cks.of(lw.dd.find(dds, n), le, args), c)
+    case _:
+      lw.ot.no()
+
+# whether a number answer is an HsInt: by its type (a data type's Natural
+# field is a Nat in a module with HsInt: sg), where that is known
+def lw.ot.sg(h: Hy, sg: Bool) -> Bool:
+  match h:
+    case HyNat{s}:
+      False{}
+    case HyInt{s}:
+      True{}
+    case _:
+      sg
+
+# an answer in Bend, ty its type; a negative number has none where the
+# fold's Int is Nat.  It recurses on the tree's own parts (a string's answer
+# is as long as the string)
+def lw.out(x: X.Sx, k: Ok, mode: Vm, +ty: Hy, +sg: Bool, +le: Le, +dds: List<&2, Dd>) -> T.Bt:
   match x k mode:
     case X.SxCons{+h, t} _ VmSp{}:
-      T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, sg), lw.out(t, OkNo{}, VmSp{}, sg)}
+      T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, lw.ot.hd(ty), sg, le, dds), lw.out(t, OkNo{}, VmSp{}, lw.ot.tl(ty), sg, le, dds)}
     case _ _ VmSp{}:
       T.BtANil{}
     case X.SxCons{+h, t} _ VmList{}:
-      T.BtCon{S.b("Con"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, sg), T.BtArgs{lw.out(t, OkNo{}, VmList{}, sg), T.BtANil{}}}}
+      T.BtCon{S.b("Con"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, ty, sg, le, dds), T.BtArgs{lw.out(t, OkNo{}, VmList{}, ty, sg, le, dds), T.BtANil{}}}}
     case _ _ VmList{}:
       F.fd.con0("Nil")
     case X.SxCons{+h, X.SxNil{}} _ VmTup{}:
-      lw.out(h, lw.okind(h), VmVal{}, sg)
+      lw.out(h, lw.okind(h), VmVal{}, lw.ot.hd(ty), sg, le, dds)
     case X.SxCons{+h, t} _ VmTup{}:
-      T.BtCon{S.b("Tuple"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, sg), T.BtArgs{lw.out(t, OkNo{}, VmTup{}, sg), T.BtANil{}}}}
+      T.BtCon{S.b("Tuple"), T.BtArgs{lw.out(h, lw.okind(h), VmVal{}, lw.ot.hd(ty), sg, le, dds), T.BtArgs{lw.out(t, OkNo{}, VmTup{}, lw.ot.tl(ty), sg, le, dds), T.BtANil{}}}}
     case _ _ VmTup{}:
       F.fd.con0("Unit")
     case +y OkNat{} _:
-      lw.out.num(sg, False{}, X.tsx.atom.of(X.tsx.at(1n, y)))
+      lw.out.num(lw.ot.sg(ty, sg), False{}, X.tsx.atom.of(X.tsx.at(1n, y)))
     case +y OkNeg{} _:
-      lw.out.num(sg, True{}, X.tsx.atom.of(X.tsx.at(1n, y)))
+      lw.out.num(lw.ot.sg(ty, sg), True{}, X.tsx.atom.of(X.tsx.at(1n, y)))
     case +y OkChar{} _:
       F.fd.char(X.tsx.nat(X.tsx.at(1n, y)))
     case X.SxCons{h, t} OkList{} _:
-      lw.out(t, OkNo{}, VmList{}, sg)
+      lw.out(t, OkNo{}, VmList{}, lw.ot.elem(ty), sg, le, dds)
     case X.SxCons{h, t} OkTup{} _:
-      lw.out(t, OkNo{}, VmTup{}, sg)
+      lw.out(t, OkNo{}, VmTup{}, lw.ot.tup(ty), sg, le, dds)
     case X.SxCons{h, X.SxCons{c, t}} OkCon{} _:
-      T.BtCon{X.tsx.str.of(c), lw.out(t, OkNo{}, VmSp{}, sg)}
+      +cn = X.tsx.str.of(c)
+      T.BtCon{cn, lw.out(t, OkNo{}, VmSp{}, lw.ot.con(ty, cn, le, dds), sg, le, dds)}
     case _ _ _:
       T.BtTodo{S.b("law:answer")}
 
@@ -906,7 +972,7 @@ type Lc is Data:
 
 # A def's laws (its name, the result type in Bend), or why it has none
 type Pl is Data:
-  Pl{b: List<&2, U32>, ret: T.Bt, ls: List<&2, Lc>}
+  Pl{b: List<&2, U32>, ret: T.Bt, hy: Hy, ls: List<&2, Lc>}
   PlNo{b: List<&2, U32>, why: List<&2, U32>}
 
 # a parameter's term in a law's call when it is no value: a type (Data) is
@@ -1001,12 +1067,12 @@ def lw.lcs(ins: List<&2, Va>, +k: Nat, +b: List<&2, U32>, +f: List<&2, U32>, +ks
     case Nil{}:
       Nil{}
 
-def lw.plan.ins(ins: List<&2, Va>, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>, ret: T.Bt) -> Pl:
+def lw.plan.ins(ins: List<&2, Va>, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>, ret: T.Bt, hy: Hy) -> Pl:
   match ins:
     case Nil{}:
       PlNo{b, S.b("nolaw:no-input")}
     case +h <> t:
-      Pl{b, ret, lw.lcs(h <> t, 1n, b, f, ks, ts)}
+      Pl{b, ret, hy, lw.lcs(h <> t, 1n, b, f, ks, ts)}
 
 # why the def has no laws, before any input: empty when it may have them
 def lw.plan.why(+h: Hy, +ks: List<&2, Bool>) -> List<&2, U32>:
@@ -1019,6 +1085,10 @@ def lw.plan.why(+h: Hy, +ks: List<&2, Bool>) -> List<&2, U32>:
 # (and its ArithException, as shown: "divide by zero", HsNum's message)
 def lw.pt.open(pt: Bool) -> List<&2, U32>:
   F.fd.bpick(pt, S.b("(LawEw LawP.$ ("), S.b("(("))
+
+# its answer, as a type of the laws' (lw.out): Either String A
+def lw.pt.hy(pt: Bool, +r: Hy) -> Hy:
+  Bool.pick(Hy, pt, HyEither{HyList{HyChar{}}, r}, r)
 
 def lw.pt.ret(pt: Bool, +r: T.Bt) -> T.Bt:
   Bool.pick(T.Bt, pt, F.fd.pt.ety(r), r)
@@ -1036,7 +1106,7 @@ def lw.plan.of(why: List<&2, U32>, +b: List<&2, U32>, +h: Hy, +m: List<&2, U32>,
   match why:
     case Nil{}:
       +f = lw.cat3(lw.pt.open(pt), lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41]))
-      lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(h)}), 8n), b, f, lw.kinds(ps), lw.tpls(ps), lw.pt.ret(pt, lw.bty(lw.res(h))))
+      lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(h)}), 8n), b, f, lw.kinds(ps), lw.tpls(ps), lw.pt.ret(pt, lw.bty(lw.res(h))), lw.pt.hy(pt, lw.res(h)))
     case w:
       PlNo{b, w}
 
@@ -1070,7 +1140,7 @@ def lw.plans(tbs: List<&2, F.Tb>, +its: List<&2, T.BItem>, +le: Le, +dds: List<&
 
 def lw.any.pl(ps: List<&2, Pl>) -> Bool:
   match ps:
-    case Pl{b, r, ls} <> t:
+    case Pl{b, r, hy, ls} <> t:
       True{}
     case _ <> t:
       lw.any.pl(t)
@@ -1165,7 +1235,7 @@ def lw.lines.lc(ls: List<&2, Lc>, +b: List<&2, U32>) -> List<&2, U32>:
 
 def lw.lines(ps: List<&2, Pl>) -> List<&2, U32>:
   match ps:
-    case Pl{+b, r, ls} <> t:
+    case Pl{+b, r, hy, ls} <> t:
       lw.cat(lw.lines.lc(ls, b), lw.lines(t))
     case _ <> t:
       lw.lines(t)
@@ -1202,11 +1272,11 @@ def lw.has.str(xs: List<&2, X.Sx>, +s: List<&2, U32>) -> Bool:
       Bool.or(lw.has.str.go(x, s), lw.has.str(t, s))
 
 # the law, once GHC's answer reads as a tree
-def lw.law.sx(m: Maybe<&2, X.Sx>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>, sg: Bool) -> List<&2, T.BItem>:
+def lw.law.sx(m: Maybe<&2, X.Sx>, +b: List<&2, U32>, +ret: T.Bt, +hy: Hy, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>, sg: Bool, +le: Le, +dds: List<&2, Dd>) -> List<&2, T.BItem>:
   match m:
     case Some{+x}:
       +doc = lw.cat3(S.b("GHC: "), hs, lw.cat(S.b(") = "), v))
-      T.BiDef{lw.lawname(b, k), Nil{}, T.BtEq{ret, call, lw.out(x, lw.okind(x), VmVal{}, Bool.and(sg, Bool.not(S.mem(S.b("Nat"), T.tba.refs(ret, Nil{})))))}, T.BtExpr{T.BtRefl{}}, doc <> Nil{}} <> Nil{}
+      T.BiDef{lw.lawname(b, k), Nil{}, T.BtEq{ret, call, lw.out(x, lw.okind(x), VmVal{}, hy, Bool.and(sg, Bool.not(S.mem(S.b("Nat"), T.tba.refs(ret, Nil{})))), le, dds)}, T.BtExpr{T.BtRefl{}}, doc <> Nil{}} <> Nil{}
     case None{}:
       Nil{}
 
@@ -1235,33 +1305,33 @@ def lw.bigrun(ds: List<&2, Bool>, run: Nat) -> Bool:
 def lw.bignum(+xs: List<&2, U32>) -> Bool:
   lw.bigrun(lw.digits(xs), 0n)
 
-def lw.law.ok(ok: Bool, +b: List<&2, U32>, +ret: T.Bt, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>, sg: Bool) -> List<&2, T.BItem>:
+def lw.law.ok(ok: Bool, +b: List<&2, U32>, +ret: T.Bt, +hy: Hy, k: Nat, hs: List<&2, U32>, call: T.Bt, +v: List<&2, U32>, sg: Bool, +le: Le, +dds: List<&2, Dd>) -> List<&2, T.BItem>:
   match ok:
     case True{}:
-      lw.law.sx(X.tsx.one(v), b, ret, k, hs, call, v, sg)
+      lw.law.sx(X.tsx.one(v), b, ret, hy, k, hs, call, v, sg, le, dds)
     case False{}:
       Nil{}
 
-def lw.law(o: Maybe<&2, Ol>, +b: List<&2, U32>, +ret: T.Bt, k: Nat, +hs: List<&2, U32>, call: T.Bt, sg: Bool) -> List<&2, T.BItem>:
+def lw.law(o: Maybe<&2, Ol>, +b: List<&2, U32>, +ret: T.Bt, +hy: Hy, k: Nat, +hs: List<&2, U32>, call: T.Bt, sg: Bool, +le: Le, +dds: List<&2, Dd>) -> List<&2, T.BItem>:
   match o:
     case Some{Ol{ob, ok, +st, +v}}:
-      lw.law.ok(Bool.and(V.sv.is(st, "ok"), Bool.not(Bool.or(lw.bignum(v), lw.bignum(hs)))), b, ret, k, hs, call, v, sg)
+      lw.law.ok(Bool.and(V.sv.is(st, "ok"), Bool.not(Bool.or(lw.bignum(v), lw.bignum(hs)))), b, ret, hy, k, hs, call, v, sg, le, dds)
     case None{}:
       Nil{}
 
-def lw.laws.lc(ls: List<&2, Lc>, +b: List<&2, U32>, +ret: T.Bt, +os: List<&2, Ol>, +sg: Bool) -> List<&2, T.BItem>:
+def lw.laws.lc(ls: List<&2, Lc>, +b: List<&2, U32>, +ret: T.Bt, +hy: Hy, +os: List<&2, Ol>, +sg: Bool, +le: Le, +dds: List<&2, Dd>) -> List<&2, T.BItem>:
   match ls:
     case Lc{+k, hs, c} <> t:
-      List.append(&2, T.BItem, lw.law(lw.ol.find(os, b, lw.nshow(k)), b, ret, k, hs, c, sg), lw.laws.lc(t, b, ret, os, sg))
+      List.append(&2, T.BItem, lw.law(lw.ol.find(os, b, lw.nshow(k)), b, ret, hy, k, hs, c, sg, le, dds), lw.laws.lc(t, b, ret, hy, os, sg, le, dds))
     case Nil{}:
       Nil{}
 
-def lw.items(ps: List<&2, Pl>, +os: List<&2, Ol>, +sg: Bool) -> List<&2, T.BItem>:
+def lw.items(ps: List<&2, Pl>, +os: List<&2, Ol>, +sg: Bool, +le: Le, +dds: List<&2, Dd>) -> List<&2, T.BItem>:
   match ps:
-    case Pl{+b, +r, ls} <> t:
-      List.append(&2, T.BItem, lw.laws.lc(ls, b, r, os, sg), lw.items(t, os, sg))
+    case Pl{+b, +r, +hy, ls} <> t:
+      List.append(&2, T.BItem, lw.laws.lc(ls, b, r, hy, os, sg, le, dds), lw.items(t, os, sg, le, dds))
     case _ <> t:
-      lw.items(t, os, sg)
+      lw.items(t, os, sg, le, dds)
     case Nil{}:
       Nil{}
 
@@ -1729,7 +1799,7 @@ def lw.nowhy(ps: List<&2, Pl>, +n: List<&2, U32>) -> List<&2, U32>:
   match ps:
     case PlNo{+b, w} <> t:
       F.fd.bpick(S.eq(b, n), w, lw.nowhy(t, n))
-    case Pl{+b, r, ls} <> t:
+    case Pl{+b, r, hy, ls} <> t:
       F.fd.bpick(S.eq(b, n), S.b("nolaw:no-answer"), lw.nowhy(t, n))
     case Nil{}:
       S.b("nolaw:unplanned")
@@ -2245,7 +2315,7 @@ def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +f
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<Lk>:
     txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt"))), dt, lw.back.nm(lw.kc.back(ck), m, ims, tbs, dds, lw.gs.its(g0), xs))
+    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt")), le, dds), dt, lw.back.nm(lw.kc.back(ck), m, ims, tbs, dds, lw.gs.its(g0), xs))
 
 # the items before the gate, and the ones it drops before its first check
 # (dep: what they use that is out), as OUT/NAME_all.bend and
