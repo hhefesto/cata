@@ -6714,6 +6714,7 @@ type K is Data:
   KBinds{}
   KGroups{}
   KNonrec{}
+  KRecs{}
   KBfun{}
   KBabs{}
   KBpat{}
@@ -6793,8 +6794,11 @@ def fd.k.anybind(gs: List<&2, X.Sx>) -> Bool:
 def fd.k.grhs(+x: X.Sx) -> K:
   Bool.pick(K, fd.k.anybind(SP.sp.els(V.sv.at(x, 1n))), KGrhsP{}, KGrhs{})
 
+# a rec of several bindings (a local and a copy of a def at it, both
+# calling each other: traverseScoped's goPattern and listTraverse at it) is
+# an abs's group: each lifted, their cycle fd.mu.all's
 def fd.k.group(+x: X.Sx) -> K:
-  Bool.pick(K, Bool.or(V.sv.is(V.sv.hd(x), "nonrec"), Bool.and(V.sv.is(V.sv.hd(x), "rec"), Nat.is_eq(X.tsx.len(x), 2n))), KNonrec{}, KBad{S.b("fold:recursive-local")})
+  Bool.pick(K, Bool.or(V.sv.is(V.sv.hd(x), "nonrec"), Bool.and(V.sv.is(V.sv.hd(x), "rec"), Nat.is_eq(X.tsx.len(x), 2n))), KNonrec{}, Bool.pick(K, V.sv.is(V.sv.hd(x), "rec"), KRecs{}, KBad{S.b("fold:recursive-local")}))
 
 # a local abs (GHC's generalised group) that takes no dictionary is its one
 # bind (its type variables are erased in a let)
@@ -6995,6 +6999,8 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.nil()
     case X.SxCons{_, X.SxCons{+b, _}} KNonrec{}:
       fd.go(b, fd.k.bind(b), env)
+    case X.SxCons{_, bs} KRecs{}:
+      fd.go(bs, KAbs1{}, env)
     case X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{bs, _}}}}}} KBabs{}:
       fd.go(bs, KAbs1{}, env)
     # one binding, or a group of several: mutually recursive locals (EAL's
