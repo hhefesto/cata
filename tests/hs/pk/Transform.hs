@@ -5,6 +5,7 @@
 module Transform where
 
 import Data.Fix (Fix (..))
+import Data.Functor.Foldable (cata)
 
 data F r = Zero | Pair r r | Env | Defer Int r | Set r
   deriving (Eq, Show, Functor)
@@ -50,3 +51,26 @@ call n body arg = Fix (Set (pair (Fix (Defer n body)) arg))
 
 exEval :: Int -> Int
 exEval n = size (eval (call n (pair env (call 1 env env)) (pair zero (Fix (Defer n env)))))
+
+-- a local constant in a cata's algebra (IR.Core's compiled2Term3)
+data Loc = Gen String (Maybe Loc) | Here
+  deriving (Eq, Show)
+
+data An r = An Loc Int r | End Loc
+  deriving (Eq, Show, Functor)
+
+annotate :: E -> Fix An
+annotate = cata f where
+  anno = Gen "annotate" Nothing
+  f e = case e of
+    Pair a b -> Fix (An anno 1 a)
+    Set a -> Fix (An (Gen "set" (Just anno)) 2 a)
+    _ -> Fix (End anno)
+
+locs :: Fix An -> [Loc]
+locs (Fix x) = case x of
+  An l n r -> if n > 1 then l : locs r else locs r
+  End l -> [l]
+
+exAnno :: Int -> [Loc]
+exAnno n = locs (annotate (call n (pair env env) zero))

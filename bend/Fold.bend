@@ -6336,6 +6336,49 @@ def fd.occurs(x: X.Sx, +t: X.Sx) -> Bool:
     case y:
       V.sv.sxeq(y, t)
 
+# a constant built of one of the module's constructors (anno = GeneratedLoc
+# "compiled2Term3" Nothing): no local in it and nothing to run, so it is a
+# local function of no parameters, and a function that uses it takes it as
+# no parameter (a template's closure, else)
+def fd.cheap(t: T.Bt) -> Bool:
+  match t:
+    case T.BtCon{c, a}:
+      fd.cheap(a)
+    case T.BtArgs{a, r}:
+      Bool.and(fd.cheap(a), fd.cheap(r))
+    case T.BtANil{}:
+      True{}
+    case T.BtNat{s}:
+      True{}
+    case T.BtStr{s}:
+      True{}
+    case T.BtExpr{e}:
+      fd.cheap(e)
+    case T.BtAnn{a, ty}:
+      fd.cheap(a)
+    case T.BtApp{T.BtVar{+f}, a}:
+      Bool.and(fd.is(f, "String.to_list"), fd.cheap(a))
+    case _:
+      False{}
+
+def fd.hasdot(cs: List<&2, U32>) -> Bool:
+  match cs:
+    case Nil{}:
+      False{}
+    case c <> t:
+      Bool.or(U32.is_eq(c, 46), fd.hasdot(t))
+
+def fd.lconst(t: T.Bt) -> Bool:
+  match t:
+    case T.BtExpr{e}:
+      fd.lconst(e)
+    case T.BtAnn{a, ty}:
+      fd.lconst(a)
+    case T.BtCon{+c, T.BtArgs{a, r}}:
+      Bool.and(Bool.and(fd.hasdot(c), Bool.not(S.prefix(c, S.b("HsPrelude.")))), Bool.and(fd.cheap(a), fd.cheap(r)))
+    case _:
+      False{}
+
 # a local value: a let, lifted when its body is a statement; an action (a
 # value of a State's type, a function in Bend: EAL's intrinsic's dataLeaf) is
 # a local function of no parameters, so it can run twice; one that names
@@ -6346,7 +6389,8 @@ def fd.lbind.val(rec: Bool, +x: List<&2, U32>, +res: T.Bt, +cls: List<&2, R>, +e
     case True{}:
       RLf{x, Nil{}, res, cls}
     case False{}:
-      RB{x, T.BtAnn{fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env), res}}
+      +v = fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env)
+      Bool.pick(R, fd.lconst(v), RLf{x, Nil{}, res, cls}, RB{x, T.BtAnn{v, res}})
 
 def fd.isact(t: T.Bt) -> Bool:
   match t:
