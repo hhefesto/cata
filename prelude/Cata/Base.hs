@@ -277,6 +277,17 @@ productDefault t = F.product (toListDefault t)
 lengthDefault :: forall t a. Foldable t => t a -> Int
 lengthDefault t = F.length (toListDefault t)
 
+-- | free's unwrap (ComonadCofree's) at Cofree: the layer under the
+-- annotation (the instance's Functor f, unused, makes a call of it a copy
+-- at its f, as the model's other defs are)
+unwrapCofree :: forall f a. Functor f => C.Cofree f a -> f (C.Cofree f a)
+unwrapCofree (_ C.:< x) = x
+
+-- | GHC.Show's shows at a package's own type: base's definition, so that
+-- the specialiser writes it at the type's own showsPrec (a derived one's)
+showsDefault :: forall a. Show a => a -> ShowS
+showsDefault x = showsPrec 0 x
+
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
 mapKeys :: forall k2 k1 a. Ord k2 => (k1 -> k2) -> Map.Map k1 a -> Map.Map k2 a

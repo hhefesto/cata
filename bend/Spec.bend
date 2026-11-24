@@ -1726,16 +1726,17 @@ type Pgk is Data:
   PgkH{k: String, n: String}
   PgkM{k: String, n: String}
   PgkO{k: String, n: String}
+  PgkS{k: String, n: String}
   PgkA{k: String, n: String}
 
 # at a list and such a monad; at Maybe; at a package's Foldable; at any type
 def sp.pc.gtab() -> List<&2, Pgk>:
   +tr = {"GHC.Internal.Data.Traversable." : String}
   +fo = {"GHC.Internal.Data.Foldable." : String}
-  [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}]
+  [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkS{"GHC.Internal.Show.shows", "showsDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}]
 
 def sp.pc.gkeys() -> List<&2, List<&2, U32>>:
-  [S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform")]
+  [S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform"), S.b("Control.Comonad.Cofree.Class.unwrap")]
 
 def sp.pc.gm.some(b: Bool, n: String, ts: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   match b:
@@ -1757,6 +1758,10 @@ def sp.pc.gm.tab(ks: List<&2, Pgk>, +k: List<&2, U32>, +ty: List<&2, X.Sx>) -> M
       Maybe.or(&2, Pgm, sp.if(Maybe<&2, Pgm>, sp.is(k, q), _ => sp.pc.gm.some(sp.is(sp.tckey(sp.first(ty)), "GHC.Internal.Maybe.Maybe"), n, sp.pc.drop(1n, ty)), _ => None{}), sp.pc.gm.tab(t, k, ty))
     case PgkO{+q, n} <> t:
       Maybe.or(&2, Pgm, sp.if(Maybe<&2, Pgm>, sp.is(k, q), _ => sp.pc.gm.some(sp.pc.own(sp.first(ty)), n, ty), _ => None{}), sp.pc.gm.tab(t, k, ty))
+    case PgkS{+q, n} <> t:
+      +t0 = sp.first(ty)
+      +own = Bool.and(sp.pc.own(t0), Bool.not(S.prefix(sp.pc.tcmod(t0), S.b("HsPrelude"))))
+      Maybe.or(&2, Pgm, sp.if(Maybe<&2, Pgm>, sp.is(k, q), _ => sp.pc.gm.some(own, n, ty), _ => None{}), sp.pc.gm.tab(t, k, ty))
     case PgkA{+q, n} <> t:
       Maybe.or(&2, Pgm, sp.if(Maybe<&2, Pgm>, sp.is(k, q), _ => Some{Pgm{n, ty}}, _ => None{}), sp.pc.gm.tab(t, k, ty))
 
@@ -1769,13 +1774,15 @@ def sp.pc.gm(+k: List<&2, U32>, +ty: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   +co = sp.is(h, "Control.Comonad.Cofree.Cofree")
   +fx = sp.is(h, "Data.Fix.Fix")
   +app = Bool.or(sp.is(k, "GHC.Internal.Base.<>"), sp.is(k, "GHC.Internal.Base.mappend"))
-  Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, app), "maybeAppend", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, sp.is(k, "GHC.Internal.Base.mempty")), "maybeMempty", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Data.Functor.Foldable.ana")), "anaCofree", x <> y <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(fx, sp.is(k, "Data.Functor.Foldable.ana")), "anaFix", x <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Control.Lens.Plated.transform")), "transformCofree", [x, y]), sp.pc.gm.tab(sp.pc.gtab(), k, ty))))))
+  +t1 = Maybe.default(&2, X.Sx, sp.nth(ty, 1n), X.SxNil{})
+  +uw = Bool.and(sp.is(k, "Control.Comonad.Cofree.Class.unwrap"), sp.is(sp.tckey(t1), "Control.Comonad.Cofree.Cofree"))
+  Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, app), "maybeAppend", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, sp.is(k, "GHC.Internal.Base.mempty")), "maybeMempty", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Data.Functor.Foldable.ana")), "anaCofree", x <> y <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(fx, sp.is(k, "Data.Functor.Foldable.ana")), "anaFix", x <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Control.Lens.Plated.transform")), "transformCofree", [x, y]), Maybe.or(&2, Pgm, sp.pc.gm.some(uw, "unwrapCofree", [sp.at(t1, 3n), Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})]), sp.pc.gm.tab(sp.pc.gtab(), k, ty)))))))
 
 # how many types the model's def (n) takes
 def sp.pc.gn(+n: String) -> Nat:
   +b = S.b(n)
-  +one = Bool.or(sp.is(b, "maybeAppend"), sp.is(b, "maybeMempty"))
-  +two = Bool.or(sp.is(b, "transformCofree"), Bool.or(sp.is(b, "anaFix"), Bool.or(Bool.or(sp.is(b, "toListDefault"), Bool.or(sp.is(b, "sumDefault"), Bool.or(sp.is(b, "productDefault"), sp.is(b, "lengthDefault")))), Bool.or(S.prefix(b, S.b("listSequence")), sp.is(b, "maybeSequenceA")))))
+  +one = Bool.or(sp.is(b, "maybeAppend"), Bool.or(sp.is(b, "maybeMempty"), sp.is(b, "showsDefault")))
+  +two = Bool.or(Bool.or(sp.is(b, "transformCofree"), sp.is(b, "unwrapCofree")), Bool.or(sp.is(b, "anaFix"), Bool.or(Bool.or(sp.is(b, "toListDefault"), Bool.or(sp.is(b, "sumDefault"), Bool.or(sp.is(b, "productDefault"), sp.is(b, "lengthDefault")))), Bool.or(S.prefix(b, S.b("listSequence")), sp.is(b, "maybeSequenceA")))))
   Bool.pick(Nat, one, 1n, Bool.pick(Nat, two, 2n, 3n))
 
 def sp.pc.gput(m: Maybe<&2, Pgm>) -> Maybe<&2, X.Sx>:
@@ -1796,6 +1803,8 @@ def sp.pc.gkeyed(ks: List<&2, Pgk>, +k: List<&2, U32>) -> Bool:
     case PgkM{q, n} <> t:
       Bool.or(sp.is(k, q), sp.pc.gkeyed(t, k))
     case PgkO{q, n} <> t:
+      Bool.or(sp.is(k, q), sp.pc.gkeyed(t, k))
+    case PgkS{q, n} <> t:
       Bool.or(sp.is(k, q), sp.pc.gkeyed(t, k))
     case PgkA{q, n} <> t:
       Bool.or(sp.is(k, q), sp.pc.gkeyed(t, k))
