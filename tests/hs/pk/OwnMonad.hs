@@ -67,3 +67,14 @@ instance Semigroup Meter where
 
 exMeter :: Int -> Int -> (Int, [Int])
 exMeter a b = case Meter a [b] <> Meter b [a] of Meter x y -> (x, y)
+
+-- <$> and <*> chains at it (Machine's superStepM)
+pairUp :: Int -> Int -> Acc [Int] (Int, Int)
+pairUp a b = (,) <$> visit a <*> visit b
+
+three :: Int -> Int -> Acc [Int] (Int, Int, Int)
+three a b = (\x y z -> (z, y, x)) <$> visit a <*> visit b <*> visit (a + b)
+
+exChain :: Int -> Int -> ([Int], Int)
+exChain a b = case three a b of
+  Acc xs (x, y, z) -> case pairUp x y of Acc ys (p, q) -> (xs ++ ys, p * q + z)

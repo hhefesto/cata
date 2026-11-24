@@ -1830,6 +1830,49 @@ def sp.pc.gen(chain: Bool, +k: List<&2, U32>, +tys: List<&2, X.Sx>, +ix: Ix) -> 
     case False{}:
       None{}
 
+# fmap g a <*> b at a package's own Applicative is liftA2 g a b, its
+# instance's (its value then holds no function, which is no Data), and
+# fmap g a <*> b <*> c the model's liftA3Op
+def sp.pc.isap(+f: X.Sx) -> Bool:
+  +sf = sp.pc.strip(f)
+  +p = sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{})
+  Bool.and(sp.head.is(sf, "app"), Bool.and(sp.is(sp.pc.key(p), "GHC.Internal.Base.<*>"), sp.pc.own(sp.first(sp.pc.tys(p)))))
+
+def sp.pc.isola2(+f: X.Sx) -> Bool:
+  +l = sp.pc.strip(sp.at(sp.pc.strip(f), 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  Bool.and(sp.pc.isap(f), Bool.and(Bool.and(sp.head.is(l, "app"), sp.head.is(i, "app")), sp.is(sp.pc.key(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{})), "Cata.Base.fmapOp")))
+
+def sp.pc.nthty(+ts: List<&2, X.Sx>, n: Nat) -> X.Sx:
+  Maybe.default(&2, X.Sx, sp.nth(ts, n), X.SxNil{})
+
+def sp.pc.ola2(+f: X.Sx, +x: X.Sx) -> X.Sx:
+  +sf = sp.pc.strip(f)
+  +l = sp.pc.strip(sp.at(sf, 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +ta = sp.pc.tys(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{}))
+  +tf = sp.pc.tys(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{}))
+  +me = sp.l([sp.a("evapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("g"), X.SxStr{S.b("GHC.Internal.Base")}, X.SxStr{S.b("liftA2")}, sp.l([sp.a("method"), X.SxStr{S.b("GHC.Internal.Base")}, X.SxStr{S.b("Applicative")}])]), sp.first(ta)]), sp.l([sp.a("l"), X.SxStr{S.b("$dApplicative")}, sp.a("0")])])
+  +la = sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), me, sp.pc.nthty(tf, 1n)]), sp.pc.nthty(ta, 1n)]), sp.pc.nthty(ta, 2n)])
+  sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("app"), la, sp.at(i, 2n)]), sp.at(l, 2n)]), x])
+
+# liftA2's own call, (app (app (app LIFTA2 g) a) b)
+def sp.pc.isola3(+f: X.Sx) -> Bool:
+  +l = sp.pc.strip(sp.at(sp.pc.strip(f), 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +j = sp.pc.strip(sp.at(i, 1n))
+  Bool.and(sp.pc.isap(f), Bool.and(Bool.and(sp.head.is(l, "app"), Bool.and(sp.head.is(i, "app"), sp.head.is(j, "app"))), sp.is(sp.pc.key(sp.pc.peel(sp.at(j, 1n), Nil{}, Nil{})), "GHC.Internal.Base.liftA2")))
+
+def sp.pc.ola3(+f: X.Sx, +x: X.Sx) -> X.Sx:
+  +sf = sp.pc.strip(f)
+  +l = sp.pc.strip(sp.at(sf, 2n))
+  +i = sp.pc.strip(sp.at(l, 1n))
+  +j = sp.pc.strip(sp.at(i, 1n))
+  +ta = sp.pc.tys(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{}))
+  +tl = sp.pc.tys(sp.pc.peel(sp.at(j, 1n), Nil{}, Nil{}))
+  +h = sp.pc.tyapps([sp.first(ta), sp.pc.nthty(tl, 1n), sp.pc.nthty(tl, 2n), sp.pc.nthty(ta, 1n), sp.pc.nthty(ta, 2n)], sp.g(S.b("Cata.Base"), S.b("liftA3Op"), "var"))
+  sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("app"), h, sp.at(j, 2n)]), sp.at(i, 2n)]), sp.at(l, 2n)]), x])
+
 # a node (a f e), its parts f2 and e2 rewritten
 def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb: Bool, +ix: Ix) -> X.Sx:
   +x = {X.SxCons{X.SxAtom{a}, X.SxCons{f, X.SxCons{e, X.SxNil{}}}} : X.Sx}
@@ -1851,7 +1894,7 @@ def sp.pc.three(+a: List<&2, U32>, +f: X.Sx, +e: X.Sx, +f2: X.Sx, +e2: X.Sx, +hb
   +ism = Bool.and(hb, Bool.and(chain, Maybe.is_some(&2, Pcr, mm)))
   +x2 = {X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}} : X.Sx}
   +mg = sp.pc.gen(Bool.and(hb, chain), sp.pc.key(p), tys, ix)
-  sp.if(X.Sx, Maybe.is_some(&2, X.Sx, mg), _ => sp.or(mg, x), _ => sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, isc, _ => sp.pc.cmodel(mc, tys, x), _ => sp.if(X.Sx, isf, _ => sp.pc.fmodel(mf, sp.norms(tys, ix), x), _ => sp.if(X.Sx, ism, _ => sp.pc.amodel(mm, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.pc.app(f2, e2))), _ => x2)))))))))
+  sp.if(X.Sx, Maybe.is_some(&2, X.Sx, mg), _ => sp.or(mg, x), _ => sp.if(X.Sx, Bool.and(chain, Maybe.is_some(&2, Pcr, m)), _ => sp.pc.model(m, tys, x), _ => sp.if(X.Sx, isb, _ => sp.pc.bmodel(mb, tys, x), _ => sp.if(X.Sx, isp, _ => sp.pc.pmodel(mp, tys, x), _ => sp.if(X.Sx, isk, _ => sp.pc.bmodel(mk, tys, x), _ => sp.if(X.Sx, isc, _ => sp.pc.cmodel(mc, tys, x), _ => sp.if(X.Sx, isf, _ => sp.pc.fmodel(mf, sp.norms(tys, ix), x), _ => sp.if(X.Sx, ism, _ => sp.pc.amodel(mm, tys, x), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isiter(f2)), _ => sp.pc.iter(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isla2(f2)), _ => sp.pc.la2(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isola2(f2)), _ => sp.pc.ola2(f2, e2), _ => sp.if(X.Sx, Bool.and(hb, sp.pc.isola3(f2)), _ => sp.pc.ola3(f2, e2), _ => sp.pc.app(f2, e2))))), _ => x2)))))))))
 
 # (hb: whether the package exports Base's model, Cata.Base, before the
 # module; without it a call stays base's)

@@ -16,6 +16,7 @@ module Cata.Base where
 import Prelude hiding (concatMap, filter, foldl, foldl', foldr, until)
 
 import Control.Applicative (Alternative (..))
+import qualified Control.Applicative as A
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
 import Control.Exception (Exception)
@@ -378,6 +379,10 @@ maybeFor_ :: forall f a b. Applicative f => Maybe a -> (a -> f b) -> f ()
 maybeFor_ t f = case t of
   Nothing -> pure ()
   Just x -> fmap (\_ -> ()) (f x)
+
+-- | f <$> a <*> b <*> c at a package's own Applicative
+liftA3Op :: forall m a b c d. Applicative m => (a -> b -> c -> d) -> m a -> m b -> m c -> m d
+liftA3Op g a b c = A.liftA2 (\p z -> case p of (x, y) -> g x y z) (A.liftA2 (\x y -> (x, y)) a b) c
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
