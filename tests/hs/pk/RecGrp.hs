@@ -9,7 +9,7 @@ import Data.Functor.Identity (Identity (..))
 data PF a r = PAnn r a | PVar Int | PCon Int [r]
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data TF p t = Lam Int t | Case t [(p, t)] | Lit Int
+data TF p t = Lam Int t | Let [(Int, t)] t | Case t [(p, t)] | Lit Int
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 newtype Ann = Ann Int deriving (Eq, Show)
@@ -25,6 +25,9 @@ binders (Fix p) = case p of
 traverseScoped :: Applicative m => ([Int] -> Term -> m Term) -> Ann -> TF Pat Term -> m (TF Pat Term)
 traverseScoped f ann0 = \case
   Lam v body -> Lam v <$> f [v] body
+  Let bindings body ->
+    let bs = fst <$> bindings
+    in Let <$> traverse (traverse (f bs)) bindings <*> f bs body
   Case s alts ->
     let goPattern (Fix p) = Fix <$> case p of
           PAnn inner (Ann a) -> PAnn <$> goPattern inner <*> (Ann <$> fmap (const a) (f [] (Term (Lit a))))
@@ -45,4 +48,9 @@ qualify k = go [] where
 qualifyLit :: Int -> Int -> Int
 qualifyLit k n = case qualify k (Term (Case (Term (Lit n)) [(Fix (PVar n), Term (Lit (n + 1)))])) of
   Term (Case (Term (Lit a)) [(_, Term (Lit b))]) -> a * 1000 + b
+  _ -> -1
+
+qualifyLet :: Int -> Int -> Int
+qualifyLet k n = case qualify k (Term (Let [(n, Term (Lit n)), (2, Term (Lit (n + 1)))] (Term (Lit 2)))) of
+  Term (Let [(_, Term (Lit a)), (_, Term (Lit b))] (Term (Lit c))) -> a * 10000 + b * 100 + c
   _ -> -1
