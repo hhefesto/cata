@@ -2233,7 +2233,7 @@ def sp.shw.any(x: X.Sx, +ix: Ix) -> Bool:
   match x:
     case X.SxCons{+h, +t}:
       +n = {X.SxCons{h, t} : X.Sx}
-      +own = sp.if(Bool, sp.is(X.tsx.atom.of(h), "tc"), _ => Maybe.is_some(&2, Mi, sp.method(sp.shw.prec(), [n], ix)), _ => False{})
+      +own = sp.if(Bool, sp.is(X.tsx.atom.of(h), "tc"), _ => Bool.or(sp.pc.atfix([n]), Maybe.is_some(&2, Mi, sp.method(sp.shw.prec(), [n], ix))), _ => False{})
       Bool.or(own, Bool.or(sp.shw.any(h, ix), sp.shw.any(t, ix)))
     case _:
       False{}
@@ -2296,7 +2296,7 @@ def sp.shw.all(fuel: Nat, ts: List<&2, X.Sx>, +cur: List<&2, U32>, +ix: Ix) -> L
       +w = sp.shw.find(sp.shw.tab(), sp.tckey(ty))
       +parts = sp.dropn(sp.els(ty), 3n)
       +base = {Some{Rw{sp.l([sp.a("evapp"), sp.l([sp.a("tyapp"), sp.shw.prec(), ty]), sp.l([sp.a("l"), X.SxStr{S.b("$dShow")}, sp.a("0")])]), Nil{}}} : Maybe<&2, Rw>}
-      +r = {sp.if(Maybe<&2, Rw>, Maybe.is_some(&2, Mi, m), _ => sp.ask.meth(m, cur, [ty], ix), _ => sp.if(Maybe<&2, Rw>, Bool.not(sp.shw.any(ty, ix)), _ => base, _ => sp.shw.at(w, sp.ix.hasbase2(ix), parts, sp.shw.all(p, parts, cur, ix)))) : Maybe<&2, Rw>}
+      +r = {sp.if(Maybe<&2, Rw>, Maybe.is_some(&2, Mi, m), _ => sp.ask.meth(m, cur, [ty], ix), _ => sp.if(Maybe<&2, Rw>, sp.pc.atfix([ty]), _ => sp.ask.def(cur, sp.g(S.b("Cata.Base"), S.b("fixShowsPrec"), "var"), [sp.at(ty, 3n)], ix), _ => sp.if(Maybe<&2, Rw>, Bool.not(sp.shw.any(ty, ix)), _ => base, _ => sp.shw.at(w, sp.ix.hasbase2(ix), parts, sp.shw.all(p, parts, cur, ix))))) : Maybe<&2, Rw>}
       r <> sp.shw.all(p, t, cur, ix)
     case _ _:
       Nil{}
