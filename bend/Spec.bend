@@ -4648,6 +4648,14 @@ def sp.hf.mapfr(+key: Bool, +v: X.Sx, +r: X.Sx, +kt: X.Sx, +f: X.Sx, +z: X.Sx, +
   +g = {sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([sp.hf.tup(kt, v), r]), r, sp.a("source"), sp.l([sp.hf.match([p, sp.hf.pv(a, r)], b)])])]) : X.Sx}
   sp.hf.foldr(sp.hf.tup(kt, v), r, g, z, l, h, sp.hf.lam(g, 2n), sys)
 
+# Foldable's any, all, foldr, .. at a Set are the list's at its elements
+def sp.hf.atset(+tys: List<&2, X.Sx>) -> Bool:
+  +t = sp.first(tys)
+  Bool.and(sp.is(sp.tckey(t), "Data.Set.Internal.Set"), Nat.is_eq(X.tsx.len(t), 3n))
+
+def sp.hf.seq(at: Bool, +tys: List<&2, X.Sx>, +a: X.Sx, +l: X.Sx) -> X.Sx:
+  sp.if(X.Sx, Bool.and(at, sp.hf.atset(tys)), _ => sp.hf.app(sp.l([sp.a("tyapp"), sp.g(S.b("Data.Set.Internal"), S.b("toList"), "var"), a]), l), _ => l)
+
 # fmap and <$> at a Map
 def sp.hf.atmap(+tys: List<&2, X.Sx>) -> Bool:
   +t = sp.first(tys)
@@ -4660,14 +4668,14 @@ def sp.hf.mk.of(k: Hk, +tys: List<&2, X.Sx>, +f: X.Sx, +x1: X.Sx, +x2: X.Sx, +n:
     case HkMapFoldr{+key, +v, +r, +kt}:
       sp.if(X.Sx, Nat.is_eq(n, 3n), _ => sp.hf.mapfr(key, sp.hf.ty(tys, v), sp.hf.ty(tys, r), sp.hf.ty(tys, kt), f, x1, x2, h, sys), _ => y)
     case Hk1{+s, +at, +a, +r}:
-      +ls = Bool.or(Bool.not(at), sp.pc.atlist(tys))
-      sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 2n)), _ => sp.hf.k1(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, x1, h), _ => sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 1n)), _ => sp.hf.part(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, h), _ => sp.if(X.Sx, Bool.and(Bool.and(at, sp.is(S.b(s), "map")), Bool.and(Nat.is_eq(n, 2n), sp.hf.atmap(tys))), _ => sp.hf.map("map", False{}, sp.hf.ty(tys, 1n), sp.hf.ty(tys, 2n), sp.at(sp.first(tys), 3n), f, x1, h), _ => y)))
+      +ls = Bool.or(Bool.not(at), Bool.or(sp.pc.atlist(tys), sp.hf.atset(tys)))
+      sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 2n)), _ => sp.hf.k1(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, sp.hf.seq(at, tys, sp.hf.ty(tys, a), x1), h), _ => sp.if(X.Sx, Bool.and(Bool.and(ls, Bool.not(Bool.and(at, sp.hf.atset(tys)))), Nat.is_eq(n, 1n)), _ => sp.hf.part(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, h), _ => sp.if(X.Sx, Bool.and(Bool.and(at, sp.is(S.b(s), "map")), Bool.and(Nat.is_eq(n, 2n), sp.hf.atmap(tys))), _ => sp.hf.map("map", False{}, sp.hf.ty(tys, 1n), sp.hf.ty(tys, 2n), sp.at(sp.first(tys), 3n), f, x1, h), _ => y)))
     case HkFoldr{+at}:
       +o = Bool.pick(Nat, at, 1n, 0n)
-      sp.if(X.Sx, Bool.and(Nat.is_eq(n, 3n), Bool.or(Bool.not(at), sp.pc.atlist(tys))), _ => sp.hf.foldr(sp.hf.ty(tys, o), sp.hf.ty(tys, 1n+o), f, x1, x2, h, sp.hf.lam(f, 2n), sys), _ => y)
+      sp.if(X.Sx, Bool.and(Nat.is_eq(n, 3n), Bool.or(Bool.not(at), Bool.or(sp.pc.atlist(tys), sp.hf.atset(tys)))), _ => sp.hf.foldr(sp.hf.ty(tys, o), sp.hf.ty(tys, 1n+o), f, x1, sp.hf.seq(at, tys, sp.hf.ty(tys, o), x2), h, sp.hf.lam(f, 2n), sys), _ => y)
     case HkFoldl{+at}:
       +o = Bool.pick(Nat, at, 1n, 0n)
-      sp.if(X.Sx, Bool.and(Nat.is_eq(n, 3n), Bool.or(Bool.not(at), sp.pc.atlist(tys))), _ => sp.hf.foldl(sp.hf.ty(tys, 1n+o), sp.hf.ty(tys, o), f, x1, x2, h, sp.hf.lam(f, 2n)), _ => y)
+      sp.if(X.Sx, Bool.and(Nat.is_eq(n, 3n), Bool.or(Bool.not(at), Bool.or(sp.pc.atlist(tys), sp.hf.atset(tys)))), _ => sp.hf.foldl(sp.hf.ty(tys, 1n+o), sp.hf.ty(tys, o), f, x1, sp.hf.seq(at, tys, sp.hf.ty(tys, 1n+o), x2), h, sp.hf.lam(f, 2n)), _ => y)
     case HkZip{}:
       sp.if(X.Sx, Nat.is_eq(n, 3n), _ => sp.hf.zip(sp.hf.ty(tys, 0n), sp.hf.ty(tys, 1n), sp.hf.ty(tys, 2n), f, x1, x2, h, sp.hf.lam(f, 2n)), _ => y)
 
