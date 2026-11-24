@@ -2079,6 +2079,7 @@ type Lo is Data:
   LoF{k: List<&2, U32>, fas: List<&2, Fa>, fvt: List<&2, X.Sx>}
   LoFl{k: List<&2, U32>, fas: List<&2, Fa>, fvt: List<&2, X.Sx>, gv: X.Sx}
   LoFm{n: List<&2, U32>, m: List<&2, U32>, i: List<&2, U32>, mtys: List<&2, X.Sx>, fas: List<&2, Fa>, fvt: List<&2, X.Sx>}
+  LoFlm{n: List<&2, U32>, m: List<&2, U32>, i: List<&2, U32>, mtys: List<&2, X.Sx>, fas: List<&2, Fa>, fvt: List<&2, X.Sx>, gv: X.Sx}
 
 # a copy asked for: its name, its binding, its type variables' values
 type Rq is Data:
@@ -2383,6 +2384,8 @@ def sp.copy(+rq: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
     case Rq{n, LoFl{k, fas, fvt, gv}, tys} i:
       None{}
     case Rq{n, LoFm{nm, m, j, mtys, fas, fvt}, tys} i:
+      None{}
+    case Rq{n, LoFlm{nm, m, j, mtys, fas, fvt, gv}, tys} i:
       None{}
 
 # As-patterns ---------------------------------------------------------------
@@ -3642,6 +3645,8 @@ def sp.fa.tom.lo(lo: Lo, +r: Rq) -> Maybe<&2, Lo>:
   match lo r:
     case LoF{k, fas, fvt} Rq{nm, LoL{m, i}, mtys}:
       Some{LoFm{nm, m, i, mtys, fas, fvt}}
+    case LoFl{k, fas, fvt, gv} Rq{nm, LoL{m, i}, mtys}:
+      Some{LoFlm{nm, m, i, mtys, fas, fvt, gv}}
     case _ _:
       None{}
 
@@ -3656,6 +3661,8 @@ def sp.fa.tom.ok(q: List<&2, Rq>) -> Bool:
   match q:
     case Rq{n, LoF{k, fas, fvt}, tys} <> t:
       True{}
+    case Rq{n, LoFl{k, fas, fvt, gv}, tys} <> t:
+      True{}
     case _:
       False{}
 
@@ -3666,23 +3673,46 @@ def sp.fa.tom(d: Maybe<&2, Fd>, +r: Rq) -> Maybe<&2, Fd>:
     case None{}:
       None{}
 
-def sp.fa.haslam(xs: List<&2, X.Sx>) -> Bool:
+# a lambda, or one applied (`traverse (f []) t` with f known), or a
+# recursive local (rl), applied or not (`traverse goPattern p`)
+def sp.fa.islam(+x: X.Sx, +rl: List<&2, X.Sx>) -> Bool:
+  +y = sp.pc.strip(x)
+  +h = sp.pc.strip(sp.spine.head(y))
+  Bool.or(Bool.or(sp.head.is(y, "lam"), Bool.and(sp.head.is(y, "app"), sp.head.is(h, "lam"))), sp.fa.mem(sp.fa.unself(h), rl))
+
+def sp.fa.haslam(xs: List<&2, X.Sx>, +rl: List<&2, X.Sx>) -> Bool:
   match xs:
     case Nil{}:
       False{}
     case x <> t:
-      Bool.or(sp.head.is(sp.pc.strip(x), "lam"), sp.fa.haslam(t))
+      Bool.or(sp.fa.islam(x, rl), sp.fa.haslam(t, rl))
+
+# sp.fa.need, and a copy in a group (its argument names the group's
+# function: as a template it would be a closure over the group's locals)
+def sp.fa.ingroup(q: List<&2, Rq>) -> Bool:
+  match q:
+    case Rq{n, LoFl{k, fas, fvt, gv}, tys} <> t:
+      True{}
+    case _:
+      False{}
+
+def sp.fa.needm(+d: Maybe<&2, Fd>, +meg: X.Sx) -> Maybe<&2, Fd>:
+  match d:
+    case Some{Fd{+hd, +fas, +q}}:
+      Bool.pick(Maybe<&2, Fd>, sp.fa.ingroup(q), Some{Fd{hd, fas, q}}, sp.fa.need(Some{Fd{hd, fas, q}}, meg))
+    case None{}:
+      None{}
 
 def sp.fa.meth(+r: Rq, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf) -> Maybe<&2, Fd>:
   +h = sp.g(cur, sp.rq.n(r), "var")
-  sp.if(Maybe<&2, Fd>, sp.fa.haslam(sp.spine.args(x, Nil{})), _ => sp.fa.tom(sp.fa.need(sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, sp.copy(r, cur, ix), t => sp.fun.of(t)), h, x, me, cur, ix, env, lf, Some{Nil{}}), sp.g(cur, me, "var")), r), _ => None{})
+  sp.if(Maybe<&2, Fd>, sp.fa.haslam(sp.spine.args(x, Nil{}), sp.lf.rl(lf)), _ => sp.fa.tom(sp.fa.needm(sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, sp.copy(r, cur, ix), t => sp.fun.of(t)), h, x, me, cur, ix, env, lf, Some{Nil{}}), sp.g(cur, me, "var")), r), _ => None{})
 
 def sp.fa.decide.at(dc: Maybe<&2, Rq>, +top0: Maybe<&2, X.Sx>, +h0: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf) -> Maybe<&2, Fd>:
   match dc:
     case Some{+r}:
       +top = sp.df.find(sp.ix.fns(ix), sp.rq.k(r))
       +h = sp.at(sp.or(sp.nth(sp.exports(Maybe.default(&2, X.Sx, top, X.SxNil{})), 0n), X.SxNil{}), 1n)
-      sp.if(Maybe<&2, Fd>, sp.rq.isl(r), _ => sp.fa.meth(r, x, me, cur, ix, env, lf), _ => sp.fa.need(sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top, t => sp.fun.of(t)), h, x, me, cur, ix, env, lf, Some{sp.rq.tys(r)}), sp.g(cur, me, "var")))
+      sp.if(Maybe<&2, Fd>, sp.rq.isl(r), _ => sp.fa.meth(r, x, me, cur, ix, env, lf), _ => sp.fa.needm(sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top, t => sp.fun.of(t)), h, x, me, cur, ix, env, lf, Some{sp.rq.tys(r)}), sp.g(cur, me, "var")))
     case None{}:
       sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top0, t => sp.fun.of(t)), h0, x, me, cur, ix, env, lf, None{})
 
@@ -4613,12 +4643,16 @@ def sp.fl.isfl(r: Rq) -> Bool:
   match r:
     case Rq{n, LoFl{k, fas, fvt, gv}, tys}:
       True{}
+    case Rq{n, LoFlm{nm, m, j, mtys, fas, fvt, gv}, tys}:
+      True{}
     case _:
       False{}
 
 def sp.fl.gv(r: Rq) -> X.Sx:
   match r:
     case Rq{n, LoFl{k, fas, fvt, gv}, tys}:
+      gv
+    case Rq{n, LoFlm{nm, m, j, mtys, fas, fvt, gv}, tys}:
       gv
     case _:
       X.SxNil{}
@@ -4659,11 +4693,39 @@ def sp.fl.next(q: List<&2, Rq>, +x: X.Sx, +done: List<&2, List<&2, U32>>) -> May
       +rest = sp.fl.next(t, x, done)
       Bool.pick(Maybe<&2, Rq>, sp.fl.want(r, x, done), Some{r}, rest)
 
+# A local copy's parameters are fvHASH_i (HASH its name's), not fv_i: the
+# copy is in the scope of what encloses it, which may be a copy with its own
+# fv_0, and the fold hands every member of the group the locals the others
+# use, by name (traverseScoped's goPattern uses the outer fv_0, the copy of
+# listTraverse at goAlternative has one of its own).
+def sp.fl.hash(cs: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      List.reverse(&2, U32, acc)
+    case +c <> t:
+      sp.fl.hash(t, Bool.pick(List<&2, U32>, U32.is_eq(c, 102), Nil{}, c <> acc))
+
+def sp.fl.fvs(ts: List<&2, X.Sx>, +i: Nat, +p: List<&2, U32>) -> List<&2, Asb>:
+  match ts:
+    case Nil{}:
+      Nil{}
+    case t <> r:
+      Asb{sp.fa.fv(i), sp.l([sp.a("l"), X.SxStr{sp.cat(p, S.b(Nat.show(i)))}, sp.a("0")])} <> sp.fl.fvs(r, 1n+i, p)
+
+def sp.fl.own(+n: List<&2, U32>, fvt: List<&2, X.Sx>, m: Maybe<&2, X.Sx>) -> Maybe<&2, X.Sx>:
+  match m:
+    case Some{+c}:
+      Some{sp.as.sub(c, None{}, sp.fl.fvs(fvt, 0n, sp.cat(S.b("fv"), sp.cat(sp.fl.hash(n, Nil{}), S.b("_")))))}
+    case None{}:
+      None{}
+
 # the copy of a local copy's def at its types and argument, as a top
 def sp.fl.copy(+r: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
   match r ix:
-    case Rq{n, LoFl{k, fas, fvt, gv}, tys} Ix{dfs, lcs, pss, ins, cls, sys, fms, +fns, cts}:
-      sp.fa.copy.of(Maybe.bind(&2, X.Sx, X.Sx, sp.df.find(fns, k), t => sp.fun.of(t)), n, fas, fvt, tys, cur, Ix{dfs, lcs, pss, ins, cls, sys, fms, fns, cts})
+    case Rq{+n, LoFl{k, fas, +fvt, gv}, tys} Ix{dfs, lcs, pss, ins, cls, sys, fms, +fns, cts}:
+      sp.fl.own(n, fvt, sp.fa.copy.of(Maybe.bind(&2, X.Sx, X.Sx, sp.df.find(fns, k), t => sp.fun.of(t)), n, fas, fvt, tys, cur, Ix{dfs, lcs, pss, ins, cls, sys, fms, fns, cts}))
+    case Rq{+n, LoFlm{nm, m, j, mtys, fas, +fvt, gv}, tys} +i:
+      sp.fl.own(n, fvt, sp.fa.copy.of(Maybe.bind(&2, X.Sx, X.Sx, sp.copy(Rq{nm, LoL{m, j}, mtys}, cur, i), t => sp.fun.of(t)), n, fas, fvt, Nil{}, cur, i))
     case _ _:
       None{}
 
