@@ -37,6 +37,9 @@ def P.F.dist():
 def P.F.foldE(z, s):
   {==}
 
+def P.F.cata(s):
+  {==}
+
 def P.G.id():
   {==}
 
@@ -50,6 +53,9 @@ def P.G.cons(a, b):
   {==}
 
 def P.G.foldE(z, s):
+  {==}
+
+def P.G.cata(s):
   {==}
 
 # values: by induction on the value
@@ -477,6 +483,27 @@ def P.sq.F(t, x):
           {==}
     case C.HErr{}:
       {==}
+    case C.HCata{s}:
+      match x:
+        case C.HvPair{sh, ks}:
+          %P.sq.F(t, ks) : {C.encM(Maybe.bind(&2, C.HV, C.HV, C.eval.h(t, ks), rs => C.eval.h(s, C.HvPair{sh, rs}))) == Maybe.bind(&2, C.BV, C.BV, _, rs => C.eval.b(C.F(s), C.BvPair{C.enc(sh), rs})) : Maybe<&2, C.BV>}
+          L.bind.F(C.eval.h(t, ks), rs => C.eval.h(s, C.HvPair{sh, rs}), rs => C.eval.b(C.F(s), C.BvPair{C.enc(sh), rs}), v => P.sq.F(s, C.HvPair{sh, v}))
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{k, ks}:
+          %P.sq.F(t, k) : {C.encM(C.h.cons(C.eval.h(t, k), C.eval.h(t, ks))) == C.b.cons(_, C.eval.b(C.F(t), C.enc(ks))) : Maybe<&2, C.BV>}
+          %P.sq.F(t, ks) : {C.encM(C.h.cons(C.eval.h(t, k), C.eval.h(t, ks))) == C.b.cons(C.encM(C.eval.h(t, k)), _) : Maybe<&2, C.BV>}
+          L.cons.F(C.eval.h(t, k), C.eval.h(t, ks))
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
 
 # G's lemmas, the same constructs the other way
 
@@ -726,6 +753,27 @@ def P.sq.G(t, y):
           {==}
     case C.BFail{}:
       {==}
+    case C.BCata{s}:
+      match y:
+        case C.BvPair{sh, ks}:
+          %P.sq.G(t, ks) : {C.decM(Maybe.bind(&2, C.BV, C.BV, C.eval.b(t, ks), rs => C.eval.b(s, C.BvPair{sh, rs}))) == Maybe.bind(&2, C.HV, C.HV, _, rs => C.eval.h(C.G(s), C.HvPair{C.dec(sh), rs})) : Maybe<&2, C.HV>}
+          L.bind.G(C.eval.b(t, ks), rs => C.eval.b(s, C.BvPair{sh, rs}), rs => C.eval.h(C.G(s), C.HvPair{C.dec(sh), rs}), w => P.sq.G(s, C.BvPair{sh, w}))
+        case C.BvNil{}:
+          {==}
+        case C.BvCons{k, ks}:
+          %P.sq.G(t, k) : {C.decM(C.b.cons(C.eval.b(t, k), C.eval.b(t, ks))) == C.h.cons(_, C.eval.h(C.G(t), C.dec(ks))) : Maybe<&2, C.HV>}
+          %P.sq.G(t, ks) : {C.decM(C.b.cons(C.eval.b(t, k), C.eval.b(t, ks))) == C.h.cons(C.decM(C.eval.b(t, k)), _) : Maybe<&2, C.HV>}
+          L.cons.G(C.eval.b(t, k), C.eval.b(t, ks))
+        case C.BvNat{n}:
+          {==}
+        case C.BvBool{b}:
+          {==}
+        case C.BvUnit{}:
+          {==}
+        case C.BvInl{a}:
+          {==}
+        case C.BvInr{b}:
+          {==}
 
 # 3. the adjunction
 
@@ -1410,6 +1458,27 @@ def L.agree(+t: C.HTm, +e: {C.nosub(t) == True{} : Bool}, +x: C.HV) -> {C.upM(C.
           {==}
     case C.HErr{}:
       {==}
+    case C.HCata{s}:
+      match x:
+        case C.HvPair{sh, ks}:
+          %L.agree(t, e, ks) : {C.upM(Maybe.bind(&2, C.HV, C.HV, C.eval.h(t, ks), rs => C.eval.h(s, C.HvPair{sh, rs}))) == Maybe.bind(&2, C.ZV, C.ZV, _, q => C.eval.z(s, C.ZvPair{C.up(sh), q})) : Maybe<&2, C.ZV>}
+          L.z.bind(C.eval.h(t, ks), rs => C.eval.h(s, C.HvPair{sh, rs}), q => C.eval.z(s, C.ZvPair{C.up(sh), q}), v => L.agree(s, e, C.HvPair{sh, v}))
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{k, ks}:
+          %L.agree(t, e, k) : {C.upM(C.h.cons(C.eval.h(t, k), C.eval.h(t, ks))) == C.z.cons(_, C.eval.z(t, C.up(ks))) : Maybe<&2, C.ZV>}
+          %L.agree(t, e, ks) : {C.upM(C.h.cons(C.eval.h(t, k), C.eval.h(t, ks))) == C.z.cons(C.upM(C.eval.h(t, k)), _) : Maybe<&2, C.ZV>}
+          L.z.cons(C.eval.h(t, k), C.eval.h(t, ks))
+        case C.HvNat{n}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvInl{a}:
+          {==}
+        case C.HvInr{b}:
+          {==}
 
 def P.agree(h, e):
   x => Equal.sym(Maybe<&2, C.ZV>, C.upM(C.eval.h(h, x)), C.eval.z(h, C.up(x)), L.agree(h, e, x))
@@ -2135,6 +2204,26 @@ def L.rg.ev(+o: RgLe, +t: C.HTm, +v: C.ZV, +u: C.ZV, e: {C.eval.zr(L.lo(o), t, v
           e
     case C.HErr{}:
       e
+    case C.HCata{+s}:
+      match v:
+        case C.ZvPair{+sh, +ks}:
+          L.rg.bind(C.eval.zr(L.lo(o), t, ks), C.eval.zr(L.hi(o), t, ks), y => ey => L.rg.ev(o, t, ks, y, ey), q => C.eval.zr(L.lo(o), s, C.ZvPair{sh, q}), q => C.eval.zr(L.hi(o), s, C.ZvPair{sh, q}), y => w => ew => L.rg.ev(o, s, C.ZvPair{sh, y}, w, ew), u, e)
+        case C.ZvNil{}:
+          e
+        case C.ZvCons{+k, +ks}:
+          L.rg.cons(C.eval.zr(L.lo(o), t, k), C.eval.zr(L.lo(o), t, ks), C.eval.zr(L.hi(o), t, k), C.eval.zr(L.hi(o), t, ks), y => ey => L.rg.ev(o, t, k, y, ey), y => ey => L.rg.ev(o, t, ks, y, ey), u, e)
+        case C.ZvNat{q}:
+          e
+        case C.ZvNeg{q}:
+          e
+        case C.ZvBool{q}:
+          e
+        case C.ZvUnit{}:
+          e
+        case C.ZvInl{q}:
+          e
+        case C.ZvInr{q}:
+          e
 
 def P.range.int(m, h, v, u, e):
   L.rg.ev(LeInt{m}, h, v, u, e)
@@ -2473,6 +2562,24 @@ def L.lz.sq(+t: C.HTm, +x: C.HV, +v: C.HV, e: {C.eval.h(t, x) == Some{v} : Maybe
           Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
     case C.HErr{}:
       Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+    case C.HCata{+s}:
+      match x:
+        case C.HvPair{+sh, +ks}:
+          L.lz.comp(C.eval.h(t, ks), C.eval.lz(t, Some{C.lz(ks)}), y => ey => L.lz.sq(t, ks, y, ey), rs => C.eval.h(s, C.HvPair{sh, rs}), q => C.eval.lz(s, Some{C.LvPair{Some{C.lz(sh)}, q}}), y => w => ew => L.lz.sq(s, C.HvPair{sh, y}, w, ew), v, e)
+        case C.HvNil{}:
+          L.lz.cong(Some{C.HvNil{}}, v, e)
+        case C.HvCons{+k, +ks}:
+          L.lz.cons(C.eval.h(t, k), C.eval.h(t, ks), C.eval.lz(t, Some{C.lz(k)}), C.eval.lz(t, Some{C.lz(ks)}), y => ey => L.lz.sq(t, k, y, ey), y => ey => L.lz.sq(t, ks, y, ey), v, e)
+        case C.HvNat{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvBool{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvUnit{}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInl{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
+        case C.HvInr{q}:
+          Empty.absurd({None{} == Some{C.lz(v)} : Maybe<&2, C.LV>}, L.none.some.h(v, e))
 
 def P.lazy.sq(t, x, v, e):
   L.lz.sq(t, x, v, e)
@@ -2625,6 +2732,29 @@ def P.sq.F.z(r, t, v):
           {==}
     case C.HErr{}:
       {==}
+    case C.HCata{s}:
+      match v:
+        case C.ZvPair{sh, ks}:
+          %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(t), ks), C.eval.zr(r, t, ks), P.sq.F.z(r, t, ks)) : {Maybe.bind(&2, C.ZV, C.ZV, _, q => C.eval.bz(r, C.F(s), C.ZvPair{sh, q})) == Maybe.bind(&2, C.ZV, C.ZV, C.eval.zr(r, t, ks), q => C.eval.zr(r, s, C.ZvPair{sh, q})) : Maybe<&2, C.ZV>}
+          L.zz.bind(C.eval.zr(r, t, ks), q => C.eval.bz(r, C.F(s), C.ZvPair{sh, q}), q => C.eval.zr(r, s, C.ZvPair{sh, q}), q => P.sq.F.z(r, s, C.ZvPair{sh, q}))
+        case C.ZvNil{}:
+          {==}
+        case C.ZvCons{k, ks}:
+          %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(t), k), C.eval.zr(r, t, k), P.sq.F.z(r, t, k)) : {C.z.cons(_, C.eval.bz(r, C.F(t), ks)) == C.z.cons(C.eval.zr(r, t, k), C.eval.zr(r, t, ks)) : Maybe<&2, C.ZV>}
+          %Equal.sym(Maybe<&2, C.ZV>, C.eval.bz(r, C.F(t), ks), C.eval.zr(r, t, ks), P.sq.F.z(r, t, ks)) : {C.z.cons(C.eval.zr(r, t, k), _) == C.z.cons(C.eval.zr(r, t, k), C.eval.zr(r, t, ks)) : Maybe<&2, C.ZV>}
+          {==}
+        case C.ZvNat{n}:
+          {==}
+        case C.ZvNeg{n}:
+          {==}
+        case C.ZvBool{b}:
+          {==}
+        case C.ZvUnit{}:
+          {==}
+        case C.ZvInl{a}:
+          {==}
+        case C.ZvInr{b}:
+          {==}
 
 # F after G is the identity, so G's square is F's at G b
 def L.FG.id(b: C.BTm) -> {C.F(C.G(b)) == b : C.BTm}:
@@ -2679,6 +2809,9 @@ def L.FG.id(b: C.BTm) -> {C.F(C.G(b)) == b : C.BTm}:
       %L.FG.id(s) : {C.BFoldE{C.F(C.G(z)), C.F(C.G(s))} == C.BFoldE{C.F(C.G(z)), _} : C.BTm}
       {==}
     case C.BFail{}:
+      {==}
+    case C.BCata{s}:
+      %L.FG.id(s) : {C.BCata{C.F(C.G(s))} == C.BCata{_} : C.BTm}
       {==}
 
 def P.sq.G.z(r, b, v):
@@ -3073,3 +3206,33 @@ def P.gap.not():
 
 def P.gap.not.F():
   {==}
+
+# 13. data types and their catamorphisms
+
+# h : t's cata, once its tail's is m
+def L.fc(m: Maybe<&2, C.HV>, +h: C.HV, +z: C.HTm, +s: C.HTm) -> {Maybe.bind(&2, C.HV, C.HV, m, r => C.eval.h(s, C.HvPair{h, r})) == Maybe.bind(&2, C.HV, C.HV, C.h.cons(m, Some{C.HvNil{}}), rs => C.eval.h(C.lalg(z, s), C.HvPair{C.HvInr{h}, rs})) : Maybe<&2, C.HV>}:
+  match m:
+    case None{}:
+      {==}
+    case Some{r}:
+      {==}
+
+def P.foldr.cata(z, s, x):
+  match x:
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, t}:
+      %Equal.sym(Maybe<&2, C.HV>, C.eval.h(C.HFold{z, s}, t), C.eval.h(C.HCata{C.lalg(z, s)}, C.lrose(t)), P.foldr.cata(z, s, t)) : {Maybe.bind(&2, C.HV, C.HV, _, r => C.eval.h(s, C.HvPair{h, r})) == C.eval.h(C.HCata{C.lalg(z, s)}, C.lrose(C.HvCons{h, t})) : Maybe<&2, C.HV>}
+      L.fc(C.eval.h(C.HCata{C.lalg(z, s)}, C.lrose(t)), h, z, s)
+    case C.HvNat{n}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvPair{a, b}:
+      {==}
+    case C.HvInl{a}:
+      {==}
+    case C.HvInr{b}:
+      {==}

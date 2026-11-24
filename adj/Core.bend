@@ -126,6 +126,7 @@ type HTm is Data:
   HDist{}
   HFoldE{z: HTm, s: HTm}
   HErr{}
+  HCata{s: HTm}
 
 # A pair of numbers, the primitives' argument (anything else: NNo, an error)
 type NN is Data:
@@ -328,6 +329,16 @@ def eval.h(+t: HTm, +x: HV) -> Maybe<&2, HV>:
           None{}
     case HErr{}:
       None{}
+    case HCata{s}:
+      match x:
+        case HvPair{sh, ks}:
+          Maybe.bind(&2, HV, HV, eval.h(t, ks), rs => eval.h(s, HvPair{sh, rs}))
+        case HvNil{}:
+          Some{HvNil{}}
+        case HvCons{k, ks}:
+          h.cons(eval.h(t, k), eval.h(t, ks))
+        case _:
+          None{}
 
 # Bend's programs ---------------------------------------------------------------
 
@@ -350,6 +361,7 @@ type BTm is Data:
   BDist{}
   BFoldE{z: BTm, s: BTm}
   BFail{}
+  BCata{s: BTm}
 
 def b.nn(y: BV) -> NN:
   match y:
@@ -473,6 +485,16 @@ def eval.b(+t: BTm, +y: BV) -> Maybe<&2, BV>:
           None{}
     case BFail{}:
       None{}
+    case BCata{s}:
+      match y:
+        case BvPair{sh, ks}:
+          Maybe.bind(&2, BV, BV, eval.b(t, ks), rs => eval.b(s, BvPair{sh, rs}))
+        case BvNil{}:
+          Some{BvNil{}}
+        case BvCons{k, ks}:
+          b.cons(eval.b(t, k), eval.b(t, ks))
+        case _:
+          None{}
 
 # F and G -------------------------------------------------------------------------
 
@@ -517,6 +539,8 @@ def F(t: HTm) -> BTm:
       BFoldE{F(z), F(s)}
     case HErr{}:
       BFail{}
+    case HCata{s}:
+      BCata{F(s)}
 
 # G (bend2hs): every construct to its own, a failure value to an error
 def G(t: BTm) -> HTm:
@@ -557,6 +581,8 @@ def G(t: BTm) -> HTm:
       HFoldE{G(z), G(s)}
     case BFail{}:
       HErr{}
+    case BCata{s}:
+      HCata{G(s)}
 
 # F as cata had it (Fold.bend before 11-23): Haskell's div and mod to
 # Base's Nat.div and Nat.mod, total (x `div` 0 is 0, x `mod` 0 is x), so
@@ -609,6 +635,8 @@ def F.tot(t: HTm) -> BTm:
       BFoldE{F.tot(z), F.tot(s)}
     case HErr{}:
       BFail{}
+    case HCata{s}:
+      BCata{F.tot(s)}
 
 # Int and Integer ----------------------------------------------------------------
 
@@ -1229,6 +1257,16 @@ def eval.zr(+r: Rg, +t: HTm, +v: ZV) -> Maybe<&2, ZV>:
           None{}
     case HErr{}:
       None{}
+    case HCata{s}:
+      match v:
+        case ZvPair{sh, ks}:
+          Maybe.bind(&2, ZV, ZV, eval.zr(r, t, ks), q => eval.zr(r, s, ZvPair{sh, q}))
+        case ZvNil{}:
+          Some{ZvNil{}}
+        case ZvCons{k, ks}:
+          z.cons(eval.zr(r, t, k), eval.zr(r, t, ks))
+        case _:
+          None{}
 
 # Haskell's meaning at Int, every integer (Integer's: section 8 has Int's
 # 64 bits)
@@ -1262,6 +1300,8 @@ def nosub(t: HTm) -> Bool:
       Bool.and(nosub(a), nosub(b))
     case HFoldE{z, s}:
       Bool.and(nosub(z), nosub(s))
+    case HCata{s}:
+      nosub(s)
     case _:
       True{}
 
@@ -1579,6 +1619,16 @@ def eval.lz(+t: HTm, +x: Maybe<&2, LV>) -> Maybe<&2, LV>:
           None{}
     case HErr{}:
       None{}
+    case HCata{s}:
+      match x:
+        case Some{LvPair{sh, ks}}:
+          eval.lz(s, Some{LvPair{sh, eval.lz(t, ks)}})
+        case Some{LvNil{}}:
+          Some{LvNil{}}
+        case Some{LvCons{k, ks}}:
+          Some{LvCons{eval.lz(t, k), eval.lz(t, ks)}}
+        case _:
+          None{}
 
 # Int as HsInt (PROPOSED.bend's section 10) ----------------------------------
 #
@@ -1654,6 +1704,16 @@ def eval.bz(+r: Rg, +t: BTm, +v: ZV) -> Maybe<&2, ZV>:
           None{}
     case BFail{}:
       None{}
+    case BCata{s}:
+      match v:
+        case ZvPair{sh, ks}:
+          Maybe.bind(&2, ZV, ZV, eval.bz(r, t, ks), q => eval.bz(r, s, ZvPair{sh, q}))
+        case ZvNil{}:
+          Some{ZvNil{}}
+        case ZvCons{k, ks}:
+          z.cons(eval.bz(r, t, k), eval.bz(r, t, ks))
+        case _:
+          None{}
 
 # Bend's runtime's range: 2^48 - 1 (a term: Bend's literals stop at 2^32 - 1)
 def bend.max() -> Nat:
@@ -1819,3 +1879,32 @@ def h.gapw(+x: HTm, +y: HTm, t: HTm, d: HTm) -> HTm:
 
 def F.gapw(+x: HTm, +y: HTm, t: HTm, d: HTm) -> BTm:
   BIf{BComp{BPrim{PLt{}}, BPr{F(y), F(x)}}, F(t), BComp{F(d), BPr{BId{}, BComp{BPrim{PSubT{}}, BPr{F(x), F(y)}}}}}
+
+# Data types and their catamorphisms (PROPOSED.bend's section 13) ---------------
+#
+# A Haskell data type that recursion-schemes folds (a type t, its base
+# functor, project and cata: telomare's Fix-based types and the like) is,
+# in the model, its rose: a value is a pair, its layer's shape (the
+# constructor and its fields that are not t, as sums and pairs) and the
+# list of its children (Foldable's toList of project, left to right).
+# HCata{s} (Haskell's cata s) and BCata{s} (the Bend fold F writes) answer,
+# at a node, s at the shape and the list of the children's answers, the
+# children's first (both strict; eval.lz has Haskell's lazy one).  So any
+# such type's values are values the model already has, and its
+# catamorphisms one construct more: below, a list is the rose of the type
+# data L = N | C h L (lrose), and foldr z s is HCata at lalg(z, s).
+
+# a list as its rose: [] is (Inl (), []), h : t is (Inr h, [t])
+def lrose(x: HV) -> HV:
+  match x:
+    case HvNil{}:
+      HvPair{HvInl{HvUnit{}}, HvNil{}}
+    case HvCons{h, t}:
+      HvPair{HvInr{h}, HvCons{lrose(t), HvNil{}}}
+    case _:
+      HvUnit{}
+
+# foldr's z and s as the algebra at (shape, answers): z at Inl (), s at
+# (h, the one answer) at Inr h
+def lalg(z: HTm, s: HTm) -> HTm:
+  HComp{HCase{HComp{z, HSnd{}}, HComp{s, HPr{HSnd{}, HComp{HFold{HUnit{}, HFst{}}, HFst{}}}}}, HComp{HDist{}, HPr{HSnd{}, HFst{}}}}

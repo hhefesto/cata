@@ -2274,6 +2274,43 @@ a fresh `--verdict`, no cache, 55 s).
   fold's step without its environment, HsInt's primitives at another
   range, 63 for 127, a variable for its neighbour, a lazy pair's parts
   swapped) each fail.
+- **Data types and their catamorphisms, in the model (13, 11-24).** Lists
+  were the fragment's one recursive type and foldr its one recursion;
+  cata's Haskell has many (telomare's, through recursion-schemes' Fix, Base
+  and cata). A value of such a type is, in the model, its rose: a pair of
+  its layer's shape (the constructor and the fields that are not the type,
+  as sums and pairs) and the list of its children (Foldable's toList of
+  project, left to right), values the model already has. `HCata{s}` and
+  `BCata{s}` are its catamorphism: the children's answers first, then s at
+  the shape and their list (strict in eval.h and eval.b; `eval.lz` maps the
+  children lazily, as Haskell's cata does). Every induction has the
+  construct, so sq.F, sq.G, F -| G, G -| F, Agree, Int's range, laziness,
+  HsInt and Ex's compilation all hold of programs with catamorphisms over
+  any such type (`F.cata`, `G.cata` the functor laws), and `foldr.cata`
+  proves foldr z s is HCata at lists' rose and an algebra of z and s (a
+  list is one such type). Termination: Bend reads a recursion's arguments
+  left to right, so the cata walks the value with the same term (at a
+  node, then its children's list), not a code of the type's functor (a
+  term that grows while the value shrinks, which it refuses), and an
+  algebra cannot be passed as a function (used at each child, it is not
+  Data). The model's cata is GHC's: `adj/CataGhc.hs` builds values of a
+  binary tree, a rose tree and an expression type (Natural's `-` and
+  `div`, and constructors whose algebras ignore a child), writes their
+  roses with recursion-schemes' `project` and the derived Foldable, and
+  GHC's answers of `cata` at 25 algebra/value pairs into `adj/CATA.bend`:
+  25 lazy equations (eval.lz; 3 of them errors where GHC throws), 23
+  strict ones (eval.h, where GHC forces every child; the same 3 errors),
+  and the 2 others where the strict model errs and GHC answers, written as
+  such (section 9's gap), `--verdict` ALL PROOFS CHECK (int.zsh writes it,
+  run.zsh checks it with PROOF, INT, LAZY and HSINT: PASS).
+  `adj/cata-mut.zsh`: 11 mutants (children's answers swapped in eval.b,
+  eval.h or eval.lz, the shape dropped in either, the algebra before the
+  children, nil failing, F or G dropping the algebra, foldr's algebra
+  taking the wrong answer, the lazy cata forcing each child) each fail
+  PROOF.bend; the 4 that change Haskell's meaning fail CATA.bend too. Not
+  done: cata's own F at a data type is not tied to HCata (adj/gen writes no
+  data types, so no certificate covers one), and mutually recursive types
+  (an indexed family of roses) are outside.
 - **The model against GHC, and against cata itself (adj/gen).** Until now
   only the model's arithmetic and 14 lazy programs were tried against GHC,
   and nothing tied the model's F to Fold.bend's. `adj/gen/Gen.bend` writes
@@ -2345,8 +2382,9 @@ a fresh `--verdict`, no cache, 55 s).
   as Le allows it. It found one defect of F: a structural foldr whose
   step's case was lifted became a fuelled group (26 of them), wrong past
   2^31 elements, which no certificate can prove.
-- **Outside the model.** Functions as values, data types other than sums,
-  pairs and lists, classes, records, strings and general mutual recursion:
+- **Outside the model.** Functions as values, mutually recursive data
+  types (a single recursive type is in it: section 13), classes, records,
+  strings and general mutual recursion:
   cata takes them, and their laws are tested (GHC's answers), not proved.
   An overflowing run (section 8: F answers the
   exact number where GHC's Int wraps; nothing in cata guards it). A

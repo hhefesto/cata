@@ -70,6 +70,10 @@ law F.foldE:
   for s: C.HTm
   {C.F(C.HFoldE{z, s}) == C.BFoldE{C.F(z), C.F(s)} : C.BTm}
 
+law F.cata:
+  for s: C.HTm
+  {C.F(C.HCata{s}) == C.BCata{C.F(s)} : C.BTm}
+
 law G.id:
   {C.G(C.BId{}) == C.HId{} : C.HTm}
 
@@ -92,6 +96,10 @@ law G.foldE:
   for z: C.BTm
   for s: C.BTm
   {C.G(C.BFoldE{z, s}) == C.HFoldE{C.G(z), C.G(s)} : C.HTm}
+
+law G.cata:
+  for s: C.BTm
+  {C.G(C.BCata{s}) == C.HCata{C.G(s)} : C.HTm}
 
 # on objects' elements: F's values and G's are each other's inverses
 law dec.enc:
@@ -644,3 +652,25 @@ law gap.not:
 
 law gap.not.F:
   {C.eval.b(C.F.gapw(C.HFst{}, C.HSnd{}, C.HFst{}, C.HSnd{}), C.enc(C.HvPair{C.HvNat{0n}, C.HvNat{1n}})) == Some{C.BvNat{0n}} : Maybe<&2, C.BV>}
+
+# 13. Data types and their catamorphisms.  Lists were the fragment's one
+# recursive type and foldr its one recursion; cata's Haskell has many
+# types (telomare's, through recursion-schemes' Fix, Base and cata).
+# Core.bend writes such a type's value as its rose, (shape, children),
+# and HCata{s} and BCata{s} as its catamorphism, the children's answers
+# first, then s at the shape and their list.  Every induction above has the
+# construct (sq.F, sq.G, F -| G and G -| F, Agree, Int's range, laziness,
+# HsInt, the Ex compilation's categories), so each theorem holds of the
+# programs with catamorphisms over any such type; F.cata and G.cata are
+# the functor laws.  The model's cata is GHC's: adj/CataGhc.hs writes
+# CATA.bend, recursion-schemes' own cata on three types (a binary tree, a
+# rose tree, an expression type with Natural's partial - and div, and a
+# constructor whose algebra never forces one child) at the roses of
+# values GHC builds (its project and Foldable), strict and lazy.
+
+# foldr is the catamorphism of a list's rose: lists are one such type
+law foldr.cata:
+  for +z: C.HTm
+  for +s: C.HTm
+  for +x: C.HV
+  {C.eval.h(C.HFold{z, s}, x) == C.eval.h(C.HCata{C.lalg(z, s)}, C.lrose(x)) : Maybe<&2, C.HV>}

@@ -1,7 +1,8 @@
 #!/usr/bin/env zsh
 # adj/run.zsh: cata as a functor and an adjunction, proved.  bend
 # --check-only, then --verdict (BendTT's kernel) on adj/PROOF.bend, and on
-# adj/INT.bend and adj/LAZY.bend (the model's Int, Int8 and laziness
+# adj/INT.bend, adj/LAZY.bend and adj/CATA.bend (the model's Int, Int8,
+# laziness and catamorphisms
 # against GHC's; int.zsh writes them from GHC again), and on adj/HSINT.bend
 # (the prelude's own HsInt is the model's Int; hsint.zsh writes its HsInt.bend
 # from what cata writes).
@@ -13,7 +14,7 @@ bend=${BEND:-bend}
 [[ -n ${LEAN:-} ]] && export PATH=$LEAN:$PATH
 cd $here
 ok=1
-for f in PROOF INT LAZY HSINT; do
+for f in PROOF INT LAZY HSINT CATA; do
   c=$(BEND_NO_TELEMETRY=1 $bend $f.bend --check-only 2>&1)
   print "$f check: ${c//$'\n'/ | }"
   v=$(BEND_NO_TELEMETRY=1 $bend $f.bend --verdict 2>&1)
