@@ -582,6 +582,149 @@ def or.nat(m: Maybe<&2, Nat>) -> Nat:
     case None{}:
       0n
 
+
+
+def bt(t: Ty) -> String:
+  match t:
+    case TN{}:
+      "Nat"
+    case TB{}:
+      "Bool"
+    case TU{}:
+      "Unit"
+    case TP{a, b}:
+      cat(["Sigma<&2, &2, ", bt(a), ", _ => ", bt(b), ">"])
+    case TS{a, b}:
+      cat(["Either<&2, &2, ", bt(a), ", ", bt(b), ">"])
+    case TL{a}:
+      cat(["List<&2, ", bt(a), ">"])
+
+# the encoding of a value v of type t
+def rr(t: Ty, v: String) -> String:
+  match t:
+    case TN{}:
+      cat(["C.HvNat{", v, "}"])
+    case TB{}:
+      cat(["C.HvBool{", v, "}"])
+    case TU{}:
+      cat(["R.unit(", v, ")"])
+    case TP{+a, +b}:
+      cat(["R.pair(~", bt(a), ", ~", bt(b), ", ~x => ", rr(a, "x"), ", ~x => ", rr(b, "x"), ", ", v, ")"])
+    case TS{+a, +b}:
+      cat(["R.either(~", bt(a), ", ~", bt(b), ", ~x => ", rr(a, "x"), ", ~x => ", rr(b, "x"), ", ", v, ")"])
+    case TL{+a}:
+      cat(["R.list(~", bt(a), ", ~x => ", rr(a, "x"), ", ", v, ")"])
+
+def prim.ex(p: C.Prim) -> String:
+  match p:
+    case C.PAdd{}:
+      "C.PAdd{}"
+    case C.PLt{}:
+      "C.PLt{}"
+    case C.PSub{}:
+      "C.PSub{}"
+    case C.PDiv{}:
+      "C.PDiv{}"
+    case C.PMod{}:
+      "C.PMod{}"
+    case _:
+      "?"
+
+def ex.show(t: C.Ex) -> String:
+  match t:
+    case C.EVar{i}:
+      cat(["C.EVar{", Nat.show(i), "n}"])
+    case C.ELit{n}:
+      cat(["C.ELit{", Nat.show(n), "n}"])
+    case C.EUnit{}:
+      "C.EUnit{}"
+    case C.EPair{a, b}:
+      cat(["C.EPair{", ex.show(a), ", ", ex.show(b), "}"])
+    case C.EFst{a}:
+      cat(["C.EFst{", ex.show(a), "}"])
+    case C.ESnd{a}:
+      cat(["C.ESnd{", ex.show(a), "}"])
+    case C.EInl{a}:
+      cat(["C.EInl{", ex.show(a), "}"])
+    case C.EInr{a}:
+      cat(["C.EInr{", ex.show(a), "}"])
+    case C.ENil{}:
+      "C.ENil{}"
+    case C.ECons{a, b}:
+      cat(["C.ECons{", ex.show(a), ", ", ex.show(b), "}"])
+    case C.EPrim{p, a, b}:
+      cat(["C.EPrim{", prim.ex(p), ", ", ex.show(a), ", ", ex.show(b), "}"])
+    case C.EIf{c, a, e}:
+      cat(["C.EIf{", ex.show(c), ", ", ex.show(a), ", ", ex.show(e), "}"])
+    case C.ELet{a, b}:
+      cat(["C.ELet{", ex.show(a), ", ", ex.show(b), "}"])
+    case C.ECase{l, r}:
+      cat(["C.ECase{", ex.show(l), ", ", ex.show(r), "}"])
+    case C.EFold{z, s}:
+      cat(["C.EFold{", ex.show(z), ", ", ex.show(s), "}"])
+    case C.EErr{}:
+      "C.EErr{}"
+
+def stmt(partial: Bool, +i: String, +b: Ty) -> String:
+  match partial:
+    case True{}:
+      cat(["R.err(~", bt(b), ", ~x => ", rr(b, "x"), ", D.d", i, "(v))"])
+    case False{}:
+      cat(["Some{", rr(b, cat(["D.d", i, "(v)"])), "}"])
+
+# the patterns of a type, its leaves Nat's and lists' variables (p their
+# names' prefix, q what goes before a name)
+def wrap(xs: List<&2, String>, +a: String, +b: String) -> List<&2, String>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Con{x, r}:
+      cat([a, x, b]) <> wrap(r, a, b)
+
+def prod1(+x: String, ys: List<&2, String>, rest: List<&2, String>) -> List<&2, String>:
+  match ys:
+    case Nil{}:
+      rest
+    case Con{y, r}:
+      cat(["Tuple{", x, ", ", y, "}"]) <> prod1(x, r, rest)
+
+def prod(xs: List<&2, String>, +ys: List<&2, String>) -> List<&2, String>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Con{x, r}:
+      prod1(x, ys, prod(r, ys))
+
+def pats(t: Ty, +p: String, +q: String) -> List<&2, String>:
+  match t:
+    case TN{}:
+      [cat([q, p])]
+    case TB{}:
+      ["True{}", "False{}"]
+    case TU{}:
+      ["Unit{}"]
+    case TP{a, b}:
+      prod(pats(a, cat([p, "a"]), q), pats(b, cat([p, "b"]), q))
+    case TS{a, b}:
+      List.append(&2, String, wrap(pats(a, cat([p, "l"]), q), "Inl{", "}"), wrap(pats(b, cat([p, "r"]), q), "Inr{", "}"))
+    case TL{a}:
+      [cat([q, p])]
+
+# a case for each pattern, its leaf the model's side at it
+def cases(ps: List<&2, String>, vs: List<&2, String>, +i: String, +a: Ty) -> String:
+  match ps vs:
+    case Con{p, r} Con{v, s}:
+      cat(["    case ", p, ":\n      L.refl(C.ev.def(e", i, "(), ", rr(a, v), "))\n", cases(r, s, i, a)])
+    case _ _:
+      ""
+
+# the certificate of the def dI: the model's Ex of it, and that cata's own
+# Bend def answers what the model's Ex answers, at every input
+def df.cert(d: Df, +i: String, +partial: Bool) -> String:
+  match d:
+    case Df{+a, +b, t}:
+      cat(["def e", i, "() -> C.Ex:\n  ", ex.show(er(t)), "\n\ndef c", i, "(v: ", bt(a), ") -> L.Le(C.ev.def(e", i, "(), ", rr(a, "v"), "), ", stmt(partial, i, b), "):\n  match v:\n", cases(pats(a, "x", "+"), pats(a, "x", ""), i, a)])
+
 def out(chk: Bool, +nm: String, +i: Nat, +n: Nat) -> String:
   match chk:
     case True{}:
@@ -591,6 +734,8 @@ def out(chk: Bool, +nm: String, +i: Nat, +n: Nat) -> String:
 
 def run(args: List<String>) -> IO(Unit):
   match args:
+    case "cert" <> +i <> p <> r:
+      IO.write(df.cert(df(or.nat(Nat.read(i))), i, String.eq(p, "partial")))
     case m <> nm <> i <> n <> r:
       IO.write(out(String.eq(m, "chk"), nm, or.nat(Nat.read(i)), or.nat(Nat.read(n))))
     case _:

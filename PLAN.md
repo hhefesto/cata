@@ -2298,6 +2298,37 @@ a fresh `--verdict`, no cache, 55 s).
   value, so F's composite is refused where F took both parts (`check: a
   template applied to closed ~ arguments`). The model's `HFoldE` says what
   F should write there: the fold with its environment, a parameter.
+- **cata's own answers, proved at every input (adj/gen/cert.zsh).** The
+  laws try cata's Bend at points, and adj's theorems are about the model's
+  F. A certificate is the step between: for each of the 200 programs cata
+  takes, a Bend law that cata's own def (Law's output, as it stands)
+  answers at EVERY input what the model's meaning of the Haskell program
+  answers, `L.Le(C.ev.def(eN(), R(v)), Some{R(D.dN(v))})` (`R.err` at a
+  partial def; Le a b: b answers what a answers, the categories' order, so
+  where the strict model errs cata may answer, as GHC's laziness does), and
+  a proof of it that Bend's checker and then the proof kernel
+  (`--verdict`) check. `Gen.bend`'s `cert` writes the law, from the same Ex
+  the Haskell was printed from, and the cases of the argument's type;
+  where a leaf does not compute to the same, Bend's error prints the goal
+  as far as it computes, and `Cert.bend` writes one step more (a Bool, a
+  pair or a sum split, a divisor's zero, HsNum.sub the model's partial `-`
+  by `S.bend`'s law, a fold of the model's against a recursion of cata's
+  by induction on the list, a fold whose nil errs, a fold nothing uses);
+  a fold's choices are tried in turn. Nothing of the proof is trusted (the
+  law is: that its Ex and the Haskell are one program is Gen.bend's
+  printing, which GHC agrees with at 1,600 points): the steps
+  are Bend, the file is checked whole. On d33df63's 60 programs: **60
+  proved, 60 with the verdict** (44 by the cases alone; three say little:
+  the model errs at each of their tried inputs). On law-ty11's 188 (of
+  200; the 12 others are lazy programs whose strict answer errs, refused
+  by their law): **179 proved, 179 with the verdict**, 9 open (the search
+  ends without a proof; none refuted). Broken on purpose (HsList.foldr
+  that skips its function, an if's branches swapped, `<` for `>`, `+` for
+  `*`), certificates of 60 fail: 3, 6, 8 and 7, the programs that use it;
+  an answer where the model errs (`mod` by 0 answering 0) is not caught,
+  as Le allows it. It found one defect of F: a structural foldr whose
+  step's case was lifted became a fuelled group (26 of them), wrong past
+  2^31 elements, which no certificate can prove.
 - **Outside the model.** Functions as values, data types other than sums,
   pairs and lists, classes, records, strings and general mutual recursion:
   cata takes them, and their laws are tested (GHC's answers), not proved.
