@@ -4844,8 +4844,80 @@ def fd.fvs.go(xs: List<&2, List<&2, U32>>, +lts: List<&2, Lt>, +own: List<&2, Li
     case +x <> t:
       fd.fvs.put(Bool.pick(Maybe<&2, T.Bt>, S.mem(x, own), None{}, fd.lt.find(lts, x)), x, fd.fvs.go(t, lts, own))
 
+# a let's name without the + fd.mark gave it
+def fd.unplus(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case 43 <> t:
+      t
+    case u:
+      u
+
+# ns without the names in xs, in front of acc
+def fd.less.vs(+xs: List<&2, List<&2, U32>>, ns: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case +n <> t:
+      T.tba.keep(S.mem(n, xs), n, fd.less.vs(xs, t, acc))
+    case Nil{}:
+      acc
+
+# The names a term mentions from outside it: tba.frees, less what its
+# cases' patterns bind, and with what its matches scrutinize. A template
+# argument `x0 => match x0: case Tuple{t, Sigma{_, ty}}: ..` names neither
+# t nor ty (tba.frees keeps a case's binders in), so neither a parameter
+# named t becomes a template nor is a def that binds a t elsewhere out
+# (fold:closure-argument), as EAL's selfReferential was.
+def fd.sfrees(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtCase{p, b, rest}:
+      fd.less.vs(T.tba.pvars(p, Nil{}), fd.sfrees(b, Nil{}), fd.sfrees(rest, acc))
+    case T.BtMatch{xs, cs}:
+      T.tba.refs(xs, fd.sfrees(cs, acc))
+    case T.BtRw{e, p, b}:
+      fd.sfrees(e, fd.sfrees(p, fd.sfrees(b, acc)))
+    case T.BtLet{x, v, b}:
+      fd.sfrees(v, T.tba.less(fd.unplus(x), fd.sfrees(b, Nil{}), acc))
+    case T.BtDead{a}:
+      fd.sfrees(a, acc)
+    case T.BtVar{x}:
+      x <> acc
+    case T.BtApp{f, a}:
+      fd.sfrees(f, fd.sfrees(a, acc))
+    case T.BtTplArg{a}:
+      fd.sfrees(a, acc)
+    case T.BtLam{m, x, b}:
+      T.tba.less(x, fd.sfrees(b, Nil{}), acc)
+    case T.BtPi{m, x, d, a, b}:
+      fd.sfrees(a, T.tba.less(x, fd.sfrees(b, Nil{}), acc))
+    case T.BtCon{c, a}:
+      c <> fd.sfrees(a, acc)
+    case T.BtTyApp{n, a}:
+      n <> fd.sfrees(a, acc)
+    case T.BtEq{ty, a, b}:
+      fd.sfrees(ty, fd.sfrees(a, fd.sfrees(b, acc)))
+    case T.BtSucc{a}:
+      fd.sfrees(a, acc)
+    case T.BtAnn{a, ty}:
+      fd.sfrees(a, fd.sfrees(ty, acc))
+    case T.BtExpr{e}:
+      fd.sfrees(e, acc)
+    case T.BtArgs{a, rest}:
+      fd.sfrees(a, fd.sfrees(rest, acc))
+    case _:
+      acc
+
+# ns, those of them in keep (in ns's order)
+def fd.only(ns: List<&2, List<&2, U32>>, +keep: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case +n <> t:
+      T.tba.keep(Bool.not(S.mem(n, keep)), n, fd.only(t, keep))
+    case Nil{}:
+      Nil{}
+
+# A case's binders are not the body's locals (fd.sfrees): a lambda
+# `\(t, Sigma _ ty) -> .. tau vis' ty` lifted where a local t is in scope
+# (EAL's selfReferential, inside tau) does not take that t.
 def fd.fvs(+body: T.Bt, +lts: List<&2, Lt>, +own: List<&2, List<&2, U32>>) -> List<&2, Lt>:
-  fd.fvs.go(T.tba.nub(T.tba.frees(body, fd.scrs(body, Nil{}))), lts, own)
+  fd.fvs.go(fd.only(T.tba.nub(T.tba.frees(body, fd.scrs(body, Nil{}))), fd.sfrees(body, Nil{})), lts, own)
 
 def fd.lift.args(lam: Bool, +own: List<&2, List<&2, U32>>, e: T.Bt) -> List<&2, T.Bt>:
   match lam:
@@ -7247,67 +7319,6 @@ def fd.cmp.got(drv: Bool, ins: Bool, +it: T.BItem) -> List<&2, Got>:
       [GotOut{fd.cmp.iname(it), S.b("fold:ord-instance")}]
     case False{} False{}:
       Nil{}
-
-# a let's name without the + fd.mark gave it
-def fd.unplus(x: List<&2, U32>) -> List<&2, U32>:
-  match x:
-    case 43 <> t:
-      t
-    case u:
-      u
-
-# ns without the names in xs, in front of acc
-def fd.less.vs(+xs: List<&2, List<&2, U32>>, ns: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match ns:
-    case +n <> t:
-      T.tba.keep(S.mem(n, xs), n, fd.less.vs(xs, t, acc))
-    case Nil{}:
-      acc
-
-# The names a term mentions from outside it: tba.frees, less what its
-# cases' patterns bind, and with what its matches scrutinize. A template
-# argument `x0 => match x0: case Tuple{t, Sigma{_, ty}}: ..` names neither
-# t nor ty (tba.frees keeps a case's binders in), so neither a parameter
-# named t becomes a template nor is a def that binds a t elsewhere out
-# (fold:closure-argument), as EAL's selfReferential was.
-def fd.sfrees(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match t:
-    case T.BtCase{p, b, rest}:
-      fd.less.vs(T.tba.pvars(p, Nil{}), fd.sfrees(b, Nil{}), fd.sfrees(rest, acc))
-    case T.BtMatch{xs, cs}:
-      T.tba.refs(xs, fd.sfrees(cs, acc))
-    case T.BtRw{e, p, b}:
-      fd.sfrees(e, fd.sfrees(p, fd.sfrees(b, acc)))
-    case T.BtLet{x, v, b}:
-      fd.sfrees(v, T.tba.less(fd.unplus(x), fd.sfrees(b, Nil{}), acc))
-    case T.BtDead{a}:
-      fd.sfrees(a, acc)
-    case T.BtVar{x}:
-      x <> acc
-    case T.BtApp{f, a}:
-      fd.sfrees(f, fd.sfrees(a, acc))
-    case T.BtTplArg{a}:
-      fd.sfrees(a, acc)
-    case T.BtLam{m, x, b}:
-      T.tba.less(x, fd.sfrees(b, Nil{}), acc)
-    case T.BtPi{m, x, d, a, b}:
-      fd.sfrees(a, T.tba.less(x, fd.sfrees(b, Nil{}), acc))
-    case T.BtCon{c, a}:
-      c <> fd.sfrees(a, acc)
-    case T.BtTyApp{n, a}:
-      n <> fd.sfrees(a, acc)
-    case T.BtEq{ty, a, b}:
-      fd.sfrees(ty, fd.sfrees(a, fd.sfrees(b, acc)))
-    case T.BtSucc{a}:
-      fd.sfrees(a, acc)
-    case T.BtAnn{a, ty}:
-      fd.sfrees(a, fd.sfrees(ty, acc))
-    case T.BtExpr{e}:
-      fd.sfrees(e, acc)
-    case T.BtArgs{a, rest}:
-      fd.sfrees(a, fd.sfrees(rest, acc))
-    case _:
-      acc
 
 # an eq out (fold:eq-...) that nothing uses goes
 # the names the template arguments in t use
