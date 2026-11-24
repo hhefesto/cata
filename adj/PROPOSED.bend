@@ -674,3 +674,182 @@ law foldr.cata:
   for +s: C.HTm
   for +x: C.HV
   {C.eval.h(C.HFold{z, s}, x) == C.eval.h(C.HCata{C.lalg(z, s)}, C.lrose(x)) : Maybe<&2, C.HV>}
+
+# 14. Definitions that call each other, and functions as values (Core.bend's
+# HR, HD): mutual recursion, higher-order functions, classes (a dictionary
+# is a pair of closures), and mutually recursive data types.  As in section
+# 7, F writes a recursion with fuel, and the theorem covers the programs
+# that stop within it: n is any fuel, and any type's defaults.  Answers are
+# compared as values: at a function's type, the same closure (the same
+# definition, the same variables), which F and G keep.
+
+# F and G are functors here too: composition, and what builds programs, a
+# call its own call, a lambda its own lambda; and linking two tables of
+# definitions is linking their translations (a module's translation is its
+# definitions')
+law F.r.comp:
+  for g: C.HR
+  for f: C.HR
+  {C.F.hr(C.HrComp{g, f}) == C.BrComp{C.F.hr(g), C.F.hr(f)} : C.BR}
+
+law F.r.call:
+  for i: Nat
+  {C.F.hr(C.HrCall{i}) == C.BrCall{i} : C.BR}
+
+law F.r.app:
+  {C.F.hr(C.HrApp{}) == C.BrApp{} : C.BR}
+
+law F.r.clo:
+  for i: Nat
+  {C.F(C.clo(i)) == C.bclo(i) : C.BTm}
+
+law F.r.link:
+  for ds: C.HD
+  for es: C.HD
+  {C.F.hd(C.hd.app(ds, es)) == C.bd.app(C.F.hd(ds), C.F.hd(es)) : C.BD}
+
+law G.r.comp:
+  for g: C.BR
+  for f: C.BR
+  {C.G.br(C.BrComp{g, f}) == C.HrComp{C.G.br(g), C.G.br(f)} : C.HR}
+
+law G.r.clo:
+  for i: Nat
+  {C.G(C.bclo(i)) == C.clo(i) : C.HTm}
+
+law G.r.link:
+  for ds: C.BD
+  for es: C.BD
+  {C.G.bd(C.bd.app(ds, es)) == C.hd.app(C.G.bd(ds), C.G.bd(es)) : C.HD}
+
+# a lambda applied is its body (functions are exponentials: apply after
+# curry, the closure of definition i, is definition i)
+law curry.app:
+  for n: Nat
+  for ds: C.HD
+  for i: Nat
+  for e: C.HV
+  for a: C.HV
+  {C.eval.hr(1n+n, ds, C.HrComp{C.HrApp{}, C.HrPr{C.HrComp{C.HrTm{C.clo(i)}, C.HrTm{C.HFst{}}}, C.HrTm{C.HSnd{}}}}, C.HvPair{e, a}) == C.eval.hr(n, ds, C.hd.at(ds, i), C.HvPair{e, a}) : C.Run}
+
+# section 7's loop is one of these definitions, step for step
+law until.rec:
+  for k: Nat
+  for +p: C.HTm
+  for +s: C.HTm
+  for +x: C.HV
+  {C.eval.hl(k, C.HUntil{p, s}, x) == C.eval.hr(k, C.until.ds(p, s), C.HrCall{0n}, x) : C.Run}
+
+# the squares: F's program with fuel n means what h means wherever h stops
+# within k <= n calls deep; G's Haskell means what Bend's means, always
+law sq.F.r:
+  for +k: Nat
+  for +n: Nat
+  for +ds: C.HD
+  for +t: C.HR
+  for +x: C.HV
+  for -r: Maybe<&2, C.HV>
+  for e: {C.eval.hr(k, ds, t, x) == C.RDone{r} : C.Run}
+  for +le: {C.le(k, n) == True{} : Bool}
+  {C.encM(r) == C.eval.br(n, C.F.hd(ds), C.F.hr(t), C.enc(x)) : Maybe<&2, C.BV>}
+
+law sq.G.r:
+  for +n: Nat
+  for +ds: C.BD
+  for +t: C.BR
+  for +y: C.BV
+  {C.decM(C.eval.br(n, ds, t, y)) == C.eval.gr(n, C.G.bd(ds), C.G.br(t), C.dec(y)) : Maybe<&2, C.HV>}
+
+# h's answer is one: two runs that both end end alike, however deep
+law det.r:
+  for +k: Nat
+  for +k2: Nat
+  for +ds: C.HD
+  for +t: C.HR
+  for +x: C.HV
+  for +v: C.HV
+  for +r: Maybe<&2, C.HV>
+  for e: {C.eval.hr(k, ds, t, x) == C.RDone{Some{v}} : C.Run}
+  for f: {C.eval.hr(k2, ds, t, x) == C.RDone{r} : C.Run}
+  {r == Some{v} : Maybe<&2, C.HV>}
+
+# F -| G on the programs that stop within the fuel: F h <= b exactly when
+# h <= G b
+def Stops.r(+h: C.HPg, +n: Nat) -> Type:
+  @x: C.HV -> {C.eval.hp(n, h, x) == C.ROut{} : C.Run} -> Empty
+
+def Le.hp(+h: C.HPg, +g: C.GPg) -> Type:
+  @x: C.HV -> @v: C.HV -> @k: Nat -> {C.eval.hp(k, h, x) == C.RDone{Some{v}} : C.Run} -> {C.eval.gp(g, x) == Some{v} : Maybe<&2, C.HV>}
+
+def Le.bp(+p: C.BPg, +q: C.BPg) -> Type:
+  @y: C.BV -> @w: C.BV -> {C.eval.bp(p, y) == Some{w} : Maybe<&2, C.BV>} -> {C.eval.bp(q, y) == Some{w} : Maybe<&2, C.BV>}
+
+law adj.FG.rec.l:
+  for +n: Nat
+  for +h: C.HPg
+  for +b: C.BPg
+  for st: Stops.r(h, n)
+  for le: Le.bp(C.F.pn(n, h), b)
+  Le.hp(h, C.G.p(b))
+
+law adj.FG.rec.r:
+  for +n: Nat
+  for +h: C.HPg
+  for +b: C.BPg
+  for st: Stops.r(h, n)
+  for le: Le.hp(h, C.G.p(b))
+  Le.bp(C.F.pn(n, h), b)
+
+# at cata's own fuel
+law adj.FG.recf.l:
+  for +h: C.HPg
+  for +b: C.BPg
+  for st: Stops.r(h, C.fuel())
+  for le: Le.bp(C.F.p(h), b)
+  Le.hp(h, C.G.p(b))
+
+law adj.FG.recf.r:
+  for +h: C.HPg
+  for +b: C.BPg
+  for st: Stops.r(h, C.fuel())
+  for le: Le.hp(h, C.G.p(b))
+  Le.bp(C.F.p(h), b)
+
+# and without Stops it fails at every fuel: f x = f x never stops, so every
+# G b implements it, and F's def of it answers the default
+def hnr() -> C.HPg:
+  C.HPg{C.HdCons{C.HrCall{0n}, C.HvNat{0n}, C.HdNil{}}, C.HrCall{0n}}
+
+def bn7r() -> C.BPg:
+  C.BPg{0n, C.BdNil{}, C.BrTm{C.BLit{7n}}}
+
+def FG.rec(+n: Nat) -> Type:
+  @h: C.HPg -> @b: C.BPg -> Le.hp(h, C.G.p(b)) -> Le.bp(C.F.pn(n, h), b)
+
+law adj.FG.rec.not:
+  for +n: Nat
+  for adj: FG.rec(n)
+  Empty
+
+# mutually recursive types: their catamorphism answers, at a node of t1,
+# t1's algebra at its layer and the answers of its children (of either
+# type), and at a node of t2, t2's
+law mcata.l:
+  for +s1: C.HTm
+  for +s2: C.HTm
+  for +l: C.HV
+  for +ks: C.HV
+  {C.eval.h(C.HCata{C.malg(s1, s2)}, C.HvPair{C.HvInl{l}, ks}) == Maybe.bind(&2, C.HV, C.HV, C.eval.h(C.HCata{C.malg(s1, s2)}, ks), rs => C.eval.h(s1, C.HvPair{l, rs})) : Maybe<&2, C.HV>}
+
+law mcata.r:
+  for +s1: C.HTm
+  for +s2: C.HTm
+  for +l: C.HV
+  for +ks: C.HV
+  {C.eval.h(C.HCata{C.malg(s1, s2)}, C.HvPair{C.HvInr{l}, ks}) == Maybe.bind(&2, C.HV, C.HV, C.eval.h(C.HCata{C.malg(s1, s2)}, ks), rs => C.eval.h(s2, C.HvPair{l, rs})) : Maybe<&2, C.HV>}
+
+# and F takes it to Bend's catamorphism of the two algebras
+law F.malg:
+  for s1: C.HTm
+  for s2: C.HTm
+  {C.F(C.HCata{C.malg(s1, s2)}) == C.BCata{C.BComp{C.BCase{C.BComp{C.F(s1), C.BPr{C.BSnd{}, C.BFst{}}}, C.BComp{C.F(s2), C.BPr{C.BSnd{}, C.BFst{}}}}, C.BComp{C.BDist{}, C.BPr{C.BSnd{}, C.BFst{}}}}} : C.BTm}

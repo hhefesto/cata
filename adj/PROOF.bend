@@ -3236,3 +3236,754 @@ def P.foldr.cata(z, s, x):
       {==}
     case C.HvInr{b}:
       {==}
+
+# 14. Definitions that call each other, and functions as values
+
+def P.F.r.comp(g, f):
+  {==}
+
+def P.F.r.call(i):
+  {==}
+
+def P.F.r.app():
+  {==}
+
+def P.F.r.clo(i):
+  {==}
+
+def P.F.r.link(ds, es):
+  match ds:
+    case C.HdNil{}:
+      {==}
+    case C.HdCons{t, d, fs}:
+      %P.F.r.link(fs, es) : {C.BdCons{C.F.hr(t), C.enc(d), C.F.hd(C.hd.app(fs, es))} == C.BdCons{C.F.hr(t), C.enc(d), _} : C.BD}
+      {==}
+
+def P.G.r.comp(g, f):
+  {==}
+
+def P.G.r.clo(i):
+  {==}
+
+def P.G.r.link(ds, es):
+  match ds:
+    case C.BdNil{}:
+      {==}
+    case C.BdCons{t, d, fs}:
+      %P.G.r.link(fs, es) : {C.HdCons{C.G.br(t), C.dec(d), C.G.bd(C.bd.app(fs, es))} == C.HdCons{C.G.br(t), C.dec(d), _} : C.HD}
+      {==}
+
+def P.curry.app(n, ds, i, e, a):
+  {==}
+
+def P.F.malg(s1, s2):
+  {==}
+
+def P.mcata.l(s1, s2, l, ks):
+  {==}
+
+def P.mcata.r(s1, s2, l, ks):
+  {==}
+
+# a definition's translation, and its default's
+def L.hd.F(ds: C.HD, i: Nat) -> {C.F.hr(C.hd.at(ds, i)) == C.bd.at(C.F.hd(ds), i) : C.BR}:
+  match ds i:
+    case C.HdNil{} _:
+      {==}
+    case C.HdCons{t, d, es} 0n:
+      {==}
+    case C.HdCons{t, d, es} 1n+j:
+      L.hd.F(es, j)
+
+# agreement of a run and an answer (L.agR), through what puts runs together
+def L.ag.bind(R: C.Run, -m: Maybe<&2, C.BV>, -kh: C.HV -> C.Run, -kb: C.BV -> Maybe<&2, C.BV>, a: L.agR(R, m), ih: @v: C.HV -> L.agR(kh(v), kb(C.enc(v)))) -> L.agR(C.r.bind(R, kh), Maybe.bind(&2, C.BV, C.BV, m, kb)):
+  match R:
+    case C.ROut{}:
+      Unit{}
+    case C.RDone{r}:
+      match r:
+        case None{}:
+          %a : {None{} == Maybe.bind(&2, C.BV, C.BV, _, kb) : Maybe<&2, C.BV>}
+          {==}
+        case Some{v}:
+          %a : L.agR(kh(v), Maybe.bind(&2, C.BV, C.BV, _, kb))
+          ih(v)
+
+def L.pair.none(m: Maybe<&2, C.BV>) -> {None{} == C.b.pair(None{}, m) : Maybe<&2, C.BV>}:
+  match m:
+    case None{}:
+      {==}
+    case Some{v}:
+      {==}
+
+def L.cons.none(m: Maybe<&2, C.BV>) -> {None{} == C.b.cons(None{}, m) : Maybe<&2, C.BV>}:
+  match m:
+    case None{}:
+      {==}
+    case Some{v}:
+      {==}
+
+def L.ag.pair(R1: C.Run, R2: C.Run, -m1: Maybe<&2, C.BV>, m2: Maybe<&2, C.BV>, a1: L.agR(R1, m1), a2: L.agR(R2, m2)) -> L.agR(C.r.pair(R1, R2), C.b.pair(m1, m2)):
+  match R1:
+    case C.ROut{}:
+      Unit{}
+    case C.RDone{r}:
+      match r:
+        case None{}:
+          %a1 : {None{} == C.b.pair(_, m2) : Maybe<&2, C.BV>}
+          L.pair.none(m2)
+        case Some{u}:
+          match R2:
+            case C.ROut{}:
+              Unit{}
+            case C.RDone{w}:
+              %a1 : {C.encM(C.h.pair(Some{u}, w)) == C.b.pair(_, m2) : Maybe<&2, C.BV>}
+              %a2 : {C.encM(C.h.pair(Some{u}, w)) == C.b.pair(Some{C.enc(u)}, _) : Maybe<&2, C.BV>}
+              L.pair.F(Some{u}, w)
+
+def L.ag.cons(R1: C.Run, R2: C.Run, -m1: Maybe<&2, C.BV>, m2: Maybe<&2, C.BV>, a1: L.agR(R1, m1), a2: L.agR(R2, m2)) -> L.agR(C.r.cons(R1, R2), C.b.cons(m1, m2)):
+  match R1:
+    case C.ROut{}:
+      Unit{}
+    case C.RDone{r}:
+      match r:
+        case None{}:
+          %a1 : {None{} == C.b.cons(_, m2) : Maybe<&2, C.BV>}
+          L.cons.none(m2)
+        case Some{u}:
+          match R2:
+            case C.ROut{}:
+              Unit{}
+            case C.RDone{w}:
+              %a1 : {C.encM(C.h.cons(Some{u}, w)) == C.b.cons(_, m2) : Maybe<&2, C.BV>}
+              %a2 : {C.encM(C.h.cons(Some{u}, w)) == C.b.cons(Some{C.enc(u)}, _) : Maybe<&2, C.BV>}
+              L.cons.F(Some{u}, w)
+
+def L.ag.if(Rc: C.Run, -Ra: C.Run, -Re: C.Run, -mc: Maybe<&2, C.BV>, -ma: Maybe<&2, C.BV>, -me: Maybe<&2, C.BV>, ac: L.agR(Rc, mc), aa: L.agR(Ra, ma), ae: L.agR(Re, me)) -> L.agR(C.r.if(Rc, Ra, Re), C.b.if(mc, ma, me)):
+  match Rc:
+    case C.ROut{}:
+      Unit{}
+    case C.RDone{r}:
+      match r:
+        case None{}:
+          %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+          {==}
+        case Some{v}:
+          match v:
+            case C.HvBool{b}:
+              match b:
+                case True{}:
+                  %ac : L.agR(Ra, C.b.if(_, ma, me))
+                  aa
+                case False{}:
+                  %ac : L.agR(Re, C.b.if(_, ma, me))
+                  ae
+            case C.HvNat{q}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+            case C.HvUnit{}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+            case C.HvPair{p, q}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+            case C.HvInl{p}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+            case C.HvInr{p}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+            case C.HvNil{}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+            case C.HvCons{p, q}:
+              %ac : {None{} == C.b.if(_, ma, me) : Maybe<&2, C.BV>}
+              {==}
+
+# what a body's construct computes to, whatever the depth
+def L.hr.tm(n: Nat, +ds: C.HD, u: C.HTm, +x: C.HV) -> {C.RDone{C.eval.h(u, x)} == C.eval.hr(n, ds, C.HrTm{u}, x) : C.Run}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.hr.comp(n: Nat, +ds: C.HD, g: C.HR, f: C.HR, +x: C.HV) -> {C.r.bind(C.eval.hr(n, ds, f, x), y => C.eval.hr(n, ds, g, y)) == C.eval.hr(n, ds, C.HrComp{g, f}, x) : C.Run}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.hr.pr(n: Nat, +ds: C.HD, f: C.HR, g: C.HR, +x: C.HV) -> {C.r.pair(C.eval.hr(n, ds, f, x), C.eval.hr(n, ds, g, x)) == C.eval.hr(n, ds, C.HrPr{f, g}, x) : C.Run}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.hr.case(n: Nat, +ds: C.HD, f: C.HR, g: C.HR, +x: C.HV) -> {C.r.case(x, a => C.eval.hr(n, ds, f, a), b => C.eval.hr(n, ds, g, b)) == C.eval.hr(n, ds, C.HrCase{f, g}, x) : C.Run}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.hr.if(n: Nat, +ds: C.HD, c: C.HR, a: C.HR, e: C.HR, +x: C.HV) -> {C.r.if(C.eval.hr(n, ds, c, x), C.eval.hr(n, ds, a, x), C.eval.hr(n, ds, e, x)) == C.eval.hr(n, ds, C.HrIf{c, a, e}, x) : C.Run}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.hr.cons(n: Nat, +ds: C.HD, a: C.HR, b: C.HR, +x: C.HV) -> {C.r.cons(C.eval.hr(n, ds, a, x), C.eval.hr(n, ds, b, x)) == C.eval.hr(n, ds, C.HrCons{a, b}, x) : C.Run}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.br.tm(n: Nat, +ds: C.BD, u: C.BTm, +y: C.BV) -> {C.eval.b(u, y) == C.eval.br(n, ds, C.BrTm{u}, y) : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.br.comp(n: Nat, +ds: C.BD, g: C.BR, f: C.BR, +y: C.BV) -> {Maybe.bind(&2, C.BV, C.BV, C.eval.br(n, ds, f, y), z => C.eval.br(n, ds, g, z)) == C.eval.br(n, ds, C.BrComp{g, f}, y) : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.br.pr(n: Nat, +ds: C.BD, f: C.BR, g: C.BR, +y: C.BV) -> {C.b.pair(C.eval.br(n, ds, f, y), C.eval.br(n, ds, g, y)) == C.eval.br(n, ds, C.BrPr{f, g}, y) : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.br.case(n: Nat, +ds: C.BD, f: C.BR, g: C.BR, +y: C.BV) -> {C.m.case(y, a => C.eval.br(n, ds, f, a), b => C.eval.br(n, ds, g, b)) == C.eval.br(n, ds, C.BrCase{f, g}, y) : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.br.if(n: Nat, +ds: C.BD, c: C.BR, a: C.BR, e: C.BR, +y: C.BV) -> {C.b.if(C.eval.br(n, ds, c, y), C.eval.br(n, ds, a, y), C.eval.br(n, ds, e, y)) == C.eval.br(n, ds, C.BrIf{c, a, e}, y) : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.br.cons(n: Nat, +ds: C.BD, a: C.BR, b: C.BR, +y: C.BV) -> {C.b.cons(C.eval.br(n, ds, a, y), C.eval.br(n, ds, b, y)) == C.eval.br(n, ds, C.BrCons{a, b}, y) : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+# a case, and an application, agree where their parts do
+def L.ag.case(x: C.HV, -f: C.HV -> C.Run, -g: C.HV -> C.Run, -f2: C.BV -> Maybe<&2, C.BV>, -g2: C.BV -> Maybe<&2, C.BV>, af: @a: C.HV -> L.agR(f(a), f2(C.enc(a))), ag: @b: C.HV -> L.agR(g(b), g2(C.enc(b)))) -> L.agR(C.r.case(x, f, g), C.m.case(C.enc(x), f2, g2)):
+  match x:
+    case C.HvInl{a}:
+      af(a)
+    case C.HvInr{b}:
+      ag(b)
+    case C.HvNat{q}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvPair{a, b}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{h, tl}:
+      {==}
+
+def L.ag.app(x: C.HV, -k: Nat -> C.HV -> C.Run, -k2: Nat -> C.BV -> Maybe<&2, C.BV>, ak: @+i: Nat -> @v: C.HV -> L.agR(k(i, v), k2(i, C.enc(v)))) -> L.agR(C.r.app(x, k), C.m.app(C.enc(x), k2)):
+  match x:
+    case C.HvPair{p, a}:
+      match p:
+        case C.HvPair{c, e}:
+          match c:
+            case C.HvNat{i}:
+              ak(i, C.HvPair{e, a})
+            case C.HvBool{b}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{q, r}:
+              {==}
+            case C.HvInl{q}:
+              {==}
+            case C.HvInr{q}:
+              {==}
+            case C.HvNil{}:
+              {==}
+            case C.HvCons{q, r}:
+              {==}
+        case C.HvNat{q}:
+          {==}
+        case C.HvBool{b}:
+          {==}
+        case C.HvUnit{}:
+          {==}
+        case C.HvInl{q}:
+          {==}
+        case C.HvInr{q}:
+          {==}
+        case C.HvNil{}:
+          {==}
+        case C.HvCons{q, r}:
+          {==}
+    case C.HvNat{q}:
+      {==}
+    case C.HvBool{b}:
+      {==}
+    case C.HvUnit{}:
+      {==}
+    case C.HvInl{q}:
+      {==}
+    case C.HvInr{q}:
+      {==}
+    case C.HvNil{}:
+      {==}
+    case C.HvCons{q, r}:
+      {==}
+
+# an application out of depth agrees with any answer
+def L.ag.app0(x: C.HV, -k2: Nat -> C.BV -> Maybe<&2, C.BV>) -> L.agR(C.r.app(x, i => y => C.ROut{}), C.m.app(C.enc(x), k2)):
+  L.ag.app(x, i => y => C.ROut{}, k2, i => v => Unit{})
+
+def L.rec.at(-j: Nat, -m: Nat, +ds: C.HD, i: Nat, -v: C.HV, a: L.agR(C.eval.hr(j, ds, C.hd.at(ds, i), v), C.eval.br(m, C.F.hd(ds), C.F.hr(C.hd.at(ds, i)), C.enc(v)))) -> L.agR(C.eval.hr(j, ds, C.hd.at(ds, i), v), C.eval.br(m, C.F.hd(ds), C.bd.at(C.F.hd(ds), i), C.enc(v))):
+  %L.hd.F(ds, i) : L.agR(C.eval.hr(j, ds, C.hd.at(ds, i), v), C.eval.br(m, C.F.hd(ds), _, C.enc(v)))
+  a
+
+# F's program agrees with h's, by induction on the depth of calls and the
+# program
+def L.rec.F(k: Nat, n: Nat, +ds: C.HD, t: C.HR, +x: C.HV, +le: {C.le(k, n) == True{} : Bool}) -> L.agR(C.eval.hr(k, ds, t, x), C.eval.br(n, C.F.hd(ds), C.F.hr(t), C.enc(x))):
+  match k n t:
+    case k n C.HrTm{+u}:
+      %L.hr.tm(k, ds, u, x) : L.agR(_, C.eval.br(n, C.F.hd(ds), C.BrTm{C.F(u)}, C.enc(x)))
+      %L.br.tm(n, C.F.hd(ds), C.F(u), C.enc(x)) : L.agR(C.RDone{C.eval.h(u, x)}, _)
+      P.sq.F(u, x)
+    case +k +n C.HrComp{+g, +f}:
+      %L.hr.comp(k, ds, g, f, x) : L.agR(_, C.eval.br(n, C.F.hd(ds), C.BrComp{C.F.hr(g), C.F.hr(f)}, C.enc(x)))
+      %L.br.comp(n, C.F.hd(ds), C.F.hr(g), C.F.hr(f), C.enc(x)) : L.agR(C.r.bind(C.eval.hr(k, ds, f, x), y => C.eval.hr(k, ds, g, y)), _)
+      L.ag.bind(C.eval.hr(k, ds, f, x), C.eval.br(n, C.F.hd(ds), C.F.hr(f), C.enc(x)), y => C.eval.hr(k, ds, g, y), z => C.eval.br(n, C.F.hd(ds), C.F.hr(g), z), L.rec.F(k, n, ds, f, x, le), v => L.rec.F(k, n, ds, g, v, le))
+    case +k +n C.HrPr{+f, +g}:
+      %L.hr.pr(k, ds, f, g, x) : L.agR(_, C.eval.br(n, C.F.hd(ds), C.BrPr{C.F.hr(f), C.F.hr(g)}, C.enc(x)))
+      %L.br.pr(n, C.F.hd(ds), C.F.hr(f), C.F.hr(g), C.enc(x)) : L.agR(C.r.pair(C.eval.hr(k, ds, f, x), C.eval.hr(k, ds, g, x)), _)
+      L.ag.pair(C.eval.hr(k, ds, f, x), C.eval.hr(k, ds, g, x), C.eval.br(n, C.F.hd(ds), C.F.hr(f), C.enc(x)), C.eval.br(n, C.F.hd(ds), C.F.hr(g), C.enc(x)), L.rec.F(k, n, ds, f, x, le), L.rec.F(k, n, ds, g, x, le))
+    case +k +n C.HrCase{+f, +g}:
+      %L.hr.case(k, ds, f, g, x) : L.agR(_, C.eval.br(n, C.F.hd(ds), C.BrCase{C.F.hr(f), C.F.hr(g)}, C.enc(x)))
+      %L.br.case(n, C.F.hd(ds), C.F.hr(f), C.F.hr(g), C.enc(x)) : L.agR(C.r.case(x, a => C.eval.hr(k, ds, f, a), b => C.eval.hr(k, ds, g, b)), _)
+      L.ag.case(x, a => C.eval.hr(k, ds, f, a), b => C.eval.hr(k, ds, g, b), a => C.eval.br(n, C.F.hd(ds), C.F.hr(f), a), b => C.eval.br(n, C.F.hd(ds), C.F.hr(g), b), a => L.rec.F(k, n, ds, f, a, le), b => L.rec.F(k, n, ds, g, b, le))
+    case +k +n C.HrIf{+c, +a, +e}:
+      %L.hr.if(k, ds, c, a, e, x) : L.agR(_, C.eval.br(n, C.F.hd(ds), C.BrIf{C.F.hr(c), C.F.hr(a), C.F.hr(e)}, C.enc(x)))
+      %L.br.if(n, C.F.hd(ds), C.F.hr(c), C.F.hr(a), C.F.hr(e), C.enc(x)) : L.agR(C.r.if(C.eval.hr(k, ds, c, x), C.eval.hr(k, ds, a, x), C.eval.hr(k, ds, e, x)), _)
+      L.ag.if(C.eval.hr(k, ds, c, x), C.eval.hr(k, ds, a, x), C.eval.hr(k, ds, e, x), C.eval.br(n, C.F.hd(ds), C.F.hr(c), C.enc(x)), C.eval.br(n, C.F.hd(ds), C.F.hr(a), C.enc(x)), C.eval.br(n, C.F.hd(ds), C.F.hr(e), C.enc(x)), L.rec.F(k, n, ds, c, x, le), L.rec.F(k, n, ds, a, x, le), L.rec.F(k, n, ds, e, x, le))
+    case +k +n C.HrCons{+a, +b}:
+      %L.hr.cons(k, ds, a, b, x) : L.agR(_, C.eval.br(n, C.F.hd(ds), C.BrCons{C.F.hr(a), C.F.hr(b)}, C.enc(x)))
+      %L.br.cons(n, C.F.hd(ds), C.F.hr(a), C.F.hr(b), C.enc(x)) : L.agR(C.r.cons(C.eval.hr(k, ds, a, x), C.eval.hr(k, ds, b, x)), _)
+      L.ag.cons(C.eval.hr(k, ds, a, x), C.eval.hr(k, ds, b, x), C.eval.br(n, C.F.hd(ds), C.F.hr(a), C.enc(x)), C.eval.br(n, C.F.hd(ds), C.F.hr(b), C.enc(x)), L.rec.F(k, n, ds, a, x, le), L.rec.F(k, n, ds, b, x, le))
+    case 0n _ C.HrCall{i}:
+      Unit{}
+    case 1n+j 0n C.HrCall{i}:
+      Empty.absurd(L.agR(C.eval.hr(1n+j, ds, C.HrCall{i}, x), C.eval.br(0n, C.F.hd(ds), C.BrCall{i}, C.enc(x))), L.ft(le))
+    case 1n+j 1n+m C.HrCall{+i}:
+      %L.hd.F(ds, i) : L.agR(C.eval.hr(j, ds, C.hd.at(ds, i), x), C.eval.br(m, C.F.hd(ds), _, C.enc(x)))
+      L.rec.F(j, m, ds, C.hd.at(ds, i), x, le)
+    case 0n 0n C.HrApp{}:
+      L.ag.app0(x, i => z => Some{C.bd.dv(C.F.hd(ds), i)})
+    case 0n 1n+m C.HrApp{}:
+      L.ag.app0(x, i => z => C.eval.br(m, C.F.hd(ds), C.bd.at(C.F.hd(ds), i), z))
+    case 1n+j 0n C.HrApp{}:
+      Empty.absurd(L.agR(C.eval.hr(1n+j, ds, C.HrApp{}, x), C.eval.br(0n, C.F.hd(ds), C.BrApp{}, C.enc(x))), L.ft(le))
+    case 1n+j 1n+m C.HrApp{}:
+      L.ag.app(x, i => y => C.eval.hr(j, ds, C.hd.at(ds, i), y), i => z => C.eval.br(m, C.F.hd(ds), C.bd.at(C.F.hd(ds), i), z), +i => v => L.rec.at(j, m, ds, i, v, L.rec.F(j, m, ds, C.hd.at(ds, i), v, le)))
+
+def P.sq.F.r(k, n, ds, t, x, r, e, le):
+  L.agR.done(C.eval.hr(k, ds, t, x), C.eval.br(n, C.F.hd(ds), C.F.hr(t), C.enc(x)), r, e, L.rec.F(k, n, ds, t, x, le))
+
+# the same for G: equal, whatever the fuel
+def L.bd.G(ds: C.BD, i: Nat) -> {C.G.br(C.bd.at(ds, i)) == C.hd.at(C.G.bd(ds), i) : C.HR}:
+  match ds i:
+    case C.BdNil{} _:
+      {==}
+    case C.BdCons{t, d, es} 0n:
+      {==}
+    case C.BdCons{t, d, es} 1n+j:
+      L.bd.G(es, j)
+
+def L.dv.G(ds: C.BD, i: Nat) -> {C.dec(C.bd.dv(ds, i)) == C.hd.dv(C.G.bd(ds), i) : C.HV}:
+  match ds i:
+    case C.BdNil{} _:
+      {==}
+    case C.BdCons{t, d, es} 0n:
+      {==}
+    case C.BdCons{t, d, es} 1n+j:
+      L.dv.G(es, j)
+
+def L.gr.tm(n: Nat, +ds: C.HD, u: C.HTm, +x: C.HV) -> {C.eval.h(u, x) == C.eval.gr(n, ds, C.HrTm{u}, x) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.gr.comp(n: Nat, +ds: C.HD, g: C.HR, f: C.HR, +x: C.HV) -> {Maybe.bind(&2, C.HV, C.HV, C.eval.gr(n, ds, f, x), y => C.eval.gr(n, ds, g, y)) == C.eval.gr(n, ds, C.HrComp{g, f}, x) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.gr.pr(n: Nat, +ds: C.HD, f: C.HR, g: C.HR, +x: C.HV) -> {C.h.pair(C.eval.gr(n, ds, f, x), C.eval.gr(n, ds, g, x)) == C.eval.gr(n, ds, C.HrPr{f, g}, x) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.gr.case(n: Nat, +ds: C.HD, f: C.HR, g: C.HR, +x: C.HV) -> {C.g.case(x, a => C.eval.gr(n, ds, f, a), b => C.eval.gr(n, ds, g, b)) == C.eval.gr(n, ds, C.HrCase{f, g}, x) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.gr.if(n: Nat, +ds: C.HD, c: C.HR, a: C.HR, e: C.HR, +x: C.HV) -> {C.h.if(C.eval.gr(n, ds, c, x), C.eval.gr(n, ds, a, x), C.eval.gr(n, ds, e, x)) == C.eval.gr(n, ds, C.HrIf{c, a, e}, x) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.gr.cons(n: Nat, +ds: C.HD, a: C.HR, b: C.HR, +x: C.HV) -> {C.h.cons(C.eval.gr(n, ds, a, x), C.eval.gr(n, ds, b, x)) == C.eval.gr(n, ds, C.HrCons{a, b}, x) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def L.case.G(y: C.BV, -f: C.BV -> Maybe<&2, C.BV>, -g: C.BV -> Maybe<&2, C.BV>, -f2: C.HV -> Maybe<&2, C.HV>, -g2: C.HV -> Maybe<&2, C.HV>, af: @a: C.BV -> {C.decM(f(a)) == f2(C.dec(a)) : Maybe<&2, C.HV>}, ag: @b: C.BV -> {C.decM(g(b)) == g2(C.dec(b)) : Maybe<&2, C.HV>}) -> {C.decM(C.m.case(y, f, g)) == C.g.case(C.dec(y), f2, g2) : Maybe<&2, C.HV>}:
+  match y:
+    case C.BvInl{a}:
+      af(a)
+    case C.BvInr{b}:
+      ag(b)
+    case C.BvNat{q}:
+      {==}
+    case C.BvBool{b}:
+      {==}
+    case C.BvUnit{}:
+      {==}
+    case C.BvPair{a, b}:
+      {==}
+    case C.BvNil{}:
+      {==}
+    case C.BvCons{h, tl}:
+      {==}
+
+def L.app.G(y: C.BV, -k: Nat -> C.BV -> Maybe<&2, C.BV>, -k2: Nat -> C.HV -> Maybe<&2, C.HV>, ak: @+i: Nat -> @v: C.BV -> {C.decM(k(i, v)) == k2(i, C.dec(v)) : Maybe<&2, C.HV>}) -> {C.decM(C.m.app(y, k)) == C.g.app(C.dec(y), k2) : Maybe<&2, C.HV>}:
+  match y:
+    case C.BvPair{p, a}:
+      match p:
+        case C.BvPair{c, e}:
+          match c:
+            case C.BvNat{i}:
+              ak(i, C.BvPair{e, a})
+            case C.BvBool{b}:
+              {==}
+            case C.BvUnit{}:
+              {==}
+            case C.BvPair{q, r}:
+              {==}
+            case C.BvInl{q}:
+              {==}
+            case C.BvInr{q}:
+              {==}
+            case C.BvNil{}:
+              {==}
+            case C.BvCons{q, r}:
+              {==}
+        case C.BvNat{q}:
+          {==}
+        case C.BvBool{b}:
+          {==}
+        case C.BvUnit{}:
+          {==}
+        case C.BvInl{q}:
+          {==}
+        case C.BvInr{q}:
+          {==}
+        case C.BvNil{}:
+          {==}
+        case C.BvCons{q, r}:
+          {==}
+    case C.BvNat{q}:
+      {==}
+    case C.BvBool{b}:
+      {==}
+    case C.BvUnit{}:
+      {==}
+    case C.BvInl{q}:
+      {==}
+    case C.BvInr{q}:
+      {==}
+    case C.BvNil{}:
+      {==}
+    case C.BvCons{q, r}:
+      {==}
+
+def L.rec.atG(-m: Nat, +ds: C.BD, +i: Nat, -z: C.BV, a: {C.decM(C.eval.br(m, ds, C.bd.at(ds, i), z)) == C.eval.gr(m, C.G.bd(ds), C.G.br(C.bd.at(ds, i)), C.dec(z)) : Maybe<&2, C.HV>}) -> {C.decM(C.eval.br(m, ds, C.bd.at(ds, i), z)) == C.eval.gr(m, C.G.bd(ds), C.hd.at(C.G.bd(ds), i), C.dec(z)) : Maybe<&2, C.HV>}:
+  %L.bd.G(ds, i) : {C.decM(C.eval.br(m, ds, C.bd.at(ds, i), z)) == C.eval.gr(m, C.G.bd(ds), _, C.dec(z)) : Maybe<&2, C.HV>}
+  a
+
+def L.dvM.G(ds: C.BD, i: Nat) -> {C.decM(Some{C.bd.dv(ds, i)}) == Some{C.hd.dv(C.G.bd(ds), i)} : Maybe<&2, C.HV>}:
+  %L.dv.G(ds, i) : {Some{C.dec(C.bd.dv(ds, i))} == Some{_} : Maybe<&2, C.HV>}
+  {==}
+
+def P.sq.G.r(n, ds, t, y):
+  match n t:
+    case n C.BrTm{+u}:
+      %L.br.tm(n, ds, u, y) : {C.decM(_) == C.eval.gr(n, C.G.bd(ds), C.HrTm{C.G(u)}, C.dec(y)) : Maybe<&2, C.HV>}
+      %L.gr.tm(n, C.G.bd(ds), C.G(u), C.dec(y)) : {C.decM(C.eval.b(u, y)) == _ : Maybe<&2, C.HV>}
+      P.sq.G(u, y)
+    case +n C.BrComp{+g, +f}:
+      %L.br.comp(n, ds, g, f, y) : {C.decM(_) == C.eval.gr(n, C.G.bd(ds), C.HrComp{C.G.br(g), C.G.br(f)}, C.dec(y)) : Maybe<&2, C.HV>}
+      %L.gr.comp(n, C.G.bd(ds), C.G.br(g), C.G.br(f), C.dec(y)) : {C.decM(Maybe.bind(&2, C.BV, C.BV, C.eval.br(n, ds, f, y), z => C.eval.br(n, ds, g, z))) == _ : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, f, y) : {C.decM(Maybe.bind(&2, C.BV, C.BV, C.eval.br(n, ds, f, y), z => C.eval.br(n, ds, g, z))) == Maybe.bind(&2, C.HV, C.HV, _, x => C.eval.gr(n, C.G.bd(ds), C.G.br(g), x)) : Maybe<&2, C.HV>}
+      L.bind.G(C.eval.br(n, ds, f, y), z => C.eval.br(n, ds, g, z), x => C.eval.gr(n, C.G.bd(ds), C.G.br(g), x), w => P.sq.G.r(n, ds, g, w))
+    case +n C.BrPr{+f, +g}:
+      %L.br.pr(n, ds, f, g, y) : {C.decM(_) == C.eval.gr(n, C.G.bd(ds), C.HrPr{C.G.br(f), C.G.br(g)}, C.dec(y)) : Maybe<&2, C.HV>}
+      %L.gr.pr(n, C.G.bd(ds), C.G.br(f), C.G.br(g), C.dec(y)) : {C.decM(C.b.pair(C.eval.br(n, ds, f, y), C.eval.br(n, ds, g, y))) == _ : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, f, y) : {C.decM(C.b.pair(C.eval.br(n, ds, f, y), C.eval.br(n, ds, g, y))) == C.h.pair(_, C.eval.gr(n, C.G.bd(ds), C.G.br(g), C.dec(y))) : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, g, y) : {C.decM(C.b.pair(C.eval.br(n, ds, f, y), C.eval.br(n, ds, g, y))) == C.h.pair(C.decM(C.eval.br(n, ds, f, y)), _) : Maybe<&2, C.HV>}
+      L.pair.G(C.eval.br(n, ds, f, y), C.eval.br(n, ds, g, y))
+    case +n C.BrCase{+f, +g}:
+      %L.br.case(n, ds, f, g, y) : {C.decM(_) == C.eval.gr(n, C.G.bd(ds), C.HrCase{C.G.br(f), C.G.br(g)}, C.dec(y)) : Maybe<&2, C.HV>}
+      %L.gr.case(n, C.G.bd(ds), C.G.br(f), C.G.br(g), C.dec(y)) : {C.decM(C.m.case(y, a => C.eval.br(n, ds, f, a), b => C.eval.br(n, ds, g, b))) == _ : Maybe<&2, C.HV>}
+      L.case.G(y, a => C.eval.br(n, ds, f, a), b => C.eval.br(n, ds, g, b), a => C.eval.gr(n, C.G.bd(ds), C.G.br(f), a), b => C.eval.gr(n, C.G.bd(ds), C.G.br(g), b), a => P.sq.G.r(n, ds, f, a), b => P.sq.G.r(n, ds, g, b))
+    case +n C.BrIf{+c, +a, +e}:
+      %L.br.if(n, ds, c, a, e, y) : {C.decM(_) == C.eval.gr(n, C.G.bd(ds), C.HrIf{C.G.br(c), C.G.br(a), C.G.br(e)}, C.dec(y)) : Maybe<&2, C.HV>}
+      %L.gr.if(n, C.G.bd(ds), C.G.br(c), C.G.br(a), C.G.br(e), C.dec(y)) : {C.decM(C.b.if(C.eval.br(n, ds, c, y), C.eval.br(n, ds, a, y), C.eval.br(n, ds, e, y))) == _ : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, c, y) : {C.decM(C.b.if(C.eval.br(n, ds, c, y), C.eval.br(n, ds, a, y), C.eval.br(n, ds, e, y))) == C.h.if(_, C.eval.gr(n, C.G.bd(ds), C.G.br(a), C.dec(y)), C.eval.gr(n, C.G.bd(ds), C.G.br(e), C.dec(y))) : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, a, y) : {C.decM(C.b.if(C.eval.br(n, ds, c, y), C.eval.br(n, ds, a, y), C.eval.br(n, ds, e, y))) == C.h.if(C.decM(C.eval.br(n, ds, c, y)), _, C.eval.gr(n, C.G.bd(ds), C.G.br(e), C.dec(y))) : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, e, y) : {C.decM(C.b.if(C.eval.br(n, ds, c, y), C.eval.br(n, ds, a, y), C.eval.br(n, ds, e, y))) == C.h.if(C.decM(C.eval.br(n, ds, c, y)), C.decM(C.eval.br(n, ds, a, y)), _) : Maybe<&2, C.HV>}
+      L.if.G(C.eval.br(n, ds, c, y), C.eval.br(n, ds, a, y), C.eval.br(n, ds, e, y))
+    case +n C.BrCons{+a, +b}:
+      %L.br.cons(n, ds, a, b, y) : {C.decM(_) == C.eval.gr(n, C.G.bd(ds), C.HrCons{C.G.br(a), C.G.br(b)}, C.dec(y)) : Maybe<&2, C.HV>}
+      %L.gr.cons(n, C.G.bd(ds), C.G.br(a), C.G.br(b), C.dec(y)) : {C.decM(C.b.cons(C.eval.br(n, ds, a, y), C.eval.br(n, ds, b, y))) == _ : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, a, y) : {C.decM(C.b.cons(C.eval.br(n, ds, a, y), C.eval.br(n, ds, b, y))) == C.h.cons(_, C.eval.gr(n, C.G.bd(ds), C.G.br(b), C.dec(y))) : Maybe<&2, C.HV>}
+      %P.sq.G.r(n, ds, b, y) : {C.decM(C.b.cons(C.eval.br(n, ds, a, y), C.eval.br(n, ds, b, y))) == C.h.cons(C.decM(C.eval.br(n, ds, a, y)), _) : Maybe<&2, C.HV>}
+      L.cons.G(C.eval.br(n, ds, a, y), C.eval.br(n, ds, b, y))
+    case 0n C.BrCall{i}:
+      L.dvM.G(ds, i)
+    case 1n+m C.BrCall{+i}:
+      L.rec.atG(m, ds, i, y, P.sq.G.r(m, ds, C.bd.at(ds, i), y))
+    case 0n C.BrApp{}:
+      L.app.G(y, i => z => Some{C.bd.dv(ds, i)}, i => x => Some{C.hd.dv(C.G.bd(ds), i)}, +i => z => L.dvM.G(ds, i))
+    case 1n+m C.BrApp{}:
+      L.app.G(y, i => z => C.eval.br(m, ds, C.bd.at(ds, i), z), i => x => C.eval.gr(m, C.G.bd(ds), C.hd.at(C.G.bd(ds), i), x), +i => z => L.rec.atG(m, ds, i, z, P.sq.G.r(m, ds, C.bd.at(ds, i), z)))
+
+def L.det.v(r: Maybe<&2, C.HV>, +v: C.HV, e: {C.encM(r) == Some{C.enc(v)} : Maybe<&2, C.BV>}) -> {r == Some{v} : Maybe<&2, C.HV>}:
+  %P.dec.enc(v) : {r == Some{_} : Maybe<&2, C.HV>}
+  L.encM.inj(r, C.enc(v), e)
+
+# h's answer is one: at the larger of the two depths F's program answers
+# both
+def L.max(a: Nat, b: Nat) -> Nat:
+  match a b:
+    case 0n b:
+      b
+    case 1n+i 0n:
+      1n+i
+    case 1n+i 1n+j:
+      1n+L.max(i, j)
+
+def L.le.maxl(a: Nat, b: Nat) -> {C.le(a, L.max(a, b)) == True{} : Bool}:
+  match a b:
+    case 0n b:
+      {==}
+    case 1n+i 0n:
+      L.le.refl(i)
+    case 1n+i 1n+j:
+      L.le.maxl(i, j)
+
+def L.le.maxr(a: Nat, b: Nat) -> {C.le(b, L.max(a, b)) == True{} : Bool}:
+  match a b:
+    case 0n b:
+      L.le.refl(b)
+    case 1n+i 0n:
+      {==}
+    case 1n+i 1n+j:
+      L.le.maxr(i, j)
+
+def P.det.r(k, k2, ds, t, x, v, r, e, f):
+  L.det.v(r, v, Equal.trans(Maybe<&2, C.BV>, C.encM(r), C.eval.br(L.max(k, k2), C.F.hd(ds), C.F.hr(t), C.enc(x)), Some{C.enc(v)}, P.sq.F.r(k2, L.max(k, k2), ds, t, x, r, f, L.le.maxr(k, k2)), Equal.sym(Maybe<&2, C.BV>, Some{C.enc(v)}, C.eval.br(L.max(k, k2), C.F.hd(ds), C.F.hr(t), C.enc(x)), P.sq.F.r(k, L.max(k, k2), ds, t, x, Some{v}, e, L.le.maxl(k, k2)))))
+
+# F -| G on the programs that stop within the fuel
+
+def L.hp.F(+k: Nat, +n: Nat, h: C.HPg, +x: C.HV, -r: Maybe<&2, C.HV>, e: {C.eval.hp(k, h, x) == C.RDone{r} : C.Run}, +le: {C.le(k, n) == True{} : Bool}) -> {C.encM(r) == C.eval.bp(C.F.pn(n, h), C.enc(x)) : Maybe<&2, C.BV>}:
+  match h:
+    case C.HPg{ds, t}:
+      P.sq.F.r(k, n, ds, t, x, r, e, le)
+
+def L.bp.G(b: C.BPg, +y: C.BV) -> {C.decM(C.eval.bp(b, y)) == C.eval.gp(C.G.p(b), C.dec(y)) : Maybe<&2, C.HV>}:
+  match b:
+    case C.BPg{n, ds, t}:
+      P.sq.G.r(n, ds, t, y)
+
+def L.hp.det(+k: Nat, +k2: Nat, h: C.HPg, +x: C.HV, +v: C.HV, +r: Maybe<&2, C.HV>, e: {C.eval.hp(k, h, x) == C.RDone{Some{v}} : C.Run}, f: {C.eval.hp(k2, h, x) == C.RDone{r} : C.Run}) -> {r == Some{v} : Maybe<&2, C.HV>}:
+  match h:
+    case C.HPg{ds, t}:
+      P.det.r(k, k2, ds, t, x, v, r, e, f)
+
+# F's program answers h's answer, through enc, where h ends within its fuel
+def L.rec.F.at(+n: Nat, +h: C.HPg, +x: C.HV, -v: C.HV, -a: Maybe<&2, C.HV>, eR: {C.eval.hp(n, h, x) == C.RDone{a} : C.Run}, ea: {a == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.bp(C.F.pn(n, h), C.enc(x)) == Some{C.enc(v)} : Maybe<&2, C.BV>}:
+  %ea : {C.eval.bp(C.F.pn(n, h), C.enc(x)) == C.encM(_) : Maybe<&2, C.BV>}
+  Equal.sym(Maybe<&2, C.BV>, C.encM(a), C.eval.bp(C.F.pn(n, h), C.enc(x)), L.hp.F(n, n, h, x, a, eR, L.le.refl(n)))
+
+def L.rec.l(+n: Nat, +h: C.HPg, +b: C.BPg, le: P.Le.bp(C.F.pn(n, h), b), +x: C.HV, +v: C.HV, -a: Maybe<&2, C.HV>, eR: {C.eval.hp(n, h, x) == C.RDone{a} : C.Run}, ea: {a == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.gp(C.G.p(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  %P.dec.enc(x) : {C.eval.gp(C.G.p(b), _) == Some{v} : Maybe<&2, C.HV>}
+  %L.bp.G(b, C.enc(x)) : {_ == Some{v} : Maybe<&2, C.HV>}
+  %Equal.sym(Maybe<&2, C.BV>, C.eval.bp(b, C.enc(x)), Some{C.enc(v)}, le(C.enc(x), C.enc(v), L.rec.F.at(n, h, x, v, a, eR, ea))) : {C.decM(_) == Some{v} : Maybe<&2, C.HV>}
+  %Equal.sym(C.HV, C.dec(C.enc(v)), v, P.dec.enc(v)) : {Some{_} == Some{v} : Maybe<&2, C.HV>}
+  {==}
+
+# h's run at x, R: it ends (Stops), so with h's answer
+def L.rec.l.at(+n: Nat, +h: C.HPg, +b: C.BPg, st: P.Stops.r(h, n), le: P.Le.bp(C.F.pn(n, h), b), +x: C.HV, +v: C.HV, +k: Nat, e: {C.eval.hp(k, h, x) == C.RDone{Some{v}} : C.Run}, R: C.Run, +eR: {C.eval.hp(n, h, x) == R : C.Run}) -> {C.eval.gp(C.G.p(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  match R:
+    case C.ROut{}:
+      Empty.absurd({C.eval.gp(C.G.p(b), x) == Some{v} : Maybe<&2, C.HV>}, st(x, eR))
+    case C.RDone{+a}:
+      L.rec.l(n, h, b, le, x, v, a, eR, L.hp.det(k, n, h, x, v, a, e, eR))
+
+def L.rec.l.go(+n: Nat, +h: C.HPg, +b: C.BPg, st: P.Stops.r(h, n), le: P.Le.bp(C.F.pn(n, h), b), +x: C.HV, +v: C.HV, +k: Nat, e: {C.eval.hp(k, h, x) == C.RDone{Some{v}} : C.Run}) -> {C.eval.gp(C.G.p(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  L.rec.l.at(n, h, b, st, le, x, v, k, e, C.eval.hp(n, h, x), {==})
+
+def P.adj.FG.rec.l(n, h, b, st, le):
+  x => v => k => e => L.rec.l.go(n, h, b, st, le, x, v, k, e)
+
+# h's answer at dec y, where F's program answers w at y
+def L.rec.sqy(+n: Nat, +h: C.HPg, +y: C.BV, -a: Maybe<&2, C.HV>, eR: {C.eval.hp(n, h, C.dec(y)) == C.RDone{a} : C.Run}) -> {C.encM(a) == C.eval.bp(C.F.pn(n, h), y) : Maybe<&2, C.BV>}:
+  %P.enc.dec(y) : {C.encM(a) == C.eval.bp(C.F.pn(n, h), _) : Maybe<&2, C.BV>}
+  L.hp.F(n, n, h, C.dec(y), a, eR, L.le.refl(n))
+
+def L.rec.eR(+n: Nat, +h: C.HPg, +y: C.BV, +w: C.BV, +a: Maybe<&2, C.HV>, +eR: {C.eval.hp(n, h, C.dec(y)) == C.RDone{a} : C.Run}, e: {C.eval.bp(C.F.pn(n, h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.hp(n, h, C.dec(y)) == C.RDone{Some{C.dec(w)}} : C.Run}:
+  %L.encM.inj(a, w, Equal.trans(Maybe<&2, C.BV>, C.encM(a), C.eval.bp(C.F.pn(n, h), y), Some{w}, L.rec.sqy(n, h, y, a, eR), e)) : {C.eval.hp(n, h, C.dec(y)) == C.RDone{_} : C.Run}
+  eR
+
+def L.rec.r(+n: Nat, +h: C.HPg, +b: C.BPg, le: P.Le.hp(h, C.G.p(b)), +y: C.BV, +w: C.BV, a: Maybe<&2, C.HV>, eR: {C.eval.hp(n, h, C.dec(y)) == C.RDone{a} : C.Run}, e: {C.eval.bp(C.F.pn(n, h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.bp(b, y) == Some{w} : Maybe<&2, C.BV>}:
+  %P.enc.dec(w) : {C.eval.bp(b, y) == Some{_} : Maybe<&2, C.BV>}
+  L.decM.inj(C.eval.bp(b, y), C.dec(w), Equal.trans(Maybe<&2, C.HV>, C.decM(C.eval.bp(b, y)), C.eval.gp(C.G.p(b), C.dec(y)), Some{C.dec(w)}, L.bp.G(b, y), le(C.dec(y), C.dec(w), n, L.rec.eR(n, h, y, w, a, eR, e))))
+
+def L.rec.r.at(+n: Nat, +h: C.HPg, +b: C.BPg, st: P.Stops.r(h, n), le: P.Le.hp(h, C.G.p(b)), +y: C.BV, +w: C.BV, e: {C.eval.bp(C.F.pn(n, h), y) == Some{w} : Maybe<&2, C.BV>}, R: C.Run, eR: {C.eval.hp(n, h, C.dec(y)) == R : C.Run}) -> {C.eval.bp(b, y) == Some{w} : Maybe<&2, C.BV>}:
+  match R:
+    case C.ROut{}:
+      Empty.absurd({C.eval.bp(b, y) == Some{w} : Maybe<&2, C.BV>}, st(C.dec(y), eR))
+    case C.RDone{a}:
+      L.rec.r(n, h, b, le, y, w, a, eR, e)
+
+def L.rec.r.go(+n: Nat, +h: C.HPg, +b: C.BPg, st: P.Stops.r(h, n), le: P.Le.hp(h, C.G.p(b)), +y: C.BV, +w: C.BV, e: {C.eval.bp(C.F.pn(n, h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.bp(b, y) == Some{w} : Maybe<&2, C.BV>}:
+  L.rec.r.at(n, h, b, st, le, y, w, e, C.eval.hp(n, h, C.dec(y)), {==})
+
+def P.adj.FG.rec.r(n, h, b, st, le):
+  y => w => e => L.rec.r.go(n, h, b, st, le, y, w, e)
+
+def P.adj.FG.recf.l(h, b, st, le):
+  P.adj.FG.rec.l(C.fuel(), h, b, st, le)
+
+def P.adj.FG.recf.r(h, b, st, le):
+  P.adj.FG.rec.r(C.fuel(), h, b, st, le)
+
+# f x = f x never stops, and F's program of it answers its default
+def L.hnr.out(k: Nat, +x: C.HV) -> {C.eval.hp(k, P.hnr(), x) == C.ROut{} : C.Run}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+j:
+      L.hnr.out(j, x)
+
+def L.hnr.def(n: Nat) -> {C.eval.bp(C.F.pn(n, P.hnr()), C.BvNat{0n}) == Some{C.BvNat{0n}} : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+j:
+      L.hnr.def(j)
+
+def L.hnr.le(+x: C.HV, -v: C.HV, +k: Nat, e: {C.eval.hp(k, P.hnr(), x) == C.RDone{Some{v}} : C.Run}) -> {C.eval.gp(C.G.p(P.bn7r()), x) == Some{v} : Maybe<&2, C.HV>}:
+  Empty.absurd({C.eval.gp(C.G.p(P.bn7r()), x) == Some{v} : Maybe<&2, C.HV>}, L.out.done(Some{v}, Equal.trans(C.Run, C.ROut{}, C.eval.hp(k, P.hnr(), x), C.RDone{Some{v}}, Equal.sym(C.Run, C.eval.hp(k, P.hnr(), x), C.ROut{}, L.hnr.out(k, x)), e)))
+
+def P.adj.FG.rec.not(n, adj):
+  %adj(P.hnr(), P.bn7r(), x => v => k => e => L.hnr.le(x, v, k, e), C.BvNat{0n}, C.BvNat{0n}, L.hnr.def(n)) : L.is7(_)
+  Unit{}
+
+# a loop's run is its definition's: c and m are p's and s's answers at x
+def L.unt(k: Nat, +p: C.HTm, +s: C.HTm, x: C.HV, c: Maybe<&2, C.HV>, m: Maybe<&2, C.HV>) -> C.Run:
+  match k:
+    case 0n:
+      C.ROut{}
+    case 1n+j:
+      C.r.if(C.RDone{c}, C.RDone{Some{x}}, C.r.bind(C.RDone{m}, y => C.eval.hr(j, C.until.ds(p, s), C.HrCall{0n}, y)))
+
+def L.unt.at(j: Nat, +p: C.HTm, +s: C.HTm, +x: C.HV) -> {L.unt(1n+j, p, s, x, C.eval.h(p, x), C.eval.h(s, x)) == C.eval.hr(1n+j, C.until.ds(p, s), C.HrCall{0n}, x) : C.Run}:
+  match j:
+    case 0n:
+      {==}
+    case 1n+i:
+      {==}
+
+def L.unt.eq(k: Nat, +p: C.HTm, +s: C.HTm, +x: C.HV) -> {L.unt(k, p, s, x, C.eval.h(p, x), C.eval.h(s, x)) == C.eval.hr(k, C.until.ds(p, s), C.HrCall{0n}, x) : C.Run}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+j:
+      L.unt.at(j, p, s, x)
+
+def L.until(k: Nat, +p: C.HTm, +s: C.HTm, +x: C.HV, c: Maybe<&2, C.HV>, m: Maybe<&2, C.HV>) -> {C.run.h(k, p, s, x, c, m) == L.unt(k, p, s, x, c, m) : C.Run}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+j:
+      match c:
+        case None{}:
+          {==}
+        case Some{v}:
+          match v:
+            case C.HvBool{b}:
+              match b:
+                case True{}:
+                  {==}
+                case False{}:
+                  match m:
+                    case None{}:
+                      {==}
+                    case Some{+y}:
+                      +j = j
+                      Equal.trans(C.Run, C.run.h(j, p, s, y, C.eval.h(p, y), C.eval.h(s, y)), L.unt(j, p, s, y, C.eval.h(p, y), C.eval.h(s, y)), C.eval.hr(j, C.until.ds(p, s), C.HrCall{0n}, y), L.until(j, p, s, y, C.eval.h(p, y), C.eval.h(s, y)), L.unt.eq(j, p, s, y))
+            case C.HvNat{q}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, a2}:
+              {==}
+            case C.HvInl{a}:
+              {==}
+            case C.HvInr{a}:
+              {==}
+            case C.HvNil{}:
+              {==}
+            case C.HvCons{a, a2}:
+              {==}
+
+def P.until.rec(k, p, s, x):
+  +k = k
+  Equal.trans(C.Run, C.run.h(k, p, s, x, C.eval.h(p, x), C.eval.h(s, x)), L.unt(k, p, s, x, C.eval.h(p, x), C.eval.h(s, x)), C.eval.hr(k, C.until.ds(p, s), C.HrCall{0n}, x), L.until(k, p, s, x, C.eval.h(p, x), C.eval.h(s, x)), L.unt.eq(k, p, s, x))
