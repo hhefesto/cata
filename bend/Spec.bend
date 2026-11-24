@@ -5760,6 +5760,11 @@ def sp.divmod(+y: X.Sx) -> X.Sx:
   +ok = sp.if(Bool, Bool.or(dm, qr), _ => Bool.not(Bool.or(sp.has(a, S.b("bv")), sp.has(b, S.b("bv")))), _ => False{})
   sp.if(X.Sx, ok, _ => Bool.pick(X.Sx, dm, sp.divmod.two(h, a, b, "div", "mod"), sp.divmod.two(h, a, b, "quot", "rem")), _ => y)
 
+# a type variable GHC found no type for (ZonkAny n): nothing looks at a
+# value of it, so any type is it, and here it is ()
+def sp.zonk.at(+y: X.Sx) -> X.Sx:
+  sp.if(X.Sx, Bool.and(S.eq(X.tsx.str.of(sp.at(y, 1n)), S.b("GHC.Types")), S.eq(X.tsx.str.of(sp.at(y, 2n)), S.b("ZonkAny"))), _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => y)
+
 # the export's clauses and local pattern bindings as the fold reads them
 # (cts: the package's constructors, for a pattern's type)
 def sp.pb(x: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
@@ -5767,16 +5772,597 @@ def sp.pb(x: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
     case X.SxCons{h, t}:
       +y = {X.SxCons{sp.pb(h, cts), sp.pb(t, cts)} : X.Sx}
       +a = sp.hd(y)
-      sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.pb.at(y, cts), _ => sp.if(X.Sx, sp.is(a, "match"), _ => sp.ftw.at(y), _ => sp.if(X.Sx, sp.is(a, "grhs"), _ => sp.ftw.grhs(y, cts), _ => sp.if(X.Sx, sp.is(a, "evapp"), _ => sp.natsub(y), _ => sp.if(X.Sx, sp.is(a, "arith"), _ => sp.arith(y), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.divmod(y), _ => y))))))
+      sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.pb.at(y, cts), _ => sp.if(X.Sx, sp.is(a, "match"), _ => sp.ftw.at(y), _ => sp.if(X.Sx, sp.is(a, "grhs"), _ => sp.ftw.grhs(y, cts), _ => sp.if(X.Sx, sp.is(a, "evapp"), _ => sp.natsub(y), _ => sp.if(X.Sx, sp.is(a, "arith"), _ => sp.arith(y), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.divmod(y), _ => sp.if(X.Sx, sp.is(a, "tc"), _ => sp.zonk.at(y), _ => y)))))))
     case z:
       z
+
+# Safe subtraction -------------------------------------------------------------------
+#
+# x - y at Int and Integer is out of a module alone (int-sub: F reads them as
+# Nat), and at Natural it is an error below 0. But where what is around it
+# says x >= y it is Nat's subtraction: n - 1 in the else of n <= 0, a - b in
+# the else of a < b, n - 2 in f n after f 0 and f 1. sp.ssb walks a tree with
+# the facts its tests give (an if's, a guard's and the ones before it, the
+# literals a clause before this one took) and writes such a subtraction as
+# HsPrelude.N's subSafe at the same type, which the survey takes and the fold
+# reads as -. A fact is about an expression as it stands (locals are
+# numbered, so a name hides nothing, and an expression has one value), and
+# holds in the branch its test chose. Every Int is 0 or more here, as F
+# reads it; `max k (a - b)` at Int is max k of Nat's subtraction at any a
+# and b, and abs (a - b), a and b locals, (a - b) + (b - a), each Nat's.
+
+# an expression is at least k; is not k; is at least another, is greater; a
+# subtraction at a type variable may be read as Integer's
+type Mf is Data:
+  MfLo{v: X.Sx, k: Nat}
+  MfNe{v: X.Sx, k: Nat}
+  MfGe{a: X.Sx, b: X.Sx}
+  MfGt{a: X.Sx, b: X.Sx}
+  MfTv{}
+
+# digits, at most 6, as a number
+def sp.ssb.digits(xs: List<&2, U32>, +acc: Nat, lim: Nat) -> Maybe<&2, Nat>:
+  match xs lim:
+    case Nil{} 1n+l:
+      Some{acc}
+    case Con{+c, t} 1n+l:
+      Bool.pick(Maybe<&2, Nat>, Bool.and(U32.is_ge(c, 48), U32.is_le(c, 57)), sp.ssb.digits(t, Nat.add(Nat.mul(acc, 10n), U32.to_nat(U32.sub(c, 48))), l), None{})
+    case _ 0n:
+      None{}
+
+# GHC's expansion of an operator application, opened
+def sp.ssb.open(n: Nat, +x: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      x
+    case 1n+p:
+      sp.if(X.Sx, sp.head.is(x, "expanded"), _ => sp.ssb.open(p, sp.at(x, 2n)), _ => x)
+
+# a function without its type and evidence arguments
+def sp.ssb.peel(n: Nat, +x: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      x
+    case 1n+p:
+      sp.if(X.Sx, Bool.or(sp.head.is(x, "evapp"), sp.head.is(x, "tyapp")), _ => sp.ssb.peel(p, sp.at(x, 1n)), _ => x)
+
+# a global function's name, M.N
+def sp.ssb.key(+f: X.Sx) -> List<&2, U32>:
+  +g = sp.ssb.peel(4n, f)
+  sp.if(List<&2, U32>, sp.head.is(g, "g"), _ => sp.key(sp.sat(g, 1n), sp.sat(g, 2n)), _ => Nil{})
+
+# a number as it stands: an overloaded literal (olit (int N) TYPE WITNESS), a
+# character (its code), ord or fromEnum of one
+def sp.ssb.num(olit: Bool, char: Bool, +x: X.Sx) -> Maybe<&2, Nat>:
+  match olit char:
+    case True{} _:
+      sp.ssb.digits(X.tsx.atom.of(sp.at(sp.at(x, 1n), 1n)), 0n, 7n)
+    case False{} True{}:
+      sp.ssb.digits(X.tsx.atom.of(sp.at(x, 1n)), 0n, 7n)
+    case False{} False{}:
+      None{}
+
+def sp.ssb.isord(+k: List<&2, U32>) -> Bool:
+  Bool.or(sp.is(k, "GHC.Internal.Base.ord"), Bool.or(sp.is(k, "HsPrelude.Z.ord"), sp.is(k, "GHC.Internal.Enum.fromEnum")))
+
+def sp.ssb.ord(+x: X.Sx) -> Bool:
+  sp.if(Bool, sp.head.is(x, "app"), _ => sp.ssb.isord(sp.ssb.key(sp.at(x, 1n))), _ => False{})
+
+def sp.ssb.lit(+x: X.Sx) -> Maybe<&2, Nat>:
+  +y = sp.if(X.Sx, Bool.and(sp.head.is(sp.at(x, 2n), "char"), sp.ssb.ord(x)), _ => sp.at(x, 2n), _ => x)
+  sp.ssb.num(Bool.and(sp.head.is(y, "olit"), sp.head.is(sp.at(y, 1n), "int")), sp.head.is(y, "char"), y)
+
+# the type a function is applied at: (evapp (tyapp F T) D), (tyapp F T)
+def sp.ssb.ty(+f: X.Sx) -> X.Sx:
+  +t = sp.if(X.Sx, sp.head.is(f, "evapp"), _ => sp.at(f, 1n), _ => f)
+  sp.if(X.Sx, sp.head.is(t, "tyapp"), _ => sp.at(t, 2n), _ => X.SxNil{})
+
+# F, A and B of (app (app F A) B), and F and A of (app F A)
+def sp.ssb.two(+x: X.Sx) -> Bool:
+  Bool.and(sp.head.is(x, "app"), sp.head.is(sp.at(x, 1n), "app"))
+
+def sp.ssb.f2(+x: X.Sx) -> X.Sx:
+  sp.at(sp.at(x, 1n), 1n)
+
+def sp.ssb.a2(+x: X.Sx) -> X.Sx:
+  sp.at(sp.at(x, 1n), 2n)
+
+def sp.ssb.b2(+x: X.Sx) -> X.Sx:
+  sp.at(x, 2n)
+
+# a number as it stands, or an atom of its digits
+def sp.ssb.norm.at(m: Maybe<&2, Nat>, x: X.Sx) -> X.Sx:
+  match m:
+    case Some{k}:
+      X.SxAtom{S.b(Nat.show(k))}
+    case None{}:
+      x
+
+def sp.ssb.norm(+x: X.Sx) -> X.Sx:
+  +y = sp.ssb.open(4n, x)
+  sp.ssb.norm.at(sp.ssb.lit(y), y)
+
+# a number's type that Nat is, or a type variable (read at Integer, or out)
+def sp.ssb.nat(+t: X.Sx) -> Bool:
+  sp.is(sp.tckey(t), "GHC.Num.Natural.Natural")
+
+def sp.ssb.int0(+t: X.Sx) -> Bool:
+  +k = sp.tckey(t)
+  Bool.or(sp.is(k, "GHC.Types.Int"), sp.is(k, "GHC.Num.Integer.Integer"))
+
+def sp.ssb.int(+t: X.Sx) -> Bool:
+  Bool.or(sp.head.is(t, "tv"), sp.ssb.int0(t))
+
+# whether x is X - Y, at a type of those; and the type
+def sp.ssb.issub2(+x: X.Sx) -> Bool:
+  +f = sp.ssb.f2(x)
+  +k = sp.ssb.key(f)
+  +t = sp.ssb.ty(f)
+  Bool.or(sp.is(k, "HsPrelude.N.natSub"), Bool.and(sp.is(k, "GHC.Internal.Num.-"), Bool.or(sp.ssb.nat(t), sp.ssb.int(t))))
+
+def sp.ssb.issub(+x: X.Sx) -> Bool:
+  sp.if(Bool, sp.ssb.two(x), _ => sp.ssb.issub2(x), _ => False{})
+
+def sp.ssb.subty(+x: X.Sx) -> X.Sx:
+  +f = sp.ssb.f2(x)
+  sp.if(X.Sx, sp.is(sp.ssb.key(f), "HsPrelude.N.natSub"), _ => sp.tc(S.b("GHC.Num.Natural"), S.b("Natural"), Nil{}), _ => sp.ssb.ty(f))
+
+def sp.ssb.safe.op(t: X.Sx) -> X.Sx:
+  sp.l([sp.a("tyapp"), sp.g(S.b("HsPrelude.N"), S.b("subSafe"), "var"), t])
+
+# Facts
+
+def sp.ssb.max(+a: Nat, +b: Nat) -> Nat:
+  Bool.pick(Nat, Nat.is_lt(a, b), b, a)
+
+# the greatest bound the facts give an expression
+def sp.ssb.los(fs: List<&2, Mf>, +v: X.Sx, +acc: Nat) -> Nat:
+  match fs:
+    case Nil{}:
+      acc
+    case MfLo{w, +k} <> t:
+      sp.ssb.los(t, v, Bool.pick(Nat, sp.eq(w, v), sp.ssb.max(k, acc), acc))
+    case _ <> t:
+      sp.ssb.los(t, v, acc)
+
+def sp.ssb.isne(fs: List<&2, Mf>, +v: X.Sx, +k: Nat) -> Bool:
+  match fs:
+    case Nil{}:
+      False{}
+    case MfNe{w, j} <> t:
+      Bool.or(Bool.and(Nat.is_eq(j, k), sp.eq(w, v)), sp.ssb.isne(t, v, k))
+    case _ <> t:
+      sp.ssb.isne(t, v, k)
+
+# at least k and not k: at least k + 1
+def sp.ssb.bump(n: Nat, +fs: List<&2, Mf>, +v: X.Sx, +k: Nat) -> Nat:
+  match n:
+    case 0n:
+      k
+    case 1n+p:
+      sp.if(Nat, sp.ssb.isne(fs, v, k), _ => sp.ssb.bump(p, fs, v, 1n+k), _ => k)
+
+def sp.ssb.mget(m: Maybe<&2, Nat>, d: Nat) -> Nat:
+  match m:
+    case Some{k}:
+      k
+    case None{}:
+      d
+
+def sp.ssb.isgt(fs: List<&2, Mf>, +a: X.Sx, +b: X.Sx) -> Bool:
+  match fs:
+    case Nil{}:
+      False{}
+    case MfGt{c, d} <> t:
+      Bool.or(Bool.and(sp.eq(c, a), sp.eq(d, b)), sp.ssb.isgt(t, a, b))
+    case _ <> t:
+      sp.ssb.isgt(t, a, b)
+
+# what an expression is at least: a literal, a sum, a difference by a
+# literal, and what the facts say
+def sp.ssb.lo(n: Nat, +x: X.Sx, +fs: List<&2, Mf>) -> Nat:
+  match n:
+    case 0n:
+      0n
+    case 1n++p:
+      +y = sp.ssb.open(4n, x)
+      +b = sp.ssb.bump(12n, fs, y, sp.ssb.los(fs, y, 0n))
+      +two = sp.ssb.two(y)
+      +k = sp.if(List<&2, U32>, two, _ => sp.ssb.key(sp.ssb.f2(y)), _ => Nil{})
+      +plus = sp.if(Nat, sp.is(k, "GHC.Internal.Num.+"), _ => Nat.add(sp.ssb.lo(p, sp.ssb.a2(y), fs), sp.ssb.lo(p, sp.ssb.b2(y), fs)), _ => 0n)
+      +less = sp.if(Nat, sp.ssb.issub(y), _ => sp.ssb.max(Bool.pick(Nat, sp.ssb.isgt(fs, sp.ssb.norm(sp.ssb.a2(y)), sp.ssb.norm(sp.ssb.b2(y))), 1n, 0n), Nat.sub(sp.ssb.lo(p, sp.ssb.a2(y), fs), sp.ssb.mget(sp.ssb.lit(sp.ssb.open(4n, sp.ssb.b2(y))), 4000000000n))), _ => 0n)
+      +ord = sp.if(Nat, sp.ssb.ord(y), _ => sp.ssb.lo(p, sp.at(y, 2n), fs), _ => 0n)
+      sp.ssb.mget(sp.ssb.lit(y), sp.ssb.max(b, sp.ssb.max(ord, sp.ssb.max(plus, less))))
+
+def sp.ssb.isge(fs: List<&2, Mf>, +a: X.Sx, +b: X.Sx) -> Bool:
+  match fs:
+    case Nil{}:
+      False{}
+    case MfGe{c, d} <> t:
+      Bool.or(Bool.and(sp.eq(c, a), sp.eq(d, b)), sp.ssb.isge(t, a, b))
+    case _ <> t:
+      sp.ssb.isge(t, a, b)
+
+def sp.ssb.atleast(m: Maybe<&2, Nat>, +x: X.Sx, +fs: List<&2, Mf>) -> Bool:
+  match m:
+    case Some{k}:
+      Nat.is_ge(sp.ssb.lo(4n, x, fs), k)
+    case None{}:
+      False{}
+
+# whether x >= y
+def sp.ssb.ge(+x: X.Sx, +y: X.Sx, +fs: List<&2, Mf>) -> Bool:
+  +a = sp.ssb.norm(x)
+  +b = sp.ssb.norm(y)
+  sp.if(Bool, Bool.or(sp.eq(a, b), sp.ssb.isge(fs, a, b)), _ => True{}, _ => sp.ssb.atleast(sp.ssb.lit(sp.ssb.open(4n, y)), x, fs))
+
+# the fact a >= b (strict: a > b)
+def sp.ssb.add.lit(m: Maybe<&2, Nat>, strict: Bool, +a: X.Sx, fs: List<&2, Mf>) -> List<&2, Mf>:
+  match m strict:
+    case Some{k} True{}:
+      MfLo{sp.ssb.open(4n, a), 1n+k} <> fs
+    case Some{k} False{}:
+      MfLo{sp.ssb.open(4n, a), k} <> fs
+    case None{} True{}:
+      MfLo{sp.ssb.open(4n, a), 1n} <> fs
+    case None{} False{}:
+      fs
+
+def sp.ssb.add.gt(strict: Bool, a: X.Sx, b: X.Sx, fs: List<&2, Mf>) -> List<&2, Mf>:
+  match strict:
+    case True{}:
+      MfGt{a, b} <> fs
+    case False{}:
+      fs
+
+def sp.ssb.add.ge(+a: X.Sx, +b: X.Sx, +strict: Bool, fs: List<&2, Mf>) -> List<&2, Mf>:
+  +na = sp.ssb.norm(a)
+  +nb = sp.ssb.norm(b)
+  MfGe{na, nb} <> sp.ssb.add.gt(strict, na, nb, sp.ssb.add.lit(sp.ssb.lit(sp.ssb.open(4n, b)), strict, a, fs))
+
+def sp.ssb.add.ne(m: Maybe<&2, Nat>, +a: X.Sx, fs: List<&2, Mf>) -> List<&2, Mf>:
+  match m:
+    case Some{k}:
+      MfNe{sp.ssb.open(4n, a), k} <> fs
+    case None{}:
+      fs
+
+# a comparison's facts, where it holds (pos) or does not
+def sp.ssb.rel.t(+k: List<&2, U32>, +a: X.Sx, +b: X.Sx, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  +lt = sp.is(k, "GHC.Classes.<")
+  +gt = sp.is(k, "GHC.Classes.>")
+  sp.if(List<&2, Mf>, Bool.or(lt, sp.is(k, "GHC.Classes.<=")), _ => sp.ssb.add.ge(b, a, lt, fs), _ =>
+    sp.if(List<&2, Mf>, Bool.or(gt, sp.is(k, "GHC.Classes.>=")), _ => sp.ssb.add.ge(a, b, gt, fs), _ =>
+      sp.if(List<&2, Mf>, sp.is(k, "GHC.Classes.=="), _ => sp.ssb.add.ge(a, b, False{}, sp.ssb.add.ge(b, a, False{}, fs)), _ =>
+        sp.if(List<&2, Mf>, sp.is(k, "GHC.Classes./="), _ => sp.ssb.add.ne(sp.ssb.lit(sp.ssb.open(4n, b)), a, sp.ssb.add.ne(sp.ssb.lit(sp.ssb.open(4n, a)), b, fs)), _ => fs))))
+
+def sp.ssb.rel.f(+k: List<&2, U32>, +a: X.Sx, +b: X.Sx, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  +le = sp.is(k, "GHC.Classes.<=")
+  +ge = sp.is(k, "GHC.Classes.>=")
+  sp.if(List<&2, Mf>, Bool.or(le, sp.is(k, "GHC.Classes.<")), _ => sp.ssb.add.ge(a, b, le, fs), _ =>
+    sp.if(List<&2, Mf>, Bool.or(ge, sp.is(k, "GHC.Classes.>")), _ => sp.ssb.add.ge(b, a, ge, fs), _ =>
+      sp.if(List<&2, Mf>, sp.is(k, "GHC.Classes./="), _ => sp.ssb.add.ge(a, b, False{}, sp.ssb.add.ge(b, a, False{}, fs)), _ =>
+        sp.if(List<&2, Mf>, sp.is(k, "GHC.Classes.=="), _ => sp.ssb.add.ne(sp.ssb.lit(sp.ssb.open(4n, b)), a, sp.ssb.add.ne(sp.ssb.lit(sp.ssb.open(4n, a)), b, fs)), _ => fs))))
+
+def sp.ssb.rel(+k: List<&2, U32>, pos: Bool, +a: X.Sx, +b: X.Sx, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  match pos:
+    case True{}:
+      sp.ssb.rel.t(k, a, b, fs)
+    case False{}:
+      sp.ssb.rel.f(k, a, b, fs)
+
+# the least code of the characters a test takes
+def sp.ssb.least(+k: List<&2, U32>) -> Nat:
+  +digit = Bool.or(sp.is(k, "GHC.Internal.Unicode.isDigit"), Bool.or(sp.is(k, "GHC.Internal.Unicode.isOctDigit"), Bool.or(sp.is(k, "GHC.Internal.Unicode.isHexDigit"), sp.is(k, "GHC.Internal.Unicode.isAlphaNum"))))
+  +upper = Bool.or(sp.is(k, "GHC.Internal.Unicode.isUpper"), Bool.or(sp.is(k, "GHC.Internal.Unicode.isAsciiUpper"), Bool.or(sp.is(k, "GHC.Internal.Unicode.isAlpha"), sp.is(k, "GHC.Internal.Data.Char.isLetter"))))
+  +lower = Bool.or(sp.is(k, "GHC.Internal.Unicode.isLower"), sp.is(k, "GHC.Internal.Unicode.isAsciiLower"))
+  Bool.pick(Nat, digit, 48n, Bool.pick(Nat, upper, 65n, Bool.pick(Nat, lower, 97n, 0n)))
+
+def sp.ssb.char(pos: Bool, +k: List<&2, U32>, +a: X.Sx, fs: List<&2, Mf>) -> List<&2, Mf>:
+  match pos:
+    case True{}:
+      MfLo{sp.ssb.open(4n, a), sp.ssb.least(k)} <> fs
+    case False{}:
+      fs
+
+# a test's facts: both of a && b where it holds, both of a || b where it
+# does not, not's the other way
+def sp.ssb.test(n: Nat, +c: X.Sx, +pos: Bool, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  match n:
+    case 0n:
+      fs
+    case 1n++p:
+      +x = sp.ssb.open(4n, c)
+      +two = sp.ssb.two(x)
+      +k = sp.if(List<&2, U32>, two, _ => sp.ssb.key(sp.ssb.f2(x)), _ => sp.if(List<&2, U32>, sp.head.is(x, "app"), _ => sp.ssb.key(sp.at(x, 1n)), _ => Nil{}))
+      +both = Bool.and(two, Bool.or(Bool.and(pos, sp.is(k, "GHC.Classes.&&")), Bool.and(Bool.not(pos), sp.is(k, "GHC.Classes.||"))))
+      sp.if(List<&2, Mf>, both, _ => sp.ssb.test(p, sp.ssb.a2(x), pos, sp.ssb.test(p, sp.ssb.b2(x), pos, fs)), _ =>
+        sp.if(List<&2, Mf>, Bool.and(Bool.not(two), sp.is(k, "GHC.Classes.not")), _ => sp.ssb.test(p, sp.at(x, 2n), Bool.not(pos), fs), _ =>
+          sp.if(List<&2, Mf>, two, _ => sp.ssb.rel(k, pos, sp.ssb.a2(x), sp.ssb.b2(x), fs), _ => sp.if(List<&2, Mf>, sp.head.is(x, "app"), _ => sp.ssb.char(pos, k, sp.at(x, 2n), fs), _ => fs))))
+
+# the facts of a guarded branch's guards, (body C) each
+def sp.ssb.guards(gs: List<&2, X.Sx>, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  match gs:
+    case Nil{}:
+      fs
+    case +g <> t:
+      sp.ssb.guards(t, sp.if(List<&2, Mf>, sp.head.is(g, "body"), _ => sp.ssb.test(6n, sp.at(g, 1n), True{}, fs), _ => fs))
+
+# and of the branches after it: its one guard does not hold
+def sp.ssb.after(+g: X.Sx, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  +gs = sp.at(g, 1n)
+  +c = sp.at(gs, 0n)
+  sp.if(List<&2, Mf>, Bool.and(Nat.is_eq(X.tsx.len(gs), 1n), sp.head.is(c, "body")), _ => sp.ssb.test(6n, sp.at(c, 1n), False{}, fs), _ => fs)
+
+# Clauses: the literals that an earlier clause took at an argument
+
+type Ml is Data:
+  Ml{i: Nat, k: Nat}
+  MlLo{i: Nat, k: Nat}
+
+# a pattern that takes everything, and the variable it binds
+def sp.ssb.pany(n: Nat, +p: X.Sx) -> Bool:
+  match n:
+    case 0n:
+      False{}
+    case 1n+q:
+      sp.if(Bool, Bool.or(sp.head.is(p, "pbang"), sp.head.is(p, "plazy")), _ => sp.ssb.pany(q, sp.at(p, 1n)), _ => Bool.or(sp.head.is(p, "pvar"), sp.head.is(p, "pwild")))
+
+def sp.ssb.pvar(n: Nat, +p: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      X.SxNil{}
+    case 1n+q:
+      sp.if(X.Sx, sp.head.is(p, "pbang"), _ => sp.ssb.pvar(q, sp.at(p, 1n)), _ => sp.if(X.Sx, Bool.or(sp.head.is(p, "pvar"), sp.head.is(p, "pas")), _ => sp.at(sp.at(p, 1n), 1n), _ => X.SxNil{}))
+
+# a literal pattern's number, (pnlit OLIT pos TYPE)
+def sp.ssb.plit(+p: X.Sx) -> Maybe<&2, Nat>:
+  sp.if(Maybe<&2, Nat>, Bool.and(sp.head.is(p, "pnlit"), sp.is(X.tsx.atom.of(sp.at(p, 2n)), "pos")), _ => sp.ssb.lit(sp.at(p, 1n)), _ => None{})
+
+# whether a clause that its patterns took answers (a branch with no guard, or
+# otherwise)
+def sp.ssb.total(gs: List<&2, X.Sx>) -> Bool:
+  match gs:
+    case Nil{}:
+      False{}
+    case +g <> t:
+      +q = sp.at(g, 1n)
+      +o = sp.ssb.key(sp.at(sp.at(q, 0n), 1n))
+      Bool.or(Bool.or(Nat.is_eq(X.tsx.len(q), 0n), Bool.and(Nat.is_eq(X.tsx.len(q), 1n), sp.is(o, "GHC.Internal.Base.otherwise"))), sp.ssb.total(t))
+
+# all the patterns but the one at i take everything
+def sp.ssb.rest.all(ps: List<&2, X.Sx>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case p <> t:
+      Bool.and(sp.ssb.pany(3n, p), sp.ssb.rest.all(t))
+
+def sp.ssb.rest(ps: List<&2, X.Sx>, i: Nat) -> Bool:
+  match ps i:
+    case Nil{} _:
+      True{}
+    case p <> t 0n:
+      sp.ssb.rest.all(t)
+    case p <> t 1n+j:
+      Bool.and(sp.ssb.pany(3n, p), sp.ssb.rest(t, j))
+
+def sp.ssb.lit.add(m: Maybe<&2, Nat>, ok: Bool, i: Nat, st: List<&2, Ml>) -> List<&2, Ml>:
+  match m ok:
+    case Some{k} True{}:
+      Ml{i, k} <> st
+    case _ _:
+      st
+
+# the literals clause m takes: the one literal at i, the rest everything
+def sp.ssb.lits(ps: List<&2, X.Sx>, +i: Nat, +all: List<&2, X.Sx>, +tot: Bool, st: List<&2, Ml>) -> List<&2, Ml>:
+  match ps:
+    case Nil{}:
+      st
+    case p <> t:
+      sp.ssb.lit.add(sp.ssb.plit(p), Bool.and(tot, sp.ssb.rest(all, i)), i, sp.ssb.lits(t, 1n+i, all, tot, st))
+
+# a clause whose patterns take everything but whose guards may all fail: what
+# their failing says of the variable at i
+def sp.ssb.afters(gs: List<&2, X.Sx>, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  match gs:
+    case Nil{}:
+      fs
+    case +g <> t:
+      sp.ssb.afters(t, sp.ssb.after(g, fs))
+
+def sp.ssb.low(+i: Nat, +k: Nat, st: List<&2, Ml>) -> List<&2, Ml>:
+  match k:
+    case 0n:
+      st
+    case +j:
+      MlLo{i, j} <> st
+
+def sp.ssb.lows(ps: List<&2, X.Sx>, +i: Nat, +fs: List<&2, Mf>, st: List<&2, Ml>) -> List<&2, Ml>:
+  match ps:
+    case Nil{}:
+      st
+    case +p <> t:
+      +v = sp.ssb.pvar(3n, p)
+      sp.ssb.low(i, sp.ssb.bump(12n, fs, v, sp.ssb.los(fs, v, 0n)), sp.ssb.lows(t, 1n+i, fs, st))
+
+def sp.ssb.clause(+m: X.Sx, st: List<&2, Ml>) -> List<&2, Ml>:
+  +ps = sp.els(sp.at(m, 1n))
+  +gs = sp.els(sp.at(sp.at(m, 2n), 1n))
+  +st1 = {sp.ssb.lits(ps, 0n, ps, sp.ssb.total(gs), st) : List<&2, Ml>}
+  sp.if(List<&2, Ml>, sp.ssb.rest.all(ps), _ => sp.ssb.lows(ps, 0n, sp.ssb.afters(gs, Nil{}), st1), _ => st1)
+
+def sp.ssb.nth(xs: List<&2, X.Sx>, i: Nat) -> X.Sx:
+  match xs i:
+    case Nil{} _:
+      X.SxNil{}
+    case x <> t 0n:
+      x
+    case x <> t 1n+j:
+      sp.ssb.nth(t, j)
+
+# the facts of a clause: its variable at i is none of the literals taken at i
+# before, nor is the case's scrutinee (scr)
+def sp.ssb.not(+v: X.Sx, +k: Nat, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  sp.if(List<&2, Mf>, Bool.or(sp.head.is(v, "l"), sp.head.is(v, "app")), _ => MfNe{v, k} <> fs, _ => fs)
+
+def sp.ssb.low.in(+v: X.Sx, +k: Nat, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  sp.if(List<&2, Mf>, Bool.or(sp.head.is(v, "l"), sp.head.is(v, "app")), _ => MfLo{v, k} <> fs, _ => fs)
+
+def sp.ssb.enter(st: List<&2, Ml>, +ps: List<&2, X.Sx>, +scr: X.Sx, fs: List<&2, Mf>) -> List<&2, Mf>:
+  match st:
+    case Nil{}:
+      fs
+    case Ml{+i, +k} <> t:
+      sp.ssb.not(scr, k, sp.ssb.not(sp.ssb.pvar(3n, sp.ssb.nth(ps, i)), k, sp.ssb.enter(t, ps, scr, fs)))
+    case MlLo{+i, +k} <> t:
+      sp.ssb.low.in(scr, k, sp.ssb.low.in(sp.ssb.pvar(3n, sp.ssb.nth(ps, i)), k, sp.ssb.enter(t, ps, scr, fs)))
+
+# The walk
+
+# what a tree about to be walked is (Mk): an if, guarded branches (a list),
+# one, a clause's right side, a multi-way if, a case, clauses (scr: the
+# case's scrutinee), a list of them after the literals st, a subtraction to
+# write with op, max at a subtraction, abs at one, anything
+type Mk is Data:
+  MkE{}
+  MkIf{}
+  MkGs{}
+  MkG{}
+  MkGrhss{}
+  MkMulti{}
+  MkCase{}
+  MkMs{scr: X.Sx}
+  MkMl{st: List<&2, Ml>, scr: X.Sx}
+  MkSub{op: X.Sx}
+  MkMax{}
+  MkAbs{}
+
+def sp.ssb.hastv(fs: List<&2, Mf>) -> Bool:
+  match fs:
+    case Nil{}:
+      False{}
+    case MfTv{} <> t:
+      True{}
+    case _ <> t:
+      sp.ssb.hastv(t)
+
+# a subtraction at Int; at a type variable only where no copy of it is made
+# after (MfTv: the survey's reading, where the default rule has it Integer): a
+# copy may be at HsInt, where (a - b) + (b - a) is 0, or at Natural, where
+# max 0 (a - b) is an error
+def sp.ssb.sub1(+x: X.Sx, +fs: List<&2, Mf>) -> Bool:
+  +y = sp.ssb.open(4n, x)
+  +t = sp.ssb.subty(y)
+  Bool.and(sp.ssb.issub(y), Bool.or(sp.ssb.int0(t), Bool.and(sp.ssb.int(t), sp.ssb.hastv(fs))))
+
+# whether x is max's call with one
+def sp.ssb.ismax(+x: X.Sx, +fs: List<&2, Mf>) -> Bool:
+  Bool.and(sp.ssb.two(x), Bool.and(sp.is(sp.ssb.key(sp.ssb.f2(x)), "GHC.Classes.max"), Bool.or(sp.ssb.sub1(sp.ssb.a2(x), fs), sp.ssb.sub1(sp.ssb.b2(x), fs))))
+
+def sp.ssb.loc(+x: X.Sx) -> Bool:
+  +y = sp.ssb.open(4n, x)
+  Bool.or(sp.head.is(y, "l"), sp.head.is(y, "olit"))
+
+# abs (a - b), a and b locals or literals
+def sp.ssb.isabs(+x: X.Sx, +fs: List<&2, Mf>) -> Bool:
+  +y = sp.ssb.open(4n, sp.at(x, 2n))
+  Bool.and(Bool.and(sp.head.is(x, "app"), sp.is(sp.ssb.key(sp.at(x, 1n)), "GHC.Internal.Num.abs")), Bool.and(sp.ssb.sub1(sp.at(x, 2n), fs), Bool.and(sp.ssb.loc(sp.ssb.a2(y)), sp.ssb.loc(sp.ssb.b2(y)))))
+
+# the name of the function an application of one or two arguments calls
+def sp.ssb.name(+x: X.Sx) -> List<&2, U32>:
+  +f = sp.if(X.Sx, sp.ssb.two(x), _ => sp.ssb.f2(x), _ => sp.at(x, 1n))
+  +g = sp.ssb.peel(4n, f)
+  sp.if(List<&2, U32>, sp.head.is(g, "g"), _ => sp.sat(g, 2n), _ => Nil{})
+
+def sp.ssb.kd.app(+x: X.Sx, +fs: List<&2, Mf>) -> Mk:
+  +n = sp.ssb.name(x)
+  sp.if(Mk, Bool.or(sp.is(n, "-"), sp.is(n, "natSub")), _ => sp.if(Mk, sp.if(Bool, sp.ssb.issub(x), _ => sp.ssb.ge(sp.ssb.a2(x), sp.ssb.b2(x), fs), _ => False{}), _ => MkSub{sp.ssb.safe.op(sp.ssb.subty(x))}, _ => MkE{}), _ =>
+    sp.if(Mk, sp.is(n, "max"), _ => sp.if(Mk, sp.ssb.ismax(x, fs), _ => MkMax{}, _ => MkE{}), _ => sp.if(Mk, sp.is(n, "abs"), _ => sp.if(Mk, sp.ssb.isabs(x, fs), _ => MkAbs{}, _ => MkE{}), _ => MkE{})))
+
+def sp.ssb.kd(+x: X.Sx, +fs: List<&2, Mf>) -> Mk:
+  +a = sp.hd(x)
+  sp.if(Mk, sp.is(a, "app"), _ => sp.ssb.kd.app(x, fs), _ =>
+    sp.if(Mk, sp.is(a, "if"), _ => MkIf{}, _ =>
+      sp.if(Mk, sp.is(a, "grhss"), _ => MkGrhss{}, _ =>
+        sp.if(Mk, sp.is(a, "case"), _ => MkCase{}, _ =>
+          sp.if(Mk, sp.is(a, "matches"), _ => MkMs{X.SxNil{}}, _ => sp.if(Mk, sp.is(a, "multiif"), _ => MkMulti{}, _ => MkE{}))))))
+
+# with the fact a >= b of a subtraction a - b (max's argument)
+def sp.ssb.asif(+x: X.Sx, +fs: List<&2, Mf>) -> List<&2, Mf>:
+  +y = sp.ssb.open(4n, x)
+  sp.if(List<&2, Mf>, sp.ssb.sub1(x, fs), _ => MfGe{sp.ssb.norm(sp.ssb.a2(y)), sp.ssb.norm(sp.ssb.b2(y))} <> fs, _ => fs)
+
+# (app ABS (a - b)) as (a - b) + (b - a), each Nat's
+def sp.ssb.rename(x: X.Sx, +a: List<&2, U32>, +b: List<&2, U32>) -> X.Sx:
+  match x:
+    case X.SxStr{+s}:
+      Bool.pick(X.Sx, S.eq(s, a), X.SxStr{b}, X.SxStr{s})
+    case X.SxCons{h, t}:
+      X.SxCons{sp.ssb.rename(h, a, b), sp.ssb.rename(t, a, b)}
+    case z:
+      z
+
+def sp.ssb.abs(+f: X.Sx, +x: X.Sx) -> X.Sx:
+  +y = sp.ssb.open(4n, x)
+  +op = sp.ssb.safe.op(sp.ssb.subty(y))
+  +a = sp.ssb.a2(y)
+  +b = sp.ssb.b2(y)
+  +ab = sp.l([sp.a("app"), sp.l([sp.a("app"), op, a]), b])
+  +ba = sp.l([sp.a("app"), sp.l([sp.a("app"), op, b]), a])
+  sp.l([sp.a("app"), sp.l([sp.a("app"), sp.ssb.rename(f, S.b("abs"), S.b("+")), ab]), ba])
+
+def sp.ssb(x: X.Sx, k: Mk, +fs: List<&2, Mf>) -> X.Sx:
+  match x k:
+    case X.SxCons{h, X.SxCons{+c, X.SxCons{+t, X.SxCons{+e, r}}}} MkIf{}:
+      +f1 = sp.ssb.test(6n, c, True{}, fs)
+      +f2 = sp.ssb.test(6n, c, False{}, fs)
+      X.SxCons{h, X.SxCons{sp.ssb(c, sp.ssb.kd(c, fs), fs), X.SxCons{sp.ssb(t, sp.ssb.kd(t, f1), f1), X.SxCons{sp.ssb(e, sp.ssb.kd(e, f2), f2), r}}}}
+    case X.SxCons{+g, rest} MkGs{}:
+      X.SxCons{sp.ssb(g, MkG{}, fs), sp.ssb(rest, MkGs{}, sp.ssb.after(g, fs))}
+    case X.SxCons{h, X.SxCons{+gs, X.SxCons{+e, r}}} MkG{}:
+      +f1 = sp.ssb.guards(sp.els(gs), fs)
+      X.SxCons{h, X.SxCons{sp.ssb(gs, MkE{}, fs), X.SxCons{sp.ssb(e, sp.ssb.kd(e, f1), f1), r}}}
+    case X.SxCons{h, X.SxCons{gs, X.SxCons{lb, r}}} MkGrhss{}:
+      X.SxCons{h, X.SxCons{sp.ssb(gs, MkGs{}, fs), X.SxCons{sp.ssb(lb, MkE{}, fs), r}}}
+    case X.SxCons{h, X.SxCons{ty, X.SxCons{gs, r}}} MkMulti{}:
+      X.SxCons{h, X.SxCons{ty, X.SxCons{sp.ssb(gs, MkGs{}, fs), r}}}
+    case X.SxCons{h, X.SxCons{+e, X.SxCons{m, r}}} MkCase{}:
+      X.SxCons{h, X.SxCons{sp.ssb(e, sp.ssb.kd(e, fs), fs), X.SxCons{sp.ssb(m, MkMs{sp.ssb.open(4n, e)}, fs), r}}}
+    case X.SxCons{h, X.SxCons{as, X.SxCons{rt, X.SxCons{s, X.SxCons{ms, r}}}}} MkMs{scr}:
+      X.SxCons{h, X.SxCons{as, X.SxCons{rt, X.SxCons{s, X.SxCons{sp.ssb(ms, MkMl{Nil{}, scr}, fs), r}}}}}
+    case X.SxCons{+m, rest} MkMl{+st, +scr}:
+      X.SxCons{sp.ssb(m, MkE{}, sp.ssb.enter(st, sp.els(sp.at(m, 1n)), scr, fs)), sp.ssb(rest, MkMl{sp.ssb.clause(m, st), scr}, fs)}
+    case X.SxCons{h, X.SxCons{X.SxCons{h2, X.SxCons{f, X.SxCons{+a, r1}}}, X.SxCons{+b, r2}}} MkSub{op}:
+      X.SxCons{h, X.SxCons{X.SxCons{h2, X.SxCons{op, X.SxCons{sp.ssb(a, sp.ssb.kd(a, fs), fs), r1}}}, X.SxCons{sp.ssb(b, sp.ssb.kd(b, fs), fs), r2}}}
+    case X.SxCons{h, X.SxCons{X.SxCons{h2, X.SxCons{f, X.SxCons{+a, r1}}}, X.SxCons{+b, r2}}} MkMax{}:
+      +fa = sp.ssb.asif(a, fs)
+      +fb = sp.ssb.asif(b, fs)
+      X.SxCons{h, X.SxCons{X.SxCons{h2, X.SxCons{f, X.SxCons{sp.ssb(a, sp.ssb.kd(a, fa), fa), r1}}}, X.SxCons{sp.ssb(b, sp.ssb.kd(b, fb), fb), r2}}}
+    case X.SxCons{h, X.SxCons{+f, X.SxCons{+y, r}}} MkAbs{}:
+      sp.ssb.abs(f, y)
+    case X.SxCons{+h, t} MkE{}:
+      X.SxCons{sp.ssb(h, sp.ssb.kd(h, fs), fs), sp.ssb(t, MkE{}, fs)}
+    case z _:
+      z
+
+# an item, read where no copy of it is made after (alone), or before the copies
+def sp.ssb.start(alone: Bool) -> List<&2, Mf>:
+  match alone:
+    case True{}:
+      [MfTv{}]
+    case False{}:
+      Nil{}
+
+def sp.ssb.item(alone: Bool, x: X.Sx) -> X.Sx:
+  sp.ssb(x, MkE{}, sp.ssb.start(alone))
 
 def sp.p5s.go(xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
   match xs:
     case Nil{}:
       Nil{}
     case x <> t:
-      sp.pb(sp.p5(sp.p6(sp.lm(x)), True{}), cts) <> sp.p5s.go(t, cts)
+      sp.ssb.item(False{}, sp.pb(sp.p5(sp.p6(sp.lm(x)), True{}), cts)) <> sp.p5s.go(t, cts)
 
 # (cts: the constructors of the package's modules before it)
 def sp.p5s(+xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:

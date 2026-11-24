@@ -576,3 +576,71 @@ law adj.GF.ex.r:
   for +b: C.BTm
   for le: Le.b(b, C.F(C.cc.def(t)))
   Le.ex.r(b, t)
+
+# 12. Subtraction a test makes safe (the survey's int-sub, where the fold
+# may subtract).  F's total Nat.sub in the else of x < y means what
+# Haskell's partial (-) there means, at Natural; and h at Int, which
+# subtracts and is not nosub, agrees with it at non-negative values all the
+# same, for any t and d that agree: so G -| F holds at Int of these too.
+# With the test the wrong way it does not (at x = 0, y = 1 Haskell errs and
+# F's answers).
+
+law gap.F:
+  for +x: C.HTm
+  for +y: C.HTm
+  for +t: C.HTm
+  for +d: C.HTm
+  for +v: C.HV
+  {C.encM(C.eval.h(C.h.gap(x, y, t, d), v)) == C.eval.b(C.F.gap(x, y, t, d), C.enc(v)) : Maybe<&2, C.BV>}
+
+law gap.agree:
+  for +x: C.HTm
+  for +y: C.HTm
+  for +t: C.HTm
+  for +d: C.HTm
+  for +ex: {C.nosub(x) == True{} : Bool}
+  for +ey: {C.nosub(y) == True{} : Bool}
+  for at: Agree(t, w => C.eval.z(t, w))
+  for ad: Agree(d, w => C.eval.z(d, w))
+  Agree(C.h.gap(x, y, t, d), w => C.eval.z(C.h.gap(x, y, t, d), w))
+
+# F's own Bend of it and F of the point-free program mean the same
+law gap.same:
+  for +x: C.HTm
+  for +y: C.HTm
+  for +t: C.HTm
+  for +d: C.HTm
+  for +w: C.BV
+  {C.eval.b(C.F(C.h.gap(x, y, t, d)), w) == C.eval.b(C.F.gap(x, y, t, d), w) : Maybe<&2, C.BV>}
+
+law adj.GF.gap.l:
+  for +x: C.HTm
+  for +y: C.HTm
+  for +t: C.HTm
+  for +d: C.HTm
+  for +ex: {C.nosub(x) == True{} : Bool}
+  for +ey: {C.nosub(y) == True{} : Bool}
+  for at: Agree(t, w => C.eval.z(t, w))
+  for ad: Agree(d, w => C.eval.z(d, w))
+  for +b: C.BTm
+  for le: Le.z(z => C.gz(b, z), w => C.eval.z(C.h.gap(x, y, t, d), w))
+  Le.b(b, C.F.gap(x, y, t, d))
+
+law adj.GF.gap.r:
+  for +x: C.HTm
+  for +y: C.HTm
+  for +t: C.HTm
+  for +d: C.HTm
+  for +ex: {C.nosub(x) == True{} : Bool}
+  for +ey: {C.nosub(y) == True{} : Bool}
+  for at: Agree(t, w => C.eval.z(t, w))
+  for ad: Agree(d, w => C.eval.z(d, w))
+  for +b: C.BTm
+  for le: Le.b(b, C.F.gap(x, y, t, d))
+  Le.z(z => C.gz(b, z), w => C.eval.z(C.h.gap(x, y, t, d), w))
+
+law gap.not:
+  {C.eval.h(C.h.gapw(C.HFst{}, C.HSnd{}, C.HFst{}, C.HSnd{}), C.HvPair{C.HvNat{0n}, C.HvNat{1n}}) == None{} : Maybe<&2, C.HV>}
+
+law gap.not.F:
+  {C.eval.b(C.F.gapw(C.HFst{}, C.HSnd{}, C.HFst{}, C.HSnd{}), C.enc(C.HvPair{C.HvNat{0n}, C.HvNat{1n}})) == Some{C.BvNat{0n}} : Maybe<&2, C.BV>}

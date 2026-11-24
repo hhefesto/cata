@@ -2137,15 +2137,31 @@ def lw.back.kd(ds: List<&2, Dd>, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List
       +b = F.fd.tyname(n)
       K.BkD{b, d} <> K.BkD{lw.cat(b, S.b(".fn")), d} <> lw.back.kd(t, xs, m)
 
+# h's type for F's Nat, where the module tells: F takes Int, Integer and
+# Natural all to Nat (so an export that has an Int or an Integer does not),
+# but in a package the specialiser has written Int and Integer as HsInt
+# already, and what is left is Natural's.  Empty: G does not know (and a
+# module that declares a Natural of its own hides BendRt's).
+def lw.back.own(ds: List<&2, Dd>, +n: List<&2, U32>) -> Bool:
+  match ds:
+    case Nil{}:
+      False{}
+    case Dd{+m, tvs, cs} <> t:
+      Bool.or(S.eq(m, n), lw.back.own(t, n))
+
+def lw.back.nt(+dds: List<&2, Dd>, +xs: List<&2, X.Sx>) -> List<&2, U32>:
+  +int = Bool.or(lw.has.str(xs, S.b("Int")), lw.has.str(xs, S.b("Integer")))
+  Bool.pick(List<&2, U32>, Bool.or(int, lw.back.own(dds, S.b("Natural"))), Nil{}, S.b("Natural"))
+
 # what G needs of the module (Back.bend's BkN), when CATA_BEND2HS is set
 # (on): nothing is computed when it is not
 def lw.back.nm(on: Bool, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +tbs: List<&2, F.Tb>, +dds: List<&2, Dd>, +its: List<&2, T.BItem>, +xs: List<&2, X.Sx>) -> K.BkN:
   match on:
     case True{}:
       +ss = lw.syns(xs)
-      K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(m, ss, dds), lw.back.kd(dds, xs, m), ims}
+      K.BkN{m, lw.back.as(tbs), lw.back.tn(dds), lw.back.cn(dds), lw.back.pts(tbs, its), lw.back.nf(m, ss, dds), lw.back.kd(dds, xs, m), ims, lw.back.nt(dds, xs)}
     case False{}:
-      K.BkN{m, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
+      K.BkN{m, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}, Nil{}}
 
 def lw.fin(+ck: Kc, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +fb: Bool, +g: F.Gs, +ps: List<&2, Pl>, +nm: K.BkN) -> IO(Lk):
   +its = lw.gs.its(g)

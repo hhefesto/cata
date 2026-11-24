@@ -66,7 +66,7 @@ b'Bool'is_eq a b = a == (b :: Bool)
 b'Bool'pick c a b = if c then a else b
 
 b'Nat'add a b = a + b
-b'Nat'sub a b = max 0 (a - b)
+b'Nat'sub a b = if a < b then 0 else a - b
 b'Nat'mul a b = a * b
 b'Nat'div a b = if b == 0 then 0 else a `div` b
 b'Nat'mod a b = if b == 0 then a else a `mod` b
@@ -103,7 +103,7 @@ b'Nat'show n = show n
 -- succ: F reads succ at a number back as 1n+n
 b'Nat'succ :: Enum a => a -> a
 b'Nat'succ n = succ n
-b'Nat'pred n = max 0 (n - 1)
+b'Nat'pred n = if n <= 0 then 0 else n - 1
 b'Nat'is_zero n = n == 0
 
 b'Char'is_eq a b = a == (b :: Char)

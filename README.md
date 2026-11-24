@@ -661,7 +661,15 @@ lambda (a monad's continuation, a cata's algebra) a partial call is out
 
 Natural's `-` is partial too (GHC's ArithException Underflow below 0):
 `HsNum.sub`, "arithmetic underflow" (tests/hs/NatSub.hs). Int's `-` in a
-module alone, where Int is Nat, is out (`int-sub`).
+module alone, where Int is Nat, is out (`int-sub`). Both are Nat.sub, total,
+where what is around them says the answer is not below zero (Spec's
+`sp.ssb`, tests/hs/SafeSub.hs): x - y in the branch a test x >= y chose
+(an if's, a guard's or the ones after it, with `&&`, `||` and `not`), n - 2
+in `f n` after `f 0` and `f 1` (or a case's alternatives), a difference of
+such, `ord c - ord 'a'` under `c >= 'a'` or `isDigit c`; `max k (a - b)` at
+Int for any a and b, and `abs (a - b)` as (a - b) + (b - a). `adj/`'s section
+12 proves the first on the model (the else of `x < y`): Bend's Nat.sub there means Haskell's `-`,
+at Natural and at a non-negative Int, and G -| F holds of it at Int.
 
 Clauses that leave values out (`first (x : _) = x`, a last clause whose
 guards can all fail) are partial: GHC throws a PatternMatchFail. Such a
@@ -743,6 +751,11 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
   module's own type with parameters has its iso as a map over its fields
   (b'map'D), and the numbers in the fold's own recursion types (.mu.In,
   .mu.Out) are type parameters GHC infers.
+- A def's signature: G writes b's type where it knows h's for every part of
+  it. Nat is Natural in a module that names no Int and no Integer (a
+  package's, through `spec`, names none: they are HsInt there); elsewhere it
+  can be any of the three and GHC infers it. A type variable GHC then finds
+  no type for (`ZonkAny`) is read as `()`.
 - On a package (`tests/telomare`: back.zsh, laws.zsh): G writes each
   module as the package's, other modules' names qualified and imported,
   and BendRt.hs (with BendPc.hs, cata's megaparsec model) has the

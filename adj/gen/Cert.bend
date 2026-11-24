@@ -741,7 +741,7 @@ type Kd is Data:
   KGen{t: Tm, ty: Tm}
   KDiv{y: Tm}
   KFold{t: Tm}
-  KSub{t: Tm, x: Tm, y: Tm}
+  KSub{t: Tm, x: Tm, y: Tm, c: Tm}
   KNo{}
 
 def kd.or(a: Kd, b: Unit -> Kd) -> Kd:
@@ -787,7 +787,7 @@ def splits(+t: Tm) -> Bool:
   Bool.or(String.eq(h, "Bool"), Bool.or(String.eq(h, "Unit"), Bool.or(String.eq(h, "Sigma"), String.eq(h, "Either"))))
 
 def is.def(+h: String) -> Bool:
-  Bool.or(String.starts_with(h, "D."), Bool.or(String.starts_with(h, "H."), String.starts_with(h, "K.")))
+  Bool.or(Bool.or(String.starts_with(h, "D."), String.starts_with(h, "B.")), Bool.or(String.starts_with(h, "H."), String.starts_with(h, "K.")))
 
 def kd.b(+t: Tm, +ls: List<&2, String>, +ss: List<&2, Sg>) -> Kd:
   +h = {hd(t) : String}
@@ -804,7 +804,7 @@ def kd.sub(+t: Tm, +ls: List<&2, String>) -> Kd:
   +at = {arg(as.of(of), 0n) : Tm}
   +as = {as.of(at) : Tm}
   +hit = {Bool.and(String.eq(hd(t), "C.h.pv"), Bool.and(String.eq(hd(of), "C.p.of"), String.eq(hd(at), "C.p.lt.at"))) : Bool}
-  if.at(Kd, Bool.and(hit, Bool.and(String.starts_with(hd(arg(as, 0n)), "Cmp.is_lt"), Bool.not(anyfree(ls, t)))), _ => KSub{t, arg(as, 1n), arg(as, 2n)}, _ => KNo{})
+  if.at(Kd, Bool.and(hit, Bool.and(String.starts_with(hd(arg(as, 0n)), "Cmp.is_lt"), Bool.not(anyfree(ls, t)))), _ => KSub{t, arg(as, 1n), arg(as, 2n), arg(as, 0n)}, _ => KNo{})
 
 # the first stuck part, the innermost first
 def find(t: Tm, +a: Bool, +ls: List<&2, String>, +ss: List<&2, Sg>) -> Kd:
@@ -1299,14 +1299,48 @@ def act.fold(+c: Nat, +g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
   +xs = {arg(as.of(li), 2n) : Tm}
   if.at(St, Bool.not(is.con(li, "R.list")), _ => act.fold2(Nil{}, c, g, ev, gl, ss), _ => if.at(St, is.var(xs), _ => act.fold2(fits(folds(gl.b(gl), xs, Nil{}, Nil{}), kind.fold(ev), ss), c, g, ev, gl, ss), _ => one.choice(c, _ => st.split(g, xs, ty.list(arg(as.of(li), 0n)), Nil{}, gl, ss))))
 
+# whether a term calls f
+def has.call(t: Tm, +f: String) -> Bool:
+  match t:
+    case TApp{k, +h, as}:
+      Bool.or(String.eq(id.of(h), f), has.call(as, f))
+    case TLam{x, b}:
+      has.call(b, f)
+    case TAdd{x, y}:
+      Bool.or(has.call(x, f), has.call(y, f))
+    case TEqn{x, y, z}:
+      Bool.or(has.call(x, f), has.call(y, f))
+    case TArg{x, r}:
+      Bool.or(has.call(x, f), has.call(r, f))
+    case _:
+      False{}
+
+def act.sub1(+g: String, +b: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
+  st.split(g, b, TId{"Bool"}, pats(8n, TId{"Bool"}, cat(["v", g])), gl, ss)
+
+# the model's partial (-): cata's HsNum.sub, where cata calls it, or a split of
+# its test (a total Nat.sub, where a test makes the subtraction safe)
+def act.sub(num: Bool, c: Nat, +g: String, +t: Tm, +x: Tm, +y: Tm, +b: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
+  match num c:
+    case True{} 0n:
+      st.sub(g, t, x, y, gl, ss)
+    case True{} 1n:
+      act.sub1(g, b, gl, ss)
+    case False{} 0n:
+      act.sub1(g, b, gl, ss)
+    case False{} 1n:
+      st.sub(g, t, x, y, gl, ss)
+    case _ _:
+      StNo{"no choice"}
+
 def act.b(k: Kd, +c: Nat, +g: String, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match k:
     case KGen{+t, +ty}:
       one.choice(c, _ => st.split(g, t, ty, pats(8n, ty, cat(["v", g])), gl, ss))
     case KDiv{+y}:
       one.choice(c, _ => st.split(g, y, TId{"Nat"}, nat.pats(cat(["v", g])), gl, ss))
-    case KSub{+t, +x, +y}:
-      one.choice(c, _ => st.sub(g, t, x, y, gl, ss))
+    case KSub{+t, +x, +y, +b}:
+      act.sub(has.call(gl.b(gl), "H.HsNum.sub"), c, g, t, x, y, b, gl, ss)
     case KFold{+ev}:
       act.fold(c, g, ev, gl, ss)
     case KNo{}:
