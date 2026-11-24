@@ -60,3 +60,12 @@ exKeys n xs = Map.toList (go xs (Map.fromList [(1, n), (2, 3)])) where
 
 exUnions :: Int -> Int -> ([(Int, Int)], [(Int, Int)])
 exUnions a b = (Map.toList (Map.unions [Map.fromList [(a, 1)], Map.fromList [(b, 2), (3, 3)]]), IntMap.toList (IntMap.unions (map (\x -> IntMap.fromList [(x, b), (1, x)]) [a, 2])))
+
+-- a list function over a local in a condition, under && and not
+covered :: Int -> [[Int]] -> [(Int, Int)] -> [(Int, Int)]
+covered k ps xs = [ (a, b) | (a, b) <- xs, a > k && not (any (\p -> a `elem` p) ps), b /= k ]
+
+exCovered :: Int -> [Int] -> [(Int, Int)]
+exCovered k ys = go ys where
+  go [] = []
+  go (y : r) = covered y [[k, y], r] (zip ys (y : r)) ++ go r

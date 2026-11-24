@@ -3224,6 +3224,31 @@ def sp.ifl.is(+x: X.Sx, s: String, n: Nat) -> Bool:
 def sp.ifl.over(+le: X.Sx, k: X.Sx -> X.Sx) -> X.Sx:
   sp.l([sp.a("let"), sp.at(le, 1n), k(sp.at(le, 2n))])
 
+# whether a let binds functions alone (a list function's recursion,
+# sp.hf's): nothing is run where it stands, so it goes out over && and ||
+# too
+def sp.ifl.fnlet.bs(bs: List<&2, X.Sx>) -> Bool:
+  match bs:
+    case Nil{}:
+      True{}
+    case +b <> t:
+      Bool.and(Bool.and(sp.head.is(b, "fun"), Nat.is_gt(X.tsx.len(sp.at(sp.at(b, 4n), 1n)), 0n)), sp.ifl.fnlet.bs(t))
+
+def sp.ifl.fnlet.gs(gs: List<&2, X.Sx>) -> Bool:
+  match gs:
+    case Nil{}:
+      True{}
+    case g <> t:
+      Bool.and(sp.ifl.fnlet.bs(sp.dropn(sp.els(g), 1n)), sp.ifl.fnlet.gs(t))
+
+def sp.ifl.fnlet(+le: X.Sx) -> Bool:
+  sp.ifl.fnlet.gs(sp.dropn(sp.els(sp.at(le, 1n)), 1n))
+
+# (if C A B), C a let: the let outside (C runs first anyway)
+def sp.ifl.cond(+x: X.Sx) -> X.Sx:
+  +c = sp.pc.strip(sp.at(x, 1n))
+  sp.if(X.Sx, Bool.and(sp.ifl.is(x, "if", 4n), sp.ifl.is(c, "let", 3n)), _ => sp.ifl.over(sp.ifl.fresh(c, [sp.at(x, 2n), sp.at(x, 3n)]), k => sp.l([sp.a("if"), k, sp.at(x, 2n), sp.at(x, 3n)])), _ => x)
+
 def sp.ifl.app(fuel: Nat, +a: List<&2, U32>, +f: X.Sx, +e: X.Sx) -> X.Sx:
   match fuel:
     case 0n:
@@ -3232,7 +3257,7 @@ def sp.ifl.app(fuel: Nat, +a: List<&2, U32>, +f: X.Sx, +e: X.Sx) -> X.Sx:
       +sf = sp.pc.strip(f)
       +se = sp.pc.strip(e)
       +lz = sp.ifl.lazy(f)
-      sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "if", 4n)), _ => sp.l([sp.a("if"), sp.at(se, 1n), sp.ifl.app(p, a, f, sp.at(se, 2n)), sp.ifl.app(p, a, f, sp.at(se, 3n))]), _ => sp.if(X.Sx, sp.ifl.is(sf, "if", 4n), _ => sp.l([sp.a("if"), sp.at(sf, 1n), sp.ifl.app(p, a, sp.at(sf, 2n), e), sp.ifl.app(p, a, sp.at(sf, 3n), e)]), _ => sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "let", 3n)), _ => sp.ifl.over(sp.ifl.fresh(se, [f]), le => sp.ifl.app(p, a, f, le)), _ => sp.if(X.Sx, sp.ifl.is(sf, "let", 3n), _ => sp.ifl.over(sp.ifl.fresh(sf, [e]), lf => sp.ifl.app(p, a, lf, e)), _ => sp.l([X.SxAtom{a}, f, e])))))
+      sp.if(X.Sx, Bool.and(Bool.not(lz), sp.ifl.is(se, "if", 4n)), _ => sp.l([sp.a("if"), sp.at(se, 1n), sp.ifl.app(p, a, f, sp.at(se, 2n)), sp.ifl.app(p, a, f, sp.at(se, 3n))]), _ => sp.if(X.Sx, sp.ifl.is(sf, "if", 4n), _ => sp.l([sp.a("if"), sp.at(sf, 1n), sp.ifl.app(p, a, sp.at(sf, 2n), e), sp.ifl.app(p, a, sp.at(sf, 3n), e)]), _ => sp.if(X.Sx, Bool.and(sp.ifl.is(se, "let", 3n), Bool.or(Bool.not(lz), sp.ifl.fnlet(se))), _ => sp.ifl.over(sp.ifl.fresh(se, [f]), le => sp.ifl.app(p, a, f, le)), _ => sp.if(X.Sx, sp.ifl.is(sf, "let", 3n), _ => sp.ifl.over(sp.ifl.fresh(sf, [e]), lf => sp.ifl.app(p, a, lf, e)), _ => sp.l([X.SxAtom{a}, f, e])))))
 
 # a tuple's elements (pre done, xs to go): the first let or if among them
 # goes out over the tuple, (.., let ds in e, ..) as let ds in (.., e, ..),
@@ -3258,7 +3283,7 @@ def sp.ifl(x: X.Sx) -> X.Sx:
       sp.if(X.Sx, sp.is(a, "app"), _ => sp.ifl.app(32n, a, f2, e2), _ => sp.if(X.Sx, sp.is(a, "tuple"), _ => sp.ifl.tup(8n, Nil{}, [f2, e2]), _ => X.SxCons{X.SxAtom{a}, X.SxCons{f2, X.SxCons{e2, X.SxNil{}}}}))
     case X.SxCons{X.SxAtom{+a}, t}:
       +t2 = sp.ifl(t)
-      sp.if(X.Sx, sp.is(a, "tuple"), _ => sp.ifl.tup(8n, Nil{}, sp.els(t2)), _ => X.SxCons{X.SxAtom{a}, t2})
+      sp.if(X.Sx, sp.is(a, "tuple"), _ => sp.ifl.tup(8n, Nil{}, sp.els(t2)), _ => sp.ifl.cond(X.SxCons{X.SxAtom{a}, t2}))
     case X.SxCons{h, t}:
       X.SxCons{sp.ifl(h), sp.ifl(t)}
     case y:
