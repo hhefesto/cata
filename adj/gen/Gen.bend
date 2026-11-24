@@ -710,20 +710,35 @@ def pats(t: Ty, +p: String, +q: String) -> List<&2, String>:
     case TL{a}:
       [cat([q, p])]
 
+def leaf.sh(eq: Bool, +i: String, +x: String) -> String:
+  match eq:
+    case True{}:
+      "{==}"
+    case False{}:
+      cat(["L.refl(C.ev.def(e", i, "(), ", x, "))"])
+
+def law.sh(eq: Bool, +a: String, +b: String) -> String:
+  match eq:
+    case True{}:
+      cat(["{", a, " == ", b, " : Maybe<&2, C.HV>}"])
+    case False{}:
+      cat(["L.Le(", a, ", ", b, ")"])
+
 # a case for each pattern, its leaf the model's side at it
-def cases(ps: List<&2, String>, vs: List<&2, String>, +i: String, +a: Ty) -> String:
+def cases(ps: List<&2, String>, vs: List<&2, String>, +i: String, +a: Ty, +eq: Bool) -> String:
   match ps vs:
     case Con{p, r} Con{v, s}:
-      cat(["    case ", p, ":\n      L.refl(C.ev.def(e", i, "(), ", rr(a, v), "))\n", cases(r, s, i, a)])
+      cat(["    case ", p, ":\n      ", leaf.sh(eq, i, rr(a, v)), "\n", cases(r, s, i, a, eq)])
     case _ _:
       ""
 
 # the certificate of the def dI: the model's Ex of it, and that cata's own
-# Bend def answers what the model's Ex answers, at every input
-def df.cert(d: Df, +i: String, +partial: Bool) -> String:
+# Bend def answers what the model's Ex answers, at every input (eq: the same;
+# else at least that, L.Le)
+def df.cert(d: Df, +i: String, +partial: Bool, +eq: Bool) -> String:
   match d:
     case Df{+a, +b, t}:
-      cat(["def e", i, "() -> C.Ex:\n  ", ex.show(er(t)), "\n\ndef c", i, "(v: ", bt(a), ") -> L.Le(C.ev.def(e", i, "(), ", rr(a, "v"), "), ", stmt(partial, i, b), "):\n  match v:\n", cases(pats(a, "x", "+"), pats(a, "x", ""), i, a)])
+      cat(["def e", i, "() -> C.Ex:\n  ", ex.show(er(t)), "\n\ndef c", i, "(v: ", bt(a), ") -> ", law.sh(eq, cat(["C.ev.def(e", i, "(), ", rr(a, "v"), ")"]), stmt(partial, i, b)), ":\n  match v:\n", cases(pats(a, "x", "+"), pats(a, "x", ""), i, a, eq)])
 
 def out(chk: Bool, +nm: String, +i: Nat, +n: Nat) -> String:
   match chk:
@@ -734,8 +749,10 @@ def out(chk: Bool, +nm: String, +i: Nat, +n: Nat) -> String:
 
 def run(args: List<String>) -> IO(Unit):
   match args:
+    case "cert" <> +i <> p <> "same" <> r:
+      IO.write(df.cert(df(or.nat(Nat.read(i))), i, String.eq(p, "partial"), True{}))
     case "cert" <> +i <> p <> r:
-      IO.write(df.cert(df(or.nat(Nat.read(i))), i, String.eq(p, "partial")))
+      IO.write(df.cert(df(or.nat(Nat.read(i))), i, String.eq(p, "partial"), False{}))
     case m <> nm <> i <> n <> r:
       IO.write(out(String.eq(m, "chk"), nm, or.nat(Nat.read(i)), or.nat(Nat.read(n))))
     case _:

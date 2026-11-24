@@ -884,9 +884,11 @@ def rep.list(t: Tm, +i: Nat, +v: Tm) -> Tm:
 type Vr is Data:
   Vr{n: String, ty: Tm}
 
-# a failing leaf: its sides, its variables, its line
+# a failing leaf: its sides, its variables, its line, and what it says of its
+# sides: 0 the first is below the second (L.Le), 1 they are the same, 2 the
+# first answers (L.Is; it has no second)
 type Gl is Data:
-  Gl{a: Tm, b: Tm, vs: List<&2, Vr>, at: Nat}
+  Gl{a: Tm, b: Tm, vs: List<&2, Vr>, at: Nat, md: Nat}
 
 def vs.used(vs: List<&2, Vr>, +a: Tm, +b: Tm) -> List<&2, Vr>:
   match vs:
@@ -932,30 +934,65 @@ type St is Data:
   St{defs: String, leaf: String}
   StNo{why: String}
 
-def le.sh(+a: Tm, +b: Tm, +ss: List<&2, Sg>) -> String:
-  cat(["L.Le(", sh(a, ShT{}, ss), ", ", sh(b, ShT{}, ss), ")"])
+def le.sh(md: Nat, +a: Tm, +b: Tm, +ss: List<&2, Sg>) -> String:
+  match md:
+    case 0n:
+      cat(["L.Le(", sh(a, ShT{}, ss), ", ", sh(b, ShT{}, ss), ")"])
+    case 1n:
+      cat(["{", sh(a, ShT{}, ss), " == ", sh(b, ShT{}, ss), " : Maybe<&2, C.HV>}"])
+    case _:
+      cat(["L.Is(", sh(a, ShT{}, ss), ")"])
 
-def refl.sh(+a: Tm, +ss: List<&2, Sg>) -> String:
-  cat(["L.refl(", sh(a, ShT{}, ss), ")"])
+def refl.sh(md: Nat, +a: Tm, +ss: List<&2, Sg>) -> String:
+  match md:
+    case 0n:
+      cat(["L.refl(", sh(a, ShT{}, ss), ")"])
+    case 1n:
+      "{==}"
+    case _:
+      "Unit{}"
+
+# where both sides are errors
+def none.sh(md: Nat) -> String:
+  match md:
+    case 1n:
+      "{==}"
+    case _:
+      "Unit{}"
+
+def eq.e(md: Nat) -> String:
+  match md:
+    case 1n:
+      "e"
+    case _:
+      ""
+
+# an argument that only L.cut takes
+def only.le(md: Nat, +s: String) -> String:
+  match md:
+    case 0n:
+      s
+    case _:
+      ""
 
 # the cases of a split of w, the goal's side a with w the pattern
-def cases(ps: List<&2, Tm>, +w: String, +a: Tm, +ss: List<&2, Sg>) -> String:
+def cases(ps: List<&2, Tm>, +md: Nat, +w: String, +a: Tm, +ss: List<&2, Sg>) -> String:
   match ps:
     case Nil{}:
       ""
     case Con{+p, r}:
-      cat(["    case ", pat.sh(p, True{}), ":\n      ", refl.sh(sub(a, w, p), ss), "\n", cases(r, w, a, ss)])
+      cat(["    case ", pat.sh(p, True{}), ":\n      ", refl.sh(md, sub(a, w, p), ss), "\n", cases(r, md, w, a, ss)])
 
 # w for the part p, then a split of w
 def st.split(+g: String, +p: Tm, +ty: Tm, +ps: List<&2, Tm>, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match gl:
-    case Gl{+a, +b, +vs0, at}:
+    case Gl{+a, +b, +vs0, at, +md}:
       +w = {cat(["w", g]) : String}
       +a2 = {rep(a, p, TId{w}) : Tm}
       +b2 = {rep(b, p, TId{w}) : Tm}
       +vs = {vs.drop(vs.used(vs0, a2, b2), p) : List<&2, Vr>}
-      +body = {if.at(String, Nat.is_eq(List.length(&2, Tm, ps), 0n), _ => cat(["  ", refl.sh(a2, ss), "\n"]), _ => cat(["  match ", w, ":\n", cases(ps, w, a2, ss)])) : String}
-      St{cat(["def g", g, "(", vs.ps(vs, ss), plus(Bool.not(Nat.is_eq(List.length(&2, Tm, ps), 0n))), w, ": ", sh(ty, ShT{}, ss), ") -> ", le.sh(a2, b2, ss), ":\n", body, "\n"]), cat(["g", g, "(", vs.as(vs), sh(p, ShT{}, ss), ")"])}
+      +body = {if.at(String, Nat.is_eq(List.length(&2, Tm, ps), 0n), _ => cat(["  ", refl.sh(md, a2, ss), "\n"]), _ => cat(["  match ", w, ":\n", cases(ps, md, w, a2, ss)])) : String}
+      St{cat(["def g", g, "(", vs.ps(vs, ss), plus(Bool.not(Nat.is_eq(List.length(&2, Tm, ps), 0n))), w, ": ", sh(ty, ShT{}, ss), ") -> ", le.sh(md, a2, b2, ss), ":\n", body, "\n"]), cat(["g", g, "(", vs.as(vs), sh(p, ShT{}, ss), ")"])}
 
 def nat.pats(+w: String) -> List<&2, Tm>:
   [TId{"0n"}, TAdd{TId{"1n"}, TId{cat([w, "p"])}}]
@@ -982,7 +1019,7 @@ def bind.at(+m: Tm, +k: Tm) -> Tm:
 # the goal with cata's for it, gN.n with an error
 def st.fold(+g: String, +ev: Tm, +dc: Tm, +i: Nat, +dty: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match gl:
-    case Gl{+a, +b, +vs0, at}:
+    case Gl{+a, +b, +vs0, at, +md}:
       +fo = {arg(as.of(ev), 0n) : Tm}
       +en = {arg(as.of(ev), 1n) : Tm}
       +env = {arg(as.of(en), 0n) : Tm}
@@ -1010,18 +1047,18 @@ def st.fold(+g: String, +ev: Tm, +dc: Tm, +i: Nat, +dty: Tm, +gl: Gl, +ss: List<
       +bt = {bind.at(rt, k) : Tm}
       +zz = {call("C.ev", [z, env]) : Tm}
       +ht = {cat(["+", id.of(h), ": ", sh(t, ShT{}, ss), ", +", id.of(tl), ": List<&2, ", sh(t, ShT{}, ss), ">"]) : String}
-      +dz = {cat(["def g", g, ".z(", trim2(ps), ") -> ", le.sh(zz, rn, ss), ":\n  ", refl.sh(zz, ss), "\n\n"]) : String}
-      +ds = {cat(["def g", g, ".s(", ps, ht, ") -> ", le.sh(bt, rc, ss), ":\n  ", refl.sh(bt, ss), "\n\n"]) : String}
-      +df = {cat(["def g", g, ".f(", ps, id.of(y), ": List<&2, ", sh(t, ShT{}, ss), ">) -> ", le.sh(ev.at(fo, env, t, f, y), dc.at(dc, dty, i, y), ss), ":\n  match ", id.of(y), ":\n    case Nil{}:\n      g", g, ".z(", trim2(us), ")\n    case Con{+", id.of(h), ", +", id.of(tl), "}:\n      L.bind(", sh(k, ShT{}, ss), ", ", sh(et, ShT{}, ss), ", ", sh(rt, ShT{}, ss), ", ", sh(rc, ShT{}, ss), ", g", g, ".f(", us, id.of(tl), "), g", g, ".s(", us, id.of(h), ", ", id.of(tl), "))\n\n"]) : String}
-      +dn = {cat(["def g", g, ".n(", trim2(ps), ") -> ", le.sh(rep(a, ev, con("None", [])), b, ss), ":\n  ", refl.sh(rep(a, ev, con("None", [])), ss), "\n\n"]) : String}
-      +dc2 = {cat(["def g", g, ".c(", trim2(ps), ") -> ", le.sh(rep(a, ev, rx), b, ss), ":\n  ", refl.sh(rep(a, ev, rx), ss), "\n\n"]) : String}
-      St{cat([dz, ds, df, dn, dc2]), cat(["L.cut(", id.of(m), " => ", sh(rep(a, ev, m), ShT{}, ss), ", ", sh(ev, ShT{}, ss), ", ", sh(rx, ShT{}, ss), ", ", sh(b, ShT{}, ss), ", g", g, ".f(", us, sh(xs, ShT{}, ss), "), g", g, ".c(", trim2(us), "), g", g, ".n(", trim2(us), "))"])}
+      +dz = {cat(["def g", g, ".z(", trim2(ps), ") -> ", le.sh(md, zz, rn, ss), ":\n  ", refl.sh(md, zz, ss), "\n\n"]) : String}
+      +ds = {cat(["def g", g, ".s(", ps, ht, ") -> ", le.sh(md, bt, rc, ss), ":\n  ", refl.sh(md, bt, ss), "\n\n"]) : String}
+      +df = {cat(["def g", g, ".f(", ps, id.of(y), ": List<&2, ", sh(t, ShT{}, ss), ">) -> ", le.sh(md, ev.at(fo, env, t, f, y), dc.at(dc, dty, i, y), ss), ":\n  match ", id.of(y), ":\n    case Nil{}:\n      g", g, ".z(", trim2(us), ")\n    case Con{+", id.of(h), ", +", id.of(tl), "}:\n      L.bind", eq.e(md), "(", sh(k, ShT{}, ss), ", ", sh(et, ShT{}, ss), ", ", sh(rt, ShT{}, ss), ", ", sh(rc, ShT{}, ss), ", g", g, ".f(", us, id.of(tl), "), g", g, ".s(", us, id.of(h), ", ", id.of(tl), "))\n\n"]) : String}
+      +dn = {cat(["def g", g, ".n(", trim2(ps), ") -> ", le.sh(md, rep(a, ev, con("None", [])), b, ss), ":\n  ", refl.sh(md, rep(a, ev, con("None", [])), ss), "\n\n"]) : String}
+      +dc2 = {cat(["def g", g, ".c(", trim2(ps), ") -> ", le.sh(md, rep(a, ev, rx), b, ss), ":\n  ", refl.sh(md, rep(a, ev, rx), ss), "\n\n"]) : String}
+      St{cat([dz, ds, df, only.le(md, dn), dc2]), cat(["L.cut", eq.e(md), "(", id.of(m), " => ", sh(rep(a, ev, m), ShT{}, ss), ", ", sh(ev, ShT{}, ss), ", ", sh(rx, ShT{}, ss), ", ", sh(b, ShT{}, ss), ", g", g, ".f(", us, sh(xs, ShT{}, ss), "), g", g, ".c(", trim2(us), ")", only.le(md, cat([", g", g, ".n(", trim2(us), ")"])), ")"])}
 
 # a fold whose nil is an error is one, whatever the list (gN.f, by induction
 # on it; gN.z its nil); gN.n the goal with the error for it
 def st.err(+g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match gl:
-    case Gl{+a, +b, +vs0, at}:
+    case Gl{+a, +b, +vs0, at, +md}:
       +fo = {arg(as.of(ev), 0n) : Tm}
       +en = {arg(as.of(ev), 1n) : Tm}
       +env = {arg(as.of(en), 0n) : Tm}
@@ -1041,10 +1078,45 @@ def st.err(+g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
       +et = {call("C.ev", [fo, con("C.HvPair", [env, tl])]) : Tm}
       +ey = {call("C.ev", [fo, con("C.HvPair", [env, y])]) : Tm}
       +zz = {call("C.ev", [z, env]) : Tm}
-      +dz = {cat(["def g", g, ".z(", trim2(ps), ") -> ", le.sh(zz, no, ss), ":\n  ", refl.sh(zz, ss), "\n\n"]) : String}
-      +df = {cat(["def g", g, ".f(", ps, id.of(y), ": C.HV) -> ", le.sh(ey, no, ss), ":\n  match ", id.of(y), ":\n    case C.HvNil{}:\n      g", g, ".z(", trim2(us), ")\n    case C.HvCons{+", id.of(h), ", +", id.of(tl), "}:\n      L.bind(", sh(k, ShT{}, ss), ", ", sh(et, ShT{}, ss), ", None{}, None{}, g", g, ".f(", us, id.of(tl), "), Unit{})\n    case C.HvNat{n}:\n      Unit{}\n    case C.HvBool{n}:\n      Unit{}\n    case C.HvUnit{}:\n      Unit{}\n    case C.HvPair{n, o}:\n      Unit{}\n    case C.HvInl{n}:\n      Unit{}\n    case C.HvInr{n}:\n      Unit{}\n\n"]) : String}
-      +dn = {cat(["def g", g, ".n(", trim2(ps), ") -> ", le.sh(rep(a, ev, no), b, ss), ":\n  ", refl.sh(rep(a, ev, no), ss), "\n\n"]) : String}
-      St{cat([dz, df, dn]), cat(["L.cut(", id.of(m), " => ", sh(rep(a, ev, m), ShT{}, ss), ", ", sh(ev, ShT{}, ss), ", None{}, ", sh(b, ShT{}, ss), ", g", g, ".f(", us, sh(li, ShT{}, ss), "), g", g, ".n(", trim2(us), "), g", g, ".n(", trim2(us), "))"])}
+      +dz = {cat(["def g", g, ".z(", trim2(ps), ") -> ", le.sh(md, zz, no, ss), ":\n  ", refl.sh(md, zz, ss), "\n\n"]) : String}
+      +df = {cat(["def g", g, ".f(", ps, id.of(y), ": C.HV) -> ", le.sh(md, ey, no, ss), ":\n  match ", id.of(y), ":\n    case C.HvNil{}:\n      g", g, ".z(", trim2(us), ")\n    case C.HvCons{+", id.of(h), ", +", id.of(tl), "}:\n      L.bind", eq.e(md), "(", sh(k, ShT{}, ss), ", ", sh(et, ShT{}, ss), ", None{}, None{}, g", g, ".f(", us, id.of(tl), "), ", none.sh(md), ")\n    case C.HvNat{n}:\n      ", none.sh(md), "\n    case C.HvBool{n}:\n      ", none.sh(md), "\n    case C.HvUnit{}:\n      ", none.sh(md), "\n    case C.HvPair{n, o}:\n      ", none.sh(md), "\n    case C.HvInl{n}:\n      ", none.sh(md), "\n    case C.HvInr{n}:\n      ", none.sh(md), "\n\n"]) : String}
+      +dn = {cat(["def g", g, ".n(", trim2(ps), ") -> ", le.sh(md, rep(a, ev, no), b, ss), ":\n  ", refl.sh(md, rep(a, ev, no), ss), "\n\n"]) : String}
+      St{cat([dz, df, dn]), cat(["L.cut", eq.e(md), "(", id.of(m), " => ", sh(rep(a, ev, m), ShT{}, ss), ", ", sh(ev, ShT{}, ss), ", None{}, ", sh(b, ShT{}, ss), ", g", g, ".f(", us, sh(li, ShT{}, ss), "), g", g, ".n(", trim2(us), ")", only.le(md, cat([", g", g, ".n(", trim2(us), ")"])), ")"])}
+
+# a fold nothing uses answers (gN.f, by induction on the list: its nil does,
+# gN.z, and its step at any value so far, gN.s): gN.m the goal with any
+# answer for it
+def st.is(+g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
+  match gl:
+    case Gl{+a, +b, +vs0, at, +md}:
+      +fo = {arg(as.of(ev), 0n) : Tm}
+      +en = {arg(as.of(ev), 1n) : Tm}
+      +env = {arg(as.of(en), 0n) : Tm}
+      +li = {arg(as.of(en), 1n) : Tm}
+      +t = {arg(as.of(li), 0n) : Tm}
+      +f = {arg(as.of(li), 1n) : Tm}
+      +xs = {arg(as.of(li), 2n) : Tm}
+      +z = {arg(as.of(fo), 0n) : Tm}
+      +s = {arg(as.of(fo), 1n) : Tm}
+      +h = {TId{cat(["h", g])} : Tm}
+      +tl = {TId{cat(["t", g])} : Tm}
+      +q = {cat(["q", g]) : String}
+      +m = {TId{cat(["m", g])} : Tm}
+      +y = {TId{cat(["xs", g])} : Tm}
+      +u = {TId{cat(["u", g])} : Tm}
+      +hv = {sub(lam.b(f), lam.x(f), h) : Tm}
+      +st = {call("C.ev", [s, con("C.HvPair", [con("C.HvPair", [env, hv]), TId{q}])]) : Tm}
+      +k = {TLam{q, st} : Tm}
+      +vs = {vs.used(vs0, TArg{a, ev}, b) : List<&2, Vr>}
+      +ps = {vs.ps(vs, ss) : String}
+      +us = {vs.as(vs) : String}
+      +zz = {call("C.ev", [z, env]) : Tm}
+      +et = {ev.at(fo, env, t, f, tl) : Tm}
+      +dz = {cat(["def g", g, ".z(", trim2(ps), ") -> ", le.sh(2n, zz, zz, ss), ":\n  Unit{}\n\n"]) : String}
+      +ds = {cat(["def g", g, ".s(", ps, "+", id.of(h), ": ", sh(t, ShT{}, ss), ", +", q, ": C.HV) -> ", le.sh(2n, st, st, ss), ":\n  Unit{}\n\n"]) : String}
+      +df = {cat(["def g", g, ".f(", ps, id.of(y), ": List<&2, ", sh(t, ShT{}, ss), ">) -> ", le.sh(2n, ev.at(fo, env, t, f, y), zz, ss), ":\n  match ", id.of(y), ":\n    case Nil{}:\n      g", g, ".z(", trim2(us), ")\n    case Con{+", id.of(h), ", +", id.of(tl), "}:\n      L.isbind(", sh(k, ShT{}, ss), ", ", sh(et, ShT{}, ss), ", g", g, ".f(", us, id.of(tl), "), ", q, " => g", g, ".s(", us, id.of(h), ", ", q, "))\n\n"]) : String}
+      +dm = {cat(["def g", g, ".m(", ps, id.of(m), ": Maybe<&2, C.HV>, e", g, ": L.Is(", id.of(m), ")) -> ", le.sh(md, rep(a, ev, m), b, ss), ":\n  match ", id.of(m), ":\n    case None{}:\n      Empty.absurd(", le.sh(md, rep(a, ev, con("None", [])), b, ss), ", e", g, ")\n    case Some{+", id.of(u), "}:\n      ", refl.sh(md, rep(a, ev, con("Some", [u])), ss), "\n\n"]) : String}
+      if.at(St, is.con(li, "R.list"), _ => St{cat([dz, ds, df, dm]), cat(["g", g, ".m(", us, sh(ev, ShT{}, ss), ", g", g, ".f(", us, sh(xs, ShT{}, ss), "))"])}, _ => StNo{"no choice"})
 
 # a fold cata has not (nothing uses its answer)
 def st.dead(+g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
@@ -1052,31 +1124,36 @@ def st.dead(+g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
 
 def gl.a(g: Gl) -> Tm:
   match g:
-    case Gl{a, b, vs, at}:
+    case Gl{a, b, vs, at, md}:
       a
 
 def gl.b(g: Gl) -> Tm:
   match g:
-    case Gl{a, b, vs, at}:
+    case Gl{a, b, vs, at, md}:
       b
 
 def gl.vs(g: Gl) -> List<&2, Vr>:
   match g:
-    case Gl{a, b, vs, at}:
+    case Gl{a, b, vs, at, md}:
       vs
+
+def gl.md(g: Gl) -> Nat:
+  match g:
+    case Gl{a, b, vs, at, md}:
+      md
 
 def gl.at(g: Gl) -> Nat:
   match g:
-    case Gl{a, b, vs, at}:
+    case Gl{a, b, vs, at, md}:
       at
 
 # the model's partial (-) is cata's HsNum.sub (S.bend's law): gN, rewritten
 def st.sub(+g: String, +t: Tm, +x: Tm, +y: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match gl:
-    case Gl{+a, +b, +vs0, at}:
+    case Gl{+a, +b, +vs0, at, +md}:
       +r = {call("R.err", [TId{"Nat"}, TLam{"x", con("C.HvNat", [TId{"x"}])}, call("H.HsNum.sub", [x, y])]) : Tm}
       +vs = {vs.used(vs0, a, b) : List<&2, Vr>}
-      St{cat(["def g", g, "(", trim2(vs.ps(vs, ss)), ") -> ", le.sh(a, b, ss), ":\n  %S.sub(", sh(x, ShT{}, ss), ", ", sh(y, ShT{}, ss), ") : ", le.sh(rep(a, t, TId{"_"}), b, ss), "\n  ", refl.sh(rep(a, t, r), ss), "\n\n"]), cat(["g", g, "(", trim2(vs.as(vs)), ")"])}
+      St{cat(["def g", g, "(", trim2(vs.ps(vs, ss)), ") -> ", le.sh(md, a, b, ss), ":\n  %S.sub(", sh(x, ShT{}, ss), ", ", sh(y, ShT{}, ss), ") : ", le.sh(md, rep(a, t, TId{"_"}), b, ss), "\n  ", refl.sh(md, rep(a, t, r), ss), "\n\n"]), cat(["g", g, "(", trim2(vs.as(vs)), ")"])}
 
 def is.var(+t: Tm) -> Bool:
   match t:
@@ -1156,15 +1233,26 @@ type Alt is Data:
   AErr{}
   ADead{}
   AGen{t: Tm, ty: Tm}
+  AIs{}
 
-def alts(k: Kd) -> List<&2, Alt>:
-  match k:
-    case KDiv{y}:
+# (md: which of them there are where the sides are to be the same, or where
+# an answer is all)
+def alts(md: Nat, k: Kd) -> List<&2, Alt>:
+  match md k:
+    case 0n KDiv{y}:
       [ADiv{y}, AErr{}, ADead{}]
-    case KGen{t, ty}:
+    case 0n KGen{t, ty}:
       [AErr{}, ADead{}, AGen{t, ty}]
-    case _:
+    case 0n _:
       [AErr{}, ADead{}]
+    case 1n KDiv{y}:
+      [ADiv{y}, AErr{}, AIs{}]
+    case 1n KGen{t, ty}:
+      [AErr{}, AIs{}, AGen{t, ty}]
+    case 1n _:
+      [AErr{}, AIs{}]
+    case _ _:
+      [AIs{}]
 
 def alt(xs: List<&2, Alt>, c: Nat, +g: String, +ev: Tm, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match xs c:
@@ -1174,6 +1262,8 @@ def alt(xs: List<&2, Alt>, c: Nat, +g: String, +ev: Tm, +gl: Gl, +ss: List<&2, S
       st.err(g, ev, gl, ss)
     case Con{ADead{}, t} 0n:
       st.dead(g, ev, gl, ss)
+    case Con{AIs{}, t} 0n:
+      st.is(g, ev, gl, ss)
     case Con{AGen{+x, +ty}, t} 0n:
       st.split(g, x, ty, pats(8n, ty, cat(["v", g])), gl, ss)
     case Con{a, t} 1n+d:
@@ -1190,7 +1280,7 @@ def act.fold2(ds: List<&2, Dc>, c: Nat, +g: String, +ev: Tm, +gl: Gl, +ss: List<
     case Con{dc, t} 1n+d:
       act.fold2(t, d, g, ev, gl, ss)
     case Nil{} d:
-      alt(alts(find(gl.b(gl), False{}, Nil{}, ss)), d, g, ev, gl, ss)
+      alt(alts(gl.md(gl), find(gl.b(gl), False{}, Nil{}, ss)), d, g, ev, gl, ss)
 
 def kind.fold(+ev: Tm) -> String:
   +fo = {arg(as.of(ev), 0n) : Tm}
@@ -1232,7 +1322,7 @@ def act.hv(m: Maybe<&2, Tm>, +c: Nat, +g: String, +gl: Gl, +ss: List<&2, Sg>) ->
 def act.a(k: Kd, +c: Nat, +g: String, +gl: Gl, +ss: List<&2, Sg>) -> St:
   match k:
     case KNo{}:
-      act.hv(vs.hv(gl.vs(gl), gl.a(gl)), c, g, gl, ss)
+      act.hv(if.at(Maybe<&2, Tm>, Nat.is_eq(gl.md(gl), 0n), _ => vs.hv(gl.vs(gl), gl.a(gl)), _ => None{}), c, g, gl, ss)
     case u:
       act.b(u, c, g, gl, ss)
 
@@ -1264,12 +1354,25 @@ def ctx(ls: List<&2, String>, in: Bool) -> List<&2, Vr>:
     case Con{+l, t} False{}:
       ctx(t, String.starts_with(l, "Context:"))
 
-def goal.of(+e: Tm, +ls: List<&2, String>) -> Gl:
+def leaf.at(+ls: List<&2, String>) -> Nat:
+  or.nat(Nat.read(String.trim(before(line.has(ls, ">|"), ">|"))))
+
+# (at {==} Bend tells the two sides, expected and observed)
+def goal.at(md: Nat, +u: Tm, +o: Tm, +ls: List<&2, String>) -> Gl:
+  match md:
+    case 0n:
+      Gl{arg(as.of(u), 0n), arg(as.of(u), 1n), ctx(ls, False{}), leaf.at(ls), 0n}
+    case 1n:
+      Gl{u, o, ctx(ls, False{}), leaf.at(ls), 1n}
+    case _:
+      Gl{arg(as.of(u), 0n), TEnd{}, ctx(ls, False{}), leaf.at(ls), 2n}
+
+def goal.of(+e: Tm, +o: Tm, +md: Nat, +ls: List<&2, String>) -> Gl:
   match e:
     case TEqn{a, b, t}:
-      Gl{a, b, ctx(ls, False{}), or.nat(Nat.read(String.trim(before(line.has(ls, ">|"), ">|"))))}
+      Gl{a, b, ctx(ls, False{}), leaf.at(ls), md}
     case +u:
-      Gl{arg(as.of(u), 0n), arg(as.of(u), 1n), ctx(ls, False{}), or.nat(Nat.read(String.trim(before(line.has(ls, ">|"), ">|"))))}
+      goal.at(md, u, o, ls)
 
 # the file ------------------------------------------------------------------------------------
 
@@ -1341,11 +1444,22 @@ def is.eqn(t: Tm) -> Bool:
     case _:
       False{}
 
+def is.leaf(md: Nat, +e: Tm, +l: String) -> Bool:
+  match md:
+    case 0n:
+      Bool.and(Bool.or(is.con(e, "L.Le"), is.eqn(e)), String.contains(l, "L.refl("))
+    case 1n:
+      Bool.and(String.eq(String.trim(l), "{==}"), Bool.not(is.eqn(e)))
+    case _:
+      String.eq(String.trim(l), "Unit{}")
+
 def step(+c: Nat, +g: String, +ls: List<&2, String>, +log: List<&2, String>, +ss: List<&2, Sg>) -> Out:
   +e = {names(parse(line.with(log, "- expected : ")), Nil{}) : Tm}
-  +gl = {goal.of(e, log) : Gl}
-  +l = {nth(ls, gl.at(gl)) : String}
-  if.at(Out, Bool.not(Bool.and(Bool.or(is.con(e, "L.Le"), is.eqn(e)), String.contains(l, "L.refl("))), _ => Out{False{}, cat(["not a leaf: ", line.with(log, "- expected : ")])}, _ => out.st(act(c, g, gl, ss), ls, gl.at(gl)))
+  +o = {names(parse(line.with(log, "- observed : ")), Nil{}) : Tm}
+  +l = {nth(ls, leaf.at(log)) : String}
+  +md = {if.at(Nat, is.con(e, "L.Is"), _ => 2n, _ => if.at(Nat, String.contains(l, "L.refl("), _ => 0n, _ => 1n)) : Nat}
+  +gl = {goal.of(e, o, md, log) : Gl}
+  if.at(Out, Bool.not(is.leaf(md, e, l)), _ => Out{False{}, cat(["not a leaf: ", line.with(log, "- expected : ")])}, _ => out.st(act(c, g, gl, ss), ls, gl.at(gl)))
 
 # input and output ------------------------------------------------------------------------------
 

@@ -2322,7 +2322,23 @@ a fresh `--verdict`, no cache, 55 s).
   the model errs at each of their tried inputs). On law-ty11's 188 (of
   200; the 12 others are lazy programs whose strict answer errs, refused
   by their law): **179 proved, 179 with the verdict**, 9 open (the search
-  ends without a proof; none refuted). Broken on purpose (HsList.foldr
+  ends without a proof; none refuted); with a longer search (STEPS 1500,
+  DEPTH 40, now cert.zsh's default; 40 minutes for the 9) 78 and 118 too,
+  so **181 of 188 with the verdict**, 7 open (33, 46, 93, 168, 172, 173,
+  194; 173 cut by the run's time limit). Proved means at every input; the
+  statement is Le, so it says nothing where the model errs.
+  **Exactly the same (SAME=1)**: the statement `C.ev.def(eN(), R(v)) ==
+  Some{R(D.dN(v))}` (an error where the model errs, too; L.Is and a fold
+  nothing uses proved to answer by induction, `L.isbind`): **159 of 188
+  with the verdict**, 29 open. 11 of those cannot be proved: at GHC's 8
+  inputs each has one where the strict model errs and GHC answers (31,
+  47, 71, 76, 89, 103, 115, 122, 153, 184, 198; all 11 ok-law, their laws
+  being GHC's answers: cata's Bend drops what nothing uses, which GHC
+  never forces, so it answers there too); the
+  other 18 are open by the search. So on 159 programs cata's def is the
+  model's meaning exactly, errors included, which also rules out an
+  answer where the model errs (`mod` by 0 answering 0, which Le allows).
+  Broken on purpose (HsList.foldr
   that skips its function, an if's branches swapped, `<` for `>`, `+` for
   `*`), certificates of 60 fail: 3, 6, 8 and 7, the programs that use it;
   an answer where the model errs (`mod` by 0 answering 0) is not caught,

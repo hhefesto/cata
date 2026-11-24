@@ -8,16 +8,20 @@
 # does not compute to the same (a split, or an induction for a fold), until
 # Bend checks the file (or no step is left: OPEN, and why).  With VERDICT=1
 # each proved one is then checked by the proof kernel (bend --verdict).
-#   BEND the bend; STEPS the most checks of a program (120), DEPTH the most
-#   steps in a row (24); LEAN a directory holding Lean 4.34.0's lean (for
-#   VERDICT); ONLY some
-#   programs' numbers (all); JOBS programs at once (4); BIN a directory holding gen and
-#   cert, built before
+# With SAME=1 the statement is stronger: cata's def answers exactly what the
+# model answers, an error where it errs (== instead of L.Le).  That is false
+# where GHC's laziness answers and the strict model errs (cata's Bend drops
+# what nothing uses, as GHC never forces it), so SAME's OPEN ones are
+# either that or a search that ended.
+#   BEND the bend; STEPS the most checks of a program (1500), DEPTH the
+#   most steps in a row (40); LEAN a directory holding Lean 4.34.0's lean
+#   (for VERDICT); ONLY some programs' numbers (all); JOBS programs at once
+#   (4); BIN a directory holding gen and cert, built before
 set -u
 here=${0:A:h}
 out=${1:A} l=${2:A}
 bend=${BEND:-bend}
-steps=${STEPS:-120} depth=${DEPTH:-24}
+steps=${STEPS:-1500} depth=${DEPTH:-40}
 [[ -e $out ]] && { print "$out exists"; exit 1 }
 mkdir -p $out/gen $out/l $out/c $out/bin
 cp $here/../Core.bend $out/; cp $here/L.bend $here/R.bend $here/S.bend $out/gen/
@@ -42,7 +46,7 @@ one() {
   local -a saved chs
   local p=total
   grep -B1 "^def d$i(" $out/l/$m.bend | grep -q '^# partial' && p=partial
-  { print -l "# cata's d$i (l/$m.bend) is the model's meaning of it, at every input" "import Base" "import ../Core.bend as C" "import ../gen/R.bend as R" "import ../gen/L.bend as L" "import ../gen/S.bend as S" "import ../l/$m.bend as D" "import ../l/HsPrelude.bend as H" "${kimp[@]}" ""; $out/bin/gen cert $i $p } > $f
+  { print -l "# cata's d$i (l/$m.bend) is the model's meaning of it, at every input" "import Base" "import ../Core.bend as C" "import ../gen/R.bend as R" "import ../gen/L.bend as L" "import ../gen/S.bend as S" "import ../l/$m.bend as D" "import ../l/HsPrelude.bend as H" "${kimp[@]}" ""; $out/bin/gen cert $i $p ${SAME:+same} } > $f
   while true; do
     tries=$((tries + 1))
     (cd $out/c && timeout 120 $bend c$i.bend --check-only > c$i.log 2>&1)
@@ -82,6 +86,6 @@ while read -r i m; do
 done < $out/todo
 wait
 cat $out/c/*.res | sort -n > $out/res
-awk '{c[$4]++; n++} END {printf "certificates: %d programs, proved at every input %d (with the kernel'"'"'s verdict %d), open %d\n", n, c["proved"] + c["verdict"], c["verdict"], c["OPEN"] + c["NOVERDICT"]}' $out/res
+awk '{k = $4; sub(/:$/, "", k); c[k]++; n++} END {printf "certificates: %d programs, proved at every input %d (with the kernel'"'"'s verdict %d), open %d\n", n, c["proved"] + c["verdict"], c["verdict"], c["OPEN"] + c["NOVERDICT"]}' $out/res
 grep 'OPEN\|NOVERDICT' $out/res
 true
