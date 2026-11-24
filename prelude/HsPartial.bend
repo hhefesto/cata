@@ -323,3 +323,95 @@ def HsPt.mapMaybe(~A: Data, ~B: Data, ~f: A -> Either<&2, &2, List<&2, Char>, Ma
       Inr{[]}
     case +x <> t:
       HsPt.bind(Maybe<&2, B>, List<&2, B>, f(x), m => HsPt.bind(List<&2, B>, List<&2, B>, HsPt.mapMaybe(~A, ~B, ~f, t), r => Inr{HsPt.maybe(B, m, r)}))
+
+# A partial call's bind where an answer is no Data (an action's result, a
+# pair of &1s), at its quantities
+def HsPt.bindq(-p: Quant, -q: Quant, -A: Kind(p), -B: Kind(q), m: Either<&2, p, List<&2, Char>, A>, k: A -> Either<&2, q, List<&2, Char>, B>) -> Either<&2, q, List<&2, Char>, B>:
+  match m:
+    case Inl{e}:
+      Inl{e}
+    case Inr{a}:
+      k(a)
+
+# The monads' binds and maps and Haskell's maybe and either given a partial
+# function (Fold.bend's fd.pt.hoq): an action's continuation answers the
+# Either at the state it is given (a partial action's answer is an Either
+# at each state: fd.pa)
+def HsPt.exs.bind.go(-E: Data, -S: Data, -A: Data, -B: Data, r: Either<&2, &2, E, A>, f: A -> S -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>>, s: S) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>>:
+  match r:
+    case Inl{e}:
+      Inr{(Inl{e}, s)}
+    case Inr{a}:
+      f(a)(s)
+
+def HsPt.exs.bind(-E: Data, -S: Data, -A: Data, -B: Data, p: Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>, f: A -> S -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>>:
+  (r, s) = p
+  HsPt.exs.bind.go(E, S, A, B, r, f, s)
+
+def HsPt.exs.map.go(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, r: Either<&2, &2, E, A>, s: S) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>>:
+  match r:
+    case Inl{e}:
+      Inr{(Inl{e}, s)}
+    case Inr{a}:
+      HsPt.bindq(&2, &1, B, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>, f(a), b => Inr{(Inr{b}, s)})
+
+def HsPt.exs.map(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, p: Sigma<&1, &1, Either<&2, &2, E, A>, _ => S>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, E, B>, _ => S>>:
+  (r, s) = p
+  HsPt.exs.map.go(E, S, A, B, f, r, s)
+
+def HsPt.state.bind(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, A, _ => S>, f: A -> S -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>:
+  (a, s) = p
+  f(a)(s)
+
+def HsPt.state.map(-S: Data, -A: Type, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, p: Sigma<&1, &1, A, _ => S>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>:
+  (a, s) = p
+  HsPt.bindq(&2, &1, B, Sigma<&1, &1, B, _ => S>, f(a), b => Inr{(b, s)})
+
+def HsPt.either.bind(-E: Data, -A: Data, -B: Data, m: Either<&2, &2, E, A>, f: A -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>:
+  match m:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{a}:
+      f(a)
+
+def HsPt.either.map(-E: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, m: Either<&2, &2, E, A>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>:
+  match m:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{a}:
+      HsPt.bind(B, Either<&2, &2, E, B>, f(a), b => Inr{Inr{b}})
+
+def HsPt.maybe.bind(-q: Quant, -A: Data, -B: Data, m: Maybe<&2, A>, f: A -> Either<&2, &2, List<&2, Char>, Maybe<&2, B>>) -> Either<&2, &2, List<&2, Char>, Maybe<&2, B>>:
+  match m:
+    case None{}:
+      Inr{None{}}
+    case Some{a}:
+      f(a)
+
+def HsPt.maybe.map(-q: Quant, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, m: Maybe<&2, A>) -> Either<&2, &2, List<&2, Char>, Maybe<&2, B>>:
+  match m:
+    case None{}:
+      Inr{None{}}
+    case Some{a}:
+      HsPt.bind(B, Maybe<&2, B>, f(a), b => Inr{Some{b}})
+
+def HsPt.cmaybe(-q: Quant, -A: Data, -R: Kind(q), d: Either<&2, q, List<&2, Char>, R>, f: A -> Either<&2, q, List<&2, Char>, R>, m: Maybe<&2, A>) -> Either<&2, q, List<&2, Char>, R>:
+  match m:
+    case None{}:
+      d
+    case Some{a}:
+      f(a)
+
+def HsPt.ceither(-q: Quant, -A: Data, -B: Data, -R: Kind(q), f: A -> Either<&2, q, List<&2, Char>, R>, g: B -> Either<&2, q, List<&2, Char>, R>, m: Either<&2, &2, A, B>) -> Either<&2, q, List<&2, Char>, R>:
+  match m:
+    case Inl{a}:
+      f(a)
+    case Inr{b}:
+      g(b)
+
+# error and undefined at an answer that is no Data
+def HsPt.errorq(-q: Quant, -A: Kind(q), msg: List<&2, Char>) -> Either<&2, q, List<&2, Char>, A>:
+  Inl{msg}
+
+def HsPt.undefq(-q: Quant, -A: Kind(q)) -> Either<&2, q, List<&2, Char>, A>:
+  Inl{String.to_list("Prelude.undefined")}
