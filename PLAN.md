@@ -1781,6 +1781,50 @@ Measured with law-ee2 against law-ix1 (d33df63), one corpus after another:
 12 modules' Bend differs. The 23 other "expected : Data" are data types
 with a function field (Reader, State, ...), not this.
 
+## Guards that fall through; a value that names itself (2026-11-24)
+
+Haskell tries the next clause when a clause's patterns match and none of
+its guards holds; Bend's match has no guard, so such a clause was out
+(`fold:guard-falls-through`: 16 of telomare's roots, EAL's `meetShape`,
+IC's `rule`, Resolve's `debruijinize`; 20 of hs1003's). **Fold's
+`fd.ft`**: the chain of ifs ends in a call of a def of its own (a lifted
+one) whose parameters are the clause's pattern variables, with their
+types (Spec's `sp.ftw` names its wildcards `ft_wN`; survey, fold and law
+read every export through it, as `sp.pb`), and whose clauses are the ones
+after it read at what the clause's patterns already say: `fd.ft.uni` of
+its pattern and a later clause's is the pattern that clause asks of each
+variable, or that it cannot match there (so no case is listed that Haskell
+never reaches), and a later clause's variable for a part the first took
+apart is a let of that part. A clause whose patterns take anything ends
+the match (the rest is reached only by the call), and so does a row that
+asks nothing more. Still out: a last clause whose guards can all fail
+(GHC's PatternMatchFail), a clause whose own names hide a local the later
+ones use, a record pattern's unnamed fields.
+
+**A value that names itself** (`fibs = 0 : 1 : zipWith (+) fibs (tail
+fibs)`) is no longer fuelled (`fd.fu.isfun`): strict and with fuel 2^32 -
+1 it is a run no fuel ends, and its check took 28 GB and five minutes
+(hs1003's 00473; that check is what OOM-killed the run of 11-23 at 18.7
+GB). And a fuelled def whose type has no default to hand answers its own
+first argument of that type at the fuel's end (`fd.fu.d0`; `fd.mu.d0` did
+the groups), e.g. `foldTree`'s.
+
+Measured with law-ft1 against law-ee2 (ebd5e2b), one corpus after another
+(telomare on spec-ix2's output, which law reads through `sp.ftw`):
+
+| | before | after |
+| - | - | - |
+| tests/hs (GuardFall.hs new, 11 ok-law defs) | 36 modules, 1,327 laws, all the same | 37, 1,407, all the same |
+| telomare (pkgd15) | 420 laws, all the same; 715 out, 118 ok-law, 1,304 ok-check | 428, all the same; 711, 119, 1,307 |
+| hs1003 (bk31) | 7,548 laws: 7,540 the same, 0 more defined, 0 differ, 8 missing | 7,610: 7,602, 0, 0, 8 (the same 8) |
+| hs1003's ledger | 2,591 out, 1,862 ok-law, 323 ok-check, 568 ok-type | 2,576, 1,871, 329, 568 |
+
+telomare: `meetShape` (8 laws), `equalityStep`, `groundCaptureShapes` and
+`until` are in; the 13 other guard roots now say what else is in their
+way (6 a pattern guard). hs1003: 19 left `out`; four went out, the lazy
+values `fibs2`, `fibs3`, `infinity` and 00473's `fib1` (ok-check, with no
+law any run could try).
+
 ## cata as a functor (the user's view, 2026-11-22; branch ct)
 
 Haskell and Bend as categories: types are the objects, programs (up to the

@@ -4285,11 +4285,70 @@ def sp.pb.at(+y: X.Sx) -> X.Sx:
   +p = sp.pb.unself(sp.at(y, 1n))
   sp.l([sp.a("patbind"), p, sp.at(y, 2n), sp.at(y, 3n), sp.first(sp.lc.ty(p, False{}, Nil{}))])
 
+# A clause whose guards can all fail, (match (PAT..) (grhss (GRHS..) BINDS))
+# with a last GRHS that is guarded (and not by otherwise): Haskell goes on
+# to the next clause there, which the fold writes as a def of the clause's
+# variables (Fold.bend's fd.ft), so its wildcards are variables with their
+# types: (pwild T) is (pvar (bv (l "ft_wN" N) T)).
+
+# every guard is otherwise or True
+def sp.ftw.sure(gs: List<&2, X.Sx>) -> Bool:
+  match gs:
+    case Nil{}:
+      True{}
+    case +h <> t:
+      +k = sp.gkey(sp.pc.strip(sp.at(h, 1n)))
+      Bool.and(Bool.and(sp.head.is(h, "body"), Bool.or(sp.is(k, "GHC.Internal.Base.otherwise"), sp.is(k, "GHC.Types.True"))), sp.ftw.sure(t))
+
+def sp.ftw.last(xs: List<&2, X.Sx>, z: X.Sx) -> X.Sx:
+  match xs:
+    case Nil{}:
+      z
+    case h <> t:
+      sp.ftw.last(t, h)
+
+# whether the clauses g can fall through
+def sp.ftw.falls(+g: X.Sx) -> Bool:
+  Bool.and(sp.head.is(g, "grhss"), Bool.not(sp.ftw.sure(sp.els(sp.at(sp.ftw.last(sp.els(sp.at(g, 1n)), X.SxNil{}), 1n)))))
+
+# a tree with its wildcards named, and the next one's number
+type Wn is Data:
+  Wn{x: X.Sx, n: Nat}
+
+def sp.ftw.mk(+ty: X.Sx, +n: Nat) -> X.Sx:
+  +k = S.b(Nat.show(n))
+  sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("ft_w"), k)}, X.SxAtom{k}]), ty])])
+
+def sp.ftw.put(x: X.Sx, r: Wn) -> Wn:
+  match r:
+    case Wn{y, m}:
+      Wn{X.SxCons{x, y}, m}
+
+def sp.ftw.cons(h: Wn, rest: Nat -> Wn) -> Wn:
+  match h:
+    case Wn{x, n}:
+      sp.ftw.put(x, rest(n))
+
+def sp.ftw.name(x: X.Sx, +n: Nat) -> Wn:
+  match x:
+    case X.SxCons{+h, +t}:
+      sp.if(Wn, sp.is(X.tsx.atom.of(h), "pwild"), _ => Wn{sp.ftw.mk(sp.at(t, 0n), n), 1n+n}, _ => sp.ftw.cons(sp.ftw.name(h, n), m => sp.ftw.name(t, m)))
+    case z:
+      Wn{z, n}
+
+def sp.ftw.x(w: Wn) -> X.Sx:
+  match w:
+    case Wn{x, n}:
+      x
+
+def sp.ftw.at(+y: X.Sx) -> X.Sx:
+  sp.if(X.Sx, Bool.and(Nat.is_eq(X.tsx.len(y), 3n), sp.ftw.falls(sp.at(y, 2n))), _ => sp.l([sp.a("match"), sp.ftw.x(sp.ftw.name(sp.at(y, 1n), 0n)), sp.at(y, 2n)]), _ => y)
+
 def sp.pb(x: X.Sx) -> X.Sx:
   match x:
     case X.SxCons{h, t}:
       +y = {X.SxCons{sp.pb(h), sp.pb(t)} : X.Sx}
-      sp.if(X.Sx, sp.head.is(y, "patbind"), _ => sp.pb.at(y), _ => y)
+      sp.if(X.Sx, sp.head.is(y, "patbind"), _ => sp.pb.at(y), _ => sp.if(X.Sx, sp.head.is(y, "match"), _ => sp.ftw.at(y), _ => y))
     case z:
       z
 

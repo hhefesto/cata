@@ -116,9 +116,10 @@ and so does cata, never with `@unsafe`:
   Fix's and Cofree's from their parts', and a data type's, of the module or
   of one before it in the package: a constructor with no fields first, then
   one whose fields do not name the type, then any, its fields' defaults in
-  turn. At a type with none to hand (a type variable) a group's members
-  answer their own first arguments of that type, when each has one;
-  else the def is out.
+  turn. At a type with none to hand (a type variable) it answers its own
+  first argument of that type, if it has one (each member of a group one);
+  else the def is out. A value that names itself (`fibs = 0 : ..`), a
+  lazy one, is out too.
   The default is a choice, kept (11-23): where h never stops, F's def
   answers it, more defined than h, so the adjunction (`adj/`, section 7)
   is proved for the programs that stop within the fuel, and refuted for
@@ -485,6 +486,12 @@ binders, and its own. A use of a local function becomes a call of its def
 with those locals first. The ledger says `ok-gen` for a lifted def; a
 lifted def that calls the def it came from is in a cycle of calls with it
 (see "Recursion Bend refuses").
+
+A clause whose guards can all fail goes on to the next clause (Fold's
+`fd.ft`): the last else of its ifs is a call of a lifted def of its
+pattern variables (Spec's `sp.ftw` names its wildcards), whose clauses are
+the later ones read at what its patterns already say. Out: where no clause
+is left (GHC's PatternMatchFail: `fold:guard-falls-through`).
 
 An `if` or a `let` that is an application's argument or function part
 goes out over it first (the specialiser's `sp.ifl`): `f (if c then a else

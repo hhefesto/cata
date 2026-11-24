@@ -5,6 +5,7 @@ import ./a2b/ToBend/Ast.bend as T
 import ./a2b/ToBend/Print.bend as P
 import ./a2b/ToBend/Order.bend as O
 import ./Survey.bend as V
+import ./Spec.bend as SP
 import ./Prelude.bend as PR
 
 # Fold: cata hs, step 2 (PLAN.md, "Step 2: the fold").  It folds the
@@ -3583,7 +3584,7 @@ type R is Data:
   RE{e: E}
   RT{t: T.Bt}
   RL{xs: List<&2, R>}
-  RC{ps: List<&2, T.Bt>, b: T.Bt}
+  RC{ps: List<&2, T.Bt>, b: T.Bt, lt: List<&2, Lt>, f: Bool}
   RG{c: Maybe<&2, T.Bt>, b: T.Bt}
   RB{x: List<&2, U32>, v: T.Bt}
   RMs{tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>}
@@ -3933,7 +3934,7 @@ def fd.pnames(ps: List<&2, T.Bt>) -> List<&2, List<&2, U32>>:
 
 def fd.cl.ps(r: R) -> List<&2, T.Bt>:
   match r:
-    case RC{ps, b}:
+    case RC{ps, b, lt, f}:
       ps
     case _:
       Nil{}
@@ -4058,7 +4059,7 @@ def fd.scruts(pms: List<&2, Pm>) -> List<&2, T.Bt>:
 
 def fd.cases(cls: List<&2, R>, +pms: List<&2, Pm>) -> T.Bt:
   match cls:
-    case RC{ps, b} <> t:
+    case RC{ps, b, lt, f} <> t:
       T.BtCase{T.tba.args(fd.splitps(pms, ps)), fd.stmt(b), fd.cases(t, pms)}
     case _ <> t:
       fd.cases(t, pms)
@@ -4067,7 +4068,7 @@ def fd.cases(cls: List<&2, R>, +pms: List<&2, Pm>) -> T.Bt:
 
 def fd.first.body(cls: List<&2, R>) -> T.Bt:
   match cls:
-    case RC{ps, b} <> t:
+    case RC{ps, b, lt, f} <> t:
       fd.stmt(b)
     case _:
       fd.todo("fold:no-clause")
@@ -4356,7 +4357,7 @@ def fd.isexpr(t: T.Bt) -> Bool:
 # a lambda that stays one: a clause of variables and an expression
 def fd.lam.flat(cls: List<&2, R>) -> Bool:
   match cls:
-    case RC{ps, b} <> Nil{}:
+    case RC{ps, b, lt, f} <> Nil{}:
       Bool.and(fd.allvar(ps), fd.isexpr(b))
     case _:
       False{}
@@ -4698,13 +4699,18 @@ def fd.if(res: Maybe<&2, T.Bt>, c: T.Bt, a: T.Bt, b: T.Bt) -> T.Bt:
     case None{}:
       fd.todo("fold:if-in-argument")
 
+# where a clause's guards all fail: the next clause (fd.ft puts it in the
+# mark's place, or leaves the def out)
+def fd.ft.mark() -> T.Bt:
+  fd.todo("%fall")
+
 # guarded right-hand sides as one body
 def fd.chain(gs: List<&2, R>, +res: Maybe<&2, T.Bt>) -> T.Bt:
   match gs:
     case RG{None{}, b} <> t:
       b
     case RG{Some{c}, b} <> Nil{}:
-      fd.todo("fold:guard-falls-through")
+      fd.if(res, c, b, fd.ft.mark())
     case RG{Some{c}, b} <> t:
       fd.if(res, c, b, fd.chain(t, res))
     case _:
@@ -4728,11 +4734,8 @@ def fd.bnames(bs: List<&2, R>) -> List<&2, List<&2, U32>>:
 def fd.grhs(gs: R, e: R, +env: Env) -> R:
   RG{fd.conds(fd.exs(fd.items(gs), env)), fd.ex(e, env)}
 
-def fd.clause(ps: R, b: R) -> R:
-  RC{fd.bts(fd.items(ps)), fd.rt(b)}
-
-def fd.ms(tys: R, +res: T.Bt, cls: R) -> R:
-  RMs{fd.bts(fd.items(tys)), res, fd.items(cls)}
+def fd.clause(ps: R, b: R, lt: List<&2, Lt>, f: Bool) -> R:
+  RC{fd.bts(fd.items(ps)), fd.rt(b), lt, f}
 
 # a lambda: one clause of variables
 def fd.lam.go(ps: List<&2, T.Bt>, b: T.Bt) -> T.Bt:
@@ -4748,7 +4751,7 @@ def fd.lam.go(ps: List<&2, T.Bt>, b: T.Bt) -> T.Bt:
 
 def fd.lam.one(cls: List<&2, R>) -> T.Bt:
   match cls:
-    case RC{ps, b} <> Nil{}:
+    case RC{ps, b, lt, f} <> Nil{}:
       fd.lam.go(ps, b)
     case _:
       fd.todo("fold:lambda")
@@ -4872,7 +4875,7 @@ def fd.env.ltless(e: Env, +ns: List<&2, List<&2, U32>>) -> Env:
 def fd.pb.of(res: Maybe<&2, T.Bt>, +p: T.Bt, v: T.Bt, +ty: T.Bt, b: T.Bt, +env: Env) -> T.Bt:
   match res:
     case Some{r}:
-      fd.lift.of(False{}, [ty], r, [RC{[p], b}], fd.env.ltless(env, T.tba.pvars(p, Nil{})), fd.expr(v))
+      fd.lift.of(False{}, [ty], r, [RC{[p], b, Nil{}, False{}}], fd.env.ltless(env, T.tba.pvars(p, Nil{})), fd.expr(v))
     case None{}:
       fd.todo("fold:let-in-argument")
 
@@ -4974,6 +4977,334 @@ def fd.lets.go(bs: List<&2, R>, b: T.Bt, +env: Env, some: Bool) -> T.Bt:
 
 def fd.lets(bs: List<&2, R>, b: T.Bt, +env: Env) -> T.Bt:
   fd.lets.go(bs, b, env, False{})
+
+# Guards that fall through -------------------------------------------------------
+#
+# Haskell tries the next clause when a clause's patterns match and none of
+# its guards holds (`f x y | x == y = ..; f (C a) (D b) = ..`); Bend's match
+# takes the first case whose patterns match, and has no guard.  The fold
+# wrote such a clause's chain of ifs up to the last else, the mark %fall
+# (fd.chain); here, where the clauses are read (fd.ms), the mark becomes a
+# call of a def of its own (a %lift, see Lifting) whose parameters are the
+# clause's pattern variables, each with its type (Spec's sp.ftw named its
+# wildcards), and whose clauses are the ones after it, read at what the
+# clause's patterns already say: fd.ft.uni of its pattern p and a later
+# clause's q is the pattern q asks of each of p's variables, and the
+# variables q binds to a part p built (a let of the term it is), or says
+# that q cannot match there (that clause is left out, so a match lists no
+# case Haskell never reaches).  A row that asks nothing more ends them, and
+# after a clause whose patterns take anything the rest is reached only by
+# the call.  A clause whose fall has no clause to go to (GHC's
+# PatternMatchFail), or whose own names hide a local the later clauses use,
+# is left out (fold:guard-falls-through), as is a pattern the rule does not
+# read (a record pattern's unnamed fields).
+
+# each mark in t is new
+def fd.ft.put(t: T.Bt, +new: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTodo{+w}:
+      Bool.pick(T.Bt, fd.is(w, "%fall"), new, T.BtTodo{w})
+    case T.BtApp{f, a}:
+      T.BtApp{fd.ft.put(f, new), fd.ft.put(a, new)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.ft.put(a, new), fd.ft.put(r, new)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.ft.put(a, new)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.ft.put(b, new)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.ft.put(a, new)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.ft.put(a, new), fd.ft.put(b, new)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.ft.put(a, new)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.ft.put(a, new), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.ft.put(cs, new)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.ft.put(e, new)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.ft.put(e, new), p, fd.ft.put(b, new)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.ft.put(v, new), fd.ft.put(b, new)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.ft.put(b, new), fd.ft.put(r, new)}
+    case T.BtDead{a}:
+      T.BtDead{fd.ft.put(a, new)}
+    case u:
+      u
+
+# the mark out of its clauses' reach: the def is out
+def fd.ft.off(t: T.Bt) -> T.Bt:
+  fd.ft.put(t, fd.todo("fold:guard-falls-through"))
+
+# p's pattern against q's: no value is both, not read, or the patterns q
+# asks of p's variables (in order), with the variables it binds to p's parts
+type Ftu is Data:
+  FtNo{}
+  FtBad{}
+  FtOk{cols: List<&2, T.Bt>, lets: List<&2, R>}
+
+def fd.ft.join(a: Ftu, b: Ftu) -> Ftu:
+  match a b:
+    case FtNo{} _:
+      FtNo{}
+    case _ FtNo{}:
+      FtNo{}
+    case FtOk{c, l} FtOk{d, m}:
+      FtOk{List.append(&2, T.Bt, c, d), List.append(&2, R, l, m)}
+    case _ _:
+      FtBad{}
+
+def fd.ft.fresh(+x: List<&2, U32>) -> List<&2, U32>:
+  fd.cat(S.b("ft_"), x)
+
+# the term a pattern builds, its variables renamed ft_X
+def fd.ft.term(p: T.Bt) -> T.Bt:
+  match p:
+    case T.BtPv{m, +x}:
+      T.BtVar{fd.ft.fresh(x)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.ft.term(a)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.ft.term(a), fd.ft.term(r)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.ft.term(a)}
+    case u:
+      u
+
+def fd.ft.col(named: Bool, +x: List<&2, U32>) -> T.Bt:
+  match named:
+    case True{}:
+      T.BtPv{T.BmLive{}, fd.ft.fresh(x)}
+    case False{}:
+      T.BtWild{}
+
+# p's variables' patterns where q takes them whole
+def fd.ft.cols(p: T.Bt, +named: Bool) -> List<&2, T.Bt>:
+  match p:
+    case T.BtPv{m, +x}:
+      fd.ft.col(named, x) <> Nil{}
+    case T.BtCon{c, a}:
+      fd.ft.cols(a, named)
+    case T.BtArgs{a, r}:
+      List.append(&2, T.Bt, fd.ft.cols(a, named), fd.ft.cols(r, named))
+    case T.BtSucc{a}:
+      fd.ft.cols(a, named)
+    case _:
+      Nil{}
+
+# whether p has an unnamed part (no term builds it again)
+def fd.ft.hole(p: T.Bt) -> Bool:
+  match p:
+    case T.BtWild{}:
+      True{}
+    case T.BtTodo{w}:
+      True{}
+    case T.BtCon{c, a}:
+      fd.ft.hole(a)
+    case T.BtArgs{a, r}:
+      Bool.or(fd.ft.hole(a), fd.ft.hole(r))
+    case T.BtSucc{a}:
+      fd.ft.hole(a)
+    case _:
+      False{}
+
+def fd.ft.bind(hole: Bool, +p: T.Bt, +y: List<&2, U32>) -> Ftu:
+  match hole:
+    case True{}:
+      FtBad{}
+    case False{}:
+      FtOk{fd.ft.cols(p, True{}), RB{y, fd.ft.term(p)} <> Nil{}}
+
+def fd.ft.same(ok: Bool) -> Ftu:
+  match ok:
+    case True{}:
+      FtOk{Nil{}, Nil{}}
+    case False{}:
+      FtNo{}
+
+def fd.ft.zero(ok: Bool) -> Ftu:
+  match ok:
+    case True{}:
+      FtNo{}
+    case False{}:
+      FtBad{}
+
+def fd.ft.con(ok: Bool, r: Ftu) -> Ftu:
+  match ok:
+    case True{}:
+      r
+    case False{}:
+      FtNo{}
+
+def fd.ft.uni(p: T.Bt, q: T.Bt) -> Ftu:
+  match p q:
+    case _ T.BtTodo{w}:
+      FtBad{}
+    case T.BtPv{m, x} u:
+      FtOk{u <> Nil{}, Nil{}}
+    case +u T.BtWild{}:
+      FtOk{fd.ft.cols(u, False{}), Nil{}}
+    case +u T.BtPv{m, +y}:
+      fd.ft.bind(fd.ft.hole(u), u, y)
+    case T.BtCon{+c, a} T.BtCon{+d, b}:
+      fd.ft.con(S.eq(c, d), fd.ft.uni(a, b))
+    case T.BtArgs{a, r} T.BtArgs{b, s}:
+      fd.ft.join(fd.ft.uni(a, b), fd.ft.uni(r, s))
+    case T.BtANil{} T.BtANil{}:
+      FtOk{Nil{}, Nil{}}
+    case T.BtNat{a} T.BtNat{b}:
+      fd.ft.same(S.eq(a, b))
+    case T.BtNat{+a} T.BtSucc{b}:
+      fd.ft.zero(fd.is(a, "0"))
+    case T.BtSucc{a} T.BtNat{+b}:
+      fd.ft.zero(fd.is(b, "0"))
+    case T.BtSucc{a} T.BtSucc{b}:
+      fd.ft.uni(a, b)
+    case T.BtVar{a} T.BtVar{b}:
+      fd.ft.same(S.eq(a, b))
+    case _ _:
+      FtBad{}
+
+# p's variables, in order
+def fd.ft.vs(p: T.Bt) -> List<&2, List<&2, U32>>:
+  match p:
+    case T.BtPv{m, x}:
+      x <> Nil{}
+    case T.BtCon{c, a}:
+      fd.ft.vs(a)
+    case T.BtArgs{a, r}:
+      List.append(&2, List<&2, U32>, fd.ft.vs(a), fd.ft.vs(r))
+    case T.BtSucc{a}:
+      fd.ft.vs(a)
+    case _:
+      Nil{}
+
+# their types
+def fd.ft.tys.put(m: Maybe<&2, T.Bt>, r: Maybe<&2, List<&2, T.Bt>>) -> Maybe<&2, List<&2, T.Bt>>:
+  match m r:
+    case Some{t} Some{ts}:
+      Some{t <> ts}
+    case _ _:
+      None{}
+
+def fd.ft.tys(xs: List<&2, List<&2, U32>>, +lt: List<&2, Lt>) -> Maybe<&2, List<&2, T.Bt>>:
+  match xs:
+    case Nil{}:
+      Some{Nil{}}
+    case +x <> t:
+      fd.ft.tys.put(fd.lt.find(lt, x), fd.ft.tys(t, lt))
+
+def fd.ft.ann.of(m: Maybe<&2, T.Bt>, t: T.Bt) -> T.Bt:
+  match m:
+    case Some{ty}:
+      T.BtAnn{t, ty}
+    case None{}:
+      t
+
+# the lets with their types
+def fd.ft.ann(bs: List<&2, R>, +lt: List<&2, Lt>) -> List<&2, R>:
+  match bs:
+    case RB{+x, v} <> t:
+      RB{x, fd.ft.ann.of(fd.lt.find(lt, x), v)} <> fd.ft.ann(t, lt)
+    case h <> t:
+      h <> fd.ft.ann(t, lt)
+    case Nil{}:
+      Nil{}
+
+# a row: a later clause at the falling clause's variables; the last when it
+# asks nothing more of them
+def fd.ft.row.end(end: Bool, r: R, more: Maybe<&2, List<&2, R>>) -> Maybe<&2, List<&2, R>>:
+  match end more:
+    case True{} _:
+      Some{r <> Nil{}}
+    case False{} Some{rs}:
+      Some{r <> rs}
+    case False{} None{}:
+      None{}
+
+def fd.ft.row(u: Ftu, b: T.Bt, +lt: List<&2, Lt>, more: Maybe<&2, List<&2, R>>, +env: Env) -> Maybe<&2, List<&2, R>>:
+  match u:
+    case FtNo{}:
+      more
+    case FtOk{+cols, lets}:
+      fd.ft.row.end(fd.allvar(cols), RC{cols, fd.lets(fd.ft.ann(lets, lt), b, fd.addlts(env, lt)), lt, False{}}, more)
+    case FtBad{}:
+      None{}
+
+def fd.ft.rows(+ps: T.Bt, rest: List<&2, R>, +env: Env) -> Maybe<&2, List<&2, R>>:
+  match rest:
+    case Nil{}:
+      Some{Nil{}}
+    case RC{qs, b, +lt, f} <> t:
+      fd.ft.row(fd.ft.uni(ps, T.tba.args(qs)), b, lt, fd.ft.rows(ps, t, env), env)
+    case _ <> t:
+      None{}
+
+# no name of xs is one of ys
+def fd.ft.apart(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case +x <> t:
+      Bool.and(Bool.not(S.mem(x, ys)), fd.ft.apart(t, ys))
+
+def fd.ft.lt.names(xs: List<&2, Lt>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Lt{x, t} <> r:
+      x <> fd.ft.lt.names(r)
+    case Nil{}:
+      Nil{}
+
+# the call: the rows a def at the variables vs (types ts)
+def fd.ft.call(+rs: List<&2, R>, +ts: List<&2, T.Bt>, +vs: List<&2, List<&2, U32>>, +res: T.Bt, +bound: List<&2, List<&2, U32>>, +env: Env) -> Maybe<&2, T.Bt>:
+  +pms = fd.pms(List.length(&2, T.Bt, ts), 0n, rs)
+  +own = fd.pm.names(pms)
+  +body = fd.body.of(fd.anysplit(pms), pms, rs)
+  +free = fd.ft.lt.names(fd.fvs(body, fd.env.lt(env), own))
+  +ok = Bool.and(Bool.and(fd.ft.apart(vs, bound), fd.ft.apart(vs, free)), fd.ft.apart(bound, free))
+  Bool.pick(Maybe<&2, T.Bt>, ok, Some{fd.callS("%lift", [T.tba.args(fd.lift.lts(fd.lt.zip(own, ts))), res, body, T.tba.args(fd.vars(vs)), fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))])}, None{})
+
+def fd.ft.fall.of(m: Maybe<&2, List<&2, R>>, ts: Maybe<&2, List<&2, T.Bt>>, +vs: List<&2, List<&2, U32>>, +res: T.Bt, +bound: List<&2, List<&2, U32>>, +env: Env) -> Maybe<&2, T.Bt>:
+  match m ts:
+    case Some{h <> t} Some{+us}:
+      fd.ft.call(h <> t, us, vs, res, bound, env)
+    case _ _:
+      None{}
+
+def fd.ft.fall(+ps: T.Bt, b: T.Bt, +lt: List<&2, Lt>, rest: List<&2, R>, +res: T.Bt, +env: Env) -> Maybe<&2, T.Bt>:
+  +vs = fd.ft.vs(ps)
+  fd.ft.fall.of(fd.ft.rows(ps, rest, env), fd.ft.tys(vs, lt), vs, res, T.tba.binds(b, Nil{}), env)
+
+def fd.ft.one.of(m: Maybe<&2, T.Bt>, +ps: List<&2, T.Bt>, b: T.Bt, lt: List<&2, Lt>, rest: List<&2, R>) -> List<&2, R>:
+  match m:
+    case Some{+f}:
+      RC{ps, fd.ft.put(b, f), lt, False{}} <> Bool.pick(List<&2, R>, fd.allvar(ps), Nil{}, rest)
+    case None{}:
+      RC{ps, fd.ft.off(b), lt, False{}} <> rest
+
+def fd.ft.one(falls: Bool, +ps: List<&2, T.Bt>, +b: T.Bt, +lt: List<&2, Lt>, +rest: List<&2, R>, +res: T.Bt, +env: Env) -> List<&2, R>:
+  match falls:
+    case True{}:
+      fd.ft.one.of(fd.ft.fall(T.tba.args(ps), b, lt, rest, res, env), ps, b, lt, rest)
+    case False{}:
+      RC{ps, b, lt, False{}} <> rest
+
+# a group's clauses, the ones that fall through calling the rest
+def fd.ft.all(cls: List<&2, R>, +res: T.Bt, +env: Env) -> List<&2, R>:
+  match cls:
+    case RC{+ps, +b, +lt, f} <> t:
+      fd.ft.one(f, ps, b, lt, fd.ft.all(t, res, env), res, env)
+    case h <> t:
+      h <> fd.ft.all(t, res, env)
+    case Nil{}:
+      Nil{}
+
+# a group of clauses (a def's, a case's, a lambda's)
+def fd.ms(tys: R, +res: T.Bt, cls: R, +env: Env) -> R:
+  RMs{fd.bts(fd.items(tys)), res, fd.ft.all(fd.items(cls), res, env)}
 
 # whether the local t occurs in x (a recursive local value: its body names
 # it)
@@ -5081,7 +5412,7 @@ def fd.grhss(bs: R, gs: R, +env: Env) -> R:
   RT{fd.lets(fd.items(bs), fd.chain(fd.items(gs), fd.env.res(env)), env)}
 
 def fd.multiif(+ty: R, gs: R) -> R:
-  RE{fd.et(fd.expr(fd.chain(fd.items(gs), Some{fd.rt(ty)})))}
+  RE{fd.et(fd.expr(fd.ft.off(fd.chain(fd.items(gs), Some{fd.rt(ty)}))))}
 
 # A type synonym is replaced by its right-hand side, its variables by the
 # arguments, all at once: first each variable X becomes X% (no Haskell
@@ -5535,14 +5866,15 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     # clauses
     case X.SxCons{_, X.SxCons{ats, X.SxCons{+rt, X.SxCons{_, X.SxCons{ms, _}}}}} KMatches{}:
       +r = fd.rt(fd.go(rt, fd.k(RoTy{}, rt), env))
-      fd.ms(fd.go(ats, KTys{}, env), r, fd.go(ms, KMs{}, fd.withres(env, r)))
+      fd.ms(fd.go(ats, KTys{}, env), r, fd.go(ms, KMs{}, fd.withres(env, r)), fd.withres(env, r))
     case X.SxCons{h, t} KMs{}:
       fd.cons(fd.go(h, KMatch{}, env), fd.go(t, KMs{}, env))
     case _ KMs{}:
       fd.nil()
-    case X.SxCons{_, X.SxCons{+ps, X.SxCons{g, _}}} KMatch{}:
+    case X.SxCons{_, X.SxCons{+ps, X.SxCons{+g, _}}} KMatch{}:
       +rp = fd.go(ps, KPs{}, env)
-      fd.clause(rp, fd.go(g, KGrhss{}, fd.addlts(fd.addls(env, fd.pnames(fd.bts(fd.items(rp)))), fd.lts.of(fd.go(ps, KLtw{}, env)))))
+      +lt = fd.lts.of(fd.go(ps, KLtw{}, env))
+      fd.clause(rp, fd.go(g, KGrhss{}, fd.addlts(fd.addls(env, fd.pnames(fd.bts(fd.items(rp)))), lt)), lt, SP.sp.ftw.falls(g))
     case X.SxCons{_, X.SxCons{gs, X.SxCons{+bs, _}}} KGrhss{}:
       +rb = fd.go(bs, KBinds{}, fd.notail(env))
       +env2 = fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(fd.lts.of(fd.go(bs, KLtw{}, env)), fd.rlf.names(fd.items(rb))))
@@ -5586,7 +5918,7 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     # lazy but for a bang's (let !p = e); Spec's sp.pb made its binders
     # plain locals
     case X.SxCons{_, X.SxCons{+p, X.SxCons{_, X.SxCons{g, X.SxCons{+ty, _}}}}} KBpat{}:
-      RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.rt(fd.go(g, KGrhss{}, fd.notail(env))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env)), Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
+      RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.ft.off(fd.rt(fd.go(g, KGrhss{}, fd.notail(env)))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env)), Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{+ms, _}}}}} KBfun{}:
       fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)), env, fd.occurs(ms, fd.unself(v)))
     # binders' types (see Lifting)
@@ -8248,23 +8580,39 @@ def fd.fu.isdef(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
     case +h <> t:
       Bool.or(Bool.and(Bool.not(fd.dv.isty(h)), S.eq(fd.item.name(h), n)), fd.fu.isdef(t, n))
 
-# the result type of the def named n
-def fd.fu.ret(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.Bt>:
+# the def named n
+def fd.fu.defof(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, T.BItem>:
   match its:
     case Nil{}:
       None{}
     case T.BiDef{+k, ps, r, b, d} <> t:
-      Bool.pick(Maybe<&2, T.Bt>, S.eq(k, n), Some{r}, fd.fu.ret(t, n))
+      Bool.pick(Maybe<&2, T.BItem>, S.eq(k, n), Some{T.BiDef{k, ps, r, b, d}}, fd.fu.defof(t, n))
     case h <> t:
-      fd.fu.ret(t, n)
+      fd.fu.defof(t, n)
 
-# whether a default of the type is to hand (else the def is dropped as
+# whether it takes an argument: a parameter after its leading type and
+# template ones, or a function its answer
+def fd.fu.isfun(live: List<&2, T.BParam>, r: T.Bt) -> Bool:
+  match live r:
+    case h <> t _:
+      True{}
+    case Nil{} T.BtPi{m, x, d, a, b}:
+      True{}
+    case Nil{} _:
+      False{}
+
+# whether a def can be fuelled: it takes an argument (a value that names
+# itself, `fibs = 0 : 1 : zipWith (+) fibs (tail fibs)`, is a lazy one, and
+# strict, with fuel, a run no fuel ends: its check took 28 GB and five
+# minutes, hs1003's 00473), and a default of its type is to hand, or its
+# own first argument of that type (fd.fu.d0) (else the def is dropped as
 # before: a ?TODO in the file names no def to blame)
-def fd.fu.dvok(m: Maybe<&2, T.Bt>, +tys: List<&2, T.BItem>) -> Bool:
+def fd.fu.dvok(m: Maybe<&2, T.BItem>, +tys: List<&2, T.BItem>) -> Bool:
   match m:
-    case Some{r}:
-      List.is_empty(&2, List<&2, U32>, T.tba.todos(fd.dv(r, tys), Nil{}))
-    case None{}:
+    case Some{T.BiDef{n, +ps, +r, b, d}}:
+      +live = List.drop(&2, T.BParam, ps, fd.fu.lead(ps))
+      Bool.and(fd.fu.isfun(live, r), Bool.or(List.is_empty(&2, List<&2, U32>, T.tba.todos(fd.dv(r, tys), Nil{})), Maybe.is_some(&2, List<&2, U32>, fd.mu.argof(live, P.tpr.t(r, P.TpLoose{}, 0n, Nil{})))))
+    case _:
       False{}
 
 # whether the error is a self-call Bend does not see shrink, in a def not
@@ -8272,7 +8620,7 @@ def fd.fu.dvok(m: Maybe<&2, T.Bt>, +tys: List<&2, T.BItem>) -> Bool:
 def fd.fu.can(who: Maybe<&2, List<&2, U32>>, +why: List<&2, U32>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> Bool:
   match who:
     case Some{+n}:
-      Bool.and(Bool.and(Bool.and(S.infix(why, S.b("a decreasing self-call")), fd.fu.isdef(its, n)), Bool.not(fd.fu.isdef(its, fd.cat(n, S.b(".fu"))))), fd.fu.dvok(fd.fu.ret(its, n), List.append(&2, T.BItem, its, dt)))
+      Bool.and(Bool.and(Bool.and(S.infix(why, S.b("a decreasing self-call")), fd.fu.isdef(its, n)), Bool.not(fd.fu.isdef(its, fd.cat(n, S.b(".fu"))))), fd.fu.dvok(fd.fu.defof(its, n), List.append(&2, T.BItem, its, dt)))
     case None{}:
       False{}
 
