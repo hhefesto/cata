@@ -10817,7 +10817,93 @@ def fd.mu.lead1(ds: List<&2, T.BItem>, +k: Nat, +ys: List<&2, List<&2, U32>>) ->
     case h <> t:
       h <> fd.mu.lead1(t, k, ys)
 
-def fd.mu.one(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+# A group whose members lead with type variables (-A: Data, a polymorphic
+# def and the defs lifted out of it) has them as templates (~A: Data), which
+# HEAD.mu and HEAD.mu.In take; every call of a member passes them so.
+def fd.mu.er(ps: List<&2, T.BParam>) -> Nat:
+  match ps:
+    case T.BParam{T.BmErased{}, x, T.BtVar{+k}} <> t:
+      Bool.pick(Nat, fd.is(k, "Data"), 1n+fd.mu.er(t), 0n)
+    case _:
+      0n
+
+def fd.mu.tps(ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{T.BmErased{}, +x, T.BtVar{+k}} <> +t:
+      Bool.pick(List<&2, T.BParam>, fd.is(k, "Data"), T.BParam{T.BmTpl{}, x, T.BtVar{k}} <> fd.mu.tps(t), T.BParam{T.BmErased{}, x, T.BtVar{k}} <> t)
+    case qs:
+      qs
+
+def fd.mu.wrapa(a: T.Bt) -> T.Bt:
+  match a:
+    case T.BtTplArg{b}:
+      T.BtTplArg{b}
+    case b:
+      T.BtTplArg{b}
+
+def fd.mu.wrapk(k: Nat, a: T.Bt) -> T.Bt:
+  match k a:
+    case 1n+p T.BtArgs{x, r}:
+      T.BtArgs{fd.mu.wrapa(x), fd.mu.wrapk(p, r)}
+    case _ u:
+      u
+
+def fd.mu.tplc(t: T.Bt, +ms: List<&2, List<&2, U32>>, +k: Nat) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, a}:
+      +b = fd.mu.tplc(a, ms, k)
+      T.BtApp{T.BtVar{x}, Bool.pick(T.Bt, S.mem(x, ms), fd.mu.wrapk(k, b), b)}
+    case T.BtApp{f, a}:
+      T.BtApp{fd.mu.tplc(f, ms, k), fd.mu.tplc(a, ms, k)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.mu.tplc(a, ms, k), fd.mu.tplc(r, ms, k)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.mu.tplc(a, ms, k)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.mu.tplc(b, ms, k)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.mu.tplc(a, ms, k)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.mu.tplc(a, ms, k)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.mu.tplc(a, ms, k), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.mu.tplc(cs, ms, k)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.mu.tplc(e, ms, k)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.mu.tplc(e, ms, k), p, fd.mu.tplc(b, ms, k)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.mu.tplc(v, ms, k), fd.mu.tplc(b, ms, k)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.mu.tplc(b, ms, k), fd.mu.tplc(r, ms, k)}
+    case u:
+      u
+
+def fd.mu.tpli(its: List<&2, T.BItem>, +ms: List<&2, List<&2, U32>>, +k: Nat) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, r, b, d} <> t:
+      T.BiDef{n, Bool.pick(List<&2, T.BParam>, S.mem(n, ms), fd.mu.tps(ps), ps), r, fd.mu.tplc(b, ms, k), d} <> fd.mu.tpli(t, ms, k)
+    case h <> t:
+      h <> fd.mu.tpli(t, ms, k)
+
+# the members' count of leading type variables, when all have the same
+def fd.mu.ers(ds: List<&2, T.BItem>, +k: Nat) -> Bool:
+  match ds:
+    case Nil{}:
+      True{}
+    case d <> t:
+      Bool.and(Nat.is_eq(fd.mu.er(fd.mu.ps(d)), k), fd.mu.ers(t, k))
+
+# the module's items with the group's type variables templates (the items as
+# they are when it has none)
+def fd.mu.er0(+dg: List<&2, T.BItem>) -> Nat:
+  +k = fd.mu.er(fd.mu.ps0(dg))
+  Bool.pick(Nat, fd.mu.ers(dg, k), k, 0n)
+
+def fd.mu.one1(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   +dg = fd.mu.gets(ns, its)
   +ds0 = fd.mu.lead1(dg, fd.mu.lk(dg), fd.mu.lvars(fd.mu.lk(dg), fd.mu.ps0(dg)))
   +abs = fd.mu.abs(ds0)
@@ -10825,6 +10911,24 @@ def fd.mu.one(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&
   +new = fd.mu.items(ds, ds0, ns, its, dt)
   +notps = Bool.or(fd.mu.same(ds, fd.mu.first(ds)), List.is_empty(&2, T.BParam, fd.mu.tparams(fd.mu.lk(ds), fd.mu.ps0(ds))))
   Bool.pick(List<&2, T.BItem>, Bool.and(Bool.and(Bool.and(fd.mu.ok(ds), fd.mu.lok(ds, ns)), notps), List.is_empty(&2, List<&2, U32>, fd.todos.all(new, Nil{}))), List.append(&2, T.BItem, fd.mu.drop(its, ns), new), its)
+
+def fd.mu.hasdef(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
+  match its:
+    case Nil{}:
+      False{}
+    case +h <> t:
+      Bool.or(Bool.and(fd.mu.isdef(h), S.eq(fd.item.name(h), n)), fd.mu.hasdef(t, n))
+
+def fd.mu.one2(k: Nat, +ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match k:
+    case 0n:
+      fd.mu.one1(ns, its, dt)
+    case 1n+p:
+      +r = fd.mu.one1(ns, fd.mu.tpli(its, ns, 1n+p), dt)
+      Bool.pick(List<&2, T.BItem>, fd.mu.hasdef(r, fd.cat(fd.mu.head(ns), S.b(".mu"))), r, its)
+
+def fd.mu.one(+ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.mu.one2(fd.mu.er0(fd.mu.gets(ns, its)), ns, its, dt)
 
 def fd.mu.each(gs: List<&2, List<&2, List<&2, U32>>>, its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match gs:
