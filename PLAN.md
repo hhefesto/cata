@@ -1745,6 +1745,42 @@ Not freed yet: Driver's evaluator chain. The survey now takes
 Telomare's own out by first reason: survey 411, dep 138, fold 130, law
 21, check 15, type 5, base 2 (copies included).
 
+## hs1003's rule: error stubs at a function type; a fuelled group's default (2026-11-24)
+
+hs1003's exercises leave stubs, `fun1' = error "not implemented"`,
+`matches = undefined`, at a function type: 46 of the 69 defs Bend refused
+with "expected : Data, observed : Type" (the partial pass made their
+answer `Either<String, A -> B>`, and an Either holds Data). **Fold's
+`fd.ee`** gives such a def (its body error's, errorWithoutStackTrace's or
+undefined's call alone, its answer a function) a parameter for each arrow
+of its answer and the error at the last result; a use of it given every
+argument is one call, given fewer the lambda over the rest. It runs before
+the partial pass, so the def is partial at its result, as Haskell's is
+wherever it is applied (`fun1' xs`; `seq fun1' ()` is an error in Haskell
+and a function in F, which no first-order program sees).
+
+**`fd.mu.d0`**: a group's answer at the fuel's end, at a type with no
+default to hand (a type variable the members share as their answer:
+hs1003's 00038, `myMaximumBy`'s local `go` and the def lifted out of it,
+`~A`), is each member's own first argument of that type, when each has
+one; the theorem is for every default (adj/, section 7). The two `~` left
+(a template called before its def: "expected : a term, observed : '~'")
+are gone: that group is one def now, and `myMaximumBy` and `myMinimumBy`
+are out for what they are, no case for `[]`.
+
+Measured with law-ee2 against law-ix1 (d33df63), one corpus after another:
+
+| | before | after |
+| - | - | - |
+| tests/hs (Stub.hs new) | 35 modules, 1,270 laws, all the same | 36, 1,327, all the same |
+| telomare (pkgd14) | 420 laws the same, 715 out | the same, every file byte for byte |
+| hs1003 (bk30) | 7,391 laws: 7,383 the same, 0 more defined, 0 differ, 8 missing | 7,548: 7,540, 0, 0, 8 (the same 8: GHC refuses 00429's) |
+| hs1003's ledger | 2,640 out, 1,837 ok-law, 299 ok-check, 568 ok-type | 2,591, 1,862, 323, 568 |
+
+49 defs left `out` (25 to ok-law, 24 to ok-check), none went the other way;
+12 modules' Bend differs. The 23 other "expected : Data" are data types
+with a function field (Reader, State, ...), not this.
+
 ## cata as a functor (the user's view, 2026-11-22; branch ct)
 
 Haskell and Bend as categories: types are the objects, programs (up to the

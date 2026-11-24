@@ -7212,6 +7212,206 @@ def fd.eta.items(its: List<&2, T.BItem>, +es: List<&2, Etn>) -> List<&2, T.BItem
 def fd.eta.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.eta.items(its, fd.eta.names(its))
 
+# Error stubs at a function type, eta-expanded ----------------------------------
+
+# A def written `f = error ".."` or `f = undefined` (or `f x = undefined`)
+# at a function type answered, through the partial pass, Either<String, A
+# -> B>, which Bend refuses (an Either holds Data, a function is Type:
+# "expected : Data, observed : Type", hs1003's stubs, `fun1' = error "not
+# implemented"`).  Applied to its arguments it is the error at the last
+# result, as in Haskell: so such a def takes a parameter of its own for
+# each arrow of its answer (ee_0, ee_1, ..) and answers the error there;
+# each use of it given all its arguments is one call, a use given fewer
+# the lambda over the rest (ee_x0, ..), as fd.sat writes one.
+type Een is Data:
+  Een{n: List<&2, U32>, k: Nat}
+
+# the type error's or undefined's call is at, when the body is that call
+def fd.ee.at(e: T.Bt) -> Maybe<&2, T.Bt>:
+  match e:
+    case T.BtApp{T.BtVar{+x}, T.BtArgs{T.BtTplArg{ty}, rest}}:
+      Bool.pick(Maybe<&2, T.Bt>, Bool.or(fd.is(x, "HsPrelude.HsList.error"), fd.is(x, "HsPrelude.HsList.undefined")), Some{ty}, None{})
+    case _:
+      None{}
+
+def fd.ee.body(b: T.Bt) -> Maybe<&2, T.Bt>:
+  match b:
+    case T.BtExpr{e}:
+      fd.ee.at(e)
+    case e:
+      fd.ee.at(e)
+
+# the arrows of a type, none dependent (0 at a dependent one)
+def fd.ee.arrows(t: T.Bt) -> Nat:
+  match t:
+    case T.BtPi{m, x, False{}, a, b}:
+      1n+fd.ee.arrows(b)
+    case _:
+      0n
+
+# what a type answers after its arrows
+def fd.ee.cod(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtPi{m, x, False{}, a, b}:
+      fd.ee.cod(b)
+    case u:
+      u
+
+# a parameter ee_i: A for each arrow's A
+def fd.ee.ps(t: T.Bt, +i: Nat) -> List<&2, T.BParam>:
+  match t:
+    case T.BtPi{m, x, False{}, a, b}:
+      T.BParam{T.BmLive{}, fd.cat(S.b("ee_"), fd.nshow(i)), a} <> fd.ee.ps(b, 1n+i)
+    case _:
+      Nil{}
+
+# whether a def (its answer r, its body's error at ty) is a stub to expand:
+# an arrow at least, the same number in both
+def fd.ee.okm(m: Maybe<&2, T.Bt>, +r: T.Bt) -> Bool:
+  match m:
+    case Some{ty}:
+      Bool.and(Nat.is_gt(fd.ee.arrows(r), 0n), Nat.is_eq(fd.ee.arrows(ty), fd.ee.arrows(r)))
+    case None{}:
+      False{}
+
+def fd.ee.ok(+r: T.Bt, b: T.Bt) -> Bool:
+  fd.ee.okm(fd.ee.body(b), r)
+
+def fd.ee.names(its: List<&2, T.BItem>) -> List<&2, Een>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, +r, b, d} <> t:
+      +rest = fd.ee.names(t)
+      Bool.pick(List<&2, Een>, fd.ee.ok(r, b), Een{n, Nat.add(List.length(&2, T.BParam, ps), fd.ee.arrows(r))} <> rest, rest)
+    case h <> t:
+      fd.ee.names(t)
+
+# x's parameters once expanded, if it is one of es
+def fd.ee.find(es: List<&2, Een>, +x: List<&2, U32>) -> Maybe<&2, Nat>:
+  match es:
+    case Nil{}:
+      None{}
+    case Een{+n, k} <> t:
+      Bool.pick(Maybe<&2, Nat>, S.eq(n, x), Some{k}, fd.ee.find(t, x))
+
+# the name an application chain f(a..)(b..).. applies (empty if none)
+def fd.ee.head(t: T.Bt) -> List<&2, U32>:
+  match t:
+    case T.BtApp{h, a}:
+      fd.ee.head(h)
+    case T.BtVar{x}:
+      x
+    case _:
+      Nil{}
+
+# the chain's arguments, in order
+def fd.ee.chain(t: T.Bt) -> List<&2, T.Bt>:
+  match t:
+    case T.BtApp{h, a}:
+      List.append(&2, T.Bt, fd.ee.chain(h), fd.spine(a))
+    case _:
+      Nil{}
+
+# the lambdas a call k arguments short takes
+def fd.ee.lams(k: Nat, +i: Nat, +x: List<&2, U32>, args: List<&2, T.Bt>) -> T.Bt:
+  match k:
+    case 0n:
+      T.tba.call(T.BtVar{x}, args)
+    case 1n+p:
+      +y = fd.cat(S.b("ee_x"), fd.nshow(i))
+      T.BtLam{T.BmLive{}, y, fd.ee.lams(p, 1n+i, x, List.append(&2, T.Bt, args, T.BtVar{y} <> Nil{}))}
+
+# a use of x, which takes n arguments, given args: one call, the lambda over
+# the missing ones, or the call applied to the extra ones
+def fd.ee.full(+n: Nat, +x: List<&2, U32>, +args: List<&2, T.Bt>) -> T.Bt:
+  +l = List.length(&2, T.Bt, args)
+  Bool.pick(T.Bt, Nat.is_lt(n, l), T.tba.call(T.tba.call(T.BtVar{x}, List.take(&2, T.Bt, args, n)), List.drop(&2, T.Bt, args, n)), fd.ee.lams(Nat.sub(n, l), 0n, x, args))
+
+def fd.ee.use(m: Maybe<&2, Nat>, +x: List<&2, U32>, t: T.Bt) -> T.Bt:
+  match m:
+    case Some{n}:
+      fd.ee.full(n, x, fd.ee.chain(t))
+    case None{}:
+      t
+
+# an application (its parts rewritten) that is not the function part of
+# another: a chain at an expanded def is written anew
+def fd.ee.fix(inapp: Bool, +t: T.Bt, +es: List<&2, Een>) -> T.Bt:
+  match inapp:
+    case True{}:
+      t
+    case False{}:
+      +x = fd.ee.head(t)
+      fd.ee.use(fd.ee.find(es, x), x, t)
+
+def fd.ee.rw(t: T.Bt, inapp: Bool, +es: List<&2, Een>) -> T.Bt:
+  match t:
+    case T.BtApp{h, a}:
+      fd.ee.fix(inapp, T.BtApp{fd.ee.rw(h, True{}, es), fd.ee.rw(a, False{}, es)}, es)
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.ee.rw(a, False{}, es)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.ee.rw(b, False{}, es)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.ee.rw(a, False{}, es)}
+    case T.BtEq{ty, a, b}:
+      T.BtEq{ty, fd.ee.rw(a, False{}, es), fd.ee.rw(b, False{}, es)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.ee.rw(a, False{}, es)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.ee.rw(a, False{}, es), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.ee.rw(cs, False{}, es)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.ee.rw(e, False{}, es)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.ee.rw(e, False{}, es), p, fd.ee.rw(b, False{}, es)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.ee.rw(v, False{}, es), fd.ee.rw(b, False{}, es)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.ee.rw(b, False{}, es), fd.ee.rw(rest, False{}, es)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.ee.rw(a, False{}, es), fd.ee.rw(rest, False{}, es)}
+    case T.BtDead{a}:
+      T.BtDead{fd.ee.rw(a, False{}, es)}
+    case u:
+      u
+
+# the stub's error at its answer's last result
+def fd.ee.at.cod(e: T.Bt) -> T.Bt:
+  match e:
+    case T.BtApp{T.BtVar{x}, T.BtArgs{T.BtTplArg{ty}, rest}}:
+      T.BtApp{T.BtVar{x}, T.BtArgs{T.BtTplArg{fd.ee.cod(ty)}, rest}}
+    case u:
+      u
+
+def fd.ee.body.cod(b: T.Bt) -> T.Bt:
+  match b:
+    case T.BtExpr{e}:
+      T.BtExpr{fd.ee.at.cod(e)}
+    case e:
+      T.BtExpr{fd.ee.at.cod(e)}
+
+def fd.ee.def(ok: Bool, +n: List<&2, U32>, ps: List<&2, T.BParam>, +r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Een>) -> T.BItem:
+  match ok:
+    case True{}:
+      T.BiDef{n, List.append(&2, T.BParam, ps, fd.ee.ps(r, 0n)), fd.ee.cod(r), fd.ee.body.cod(b), d}
+    case False{}:
+      T.BiDef{n, ps, r, fd.ee.rw(b, False{}, es), d}
+
+def fd.ee.items(its: List<&2, T.BItem>, +es: List<&2, Een>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, ps, +r, +b, d} <> t:
+      fd.ee.def(fd.ee.ok(r, b), n, ps, r, b, d, es) <> fd.ee.items(t, es)
+    case h <> t:
+      h <> fd.ee.items(t, es)
+
+def fd.ee.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.ee.items(its, fd.ee.names(its))
+
 # The gate ---------------------------------------------------------------------------
 
 # Bend allows no mutual recursion, so a walk that branches on what it reads
@@ -7984,18 +8184,44 @@ def fd.fu.pv(m: T.BMode) -> T.Bt:
     case _:
       T.BtSucc{T.BtPv{T.BmLive{}, S.b("fuel_p")}}
 
+# the first parameter whose type prints as rt
+def fd.mu.argof(ps: List<&2, T.BParam>, +rt: List<&2, U32>) -> Maybe<&2, List<&2, U32>>:
+  match ps:
+    case Nil{}:
+      None{}
+    case T.BParam{m, x, ty} <> t:
+      Bool.pick(Maybe<&2, List<&2, U32>>, S.eq(P.tpr.t(ty, P.TpLoose{}, 0n, Nil{}), rt), Some{x}, fd.mu.argof(t, rt))
+
+def fd.fu.d0.at(has: Bool, dv: T.Bt, m: Maybe<&2, List<&2, U32>>) -> T.Bt:
+  match has:
+    case True{}:
+      dv
+    case False{}:
+      match m:
+        case Some{x}:
+          T.BtVar{x}
+        case None{}:
+          dv
+
+# the answer at the fuel's end: the type's default (fd.dv), or, at a type
+# with none to hand (a type variable), the def's own first argument of that
+# type (any value of it does: the fuel never runs out in a run that stops,
+# adj/'s section 7, proved for every default)
+def fd.fu.d0(+dv: T.Bt, ps: List<&2, T.BParam>, r: T.Bt) -> T.Bt:
+  fd.fu.d0.at(List.is_empty(&2, List<&2, U32>, T.tba.todos(dv, Nil{})), dv, fd.mu.argof(ps, P.tpr.t(r, P.TpLoose{}, 0n, Nil{})))
+
 # match fuel_: 0n is the default, 1n+fuel_p the body (its self-calls given
 # fuel_p)
-def fd.fu.body(+k: Nat, +n: List<&2, U32>, +r: T.Bt, b: T.Bt, +tys: List<&2, T.BItem>) -> T.Bt:
+def fd.fu.body(+k: Nat, +n: List<&2, U32>, +r: T.Bt, b: T.Bt, +tys: List<&2, T.BItem>, ps: List<&2, T.BParam>) -> T.Bt:
   +b2 = fd.fu.rw(b, [n], False{}, n, k, T.BtVar{S.b("fuel_p")}, False{})
-  T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(fd.mode(fd.uses(b2, S.b("fuel_p"))))]), b2, T.BtCEnd{}}}}
+  T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.fu.d0(fd.dv(r, tys), List.drop(&2, T.BParam, ps, k), r)}, T.BtCase{T.tba.args([fd.fu.pv(fd.mode(fd.uses(b2, S.b("fuel_p"))))]), b2, T.BtCEnd{}}}}
 
 # a def Bend refuses for its self-call: f.fu with the fuel, and f
 def fd.fu.def(it: T.BItem, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match it:
     case T.BiDef{+n, +ps, +r, b, d}:
       +k = fd.fu.lead(ps)
-      [T.BiDef{fd.cat(n, S.b(".fu")), fd.fu.ps(k, ps), r, fd.fu.body(k, n, r, b, tys), S.b("generated: fuel: Bend sees no argument of the self-call shrink, so a Nat counts the depth down") <> d}, T.BiDef{n, ps, r, T.BtExpr{T.BtApp{T.BtVar{fd.cat(n, S.b(".fu"))}, fd.fu.args(k, fd.fu.pargs(ps), fd.fu.max())}}, [S.b("fuel: 2^32 - 1, a depth no run reaches")]}]
+      [T.BiDef{fd.cat(n, S.b(".fu")), fd.fu.ps(k, ps), r, fd.fu.body(k, n, r, b, tys, ps), S.b("generated: fuel: Bend sees no argument of the self-call shrink, so a Nat counts the depth down") <> d}, T.BiDef{n, ps, r, T.BtExpr{T.BtApp{T.BtVar{fd.cat(n, S.b(".fu"))}, fd.fu.args(k, fd.fu.pargs(ps), fd.fu.max())}}, [S.b("fuel: 2^32 - 1, a depth no run reaches")]}]
     case other:
       [other]
 
@@ -8776,6 +9002,46 @@ def fd.mu.r0(ds: List<&2, T.BItem>) -> T.Bt:
     case Nil{}:
       fd.todo("fold:mutual")
 
+# a member's case of the group's fuel's end: its In constructor answering
+# its argument x
+def fd.mu.dcase(m: Maybe<&2, List<&2, U32>>, ps: List<&2, T.BParam>, +g: List<&2, U32>, +i: Nat, rest: Maybe<&2, T.Bt>) -> Maybe<&2, T.Bt>:
+  match m rest:
+    case Some{x} Some{cs}:
+      +b = {T.BtExpr{T.BtVar{x}} : T.Bt}
+      Some{T.BtCase{T.tba.args([T.BtCon{fd.mu.inc(g, i), T.tba.args(fd.mu.pvs(ps, b))}]), b, cs}}
+    case _ _:
+      None{}
+
+# for each member, its case answering its first argument of the type rt
+# prints (None when a member has none)
+def fd.mu.dcases(ds: List<&2, T.BItem>, +g: List<&2, U32>, +k: Nat, +rt: List<&2, U32>, +i: Nat) -> Maybe<&2, T.Bt>:
+  match ds:
+    case Nil{}:
+      Some{T.BtCEnd{}}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      fd.mu.dcase(fd.mu.argof(List.drop(&2, T.BParam, ps, k), rt), List.drop(&2, T.BParam, ps, k), g, i, fd.mu.dcases(t, g, k, rt, 1n+i))
+    case h <> t:
+      fd.mu.dcases(t, g, k, rt, 1n+i)
+
+def fd.mu.d0.at(none: Bool, dv: T.Bt, m: Maybe<&2, T.Bt>) -> T.Bt:
+  match none:
+    case True{}:
+      match m:
+        case Some{cs}:
+          T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), cs}
+        case None{}:
+          T.BtExpr{dv}
+    case False{}:
+      T.BtExpr{dv}
+
+# the group's answer at the fuel's end: the type's default (fd.dv); at a
+# type with none to hand (a type variable the members share as their
+# answer), each member's own first argument of that type, when each has
+# one (as fd.fu.d0)
+def fd.mu.d0(+dv: T.Bt, same: Bool, ds: List<&2, T.BItem>, +g: List<&2, U32>, +k: Nat, r: T.Bt) -> T.Bt:
+  +none = Bool.and(same, Bool.not(List.is_empty(&2, List<&2, U32>, T.tba.todos(dv, Nil{}))))
+  fd.mu.d0.at(none, dv, fd.mu.dcases(ds, g, k, P.tpr.t(r, P.TpLoose{}, 0n, Nil{}), 0n))
+
 # the group's items: g.In, g.Out and g.outK (when the answers differ), g,
 # the members
 def fd.mu.items(+ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
@@ -8787,7 +9053,7 @@ def fd.mu.items(+ds: List<&2, T.BItem>, os: List<&2, T.BItem>, +ns: List<&2, Lis
   +tout = {T.BiType{fd.cat(g, S.b(".Out")), Nil{}, fd.v("Data"), fd.mu.outctors(ds, g, 0n), [S.b("generated: fuel: the group's answers")]} : T.BItem}
   +tys = {tout <> List.append(&2, T.BItem, its, dt) : List<&2, T.BItem>}
   +r = Bool.pick(T.Bt, same, fd.mu.r0(ds), T.BtVar{fd.cat(g, S.b(".Out"))})
-  +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), T.BtExpr{fd.dv(r, tys)}, T.BtCase{T.tba.args([fd.fu.pv(T.BmCopy{})]), T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), fd.mu.cases(ds, ns, g, same, k, 0n)}, T.BtCEnd{}}}} : T.Bt}
+  +body = {T.BtMatch{T.tba.args([T.BtVar{S.b("fuel_")}]), T.BtCase{T.tba.args([T.BtNat{S.b("0")}]), fd.mu.d0(fd.dv(r, tys), same, ds, g, k, r), T.BtCase{T.tba.args([fd.fu.pv(T.BmCopy{})]), T.BtMatch{T.tba.args([T.BtVar{S.b("in_")}]), fd.mu.cases(ds, ns, g, same, k, 0n)}, T.BtCEnd{}}}} : T.Bt}
   +gdef = {T.BiDef{g, List.append(&2, T.BParam, List.take(&2, T.BParam, fd.mu.ps0(ds), k), [T.BParam{T.BmLive{}, S.b("fuel_"), fd.ty0("Nat")}, T.BParam{T.BmLive{}, S.b("in_"), fd.mu.inty(fd.cat(g, S.b(".In")), tps)}]), r, body, [fd.mu.doc(ns)]} : T.BItem}
   List.concat(&2, T.BItem, [[tin], Bool.pick(List<&2, T.BItem>, same, Nil{}, tout <> fd.mu.outs(ds, g, tys, 0n)), [gdef], fd.mu.wrappers(ds, os, g, same, k, 0n)])
 
@@ -10896,7 +11162,7 @@ def fd.rt.all(its: List<&2, T.BItem>, ws: List<&2, T.BItem>) -> List<&2, T.BItem
       fd.rt.items(its, w <> t)
 
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.mu.all(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), fd.px.dt(px))
+  fd.mu.all(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.ee.all(fd.eta.all(fd.rt.all(fd.got.items(gs), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), fd.px.dt(px))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:

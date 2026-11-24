@@ -116,7 +116,9 @@ and so does cata, never with `@unsafe`:
   Fix's and Cofree's from their parts', and a data type's, of the module or
   of one before it in the package: a constructor with no fields first, then
   one whose fields do not name the type, then any, its fields' defaults in
-  turn. A type with none to hand (a type variable) leaves the def out.
+  turn. At a type with none to hand (a type variable) a group's members
+  answer their own first arguments of that type, when each has one;
+  else the def is out.
   The default is a choice, kept (11-23): where h never stops, F's def
   answers it, more defined than h, so the adjunction (`adj/`, section 7)
   is proved for the programs that stop within the fuel, and refuted for
@@ -564,6 +566,11 @@ Where two partial calls of one def both fail on an input, GHC may throw
 either (its exceptions are imprecise) and cata gives the first it binds:
 the laws compare messages, so such a def can be out on a law
 (tests/hs/PartialFold.hs's `range`).
+
+A stub, a def whose body is error's or undefined's call alone at a
+function type (`fun1' = error "not implemented"`), takes a parameter for
+each arrow of its answer and errs at the last result (Fold's `fd.ee`,
+tests/hs/Stub.hs): an Either holds no function.
 
 A partial call under a lambda (a monad's continuation, a function
 argument, a cata's algebra) is out for now (`fold:partial-in-lambda`).
