@@ -3418,16 +3418,51 @@ def sp.og.put(vs: List<&2, X.Sx>, +sc: List<&2, Asb>, acc: List<&2, Og>) -> List
     case v <> t:
       Og{v, sc} <> sp.og.put(t, sc, acc)
 
-# each recursive local of x, its group's scope (sc: x's own)
-def sp.og.of(x: X.Sx, +sc: List<&2, Asb>, +acc: List<&2, Og>) -> List<&2, Og>:
-  match x:
-    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, +t}}:
-      +ism = sp.is(a, "match")
+# the locals a group binds, with their types
+def sp.og.exps(es: List<&2, X.Sx>) -> List<&2, Asb>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case +e <> t:
+      +rest = sp.og.exps(t)
+      Bool.pick(List<&2, Asb>, Bool.and(sp.head.is(e, "export"), sp.head.is(sp.at(e, 1n), "l")), Asb{sp.at(e, 1n), sp.at(e, 2n)} <> rest, rest)
+
+def sp.og.grp(bs: List<&2, X.Sx>) -> List<&2, Asb>:
+  match bs:
+    case Nil{}:
+      Nil{}
+    case +b <> t:
+      +rest = sp.og.grp(t)
+      +v = sp.fa.unself(sp.at(b, 1n))
+      sp.if(List<&2, Asb>, sp.head.is(b, "abs"), _ => List.append(&2, Asb, sp.og.exps(sp.els(sp.at(b, 3n))), rest), _ => Bool.pick(List<&2, Asb>, Bool.and(sp.head.is(b, "fun"), sp.head.is(v, "l")), Asb{v, sp.at(b, 2n)} <> rest, rest))
+
+def sp.og.groups(gs: List<&2, X.Sx>) -> List<&2, Asb>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case +g <> t:
+      List.append(&2, Asb, sp.og.grp(sp.dropn(sp.els(g), 1n)), sp.og.groups(t))
+
+# (binds G..)'s locals
+def sp.og.binds(+b: X.Sx) -> List<&2, Asb>:
+  sp.if(List<&2, Asb>, sp.head.is(b, "binds"), _ => sp.og.groups(sp.dropn(sp.els(b), 1n)), _ => Nil{})
+
+# each recursive local of x, its group's scope (sc: x's own): the patterns'
+# variables around it, the locals of the lets and wheres around it, and of
+# its own let the groups before it (ib: x is a binds' groups)
+def sp.og.of(x: X.Sx, +sc: List<&2, Asb>, +acc: List<&2, Og>, +ib: Bool) -> List<&2, Og>:
+  match x ib:
+    case X.SxCons{+g, +t} True{}:
+      sp.og.of(t, List.append(&2, Asb, sp.og.grp(sp.dropn(sp.els(g), 1n)), sc), sp.og.of(g, sc, acc, False{}), True{})
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, +t}} False{}:
+      +isb = sp.is(a, "binds")
       +acc2 = sp.if(List<&2, Og>, sp.is(a, "rec"), _ => sp.og.put(sp.fl.recs.bs(p <> sp.els(t), Nil{}), sc, acc), _ => acc)
-      sp.og.of(t, sp.if(List<&2, Asb>, ism, _ => List.append(&2, Asb, sp.fa.binds(p, Nil{}), sc), _ => sc), sp.og.of(p, sc, acc2))
-    case X.SxCons{h, t}:
-      sp.og.of(t, sc, sp.og.of(h, sc, acc))
-    case _:
+      +sp2 = sp.if(List<&2, Asb>, sp.is(a, "grhss"), _ => List.append(&2, Asb, sp.og.binds(sp.at(t, 0n)), sc), _ => sc)
+      +st = sp.if(List<&2, Asb>, sp.is(a, "match"), _ => List.append(&2, Asb, sp.fa.binds(p, Nil{}), sc), _ => sp.if(List<&2, Asb>, sp.is(a, "let"), _ => List.append(&2, Asb, sp.og.binds(p), sc), _ => sp.if(List<&2, Asb>, isb, _ => List.append(&2, Asb, sp.og.grp(sp.dropn(sp.els(p), 1n)), sc), _ => sc)))
+      sp.og.of(t, st, sp.og.of(p, sp2, acc2, False{}), isb)
+    case X.SxCons{h, t} False{}:
+      sp.og.of(t, sc, sp.og.of(h, sc, acc, False{}), False{})
+    case _ _:
       acc
 
 def sp.og.find(os: List<&2, Og>, +v: X.Sx) -> List<&2, Asb>:
@@ -3888,7 +3923,7 @@ def sp.rw.p10(r: Rw, +cur: List<&2, U32>, +ix: Ix, +rl0: List<&2, X.Sx>, +ol0: L
       +env = List.append(&2, Asb, sp.fa.binds(x, Nil{}), sp.og.base(ol0))
       +lfa = sp.fa.lfuns(x, Nil{})
       +meg = sp.g(cur, sp.fa.me(x), "var")
-      +lf = {Lf{lfa, sp.fa.lf.need(lfa, meg), meg, sp.fl.recs(x, rl0), sp.og.of(x, sp.og.base(ol0), ol0)} : Lf}
+      +lf = {Lf{lfa, sp.fa.lf.need(lfa, meg), meg, sp.fl.recs(x, rl0), sp.og.of(x, sp.og.base(ol0), ol0, False{})} : Lf}
       sp.rw.addq(sp.p10(x, PmNode{True{}}, sp.fa.me(x), cur, ix, env, lf, q), q)
 
 # The copy: the def at the types, the arguments in their parameters' places
@@ -4971,7 +5006,7 @@ def sp.fl.put(+x: X.Sx, +v: X.Sx, c: X.Sx) -> X.Sx:
 def sp.fl.fix(fuel: Nat, m: Maybe<&2, Rq>, +x: X.Sx, +q: List<&2, Rq>, +done: List<&2, List<&2, U32>>, +cur: List<&2, U32>, +ix: Ix) -> Rw:
   match fuel m:
     case 1n+p Some{+r}:
-      +c = sp.fl.run(sp.fl.copy(r, cur, ix), sp.rq.n(r), cur, ix, sp.fl.recs(x, Nil{}), sp.og.at(sp.og.of(x, Nil{}, Nil{}), sp.fl.gv(r)))
+      +c = sp.fl.run(sp.fl.copy(r, cur, ix), sp.rq.n(r), cur, ix, sp.fl.recs(x, Nil{}), sp.og.at(sp.og.of(x, Nil{}, Nil{}, False{}), sp.fl.gv(r)))
       +x2 = sp.fl.put(x, sp.fl.gv(r), sp.fl.x(c))
       +q2 = sp.rw.cat(q, sp.fl.q(c))
       +d2 = {sp.rq.n(r) <> done : List<&2, List<&2, U32>>}
