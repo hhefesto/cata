@@ -2069,10 +2069,28 @@ a fresh `--verdict`, no cache, 55 s).
   specialiser's copies at the known function), dropped, so the fuel
   group no longer takes palg, patternRefs and its cata (3 defs fewer);
   hs1003's ledger line for line, 7,127 laws as before (both).
-- **Outside the model.** General recursion: a fuelled def's end answers a
-  default (fd.dv), as F.tot answered at 0, so at a diverging h the same
-  argument makes F no adjoint; the theorem is for the terminating fragment
-  (folds), and 2^32 - 1 is a depth no run reaches. Laziness beyond
+- **General recursion, in the model (7).** A fuelled def's end answers a
+  default (fd.dv), and that stays (the user, 11-23: "make a suggestion
+  and let's follow that"; the suggestion: keep the default, the theorem
+  covers the programs that stop). Core.bend's loops: Haskell's `until p
+  s` (any loop is one), its meaning a run of k steps that may never end
+  (`eval.hl`, `ROut` when k runs out first), cata's fuelled def (`F.ln n`:
+  fuel n, the default 0 at its end) and G's Haskell for it (the fuel and
+  default kept, as Back.bend writes a `.fu`). Proved, for every fuel n
+  (cata's is `fuel()`, 2^32 - 1): `sq.F.l`, F's def means what h means
+  wherever h stops within k <= n steps; `sq.G.l`, G's Haskell means what
+  Bend's means, always; `adj.FG.loop.l/r`, F -| G on the loops that stop
+  within n steps at every input (`Stops h n`), and at cata's own fuel
+  (`adj.FG.fuel.l/r`). And refuted without `Stops`, at every n:
+  `adj.FG.loop.not`, with hn = `until (0 < 0) id`, which no run ends
+  (`loop.never`), so every G b implements it, while F's def of it answers
+  the default 0 (`loop.default`), where a b answers 7. So at a diverging h
+  F is more defined than h, as F.tot was at 0 (section 4), and the
+  adjunction is a theorem about programs that stop within 2^32 - 1 steps.
+  `run.zsh`: PASS (`--verdict`, BendTT's kernel); three mutants (the fuel's
+  end answering None, G's loop answering its default where it stops, b's
+  default 0 instead of 7) each fail.
+- **Outside the model.** Laziness beyond
   float-in (Bend is strict: a partial call's error is still the def's
   where Haskell never forces it in a lazy structure, a list's unforced
   elements). Int's wrap-around (the model's Int is Integer's: (6) is

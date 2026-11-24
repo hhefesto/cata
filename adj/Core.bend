@@ -6,12 +6,14 @@
 # The core is cata's fragment as combinators, point-free (the categories'
 # own structure, so F's compositionality is its definition): identities,
 # composition, pairs, sums, foldr over lists (lists' initial algebra), the
-# numbers' arithmetic and tests, and the primitives where the two languages
-# differ: Haskell's Natural subtraction, div and mod are partial (an error
-# below 0 or at 0), Bend's Nat.sub, Nat.div and Nat.mod are total (0 below
-# 0, 0 at 0, a at 0), and a partial Bend def answers a failure value (the
-# Inl of its Either).  A program's meaning is a function from values to
-# Maybe values, None its error (Haskell) or failure value (Bend).
+# numbers' arithmetic and tests, general recursion with fuel (at the
+# end: a loop, Haskell's until, and cata's fuelled def), and the
+# primitives where the two languages differ: Haskell's Natural
+# subtraction, div and mod are partial (an error below 0 or at 0), Bend's
+# Nat.sub, Nat.div and Nat.mod are total (0 below 0, 0 at 0, a at 0), and
+# a partial Bend def answers a failure value (the Inl of its Either).  A
+# program's meaning is a function from values to Maybe values, None its
+# error (Haskell) or failure value (Bend).
 #
 # Programs are ordered by "is implemented by": p <= q when q answers what p
 # answers wherever p answers (PROPOSED.bend's Le.h and Le.b).
@@ -1000,3 +1002,130 @@ def nosub(t: HTm) -> Bool:
       Bool.and(nosub(z), nosub(s))
     case _:
       True{}
+
+# General recursion: fuel ------------------------------------------------------
+#
+# Haskell recurses as it likes, and a recursion may never stop; Bend's
+# checker takes only recursion it sees end, so cata writes a general
+# recursion with fuel (README, "Recursion Bend refuses: fuel"): an extra
+# argument, 2^32 - 1 at the start, one less at each call, and the type's
+# default (Fold.bend's fd.dv) when it runs out.  The user, 11-23: keep the
+# default; the theorem covers the programs that stop.  The model's general
+# recursion is Haskell's `until p s` (until p s x = if p x then x else
+# until p s (s x)), p and s the fragment's programs: any loop is one.
+
+# a Haskell run of k steps at most: ROut when k runs out first (Haskell's
+# own program may never stop: ROut at every k), else its answer
+type Run is Data:
+  ROut{}
+  RDone{r: Maybe<&2, HV>}
+
+# Haskell's `until p s`
+type HL is Data:
+  HUntil{p: HTm, s: HTm}
+
+# its run at x, k steps at most: c is p's answer at x, n is s's
+def run.h(k: Nat, +p: HTm, +s: HTm, +x: HV, c: Maybe<&2, HV>, n: Maybe<&2, HV>) -> Run:
+  match k:
+    case 0n:
+      ROut{}
+    case 1n+j:
+      match c:
+        case Some{HvBool{True{}}}:
+          RDone{Some{x}}
+        case Some{HvBool{False{}}}:
+          match n:
+            case Some{+y}:
+              run.h(j, p, s, y, eval.h(p, y), eval.h(s, y))
+            case None{}:
+              RDone{None{}}
+        case _:
+          RDone{None{}}
+
+def eval.hl(k: Nat, h: HL, +x: HV) -> Run:
+  match h:
+    case HUntil{+p, +s}:
+      run.h(k, p, s, x, eval.h(p, x), eval.h(s, x))
+
+# Bend's fuelled def: n the fuel, d the default it answers when the fuel
+# runs out
+type BL is Data:
+  BLoop{n: Nat, p: BTm, s: BTm, d: BV}
+
+def run.b(n: Nat, +p: BTm, +s: BTm, +d: BV, +y: BV, c: Maybe<&2, BV>, m: Maybe<&2, BV>) -> Maybe<&2, BV>:
+  match n:
+    case 0n:
+      Some{d}
+    case 1n+j:
+      match c:
+        case Some{BvBool{True{}}}:
+          Some{y}
+        case Some{BvBool{False{}}}:
+          match m:
+            case Some{+z}:
+              run.b(j, p, s, d, z, eval.b(p, z), eval.b(s, z))
+            case None{}:
+              None{}
+        case _:
+          None{}
+
+def eval.bl(b: BL, +y: BV) -> Maybe<&2, BV>:
+  match b:
+    case BLoop{n, +p, +s, +d}:
+      run.b(n, p, s, d, y, eval.b(p, y), eval.b(s, y))
+
+# G's Haskell for a fuelled def: the fuel and the default kept, as
+# Back.bend writes a def's fuel (a Haskell argument counting down)
+type GL is Data:
+  GLoop{n: Nat, p: HTm, s: HTm, d: HV}
+
+def run.g(n: Nat, +p: HTm, +s: HTm, +d: HV, +x: HV, c: Maybe<&2, HV>, m: Maybe<&2, HV>) -> Maybe<&2, HV>:
+  match n:
+    case 0n:
+      Some{d}
+    case 1n+j:
+      match c:
+        case Some{HvBool{True{}}}:
+          Some{x}
+        case Some{HvBool{False{}}}:
+          match m:
+            case Some{+y}:
+              run.g(j, p, s, d, y, eval.h(p, y), eval.h(s, y))
+            case None{}:
+              None{}
+        case _:
+          None{}
+
+def eval.gl(g: GL, +x: HV) -> Maybe<&2, HV>:
+  match g:
+    case GLoop{n, +p, +s, +d}:
+      run.g(n, p, s, d, x, eval.h(p, x), eval.h(s, x))
+
+# cata's fuel, Desugar.bend's fuel(): 2^32 - 1
+def fuel() -> Nat:
+  4294967295n
+
+# F with fuel n: the loop's parts by F, the default Nat's (fd.dv: 0)
+def F.ln(n: Nat, h: HL) -> BL:
+  match h:
+    case HUntil{p, s}:
+      BLoop{n, F(p), F(s), BvNat{0n}}
+
+# F on a loop: cata's fuel
+def F.l(h: HL) -> BL:
+  F.ln(fuel(), h)
+
+def G.l(b: BL) -> GL:
+  match b:
+    case BLoop{n, p, s, d}:
+      GLoop{n, G(p), G(s), dec(d)}
+
+# a <= b
+def le(a: Nat, b: Nat) -> Bool:
+  match a b:
+    case 0n _:
+      True{}
+    case 1n+i 0n:
+      False{}
+    case 1n+i 1n+j:
+      le(i, j)

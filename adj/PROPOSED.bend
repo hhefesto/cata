@@ -207,3 +207,101 @@ law adj.GF.nosub.r:
   for +e: {C.nosub(h) == True{} : Bool}
   for le: Le.b(b, C.F(h))
   Le.z(z => C.gz(b, z), z => C.eval.z(h, z))
+
+# 7. General recursion, with fuel (Core.bend's loops: Haskell's until p s,
+# and cata's fuelled def, the type's default where the fuel runs out).
+# The user, 11-23: keep the default; the theorem covers the programs that
+# stop.  For every fuel n (cata's is fuel(), 2^32 - 1): F with fuel n
+# means what Haskell's loop means wherever it stops within n steps, and
+# F -| G on the loops that stop within n steps at every input; a loop that
+# never stops breaks it (F answers the default where Haskell answers
+# nothing), at every n.
+
+# h stops within n steps at every input
+def Stops(+h: C.HL, +n: Nat) -> Type:
+  @x: C.HV -> {C.eval.hl(n, h, x) == C.ROut{} : C.Run} -> Empty
+
+# g implements the loop h: it answers what h answers, wherever h stops
+# with an answer
+def Le.hl(+h: C.HL, +g: C.GL) -> Type:
+  @x: C.HV -> @v: C.HV -> @k: Nat -> {C.eval.hl(k, h, x) == C.RDone{Some{v}} : C.Run} -> {C.eval.gl(g, x) == Some{v} : Maybe<&2, C.HV>}
+
+def Le.bl(+p: C.BL, +q: C.BL) -> Type:
+  @y: C.BV -> @w: C.BV -> {C.eval.bl(p, y) == Some{w} : Maybe<&2, C.BV>} -> {C.eval.bl(q, y) == Some{w} : Maybe<&2, C.BV>}
+
+# the squares: F's fuelled def with fuel n means what h means wherever h
+# stops within k <= n steps; G's Haskell means what Bend's means, always
+law sq.F.l:
+  for +k: Nat
+  for +n: Nat
+  for +h: C.HL
+  for +x: C.HV
+  for -r: Maybe<&2, C.HV>
+  for e: {C.eval.hl(k, h, x) == C.RDone{r} : C.Run}
+  for le: {C.le(k, n) == True{} : Bool}
+  {C.eval.bl(C.F.ln(n, h), C.enc(x)) == C.encM(r) : Maybe<&2, C.BV>}
+
+law sq.G.l:
+  for +b: C.BL
+  for +y: C.BV
+  {C.decM(C.eval.bl(b, y)) == C.eval.gl(C.G.l(b), C.dec(y)) : Maybe<&2, C.HV>}
+
+# F -| G on the loops that stop within the fuel: F h <= b exactly when
+# h <= G b
+law adj.FG.loop.l:
+  for +n: Nat
+  for +h: C.HL
+  for +b: C.BL
+  for st: Stops(h, n)
+  for le: Le.bl(C.F.ln(n, h), b)
+  Le.hl(h, C.G.l(b))
+
+law adj.FG.loop.r:
+  for +n: Nat
+  for +h: C.HL
+  for +b: C.BL
+  for st: Stops(h, n)
+  for le: Le.hl(h, C.G.l(b))
+  Le.bl(C.F.ln(n, h), b)
+
+# at cata's own fuel
+law adj.FG.fuel.l:
+  for +h: C.HL
+  for +b: C.BL
+  for st: Stops(h, C.fuel())
+  for le: Le.bl(C.F.l(h), b)
+  Le.hl(h, C.G.l(b))
+
+law adj.FG.fuel.r:
+  for +h: C.HL
+  for +b: C.BL
+  for st: Stops(h, C.fuel())
+  for le: Le.hl(h, C.G.l(b))
+  Le.bl(C.F.l(h), b)
+
+# and without Stops it fails: hn, until (0 < 0) id, never stops (no run
+# of it ends, at any input), so every G b implements it; but F's def of
+# it answers the default 0 at 0 (its fuel runs out), where bn7, a loop
+# with no fuel and the default 7, answers 7
+def hn() -> C.HL:
+  C.HUntil{C.HComp{C.HPrim{C.PLt{}}, C.HPr{C.HLit{0n}, C.HLit{0n}}}, C.HId{}}
+
+def bn7() -> C.BL:
+  C.BLoop{0n, C.BId{}, C.BId{}, C.BvNat{7n}}
+
+law loop.never:
+  for k: Nat
+  for +x: C.HV
+  {C.eval.hl(k, hn(), x) == C.ROut{} : C.Run}
+
+law loop.default:
+  for n: Nat
+  {C.eval.bl(C.F.ln(n, hn()), C.BvNat{0n}) == Some{C.BvNat{0n}} : Maybe<&2, C.BV>}
+
+def FG.loop(+n: Nat) -> Type:
+  @h: C.HL -> @b: C.BL -> Le.hl(h, C.G.l(b)) -> Le.bl(C.F.ln(n, h), b)
+
+law adj.FG.loop.not:
+  for n: Nat
+  for adj: FG.loop(n)
+  Empty

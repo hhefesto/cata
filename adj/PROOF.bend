@@ -1132,3 +1132,316 @@ def P.adj.GF.nosub.l(h, b, e, le):
 
 def P.adj.GF.nosub.r(h, b, e, le):
   z => u => ex => L.int.r(h, b, z2 => C.eval.z(h, z2), P.agree(h, e), le, z, u, ex)
+
+# 7. General recursion, with fuel
+
+# n <= n
+def L.le.refl(n: Nat) -> {C.le(n, n) == True{} : Bool}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+i:
+      L.le.refl(i)
+
+# a Haskell run and a Bend answer agree: where the run ended, its answer
+# through enc
+def L.agR(r: C.Run, m: Maybe<&2, C.BV>) -> Type:
+  match r:
+    case C.ROut{}:
+      Unit
+    case C.RDone{a}:
+      {C.encM(a) == m : Maybe<&2, C.BV>}
+
+# Bend's fuelled def with fuel n agrees with Haskell's run of k <= n steps
+# (c and m: p's and s's answers at x), by induction on k
+def L.run.F(k: Nat, n: Nat, +p: C.HTm, +s: C.HTm, +d: C.BV, +x: C.HV, c: Maybe<&2, C.HV>, m: Maybe<&2, C.HV>, le: {C.le(k, n) == True{} : Bool}) -> L.agR(C.run.h(k, p, s, x, c, m), C.run.b(n, C.F(p), C.F(s), d, C.enc(x), C.encM(c), C.encM(m))):
+  match k n:
+    case 0n _:
+      Unit{}
+    case 1n+j 0n:
+      Empty.absurd(L.agR(C.run.h(1n+j, p, s, x, c, m), C.run.b(0n, C.F(p), C.F(s), d, C.enc(x), C.encM(c), C.encM(m))), L.ft(le))
+    case 1n+j 1n+i:
+      match c:
+        case None{}:
+          {==}
+        case Some{v}:
+          match v:
+            case C.HvBool{b}:
+              match b:
+                case True{}:
+                  {==}
+                case False{}:
+                  match m:
+                    case None{}:
+                      {==}
+                    case Some{+y}:
+                      %P.sq.F(p, y) : L.agR(C.run.h(j, p, s, y, C.eval.h(p, y), C.eval.h(s, y)), C.run.b(i, C.F(p), C.F(s), d, C.enc(y), _, C.eval.b(C.F(s), C.enc(y))))
+                      %P.sq.F(s, y) : L.agR(C.run.h(j, p, s, y, C.eval.h(p, y), C.eval.h(s, y)), C.run.b(i, C.F(p), C.F(s), d, C.enc(y), C.encM(C.eval.h(p, y)), _))
+                      L.run.F(j, i, p, s, d, y, C.eval.h(p, y), C.eval.h(s, y), le)
+            case C.HvNat{q}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, a2}:
+              {==}
+            case C.HvInl{a}:
+              {==}
+            case C.HvInr{a}:
+              {==}
+            case C.HvNil{}:
+              {==}
+            case C.HvCons{a, a2}:
+              {==}
+
+# where a run ended with r: r's answer through enc
+def L.agR.done(R: C.Run, -mm: Maybe<&2, C.BV>, -r: Maybe<&2, C.HV>, e: {R == C.RDone{r} : C.Run}, a: L.agR(R, mm)) -> {C.encM(r) == mm : Maybe<&2, C.BV>}:
+  %e : L.agR(_, mm)
+  a
+
+def P.sq.F.l(k, n, h, x, r, e, le):
+  match h:
+    case C.HUntil{p, s}:
+      %P.sq.F(p, x) : {C.run.b(n, C.F(p), C.F(s), C.BvNat{0n}, C.enc(x), _, C.eval.b(C.F(s), C.enc(x))) == C.encM(r) : Maybe<&2, C.BV>}
+      %P.sq.F(s, x) : {C.run.b(n, C.F(p), C.F(s), C.BvNat{0n}, C.enc(x), C.encM(C.eval.h(p, x)), _) == C.encM(r) : Maybe<&2, C.BV>}
+      Equal.sym(Maybe<&2, C.BV>, C.encM(r), C.run.b(n, C.F(p), C.F(s), C.BvNat{0n}, C.enc(x), C.encM(C.eval.h(p, x)), C.encM(C.eval.h(s, x))), L.agR.done(C.run.h(k, p, s, x, C.eval.h(p, x), C.eval.h(s, x)), C.run.b(n, C.F(p), C.F(s), C.BvNat{0n}, C.enc(x), C.encM(C.eval.h(p, x)), C.encM(C.eval.h(s, x))), r, e, L.run.F(k, n, p, s, C.BvNat{0n}, x, C.eval.h(p, x), C.eval.h(s, x), le)))
+
+# G's Haskell for a fuelled def means what it means, by induction on the
+# fuel
+def L.run.G(n: Nat, +p: C.BTm, +s: C.BTm, +d: C.BV, +y: C.BV, c: Maybe<&2, C.BV>, m: Maybe<&2, C.BV>) -> {C.decM(C.run.b(n, p, s, d, y, c, m)) == C.run.g(n, C.G(p), C.G(s), C.dec(d), C.dec(y), C.decM(c), C.decM(m)) : Maybe<&2, C.HV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+j:
+      match c:
+        case None{}:
+          {==}
+        case Some{v}:
+          match v:
+            case C.BvBool{b}:
+              match b:
+                case True{}:
+                  {==}
+                case False{}:
+                  match m:
+                    case None{}:
+                      {==}
+                    case Some{+z}:
+                      %P.sq.G(p, z) : {C.decM(C.run.b(j, p, s, d, z, C.eval.b(p, z), C.eval.b(s, z))) == C.run.g(j, C.G(p), C.G(s), C.dec(d), C.dec(z), _, C.eval.h(C.G(s), C.dec(z))) : Maybe<&2, C.HV>}
+                      %P.sq.G(s, z) : {C.decM(C.run.b(j, p, s, d, z, C.eval.b(p, z), C.eval.b(s, z))) == C.run.g(j, C.G(p), C.G(s), C.dec(d), C.dec(z), C.decM(C.eval.b(p, z)), _) : Maybe<&2, C.HV>}
+                      L.run.G(j, p, s, d, z, C.eval.b(p, z), C.eval.b(s, z))
+            case C.BvNat{q}:
+              {==}
+            case C.BvUnit{}:
+              {==}
+            case C.BvPair{a, a2}:
+              {==}
+            case C.BvInl{a}:
+              {==}
+            case C.BvInr{a}:
+              {==}
+            case C.BvNil{}:
+              {==}
+            case C.BvCons{a, a2}:
+              {==}
+
+def P.sq.G.l(b, y):
+  match b:
+    case C.BLoop{n, p, s, d}:
+      %P.sq.G(p, y) : {C.decM(C.run.b(n, p, s, d, y, C.eval.b(p, y), C.eval.b(s, y))) == C.run.g(n, C.G(p), C.G(s), C.dec(d), C.dec(y), _, C.eval.h(C.G(s), C.dec(y))) : Maybe<&2, C.HV>}
+      %P.sq.G(s, y) : {C.decM(C.run.b(n, p, s, d, y, C.eval.b(p, y), C.eval.b(s, y))) == C.run.g(n, C.G(p), C.G(s), C.dec(d), C.dec(y), C.decM(C.eval.b(p, y)), _) : Maybe<&2, C.HV>}
+      L.run.G(n, p, s, d, y, C.eval.b(p, y), C.eval.b(s, y))
+
+# a run is deterministic: two runs that both end end alike, by induction
+# on the steps
+def L.agHH(r1: C.Run, r2: C.Run) -> Type:
+  match r1:
+    case C.ROut{}:
+      Unit
+    case C.RDone{a}:
+      match r2:
+        case C.ROut{}:
+          Unit
+        case C.RDone{a2}:
+          {a == a2 : Maybe<&2, C.HV>}
+
+def L.run.det(k: Nat, k2: Nat, +p: C.HTm, +s: C.HTm, +x: C.HV, c: Maybe<&2, C.HV>, m: Maybe<&2, C.HV>) -> L.agHH(C.run.h(k, p, s, x, c, m), C.run.h(k2, p, s, x, c, m)):
+  match k k2:
+    case 0n _:
+      Unit{}
+    case 1n+j 0n:
+      match c:
+        case None{}:
+          Unit{}
+        case Some{v}:
+          match v:
+            case C.HvBool{b}:
+              match b:
+                case True{}:
+                  Unit{}
+                case False{}:
+                  match m:
+                    case None{}:
+                      Unit{}
+                    case Some{+y}:
+                      L.run.det(j, 0n, p, s, y, C.eval.h(p, y), C.eval.h(s, y))
+            case C.HvNat{q}:
+              Unit{}
+            case C.HvUnit{}:
+              Unit{}
+            case C.HvPair{a, a2}:
+              Unit{}
+            case C.HvInl{a}:
+              Unit{}
+            case C.HvInr{a}:
+              Unit{}
+            case C.HvNil{}:
+              Unit{}
+            case C.HvCons{a, a2}:
+              Unit{}
+    case 1n+j 1n+i:
+      match c:
+        case None{}:
+          {==}
+        case Some{v}:
+          match v:
+            case C.HvBool{b}:
+              match b:
+                case True{}:
+                  {==}
+                case False{}:
+                  match m:
+                    case None{}:
+                      {==}
+                    case Some{+y}:
+                      L.run.det(j, i, p, s, y, C.eval.h(p, y), C.eval.h(s, y))
+            case C.HvNat{q}:
+              {==}
+            case C.HvUnit{}:
+              {==}
+            case C.HvPair{a, a2}:
+              {==}
+            case C.HvInl{a}:
+              {==}
+            case C.HvInr{a}:
+              {==}
+            case C.HvNil{}:
+              {==}
+            case C.HvCons{a, a2}:
+              {==}
+
+def L.hl.det(k: Nat, k2: Nat, h: C.HL, +x: C.HV) -> L.agHH(C.eval.hl(k, h, x), C.eval.hl(k2, h, x)):
+  match h:
+    case C.HUntil{+p, +s}:
+      L.run.det(k, k2, p, s, x, C.eval.h(p, x), C.eval.h(s, x))
+
+def L.agHH.at(R1: C.Run, R2: C.Run, -a1: Maybe<&2, C.HV>, -a2: Maybe<&2, C.HV>, e1: {R1 == C.RDone{a1} : C.Run}, e2: {R2 == C.RDone{a2} : C.Run}, d: L.agHH(R1, R2)) -> {a1 == a2 : Maybe<&2, C.HV>}:
+  %e2 : L.agHH(C.RDone{a1}, _)
+  %e1 : L.agHH(_, R2)
+  d
+
+# F -| G on loops that stop within the fuel
+
+# F's def answers h's answer, through enc, where h ends within its fuel
+def L.loop.F.at(+n: Nat, +h: C.HL, +x: C.HV, -v: C.HV, -a: Maybe<&2, C.HV>, eR: {C.eval.hl(n, h, x) == C.RDone{a} : C.Run}, ea: {a == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.bl(C.F.ln(n, h), C.enc(x)) == Some{C.enc(v)} : Maybe<&2, C.BV>}:
+  %ea : {C.eval.bl(C.F.ln(n, h), C.enc(x)) == C.encM(_) : Maybe<&2, C.BV>}
+  P.sq.F.l(n, n, h, x, a, eR, L.le.refl(n))
+
+def L.loop.l(+n: Nat, +h: C.HL, +b: C.BL, le: P.Le.bl(C.F.ln(n, h), b), +x: C.HV, +v: C.HV, -a: Maybe<&2, C.HV>, eR: {C.eval.hl(n, h, x) == C.RDone{a} : C.Run}, ea: {a == Some{v} : Maybe<&2, C.HV>}) -> {C.eval.gl(C.G.l(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  %P.dec.enc(x) : {C.eval.gl(C.G.l(b), _) == Some{v} : Maybe<&2, C.HV>}
+  %P.sq.G.l(b, C.enc(x)) : {_ == Some{v} : Maybe<&2, C.HV>}
+  %Equal.sym(Maybe<&2, C.BV>, C.eval.bl(b, C.enc(x)), Some{C.enc(v)}, le(C.enc(x), C.enc(v), L.loop.F.at(n, h, x, v, a, eR, ea))) : {C.decM(_) == Some{v} : Maybe<&2, C.HV>}
+  %Equal.sym(C.HV, C.dec(C.enc(v)), v, P.dec.enc(v)) : {Some{_} == Some{v} : Maybe<&2, C.HV>}
+  {==}
+
+# h's run of n steps at x, R: it ends (Stops), so with h's answer
+def L.loop.l.at(+n: Nat, +h: C.HL, +b: C.BL, st: P.Stops(h, n), le: P.Le.bl(C.F.ln(n, h), b), +x: C.HV, +v: C.HV, +k: Nat, e: {C.eval.hl(k, h, x) == C.RDone{Some{v}} : C.Run}, R: C.Run, +eR: {C.eval.hl(n, h, x) == R : C.Run}) -> {C.eval.gl(C.G.l(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  match R:
+    case C.ROut{}:
+      Empty.absurd({C.eval.gl(C.G.l(b), x) == Some{v} : Maybe<&2, C.HV>}, st(x, eR))
+    case C.RDone{a}:
+      L.loop.l(n, h, b, le, x, v, a, eR, L.agHH.at(C.eval.hl(n, h, x), C.eval.hl(k, h, x), a, Some{v}, eR, e, L.hl.det(n, k, h, x)))
+
+def L.loop.l.go(+n: Nat, +h: C.HL, +b: C.BL, st: P.Stops(h, n), le: P.Le.bl(C.F.ln(n, h), b), +x: C.HV, +v: C.HV, +k: Nat, e: {C.eval.hl(k, h, x) == C.RDone{Some{v}} : C.Run}) -> {C.eval.gl(C.G.l(b), x) == Some{v} : Maybe<&2, C.HV>}:
+  L.loop.l.at(n, h, b, st, le, x, v, k, e, C.eval.hl(n, h, x), {==})
+
+def P.adj.FG.loop.l(n, h, b, st, le):
+  x => v => k => e => L.loop.l.go(n, h, b, st, le, x, v, k, e)
+
+# h's answer at dec y, where F's def answers w at y
+def L.loop.sqy(+n: Nat, +h: C.HL, +y: C.BV, -a: Maybe<&2, C.HV>, eR: {C.eval.hl(n, h, C.dec(y)) == C.RDone{a} : C.Run}) -> {C.encM(a) == C.eval.bl(C.F.ln(n, h), y) : Maybe<&2, C.BV>}:
+  %P.enc.dec(y) : {C.encM(a) == C.eval.bl(C.F.ln(n, h), _) : Maybe<&2, C.BV>}
+  Equal.sym(Maybe<&2, C.BV>, C.eval.bl(C.F.ln(n, h), C.enc(C.dec(y))), C.encM(a), P.sq.F.l(n, n, h, C.dec(y), a, eR, L.le.refl(n)))
+
+def L.loop.eR(+n: Nat, +h: C.HL, +y: C.BV, +w: C.BV, +a: Maybe<&2, C.HV>, +eR: {C.eval.hl(n, h, C.dec(y)) == C.RDone{a} : C.Run}, e: {C.eval.bl(C.F.ln(n, h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.hl(n, h, C.dec(y)) == C.RDone{Some{C.dec(w)}} : C.Run}:
+  %L.encM.inj(a, w, Equal.trans(Maybe<&2, C.BV>, C.encM(a), C.eval.bl(C.F.ln(n, h), y), Some{w}, L.loop.sqy(n, h, y, a, eR), e)) : {C.eval.hl(n, h, C.dec(y)) == C.RDone{_} : C.Run}
+  eR
+
+def L.loop.r(+n: Nat, +h: C.HL, +b: C.BL, le: P.Le.hl(h, C.G.l(b)), +y: C.BV, +w: C.BV, a: Maybe<&2, C.HV>, eR: {C.eval.hl(n, h, C.dec(y)) == C.RDone{a} : C.Run}, e: {C.eval.bl(C.F.ln(n, h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.bl(b, y) == Some{w} : Maybe<&2, C.BV>}:
+  %P.enc.dec(w) : {C.eval.bl(b, y) == Some{_} : Maybe<&2, C.BV>}
+  L.decM.inj(C.eval.bl(b, y), C.dec(w), Equal.trans(Maybe<&2, C.HV>, C.decM(C.eval.bl(b, y)), C.eval.gl(C.G.l(b), C.dec(y)), Some{C.dec(w)}, P.sq.G.l(b, y), le(C.dec(y), C.dec(w), n, L.loop.eR(n, h, y, w, a, eR, e))))
+
+def L.loop.r.at(+n: Nat, +h: C.HL, +b: C.BL, st: P.Stops(h, n), le: P.Le.hl(h, C.G.l(b)), +y: C.BV, +w: C.BV, e: {C.eval.bl(C.F.ln(n, h), y) == Some{w} : Maybe<&2, C.BV>}, R: C.Run, eR: {C.eval.hl(n, h, C.dec(y)) == R : C.Run}) -> {C.eval.bl(b, y) == Some{w} : Maybe<&2, C.BV>}:
+  match R:
+    case C.ROut{}:
+      Empty.absurd({C.eval.bl(b, y) == Some{w} : Maybe<&2, C.BV>}, st(C.dec(y), eR))
+    case C.RDone{a}:
+      L.loop.r(n, h, b, le, y, w, a, eR, e)
+
+def L.loop.r.go(+n: Nat, +h: C.HL, +b: C.BL, st: P.Stops(h, n), le: P.Le.hl(h, C.G.l(b)), +y: C.BV, +w: C.BV, e: {C.eval.bl(C.F.ln(n, h), y) == Some{w} : Maybe<&2, C.BV>}) -> {C.eval.bl(b, y) == Some{w} : Maybe<&2, C.BV>}:
+  L.loop.r.at(n, h, b, st, le, y, w, e, C.eval.hl(n, h, C.dec(y)), {==})
+
+def P.adj.FG.loop.r(n, h, b, st, le):
+  y => w => e => L.loop.r.go(n, h, b, st, le, y, w, e)
+
+def P.adj.FG.fuel.l(h, b, st, le):
+  P.adj.FG.loop.l(C.fuel(), h, b, st, le)
+
+def P.adj.FG.fuel.r(h, b, st, le):
+  P.adj.FG.loop.r(C.fuel(), h, b, st, le)
+
+# a loop that never stops: hn's test, 0 < 0, is False at every x, and its
+# step is the identity
+def L.p0() -> C.HTm:
+  C.HComp{C.HPrim{C.PLt{}}, C.HPr{C.HLit{0n}, C.HLit{0n}}}
+
+def L.never(k: Nat, +x: C.HV) -> {C.run.h(k, L.p0(), C.HId{}, x, Some{C.HvBool{False{}}}, Some{x}) == C.ROut{} : C.Run}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+j:
+      L.never(j, x)
+
+def P.loop.never(k, x):
+  L.never(k, x)
+
+# F's def of it answers the default, 0, at 0: its fuel runs out
+def L.default(n: Nat) -> {C.run.b(n, C.F(L.p0()), C.BId{}, C.BvNat{0n}, C.BvNat{0n}, Some{C.BvBool{False{}}}, Some{C.BvNat{0n}}) == Some{C.BvNat{0n}} : Maybe<&2, C.BV>}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+j:
+      L.default(j)
+
+def P.loop.default(n):
+  L.default(n)
+
+# a run that never ends is no answer
+def L.isout(r: C.Run) -> Type:
+  match r:
+    case C.ROut{}:
+      Unit
+    case C.RDone{a}:
+      Empty
+
+def L.out.done(-a: Maybe<&2, C.HV>, e: {C.ROut{} == C.RDone{a} : C.Run}) -> Empty:
+  %e : L.isout(_)
+  Unit{}
+
+# so every G b implements hn
+def L.never.le(+x: C.HV, -v: C.HV, +k: Nat, e: {C.eval.hl(k, P.hn(), x) == C.RDone{Some{v}} : C.Run}) -> {C.eval.gl(C.G.l(P.bn7()), x) == Some{v} : Maybe<&2, C.HV>}:
+  Empty.absurd({C.eval.gl(C.G.l(P.bn7()), x) == Some{v} : Maybe<&2, C.HV>}, L.out.done(Some{v}, Equal.trans(C.Run, C.ROut{}, C.eval.hl(k, P.hn(), x), C.RDone{Some{v}}, Equal.sym(C.Run, C.eval.hl(k, P.hn(), x), C.ROut{}, P.loop.never(k, x)), e)))
+
+# and F's def of hn answers 0 at 0, where bn7 answers 7
+def P.adj.FG.loop.not(n, adj):
+  %adj(P.hn(), P.bn7(), x => v => k => e => L.never.le(x, v, k, e), C.BvNat{0n}, C.BvNat{0n}, P.loop.default(n)) : L.is7(_)
+  Unit{}

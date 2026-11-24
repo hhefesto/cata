@@ -117,6 +117,11 @@ and so does cata, never with `@unsafe`:
   of one before it in the package: a constructor with no fields first, then
   one whose fields do not name the type, then any, its fields' defaults in
   turn. A type with none to hand (a type variable) leaves the def out.
+  The default is a choice, kept (11-23): where h never stops, F's def
+  answers it, more defined than h, so the adjunction (`adj/`, section 7)
+  is proved for the programs that stop within the fuel, and refuted for
+  one that never stops; a failure value instead would put every fuelled
+  def and its callers in an Either.
 - Defs that call each other are one def, `HEAD.mu(fuel_, in_)`, as the
   bend branch's mutual walks are: `HEAD.mu.In` has a constructor for each
   member holding its arguments, and the answer is theirs when they share
