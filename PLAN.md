@@ -2194,7 +2194,61 @@ a fresh `--verdict`, no cache, 55 s).
   `run.zsh` checks PROOF, INT and LAZY: PASS, 45 laws, 45 proofs; mutants
   (a strict pair, fst answering the second part, a fold's head the tail,
   an error that answers) each fail.
-- **Outside the model.** An overflowing run (section 8: F answers the
+- **Int as HsInt, in the model (10).** In a package F takes Int and
+  Integer to HsInt, an integer, and then -1 is a value Bend has. Bend's
+  meaning at Int's own values (`eval.bz`, at a range): the squares hold at
+  every value (`sq.F.z`, `sq.G.z`), and F -| G and G -| F both hold
+  (`adj.FG.z.l/r`, `adj.GF.z.l/r`), with no hypothesis on h: what
+  `adj.FG.int.not` refutes at Nat. Where the run stays in Int's 64 bits
+  GHC's Int answers what F's Bend does (`hsint.int`; `hsint.all` for the
+  unbounded integer), and not otherwise (`hsint.not`, x + x at 127 at
+  Int8). The model's arithmetic at HsInt is the integers' (`z.add`, ..);
+  that the prelude's own HsInt.add, HsInt.sub, .. are these is not proved
+  yet.
+- **Variables and lists, in the model (11).** The fragment could not
+  build a list, and its case and foldr saw no variable around them: no map,
+  no append, no `\x -> foldr (\h r -> h + x + r) 0 ys`. Both categories now
+  have unit, a list's nil and cons, a pair's distributivity over a sum, and
+  a fold with an environment (`HFoldE`), in every section's proof. And
+  `Ex`, the fragment as Haskell writes it (variables, let, case, foldr),
+  with its own meaning `ev`, is compiled to the categories by `cc`
+  (Elliott's Compiling to categories), proved to keep the meaning
+  (`cc.ok`, by induction on the expression and, at a fold, on the list),
+  so F's Bend means the program with variables (`cc.F`) and both
+  adjunctions hold of it (`adj.FG.ex.l/r`, `adj.GF.ex.l/r`). `run.zsh`:
+  PASS (`--verdict`, a kernel built anew from Lean 4.34.0), 68 laws, 68
+  proofs; ten mutants (the environment dropped or reordered, a case's
+  branches swapped, cons's parts swapped, dist to the other alternative, a
+  fold's step without its environment, HsInt's primitives at another
+  range, 63 for 127, a variable for its neighbour, a lazy pair's parts
+  swapped) each fail.
+- **The model against GHC, and against cata itself (adj/gen).** Until now
+  only the model's arithmetic and 14 lazy programs were tried against GHC,
+  and nothing tied the model's F to Fold.bend's. `adj/gen/Gen.bend` writes
+  random typed programs of the fragment (Ex) as Haskell modules, and
+  `adj/gen/run.zsh` runs them. GHC against the model, 200 programs at 8
+  inputs each: of 1,600 answers 1,231 the same, 257 errors in both, 112
+  where the strict model errs and GHC's laziness answers, **0 differ**.
+  cata's own F on the same 200, as a package (spec-ix2, law-ix1 of
+  d33df63): it takes **60** (57 ok-law, 416 laws, all of them GHC's
+  answers; 3 ok-check), and **140 are out**: 54 fold:closure-argument (a
+  foldr's function uses a variable a pattern or a let binds), 32 survey
+  (int-sub: Natural's partial `-`), 21 fold:if-in-argument, 19
+  fold:let-in-argument, 6 a law (two lazy programs, refused as they
+  should be; three Bend refuses, "z consumed more than once"; one matches
+  a local), 5 check, 2 fold:partial-in-lambda, 1 dep. A module alone
+  (no spec) takes 35. So the model's F is total on the fragment, and
+  cata's is not: where cata's F answers it answered nothing but GHC's
+  answers here, and it is a functor on the part it takes. A foldr's
+  function that uses a parameter is worse than out: the parameter becomes
+  a template (`def a1(~x: Nat, ys)`), which a caller cannot pass a run-time
+  value, so F's composite is refused where F took both parts (`check: a
+  template applied to closed ~ arguments`). The model's `HFoldE` says what
+  F should write there: the fold with its environment, a parameter.
+- **Outside the model.** Functions as values, data types other than sums,
+  pairs and lists, classes, records, strings and general mutual recursion:
+  cata takes them, and their laws are tested (GHC's answers), not proved.
+  An overflowing run (section 8: F answers the
   exact number where GHC's Int wraps; nothing in cata guards it). A
   partial call under laziness answers an error in F's Bend where h's
   never forces it (section 9: F is less defined there, so the def's law
