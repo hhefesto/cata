@@ -3206,6 +3206,8 @@ def fd.parity(q: Tq, op: String, x: T.Bt) -> T.Bt:
   match q:
     case TqInt{}:
       fd.callS("HsPrelude.HsInt." ++ op, [x])
+    case TqNat{}:
+      fd.callS("HsPrelude.HsNum." ++ op, [x])
     case _:
       fd.todo("fold:parity-at-type")
 

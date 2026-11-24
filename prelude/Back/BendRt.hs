@@ -354,6 +354,8 @@ b'HsPrelude'HsList'range a b = map fromIntegral [a .. b]
 b'HsPrelude'HsList'rangeBy :: (Integral a, Num b) => a -> a -> a -> [b]
 b'HsPrelude'HsList'rangeBy a b c = map fromIntegral [a, b .. c]
 b'HsPrelude'HsList'rangeChar a b = [a .. b]
+b'HsPrelude'HsNum'even n = even n
+b'HsPrelude'HsNum'odd n = odd n
 
 -- the prelude's partial functions, each a failure value (Left GHC's
 -- message) where GHC throws (bend/Prelude.bend, "Partial functions")

@@ -63,3 +63,14 @@ def HsInt.rangeBy(+a: HsInt, +b: HsInt, +c: HsInt) -> List<&2, HsInt>:
   +d = HsInt.sub(b, a)
   +m = Bool.pick(HsInt, HsInt.isneg(d), HsInt.sub(a, c), HsInt.sub(c, a))
   HsInt.rangeBy.go(HsInt.rangeBy.n(m, HsInt.mag(d)), a, d)
+
+# even and odd at Nat
+def HsNum.even(n: Nat) -> Bool:
+  match n:
+    case 0n:
+      True{}
+    case 1n+p:
+      Bool.not(HsNum.even(p))
+
+def HsNum.odd(n: Nat) -> Bool:
+  Bool.not(HsNum.even(n))
