@@ -58,3 +58,12 @@ visitAll t = do
 
 exAll :: Int -> ([Int], Bool)
 exAll n = case visitAll (Two 0 n 1) of Acc xs t -> (xs, any (== n) t)
+
+-- a record built of the fields it selects (Fast's FastMeter)
+data Meter = Meter { mA :: Int, mB :: [Int] }
+
+instance Semigroup Meter where
+  a <> b = Meter { mA = mA a + mA b, mB = mB a ++ mB b }
+
+exMeter :: Int -> Int -> (Int, [Int])
+exMeter a b = case Meter a [b] <> Meter b [a] of Meter x y -> (x, y)

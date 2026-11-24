@@ -4518,9 +4518,20 @@ def sp.lr.id(i: X.Sx) -> List<&2, U32>:
     case _:
       S.b("l")
 
-# x with each (l NAME ID) whose NAME is one of ns as (l NAME_ID ID)
+# x with each (l NAME ID) whose NAME is one of ns as (l NAME_ID ID), but a
+# record construction's label, (field (l NAME ID) E) (FastMeter's <> builds
+# one of the fields it selects)
+def sp.lr.lab(isf: Bool, +l: X.Sx, l2: X.Sx) -> X.Sx:
+  match isf:
+    case True{}:
+      l
+    case False{}:
+      l2
+
 def sp.lr.rn(x: X.Sx, +ns: List<&2, List<&2, U32>>) -> X.Sx:
   match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxCons{+lh, +lt}, X.SxCons{e, X.SxNil{}}}}:
+      X.SxCons{X.SxAtom{a}, X.SxCons{sp.lr.lab(sp.is(a, "field"), X.SxCons{lh, lt}, sp.lr.rn(X.SxCons{lh, lt}, ns)), X.SxCons{sp.lr.rn(e, ns), X.SxNil{}}}}
     case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+n}, X.SxCons{+i, X.SxNil{}}}}:
       Bool.pick(X.Sx, Bool.and(sp.is(a, "l"), S.mem(n, ns)), sp.l([X.SxAtom{a}, X.SxStr{List.concat(&2, U32, [n, S.b("_"), sp.lr.id(i)])}, i]), sp.l([X.SxAtom{a}, X.SxStr{n}, i]))
     case X.SxCons{h, t}:

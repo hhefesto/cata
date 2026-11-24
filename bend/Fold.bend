@@ -2605,6 +2605,8 @@ def fd.sum(q: Tq, +prod: Bool, +t: T.Bt, xs: T.Bt) -> T.Bt:
       fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(Bool.pick(T.Bt, prod, fd.nmul(), fd.v("Nat.add"))), xs, T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])
     case TqInt{}:
       fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(t), fd.tpl0(t), fd.tpl0(fd.v(Bool.pick(String, prod, "HsPrelude.HsInt.mul", "HsPrelude.HsInt.add"))), xs, T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])}])
+    case TqRat{}:
+      fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(t), fd.tpl0(t), fd.tpl0(fd.v(Bool.pick(String, prod, "HsPrelude.HsRational.mul", "HsPrelude.HsRational.add"))), xs, fd.callS("HsPrelude.HsRational.of", [T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])}])])
     case _:
       fd.todo("fold:sum-at-type")
 
