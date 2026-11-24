@@ -49,3 +49,20 @@ roots xs = case kept of
       [] -> take 1 failures
       r -> r
     big n = n > 3
+
+-- a lifted def's parameters are not named as what it captures (x0 here is
+-- the fold's own name for a first parameter)
+padded :: Int -> Int -> [Int] -> [Int] -> [Int]
+padded x0 y0 xs ys = go xs ys
+  where
+    go [] [] = []
+    go as [] = map (+ y0) as
+    go [] bs = map (\b -> x0 - 0 + b) bs
+    go (a : as) (b : bs) = (a * b + x0) : go as bs
+
+hides :: Int -> [Int] -> Int
+hides a xs = go xs 0
+  where
+    go [] n = n + a
+    go [b] a' = a + b + a'
+    go (b : bs) a' = go bs (a' + b)

@@ -347,8 +347,12 @@ b'HsPrelude'HsInt'gcd a b = gcd a b
 b'HsPrelude'HsInt'lcm a b = lcm a b
 b'HsPrelude'HsInt'range a b = [a .. b]
 b'HsPrelude'HsInt'rangeBy a b c = [a, b .. c]
-b'HsPrelude'HsList'range a b = [a .. b]
-b'HsPrelude'HsList'rangeBy a b c = [a, b .. c]
+-- (its elements' type its own: toInteger is nothing in F, and h's Int bounds
+-- may list Integers)
+b'HsPrelude'HsList'range :: (Integral a, Num b) => a -> a -> [b]
+b'HsPrelude'HsList'range a b = map fromIntegral [a .. b]
+b'HsPrelude'HsList'rangeBy :: (Integral a, Num b) => a -> a -> a -> [b]
+b'HsPrelude'HsList'rangeBy a b c = map fromIntegral [a, b .. c]
 b'HsPrelude'HsList'rangeChar a b = [a .. b]
 
 -- the prelude's partial functions, each a failure value (Left GHC's

@@ -4528,24 +4528,53 @@ def fd.pm.x(p: Pm) -> List<&2, U32>:
     case Pm{x, s}:
       x
 
+# the names a clause uses and does not bind (an outer variable): a parameter
+# the fold names, or a split one a clause names, must be another, or it
+# would hide it (zipWithDefaults f x0 y0 (x:xs) ys: a clause lifted out of it
+# that uses x0 has a parameter of its own)
+def fd.pms.less(xs: List<&2, List<&2, U32>>, +ns: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      +r = fd.pms.less(t, ns)
+      Bool.pick(List<&2, List<&2, U32>>, S.mem(x, ns), r, x <> r)
+
+def fd.pms.used(cls: List<&2, R>) -> List<&2, List<&2, U32>>:
+  match cls:
+    case Nil{}:
+      Nil{}
+    case RC{ps, b, lt, f} <> t:
+      List.append(&2, List<&2, U32>, fd.pms.less(T.tba.refs(b, Nil{}), fd.pnames(ps)), fd.pms.used(t))
+    case _ <> t:
+      fd.pms.used(t)
+
+def fd.pms.name(fuel: Nat, +x: List<&2, U32>, +used: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match fuel:
+    case 0n:
+      x
+    case 1n+p:
+      Bool.pick(List<&2, U32>, S.mem(x, used), fd.pms.name(p, fd.cat(x, S.b("_")), used), x)
+
 # a split parameter named as a clause names it, and an earlier parameter
 # named so too (hs1003's 00616: conjunction Yes a = a; conjunction a Yes =
 # a, both a): xI instead (each case binds the clause's own names)
-def fd.pm.fresh(p: Pm, +seen: List<&2, List<&2, U32>>, +i: Nat) -> Pm:
+def fd.pm.fresh(p: Pm, +seen: List<&2, List<&2, U32>>, +i: Nat, +used: List<&2, List<&2, U32>>) -> Pm:
   match p:
     case Pm{+x, +s}:
-      Bool.pick(Pm, Bool.and(s, S.mem(x, seen)), Pm{fd.cat(S.b("x"), fd.nshow(i)), s}, Pm{x, s})
+      +bad = Bool.or(Bool.and(s, S.mem(x, seen)), S.mem(x, used))
+      Bool.pick(Pm, bad, Pm{fd.pms.name(6n, fd.cat(S.b("x"), fd.nshow(i)), List.append(&2, List<&2, U32>, seen, used)), s}, Pm{x, s})
 
-def fd.pms.go(k: Nat, +i: Nat, +cls: List<&2, R>, +seen: List<&2, List<&2, U32>>) -> List<&2, Pm>:
+def fd.pms.go(k: Nat, +i: Nat, +cls: List<&2, R>, +seen: List<&2, List<&2, U32>>, +used: List<&2, List<&2, U32>>) -> List<&2, Pm>:
   match k:
     case 0n:
       Nil{}
     case 1n+p:
-      +m = fd.pm.fresh(fd.pm(fd.col(cls, i), i), seen, i)
-      m <> fd.pms.go(p, 1n+i, cls, fd.pm.x(m) <> seen)
+      +m = fd.pm.fresh(fd.pm(fd.col(cls, i), i), seen, i, used)
+      m <> fd.pms.go(p, 1n+i, cls, fd.pm.x(m) <> seen, used)
 
 def fd.pms(k: Nat, +i: Nat, +cls: List<&2, R>) -> List<&2, Pm>:
-  fd.pms.go(k, i, cls, Nil{})
+  fd.pms.go(k, i, cls, Nil{}, fd.pms.used(cls))
 
 def fd.anysplit(pms: List<&2, Pm>) -> Bool:
   match pms:
