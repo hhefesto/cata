@@ -14245,14 +14245,8 @@ def fd.dc.subs(ts: List<&2, T.Bt>, +own: List<&2, List<&2, U32>>) -> List<&2, T.
     case t <> r:
       T.BtTplArg{fd.dc.sub(t, own)} <> fd.dc.subs(r, own)
 
-def fd.dc.kvars(ks: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match ks:
-    case Nil{}:
-      Nil{}
-    case +k <> t:
-      fd.dc.var(k) <> fd.dc.kvars(t)
-
-# the type arguments, the ones a dictionary is at templates
+# the type arguments, templates: a dictionary is one (Bend takes ~ only on
+# leading parameters), its type names its variable
 def fd.dc.tys(tvs: List<&2, List<&2, U32>>, as: List<&2, T.Bt>, +vs: List<&2, List<&2, U32>>) -> List<&2, T.Bt>:
   match tvs as:
     case +x <> r +a <> s:
@@ -14265,7 +14259,7 @@ def fd.dc.call(m: Maybe<&2, Dc>, +f: List<&2, U32>, +a: T.Bt, +as: List<&2, T.Bt
   match m:
     case Some{Dc{n, +tvs, +ks}}:
       +k = List.length(&2, List<&2, U32>, tvs)
-      +hd = fd.dc.tys(tvs, List.take(&2, T.Bt, as, k), fd.dc.kvars(ks))
+      +hd = fd.dc.tys(tvs, List.take(&2, T.Bt, as, k), tvs)
       +ds = fd.dc.subs(fd.dc.terms(ks, tvs, fd.spine(a)), own)
       T.BtApp{T.BtVar{f}, T.tba.args(List.append(&2, T.Bt, hd, List.append(&2, T.Bt, ds, List.drop(&2, T.Bt, as, k))))}
     case None{}:
@@ -14317,7 +14311,7 @@ def fd.dc.dpars(ks: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
     case k <> t:
       fd.dc.dpar(k) <> fd.dc.dpars(t)
 
-# the parameters: the type variables (a dictionary's a template), the
+# the parameters: the type variables (templates, as a dictionary is), the
 # dictionaries, the rest
 def fd.dc.ps(ps: List<&2, T.BParam>, +ks: List<&2, List<&2, U32>>, +vs: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
   match ps:
@@ -14337,7 +14331,7 @@ def fd.dc.item(it: T.BItem, +ds: List<&2, Dc>) -> T.BItem:
   match it:
     case T.BiDef{+n, +ps, r, b, d}:
       +ks = fd.dc.ks(fd.dc.find(ds, n))
-      T.BiDef{n, Bool.pick(List<&2, T.BParam>, List.is_empty(&2, List<&2, U32>, ks), ps, fd.dc.ps(ps, ks, fd.dc.kvars(ks))), r, fd.dc.rw(b, ds, ks), d}
+      T.BiDef{n, Bool.pick(List<&2, T.BParam>, List.is_empty(&2, List<&2, U32>, ks), ps, fd.dc.ps(ps, ks, fd.dc.tvs(ps))), r, fd.dc.rw(b, ds, ks), d}
     case h:
       h
 

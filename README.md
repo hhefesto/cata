@@ -437,8 +437,13 @@ Haskell's answers on finite lists: `fst`, `snd`, `swap`, `uncurry`, `zip`,
 `sortOn` (stable, as Haskell's), `group`, `groupBy`, `tails`, `inits`,
 `mapMaybe`, `catMaybes`, `isJust`, `isNothing`, `listToMaybe`,
 `maybeToList`, `lefts`, `rights`, `partitionEithers`, `isLeft`, `isRight`,
-`fromLeft`, `fromRight`, `foldr` and `foldl` (the function may copy the
-element); `==` or `compare` at the element a template, as at a Map's key.
+`fromLeft`, `fromRight`, `splitAt`, `transpose`, `dropWhileEnd`, `uncons`,
+`scanl`, `elemIndex` (prelude/HsListMore.bend), `foldr` and `foldl` (the
+function may copy the element); `==` or `compare` at the element a
+template, as at a Map's key. `divMod a b` is `(div a b, mod a b)`, `quotRem`
+`(quot a b, rem a b)` (Spec's `sp.divmod`, where a and b bind nothing);
+`toUpper` and `toLower` are HsChar's, GHC's at every code point
+(tests/hs/ListMore.hs).
 `zip [n ..] xs`, `zip xs [n ..]` and the same with `zipWith` (an endless
 list the zip ends) are HsList's `zipFrom`, `zipR`, `zipWithFrom`,
 `zipWithR`, the specialiser's rewrite. Data.Bifunctor's `first`, `second`
@@ -658,6 +663,14 @@ Natural's `-` is partial too (GHC's ArithException Underflow below 0):
 `HsNum.sub`, "arithmetic underflow" (tests/hs/NatSub.hs). Int's `-` in a
 module alone, where Int is Nat, is out (`int-sub`).
 
+Clauses that leave values out (`first (x : _) = x`, a last clause whose
+guards can all fail) are partial: GHC throws a PatternMatchFail. Such a
+function's, case's or lambda's clauses get a last one, error's call with
+GHC's message without its place ("Non-exhaustive patterns in function
+first"; Fold's `fd.exh`, over base's constructors and the module's own, an
+imported type's taken to cover; tests/hs/NonExh.hs). A let's pattern that
+fails is out still.
+
 A partial def's law runs GHC's call under `LawEw`, whose `lawSx` turns
 an `ErrorCall m` into `Inl m` (an `ArithException` into `Inl` of its
 show) and an answer into `Inr`, so the laws check GHC's message too
@@ -671,12 +684,22 @@ Either, pairs, `()` and Ordering the prelude's `hs.eq.*` (templates given
 module whose Eq instance GHC derived, `T.eq` (`ok-gen`): the same
 constructor and `==` at each field, as GHC derives it, and a template
 `T.eq(~A.., ~eq_A.., a, b)` when T has parameters. `elem` at such a type is
-`List.contains` given that `==`. Out, each with its reason: a type whose Eq
-instance is written by hand (`fold:eq-instance`); a type inside a list or a
-Maybe of its own (`fold:eq-nested`: the call of T.eq sits in a template
-argument, where Bend sees no decreasing call) or two types calling each
-other's (`fold:eq-mutual`); a type of an earlier module whose T.eq is out
-(`fold:eq-imported:NAME`); `==` at a type variable (`fold:eq-at-tyvar`).
+`List.contains` given that `==`. A list, a Maybe, an Either or a pair of T
+inside T (telomare's LocTag holds a Maybe LocTag) is compared by a def of
+its own, `T.eq.nH`, the prelude's with `T.eq` in place (Fold's `fd.nst`,
+tests/hs/EqNested.hs): Bend sees no decreasing call in a template argument,
+and T.eq and it are a group, written with fuel. `==` at a type variable is
+the def's dictionary: a def that uses `==` (`compare`) at a, or calls one
+that does, takes `~eq_A: A -> A -> Bool` (`~cmp_A: A -> A -> Cmp`) after its
+type variables, templates, and its callers pass `==` at their type (Fold's
+`fd.dc`, to a fixed point; GHC's Eq a and Ord a, which the specialiser's
+copies in a package no longer have). A law runs it at Nat; G's def is given
+GHC's `==` and `compare` (tests/hs/Dict.hs). Out, each with its reason: a
+type whose Eq instance is written by hand (`fold:eq-instance`); a type
+inside a Map or a Set of its own (`fold:eq-nested`) or two types calling
+each other's (`fold:eq-mutual`); a type of an earlier module whose T.eq is
+out (`fold:eq-imported:NAME`); `==` at a variable that is no parameter of
+the def (`fold:eq-at-tyvar`).
 
 `<`, `<=`, `>`, `>=`, `compare`, `max` and `min` at these types go the
 same way: a derived Ord is `T.cmp` (the constructors in their order, then
