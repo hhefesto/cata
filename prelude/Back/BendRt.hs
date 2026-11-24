@@ -414,6 +414,7 @@ b'HsPrelude'HsPt'cmaybe d f m = maybe d f m
 b'HsPrelude'HsPt'ceither f g m = either f g m
 b'HsPrelude'HsPt'errorq msg = Left msg
 b'HsPrelude'HsPt'undefq = Left "Prelude.undefined"
+b'HsPrelude'HsPt'uncurry f p = case p of { (a, b) -> f a b }
 b'HsPrelude'HsPt'mmap f m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> f v >>= \w -> b'HsPrelude'HsPt'mmap f t >>= \r -> Right (B'HsPrelude'HsMap'Bin k w r) }
 b'HsPrelude'HsPt'mmapk f m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> f k v >>= \w -> b'HsPrelude'HsPt'mmapk f t >>= \r -> Right (B'HsPrelude'HsMap'Bin k w r) }
 b'HsPrelude'HsPt'mfilter p m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> p v >>= \b -> b'HsPrelude'HsPt'mfilter p t >>= \r -> Right (if b then B'HsPrelude'HsMap'Bin k v r else r) }

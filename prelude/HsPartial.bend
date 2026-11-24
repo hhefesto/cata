@@ -452,3 +452,8 @@ def HsPt.mfoldr(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> Either<&2, &2, List<
       Inr{z}
     case HsMap.Bin{k, v, t}:
       HsPt.bind(B, B, HsPt.mfoldr(~K, ~V, ~B, ~f, z, t), r => f(v)(r))
+
+# uncurry given a partial function (fd.pt.unc)
+def HsPt.uncurry(~q: Quant, ~A: Data, ~B: Data, ~C: Kind(q), f: A -> B -> Either<&2, q, List<&2, Char>, C>, p: Sigma<&2, &2, A, _ => B>) -> Either<&2, q, List<&2, Char>, C>:
+  (a, b) = p
+  f(a)(b)
