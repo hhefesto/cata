@@ -5677,6 +5677,35 @@ def sp.arith(+y: X.Sx) -> X.Sx:
   +c2 = sp.l([sp.a("app"), sp.l([sp.a("app"), w, a]), b])
   sp.if(X.Sx, ft, _ => c2, _ => sp.if(X.Sx, fs, _ => sp.l([sp.a("app"), c2, sp.at(k, 3n)]), _ => y))
 
+# divMod a b as (div a b, mod a b), quotRem a b as (quot a b, rem a b), where
+# a and b bind nothing (each is written twice; GHC's own error at b 0 is
+# div's)
+def sp.divmod.put(x: X.Sx, +n: String) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+t, X.SxNil{}}}}:
+      sp.if(X.Sx, Bool.or(sp.is(a, "tyapp"), sp.is(a, "evapp")), _ => sp.l([X.SxAtom{a}, sp.divmod.put(f, n), t]), _ => sp.l([X.SxAtom{a}, f, t]))
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+m}, X.SxCons{X.SxStr{o}, X.SxCons{+k, X.SxNil{}}}}}:
+      sp.l([X.SxAtom{a}, X.SxStr{m}, X.SxStr{S.b(n)}, k])
+    case z:
+      z
+
+def sp.divmod.two(+h: X.Sx, +a: X.Sx, +b: X.Sx, +p: String, +q: String) -> X.Sx:
+  +one = sp.l([sp.a("app"), sp.l([sp.a("app"), sp.divmod.put(h, p), a]), b])
+  +two = sp.l([sp.a("app"), sp.l([sp.a("app"), sp.divmod.put(h, q), a]), b])
+  sp.l([sp.a("tuple"), one, two])
+
+def sp.divmod(+y: X.Sx) -> X.Sx:
+  +f = sp.at(y, 1n)
+  +h = sp.at(f, 1n)
+  +a = sp.at(f, 2n)
+  +b = sp.at(y, 2n)
+  +ap = Bool.and(sp.head.is(f, "app"), sp.head.is(h, "evapp"))
+  +k = sp.if(List<&2, U32>, ap, _ => sp.pc.key(sp.pc.peel(h, Nil{}, Nil{})), _ => Nil{})
+  +dm = sp.is(k, "GHC.Internal.Real.divMod")
+  +qr = sp.is(k, "GHC.Internal.Real.quotRem")
+  +ok = sp.if(Bool, Bool.or(dm, qr), _ => Bool.not(Bool.or(sp.has(a, S.b("bv")), sp.has(b, S.b("bv")))), _ => False{})
+  sp.if(X.Sx, ok, _ => Bool.pick(X.Sx, dm, sp.divmod.two(h, a, b, "div", "mod"), sp.divmod.two(h, a, b, "quot", "rem")), _ => y)
+
 # the export's clauses and local pattern bindings as the fold reads them
 # (cts: the package's constructors, for a pattern's type)
 def sp.pb(x: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
@@ -5684,7 +5713,7 @@ def sp.pb(x: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
     case X.SxCons{h, t}:
       +y = {X.SxCons{sp.pb(h, cts), sp.pb(t, cts)} : X.Sx}
       +a = sp.hd(y)
-      sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.pb.at(y, cts), _ => sp.if(X.Sx, sp.is(a, "match"), _ => sp.ftw.at(y), _ => sp.if(X.Sx, sp.is(a, "grhs"), _ => sp.ftw.grhs(y, cts), _ => sp.if(X.Sx, sp.is(a, "evapp"), _ => sp.natsub(y), _ => sp.if(X.Sx, sp.is(a, "arith"), _ => sp.arith(y), _ => y)))))
+      sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.pb.at(y, cts), _ => sp.if(X.Sx, sp.is(a, "match"), _ => sp.ftw.at(y), _ => sp.if(X.Sx, sp.is(a, "grhs"), _ => sp.ftw.grhs(y, cts), _ => sp.if(X.Sx, sp.is(a, "evapp"), _ => sp.natsub(y), _ => sp.if(X.Sx, sp.is(a, "arith"), _ => sp.arith(y), _ => sp.if(X.Sx, sp.is(a, "app"), _ => sp.divmod(y), _ => y))))))
     case z:
       z
 

@@ -198,6 +198,8 @@ type BkN is Data:
 # parameters' count
 type BkP is Data:
   BkP{b: List<&2, U32>, n: Nat}
+  # a def that takes dictionaries (Fold's fd.dc): their terms, how many
+  BkQ{b: List<&2, U32>, t: List<&2, U32>, n: Nat}
 
 def bk.nm.m(+nm: BkN) -> List<&2, U32>:
   match nm:
@@ -1938,6 +1940,63 @@ def bk.pt.add(yes: Bool, n: List<&2, U32>, ps: List<&2, T.BParam>, pt: List<&2, 
     case False{}:
       pt
 
+# a def's dictionaries (its parameters eq_A, cmp_A: Fold's fd.dc), == and
+# compare at h's type there
+def bk.dc.isdict(p: T.BParam) -> Nat:
+  match p:
+    case T.BParam{T.BmTpl{}, +x, T.BtPi{m, y, d, T.BtVar{+v}, b}}:
+      Bool.pick(Nat, S.eq(x, List.append(&2, U32, S.b("eq_"), v)), 1n, Bool.pick(Nat, S.eq(x, List.append(&2, U32, S.b("cmp_"), v)), 2n, 0n))
+    case _:
+      0n
+
+def bk.dc.put(k: Nat, t: List<&2, U32>) -> List<&2, U32>:
+  match k:
+    case 0n:
+      t
+    case 1n:
+      bk.s(" b'dict'eq", t)
+    case _:
+      bk.s(" b'dict'cmp", t)
+
+def bk.dc.text(ps: List<&2, T.BParam>) -> List<&2, U32>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case p <> t:
+      bk.dc.put(bk.dc.isdict(p), bk.dc.text(t))
+
+def bk.dc.n(ps: List<&2, T.BParam>) -> Nat:
+  match ps:
+    case Nil{}:
+      0n
+    case p <> t:
+      Nat.add(Nat.min(bk.dc.isdict(p), 1n), bk.dc.n(t))
+
+def bk.dc.add(n: Nat, b: List<&2, U32>, ps: List<&2, T.BParam>, pt: List<&2, BkP>) -> List<&2, BkP>:
+  match n:
+    case 0n:
+      pt
+    case 1n+(+p):
+      BkQ{b, bk.dc.text(ps), 1n+p} <> pt
+
+def bk.dc.find(ps: List<&2, BkP>, +b: List<&2, U32>) -> List<&2, U32>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case BkQ{+b2, +t, k} <> r:
+      Bool.pick(List<&2, U32>, S.eq(b2, b), t, bk.dc.find(r, b))
+    case _ <> r:
+      bk.dc.find(r, b)
+
+def bk.dc.findn(ps: List<&2, BkP>, +b: List<&2, U32>) -> Nat:
+  match ps:
+    case Nil{}:
+      0n
+    case BkQ{+b2, t, +k} <> r:
+      Bool.pick(Nat, S.eq(b2, b), k, bk.dc.findn(r, b))
+    case _ <> r:
+      bk.dc.findn(r, b)
+
 # a partial def's value parameters' count, if b is one
 def bk.pt.find(ps: List<&2, BkP>, +b: List<&2, U32>) -> Maybe<&2, Nat>:
   match ps:
@@ -1945,6 +2004,8 @@ def bk.pt.find(ps: List<&2, BkP>, +b: List<&2, U32>) -> Maybe<&2, Nat>:
       None{}
     case BkP{+b2, k} <> t:
       Bool.pick(Maybe<&2, Nat>, S.eq(b2, b), Some{k}, bk.pt.find(t, b))
+    case _ <> t:
+      bk.pt.find(t, b)
 
 # the module's Bend names: its defs (laws too: never called), its types
 # and its partial defs
@@ -1954,8 +2015,8 @@ def bk.env.go(its: List<&2, T.BItem>, ds: List<&2, List<&2, U32>>, ts: List<&2, 
       match nm:
         case BkN{m, as, tn, cn, pd, nf, kd, im}:
           Bk{m, ds, ts, tn, cn, pt, nf, kd, bk.cv(nf), im}
-    case T.BiDef{+n, ps, r, b, d} <> t:
-      bk.env.go(t, n <> ds, ts, bk.pt.add(S.mem(n, bk.nm.pd(nm)), n, ps, pt), nm)
+    case T.BiDef{+n, +ps, r, b, d} <> t:
+      bk.env.go(t, n <> ds, ts, bk.dc.add(bk.dc.n(ps), n, ps, bk.pt.add(S.mem(n, bk.nm.pd(nm)), n, ps, pt)), nm)
     case T.BiType{n, ps, k, cs, d} <> t:
       bk.env.go(t, ds, n <> ts, pt, nm)
     case _ <> t:
@@ -1963,21 +2024,32 @@ def bk.env.go(its: List<&2, T.BItem>, ds: List<&2, List<&2, U32>>, ts: List<&2, 
 
 # G(F(h)) at h's type: a partial def's Either unwrapped (its Inl{m} h's
 # error m again, b'unfail), under a lambda of its value parameters
-def bk.alias.body(pt: Maybe<&2, Nat>, +b: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+def bk.dc.head(+b: List<&2, U32>, +q: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, List.is_empty(&2, U32, q), bk.dname(b), 40 <> List.append(&2, U32, bk.dname(b), List.append(&2, U32, q, [41])))
+
+def bk.alias.body(pt: Maybe<&2, Nat>, +hd: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
   match pt:
     case None{}:
-      bk.b(bk.dname(b), acc)
+      bk.b(hd, acc)
     case Some{0n}:
-      bk.s("(b'unfail ", bk.b(bk.dname(b), 41 <> acc))
+      bk.s("(b'unfail ", bk.b(hd, 41 <> acc))
     case Some{+k}:
-      bk.s("(\\", bk.anames(k, 1n, bk.s(" -> b'unfail (", bk.b(bk.dname(b), bk.anames(k, 1n, bk.s("))", acc))))))
+      bk.s("(\\", bk.anames(k, 1n, bk.s(" -> b'unfail (", bk.b(hd, bk.anames(k, 1n, bk.s("))", acc))))))
+
+# a partial def's value parameters but its dictionaries
+def bk.dc.less(m: Maybe<&2, Nat>, n: Nat) -> Maybe<&2, Nat>:
+  match m:
+    case Some{k}:
+      Some{Nat.sub(k, n)}
+    case None{}:
+      None{}
 
 # h's name: b'up, the round trip's iso at h's type (BendRt's B'Up: G's
 # nested pairs as h's tuples), of G(F(h))
 def bk.alias(has: Bool, +e: Bk, +h: List<&2, U32>, +b: List<&2, U32>, rest: List<&2, U32>) -> List<&2, U32>:
   match has:
     case True{}:
-      bk.b(bk.alias.name(h), bk.s(" = b'up ", bk.alias.body(bk.pt.find(bk.pt(e), b), b, 10 <> rest)))
+      bk.b(bk.alias.name(h), bk.s(" = b'up ", bk.alias.body(bk.dc.less(bk.pt.find(bk.pt(e), b), bk.dc.findn(bk.pt(e), b)), bk.dc.head(b, bk.dc.find(bk.pt(e), b)), 10 <> rest)))
     case False{}:
       rest
 

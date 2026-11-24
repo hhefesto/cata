@@ -909,22 +909,38 @@ type Pl is Data:
   Pl{b: List<&2, U32>, ret: T.Bt, ls: List<&2, Lc>}
   PlNo{b: List<&2, U32>, why: List<&2, U32>}
 
-# a parameter of the def: a type (Data), passed Nat; else a value
+# a parameter's term in a law's call when it is no value: a type (Data) is
+# Nat, a dictionary (Fold's fd.dc: eq_A, cmp_A) Nat's == or compare; and
+# whether it is a template
+type La is Data:
+  La{t: Bool, d: T.Bt}
+
+def lw.dterm(k: Nat) -> T.Bt:
+  match k:
+    case 0n:
+      F.fd.ty0("Nat")
+    case 1n:
+      F.fd.v("Nat.is_eq")
+    case _:
+      F.fd.v("Nat.cmp")
+
+# a parameter of the def: a type (Data), passed Nat, or a dictionary; else
+# a value
 def lw.kinds(ps: List<&2, T.BParam>) -> List<&2, Bool>:
   match ps:
     case T.BParam{m, x, T.BtVar{k}} <> t:
       S.eq(k, S.b("Data")) <> lw.kinds(t)
-    case _ <> t:
-      False{} <> lw.kinds(t)
+    case p <> t:
+      Nat.is_gt(K.bk.dc.isdict(p), 0n) <> lw.kinds(t)
     case Nil{}:
       Nil{}
 
-def lw.tpls(ps: List<&2, T.BParam>) -> List<&2, Bool>:
+def lw.tpls(ps: List<&2, T.BParam>) -> List<&2, La>:
   match ps:
-    case T.BParam{T.BmTpl{}, x, ty} <> t:
-      True{} <> lw.tpls(t)
+    case T.BParam{T.BmTpl{}, +x, +ty} <> t:
+      La{True{}, lw.dterm(K.bk.dc.isdict(T.BParam{T.BmTpl{}, x, ty}))} <> lw.tpls(t)
     case _ <> t:
-      False{} <> lw.tpls(t)
+      La{False{}, F.fd.ty0("Nat")} <> lw.tpls(t)
     case Nil{}:
       Nil{}
 
@@ -946,11 +962,11 @@ def lw.wrap(t: Bool, b: T.Bt) -> T.Bt:
 
 # the def's arguments: Nat at each type parameter, the inputs in order at
 # the others (a template parameter is passed as one)
-def lw.bargs(ks: List<&2, Bool>, ts: List<&2, Bool>, vs: Va) -> List<&2, T.Bt>:
+def lw.bargs(ks: List<&2, Bool>, ts: List<&2, La>, vs: Va) -> List<&2, T.Bt>:
   match ks ts vs:
-    case True{} <> k2 t <> t2 _:
-      lw.wrap(t, F.fd.ty0("Nat")) <> lw.bargs(k2, t2, vs)
-    case False{} <> k2 t <> t2 VaArgs{v, r}:
+    case True{} <> k2 La{t, d} <> t2 _:
+      lw.wrap(t, d) <> lw.bargs(k2, t2, vs)
+    case False{} <> k2 La{t, d} <> t2 VaArgs{v, r}:
       lw.wrap(t, lw.va.bt(v, VmVal{})) <> lw.bargs(k2, t2, r)
     case _ _ _:
       Nil{}
@@ -973,10 +989,10 @@ def lw.apply(vs: Va, c: T.Bt) -> T.Bt:
     case _:
       c
 
-def lw.bcall(+b: List<&2, U32>, +ks: List<&2, Bool>, ts: List<&2, Bool>, +vs: Va) -> T.Bt:
+def lw.bcall(+b: List<&2, U32>, +ks: List<&2, Bool>, ts: List<&2, La>, +vs: Va) -> T.Bt:
   lw.apply(lw.vdrop(lw.nvals(ks), vs), T.tba.call(T.BtVar{b}, lw.bargs(ks, ts, vs)))
 
-def lw.lcs(ins: List<&2, Va>, +k: Nat, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, Bool>) -> List<&2, Lc>:
+def lw.lcs(ins: List<&2, Va>, +k: Nat, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>) -> List<&2, Lc>:
   match ins:
     case VaTup{+s} <> t:
       Lc{k, lw.cat(f, lw.va.hs(s, VmSp{})), lw.bcall(b, ks, ts, s)} <> lw.lcs(t, 1n+k, b, f, ks, ts)
@@ -985,7 +1001,7 @@ def lw.lcs(ins: List<&2, Va>, +k: Nat, +b: List<&2, U32>, +f: List<&2, U32>, +ks
     case Nil{}:
       Nil{}
 
-def lw.plan.ins(ins: List<&2, Va>, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, Bool>, ret: T.Bt) -> Pl:
+def lw.plan.ins(ins: List<&2, Va>, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>, ret: T.Bt) -> Pl:
   match ins:
     case Nil{}:
       PlNo{b, S.b("nolaw:no-input")}

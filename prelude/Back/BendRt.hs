@@ -80,6 +80,11 @@ b'Nat'min :: (Ord a, Num a) => a -> a -> a
 b'Nat'min a b = min a b
 b'Nat'is_eq :: (Eq a, Num a) => a -> a -> Bool
 b'Nat'is_eq a b = a == b
+-- a def's dictionaries at h's type (Fold's fd.dc)
+b'dict'eq :: Eq a => a -> a -> Bool
+b'dict'eq = (==)
+b'dict'cmp :: Ord a => a -> a -> Ordering
+b'dict'cmp = compare
 b'Nat'is_ne :: (Eq a, Num a) => a -> a -> Bool
 b'Nat'is_ne a b = a /= b
 b'Nat'is_lt :: (Ord a, Num a) => a -> a -> Bool
@@ -487,6 +492,8 @@ b'HsPrelude'HsChar'isDigit = DC.isDigit
 b'HsPrelude'HsChar'isLower = DC.isLower
 b'HsPrelude'HsChar'isUpper = DC.isUpper
 b'HsPrelude'HsChar'isSpace = DC.isSpace
+b'HsPrelude'HsChar'toUpper = DC.toUpper
+b'HsPrelude'HsChar'toLower = DC.toLower
 
 -- the prelude's recursion-scheme types (HsPrelude.Fix, .Cofree, .CofreeF
 -- and its twin .CofreeF.fn), a type function F as Haskell's f
@@ -916,6 +923,12 @@ b'HsPrelude'HsList'zipFrom'go sc xs n = case xs of { [] -> []; x : t -> (n, x) :
 b'HsPrelude'HsList'zipFrom sc n xs = b'HsPrelude'HsList'zipFrom'go sc xs n
 b'HsPrelude'HsList'zipR sc xs n = case xs of { [] -> []; x : t -> (x, n) : b'HsPrelude'HsList'zipR sc t (sc n) }
 b'HsPrelude'HsList'zipWithR sc f xs n = case xs of { [] -> []; x : t -> f x n : b'HsPrelude'HsList'zipWithR sc f t (sc n) }
+b'HsPrelude'HsList'splitAt n xs = splitAt n xs
+b'HsPrelude'HsList'transpose xss = case dropWhile null xss of { [] -> []; yss -> [h | h : _ <- yss] : b'HsPrelude'HsList'transpose [t | _ : t <- yss] }
+b'HsPrelude'HsList'dropWhileEnd p xs = foldr (\x r -> if p x && null r then [] else x : r) [] xs
+b'HsPrelude'HsList'uncons xs = case xs of { [] -> Nothing; h : t -> Just (h, t) }
+b'HsPrelude'HsList'scanl f q xs = scanl f q xs
+b'HsPrelude'HsList'elemIndex eq x xs = case [i | (i, y) <- zip [0 ..] xs, eq x y] of { [] -> Nothing; i : _ -> Just i }
 b'HsPrelude'HsList'second'pair f (a, b) = (a, f b)
 b'HsPrelude'HsShow'via sp x = sp 0 x []
 
