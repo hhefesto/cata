@@ -3588,7 +3588,7 @@ type R is Data:
   RB{x: List<&2, U32>, v: T.Bt}
   RMs{tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>}
   RLf{x: List<&2, U32>, tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>}
-  RPb{p: T.Bt, v: T.Bt, ty: T.Bt}
+  RPb{p: T.Bt, v: T.Bt, ty: T.Bt, lz: Bool}
 
 def fd.cons(h: R, t: R) -> R:
   match t:
@@ -4697,7 +4697,7 @@ def fd.bnames(bs: List<&2, R>) -> List<&2, List<&2, U32>>:
   match bs:
     case RB{x, v} <> t:
       x <> fd.bnames(t)
-    case RPb{p, v, ty} <> t:
+    case RPb{p, v, ty, lz} <> t:
       T.tba.pvars(p, fd.bnames(t))
     case RLf{x, tys, res, cls} <> t:
       x <> fd.bnames(t)
@@ -4859,14 +4859,91 @@ def fd.pb.of(res: Maybe<&2, T.Bt>, +p: T.Bt, v: T.Bt, +ty: T.Bt, b: T.Bt, +env: 
     case None{}:
       fd.todo("fold:let-in-argument")
 
+# Float-in of a lazy pattern binding (see Float-in, fd.fi): Haskell takes
+# `let (e, r) = ilog (b * b) n in if n < b then (0, n) else ..` only
+# where its body uses e or r, Bend where the binding stands (its match on
+# ilog's answer first: a recursion that never ends, hs1003's 00533).  So a
+# lazy one goes into the one branch of an if that uses its binders (and on
+# down), and one nothing uses goes, as fd.fi moves a let; a strict one,
+# `let !p = e`, stays where it is.
+
+def fd.fi.if(f: List<&2, U32>, r: T.Bt, c: T.Bt, m1: T.BMode, y1: List<&2, U32>, a: T.Bt, m2: T.BMode, y2: List<&2, U32>, e: T.Bt) -> T.Bt:
+  T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, a}, T.BtArgs{T.BtLam{m2, y2, e}, T.BtANil{}}}}}}
+
+# where a let of x in b goes: into the then branch of b's if (only it
+# uses x), into the else branch (only it), or it stays
+type Fis is Data:
+  FiThen{}
+  FiElse{}
+  FiStay{}
+
+def fd.fi.side.at(ok: Bool, na: Bool, ne: Bool) -> Fis:
+  match ok na ne:
+    case True{} False{} True{}:
+      FiThen{}
+    case True{} True{} False{}:
+      FiElse{}
+    case _ _ _:
+      FiStay{}
+
+# the uses of the binders xs in t
+def fd.pb.uses(xs: List<&2, List<&2, U32>>, +t: T.Bt) -> Nat:
+  match xs:
+    case Nil{}:
+      0n
+    case x <> rest:
+      Nat.add(fd.uses(t, x), fd.pb.uses(rest, t))
+
+def fd.pb.ok(+f: List<&2, U32>, +xs: List<&2, List<&2, U32>>, +r: T.Bt, +c: T.Bt, +y1: List<&2, U32>, +y2: List<&2, U32>) -> Bool:
+  Bool.and(fd.is(f, "Bool.if"), Bool.and(Nat.is_eq(fd.pb.uses(xs, r), 0n), Bool.and(Nat.is_eq(fd.pb.uses(xs, c), 0n), Bool.and(fd.is(y1, "_"), fd.is(y2, "_")))))
+
+def fd.pb.side(+xs: List<&2, List<&2, U32>>, b: T.Bt) -> Fis:
+  match b:
+    case T.BtApp{T.BtVar{+f}, T.BtArgs{+r, T.BtArgs{+c, T.BtArgs{T.BtLam{m1, +y1, +a}, T.BtArgs{T.BtLam{m2, +y2, +e}, T.BtANil{}}}}}}:
+      fd.fi.side.at(fd.pb.ok(f, xs, r, c, y1, y2), Nat.is_eq(fd.pb.uses(xs, a), 0n), Nat.is_eq(fd.pb.uses(xs, e), 0n))
+    case T.BtExpr{e}:
+      fd.pb.side(xs, e)
+    case _:
+      FiStay{}
+
+# the binding of p (binders xs) in b, s its side
+def fd.pb.sink(b: T.Bt, s: Fis, +xs: List<&2, List<&2, U32>>, +res: Maybe<&2, T.Bt>, +p: T.Bt, +v: T.Bt, +ty: T.Bt, +env: Env) -> T.Bt:
+  match b s:
+    case T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, +a}, T.BtArgs{T.BtLam{m2, y2, e}, T.BtANil{}}}}}} FiThen{}:
+      fd.fi.if(f, r, c, m1, y1, fd.pb.sink(a, fd.pb.side(xs, a), xs, res, p, v, ty, env), m2, y2, e)
+    case T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, a}, T.BtArgs{T.BtLam{m2, y2, +e}, T.BtANil{}}}}}} FiElse{}:
+      fd.fi.if(f, r, c, m1, y1, a, m2, y2, fd.pb.sink(e, fd.pb.side(xs, e), xs, res, p, v, ty, env))
+    case T.BtExpr{e} FiThen{}:
+      T.BtExpr{fd.pb.sink(e, FiThen{}, xs, res, p, v, ty, env)}
+    case T.BtExpr{e} FiElse{}:
+      T.BtExpr{fd.pb.sink(e, FiElse{}, xs, res, p, v, ty, env)}
+    case u _:
+      fd.pb.of(res, p, v, ty, u, env)
+
+def fd.pb.lazy(dead: Bool, +xs: List<&2, List<&2, U32>>, +res: Maybe<&2, T.Bt>, +p: T.Bt, +v: T.Bt, +ty: T.Bt, +b: T.Bt, +env: Env) -> T.Bt:
+  match dead:
+    case True{}:
+      b
+    case False{}:
+      fd.pb.sink(b, fd.pb.side(xs, b), xs, res, p, v, ty, env)
+
+# a pattern binding: lazy (lz), floated in; strict, where it stands
+def fd.pb.at(lz: Bool, +res: Maybe<&2, T.Bt>, +p: T.Bt, +v: T.Bt, +ty: T.Bt, +b: T.Bt, +env: Env) -> T.Bt:
+  match lz:
+    case True{}:
+      +xs = T.tba.pvars(p, Nil{})
+      fd.pb.lazy(Nat.is_eq(fd.pb.uses(xs, b), 0n), xs, res, p, v, ty, b, env)
+    case False{}:
+      fd.pb.of(res, p, v, ty, b, env)
+
 # local bindings in front of a body (some: a statement is written already;
 # a local function's %ldef is not one, fd.def.of takes it out)
 def fd.lets.go(bs: List<&2, R>, b: T.Bt, +env: Env, some: Bool) -> T.Bt:
   match bs:
     case RB{x, v} <> t:
       T.BtLet{x, fd.expr(v), fd.lets.go(t, b, env, True{})}
-    case RPb{p, v, ty} <> t:
-      fd.pb.of(fd.env.res(env), p, v, ty, fd.lets.go(t, b, env, True{}), env)
+    case RPb{p, v, ty, lz} <> t:
+      fd.pb.at(lz, fd.env.res(env), p, v, ty, fd.lets.go(t, b, env, True{}), env)
     case RLf{x, tys, res, cls} <> t:
       T.BtLet{S.b("_"), fd.ldef.of(x, tys, res, cls, env), fd.lets.go(t, b, env, some)}
     case RL{ys} <> t:
@@ -5488,10 +5565,11 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.cons(fd.go(b, fd.k.bind(b), env), fd.go(t, KAbsN{}, env))
     case _ KAbsN{}:
       fd.nil()
-    # a local pattern binding, (a, b) = e: a match on e (fd.lets.go's RPb);
-    # Spec's sp.pb made its binders plain locals
+    # a local pattern binding, (a, b) = e: a match on e (fd.lets.go's RPb),
+    # lazy but for a bang's (let !p = e); Spec's sp.pb made its binders
+    # plain locals
     case X.SxCons{_, X.SxCons{+p, X.SxCons{_, X.SxCons{g, X.SxCons{+ty, _}}}}} KBpat{}:
-      RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.rt(fd.go(g, KGrhss{}, fd.notail(env))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env))}
+      RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.rt(fd.go(g, KGrhss{}, fd.notail(env))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env)), Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{+ms, _}}}}} KBfun{}:
       fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.notail(env)), env, fd.occurs(ms, fd.unself(v)))
     # binders' types (see Lifting)
@@ -9552,24 +9630,8 @@ def fd.nzg.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
 def fd.fi.ok(+f: List<&2, U32>, +x: List<&2, U32>, +r: T.Bt, +c: T.Bt, +y1: List<&2, U32>, +y2: List<&2, U32>) -> Bool:
   Bool.and(fd.is(f, "Bool.if"), Bool.and(Nat.is_eq(fd.uses(r, x), 0n), Bool.and(Nat.is_eq(fd.uses(c, x), 0n), Bool.and(fd.is(y1, "_"), fd.is(y2, "_")))))
 
-def fd.fi.if(f: List<&2, U32>, r: T.Bt, c: T.Bt, m1: T.BMode, y1: List<&2, U32>, a: T.Bt, m2: T.BMode, y2: List<&2, U32>, e: T.Bt) -> T.Bt:
-  T.BtApp{T.BtVar{f}, T.BtArgs{r, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, a}, T.BtArgs{T.BtLam{m2, y2, e}, T.BtANil{}}}}}}
-
-# where a let of x in b goes: into the then branch of b's if (only it
-# uses x), into the else branch (only it), or it stays
-type Fis is Data:
-  FiThen{}
-  FiElse{}
-  FiStay{}
-
-def fd.fi.side.at(ok: Bool, na: Bool, ne: Bool) -> Fis:
-  match ok na ne:
-    case True{} False{} True{}:
-      FiThen{}
-    case True{} True{} False{}:
-      FiElse{}
-    case _ _ _:
-      FiStay{}
+# (fd.fi.if, Fis and fd.fi.side.at are above fd.pb.of, which sinks a lazy
+# pattern binding as fd.fi sinks a let)
 
 # (x without the + fd.mark gives a let's name used twice: fd.unplus)
 def fd.fi.side(+x: List<&2, U32>, b: T.Bt) -> Fis:

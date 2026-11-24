@@ -2082,6 +2082,17 @@ a fresh `--verdict`, no cache, 55 s).
   (BangPat.hs's tupLet, `let (h, k) = (head xs, 1) in if b then k else h` at []) is out on
   its law (Bend matches the pair, so forces head), as the gate should.
   Telomare (pkgd10): its Bend byte for byte pkgd9's, 420 laws the same.
+  hs1003 (bk25) lost 6 ok-law defs of 00533 to it (numDigits, _numDigits
+  and 4 more: 1,761 ok-law -> 1,758): a newly read lazy pattern binding was
+  evaluated before the guard that protects it, and looped. Fold's float-in
+  now takes a pattern binding too (fd.pb.at: RPb's lz, a lazy one moves
+  into the one branch that uses it; a strict one, pbang, never moves).
+  Measured with law-pb2: tests/hs 1,198 laws, all the same (BangPat.hs's
+  lazySplit and whereGuard ok-law); telomare (pkgd11) 420 laws the same,
+  its modules' Bend byte for byte pkgd10's (EAL's envComponent now folds,
+  out on its lifted go's dep); hs1003 (bk26) 7,147 laws, 7,139 the same,
+  0 more defined, 0 differ, 8 missing (GHC refused, as before), ok-law
+  1,764, 00533's six back.
 - **General recursion, in the model (7).** A fuelled def's end answers a
   default (fd.dv), and that stays (the user, 11-23: "make a suggestion
   and let's follow that"; the suggestion: keep the default, the theorem
