@@ -384,6 +384,13 @@ maybeFor_ t f = case t of
 liftA3Op :: forall m a b c d. Applicative m => (a -> b -> c -> d) -> m a -> m b -> m c -> m d
 liftA3Op g a b c = A.liftA2 (\p z -> case p of (x, y) -> g x y z) (A.liftA2 (\x y -> (x, y)) a b) c
 
+-- | Data.List's partition, its function a known argument
+partition :: forall a. (a -> Bool) -> [a] -> ([a], [a])
+partition p xs = case xs of
+  [] -> ([], [])
+  y : ys -> case partition p ys of
+    (ts, fs) -> if p y then (y : ts, fs) else (ts, y : fs)
+
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
 mapKeys :: forall k2 k1 a. Ord k2 => (k1 -> k2) -> Map.Map k1 a -> Map.Map k2 a

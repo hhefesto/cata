@@ -1733,7 +1733,7 @@ type Pgk is Data:
 def sp.pc.gtab() -> List<&2, Pgk>:
   +tr = {"GHC.Internal.Data.Traversable." : String}
   +fo = {"GHC.Internal.Data.Foldable." : String}
-  [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkM{fo ++ "foldMap", "maybeFoldMap"}, PgkM{fo ++ "traverse_", "maybeTraverse_"}, PgkM{fo ++ "mapM_", "maybeTraverse_"}, PgkM{fo ++ "for_", "maybeFor_"}, PgkM{fo ++ "forM_", "maybeFor_"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkS{"GHC.Internal.Show.shows", "showsDefault"}, PgkO{"GHC.Internal.Data.Functor.<$>", "fmapOp"}, PgkO{"GHC.Internal.Data.Functor.<&>", "fmapFlip"}, PgkO{"GHC.Internal.Base.=<<", "bindFlip"}, PgkO{"GHC.Internal.Data.Functor.void", "voidOp"}, PgkO{"GHC.Internal.Base.when", "whenOp"}, PgkO{"GHC.Internal.Control.Monad.unless", "unlessOp"}, PgkO{"GHC.Internal.Base.liftM2", "liftM2Op"}, PgkO{"GHC.Internal.Base.>>", "thenOp"}, PgkO{"GHC.Internal.Base.return", "returnOp"}, PgkO{tr ++ "mapM", "mapMOp"}, PgkO{tr ++ "sequence", "sequenceOp"}, PgkO{"GHC.Internal.Base.<$", "constMap"}, PgkO{fo ++ "any", "anyDefault"}, PgkO{fo ++ "all", "allDefault"}, PgkO{fo ++ "or", "orDefault"}, PgkO{fo ++ "and", "andDefault"}, PgkO{fo ++ "null", "nullDefault"}, PgkO{fo ++ "elem", "elemDefault"}, PgkO{fo ++ "concatMap", "concatMapDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}]
+  [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkM{fo ++ "foldMap", "maybeFoldMap"}, PgkM{fo ++ "traverse_", "maybeTraverse_"}, PgkM{fo ++ "mapM_", "maybeTraverse_"}, PgkM{fo ++ "for_", "maybeFor_"}, PgkM{fo ++ "forM_", "maybeFor_"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkS{"GHC.Internal.Show.shows", "showsDefault"}, PgkO{"GHC.Internal.Data.Functor.<$>", "fmapOp"}, PgkO{"GHC.Internal.Data.Functor.<&>", "fmapFlip"}, PgkO{"GHC.Internal.Base.=<<", "bindFlip"}, PgkO{"GHC.Internal.Data.Functor.void", "voidOp"}, PgkO{"GHC.Internal.Base.when", "whenOp"}, PgkO{"GHC.Internal.Control.Monad.unless", "unlessOp"}, PgkO{"GHC.Internal.Base.liftM2", "liftM2Op"}, PgkO{"GHC.Internal.Base.>>", "thenOp"}, PgkO{"GHC.Internal.Base.return", "returnOp"}, PgkO{tr ++ "mapM", "mapMOp"}, PgkO{tr ++ "sequence", "sequenceOp"}, PgkO{"GHC.Internal.Base.<$", "constMap"}, PgkO{fo ++ "any", "anyDefault"}, PgkO{fo ++ "all", "allDefault"}, PgkO{fo ++ "or", "orDefault"}, PgkO{fo ++ "and", "andDefault"}, PgkO{fo ++ "null", "nullDefault"}, PgkO{fo ++ "elem", "elemDefault"}, PgkO{fo ++ "concatMap", "concatMapDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}, PgkA{"GHC.Internal.Data.OldList.partition", "partition"}]
 
 def sp.pc.gkeys() -> List<&2, List<&2, U32>>:
   [S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform"), S.b("Control.Comonad.Cofree.Class.unwrap"), S.b("GHC.Internal.Exception.throw")]
@@ -1789,7 +1789,7 @@ def sp.strs0(xs: List<String>) -> List<&2, List<&2, U32>>:
 # how many types the model's def (n) takes
 def sp.pc.gn(+n: String) -> Nat:
   +b = S.b(n)
-  +one = S.mem(b, sp.strs0(["maybeAppend", "maybeMempty", "showsDefault", "whenOp", "unlessOp", "orDefault", "andDefault"]))
+  +one = S.mem(b, sp.strs0(["maybeAppend", "maybeMempty", "showsDefault", "partition", "whenOp", "unlessOp", "orDefault", "andDefault"]))
   +two = Bool.or(S.prefix(b, S.b("listSequence")), S.mem(b, sp.strs0(["transformCofree", "unwrapCofree", "anaFix", "toListDefault", "sumDefault", "productDefault", "lengthDefault", "maybeSequenceA", "voidOp", "anyDefault", "allDefault", "nullDefault", "elemDefault", "returnOp", "maybeFoldMap", "throwOp"])))
   Bool.pick(Nat, one, 1n, Bool.pick(Nat, two, 2n, Bool.pick(Nat, Bool.or(sp.is(b, "liftM2Op"), sp.is(b, "mapMOp")), 4n, 3n)))
 
@@ -4646,6 +4646,7 @@ type Hk is Data:
   HkZip{}
   HkMap{k: String, key: Bool, v: Nat, w: Nat, kt: Nat}
   HkMapFoldr{key: Bool, v: Nat, r: Nat, kt: Nat}
+  HkFromSet{}
 
 type Hke is Data:
   Hke{key: String, k: Hk}
@@ -4657,7 +4658,7 @@ def sp.hf.tab() -> List<&2, Hke>:
 # the model's own (Cata.Base), where rule 15 made no copy (inside a copy, at
 # another function): the fold reads them so in spec's output
 def sp.hf.tab2() -> List<&2, Hke>:
-  [Hke{"Cata.Base.foldr", HkFoldr{False{}}}, Hke{"Cata.Base.foldl", HkFoldl{False{}}}, Hke{"Cata.Base.foldl'", HkFoldl{False{}}}, Hke{"Cata.Base.concatMap", Hk1{"concatMap", False{}, 0n, 1n}}, Hke{"Cata.Base.filter", Hk1{"filter", False{}, 0n, 0n}}, Hke{"Data.Map.Internal.map", HkMap{"map", False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Strict.Internal.map", HkMap{"map", False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Internal.mapWithKey", HkMap{"map", True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Strict.Internal.mapWithKey", HkMap{"map", True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Internal.filter", HkMap{"filter", False{}, 0n, 0n, 1n}}, Hke{"Data.Map.Internal.filterWithKey", HkMap{"filter", True{}, 1n, 1n, 0n}}, Hke{"Data.Map.Internal.foldr", HkMapFoldr{False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Internal.foldrWithKey", HkMapFoldr{True{}, 1n, 2n, 0n}}]
+  [Hke{"Cata.Base.foldr", HkFoldr{False{}}}, Hke{"Cata.Base.foldl", HkFoldl{False{}}}, Hke{"Cata.Base.foldl'", HkFoldl{False{}}}, Hke{"Cata.Base.concatMap", Hk1{"concatMap", False{}, 0n, 1n}}, Hke{"Cata.Base.filter", Hk1{"filter", False{}, 0n, 0n}}, Hke{"Data.Map.Internal.map", HkMap{"map", False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Strict.Internal.map", HkMap{"map", False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Internal.mapWithKey", HkMap{"map", True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Strict.Internal.mapWithKey", HkMap{"map", True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Internal.filter", HkMap{"filter", False{}, 0n, 0n, 1n}}, Hke{"Data.Map.Internal.filterWithKey", HkMap{"filter", True{}, 1n, 1n, 0n}}, Hke{"Data.Map.Internal.foldr", HkMapFoldr{False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Internal.foldrWithKey", HkMapFoldr{True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Internal.fromSet", HkFromSet{}}]
 
 def sp.hf.find(hs: List<&2, Hke>, +k: List<&2, U32>) -> Maybe<&2, Hk>:
   match hs:
@@ -4712,6 +4713,13 @@ def sp.hf.mapfr(+key: Bool, +v: X.Sx, +r: X.Sx, +kt: X.Sx, +f: X.Sx, +z: X.Sx, +
   +g = {sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([sp.hf.tup(kt, v), r]), r, sp.a("source"), sp.l([sp.hf.match([p, sp.hf.pv(a, r)], b)])])]) : X.Sx}
   sp.hf.foldr(sp.hf.tup(kt, v), r, g, z, l, h, sp.hf.lam(g, 2n), sys)
 
+# fromSet f s: fromDistinctAscList (hfH (toAscList s)), hfH at \k -> (k, f k)
+def sp.hf.fromset(+k: X.Sx, +v: X.Sx, +f: X.Sx, +s: X.Sx, +h: List<&2, U32>) -> X.Sx:
+  +x = sp.hf.v("hfk", h)
+  +g = {sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([k]), sp.hf.tup(k, v), sp.a("source"), sp.l([sp.hf.match([sp.hf.pv(x, k)], sp.l([sp.a("tuple"), x, sp.hf.app(f, x)]))])])]) : X.Sx}
+  +l = sp.hf.app(sp.l([sp.a("tyapp"), sp.g(S.b("Data.Set.Internal"), S.b("toList"), "var"), k]), s)
+  sp.hf.app(sp.hf.mg("fromDistinctAscList", [k, v]), sp.hf.k1("map", k, sp.hf.tup(k, v), g, l, h))
+
 # Foldable's any, all, foldr, .. at a Set are the list's at its elements
 def sp.hf.atset(+tys: List<&2, X.Sx>) -> Bool:
   +t = sp.first(tys)
@@ -4729,6 +4737,8 @@ def sp.hf.mk.of(k: Hk, +tys: List<&2, X.Sx>, +f: X.Sx, +x1: X.Sx, +x2: X.Sx, +n:
   match k:
     case HkMap{+s, +key, +v, +w, +kt}:
       sp.if(X.Sx, Nat.is_eq(n, 2n), _ => sp.hf.map(s, key, sp.hf.ty(tys, v), sp.hf.ty(tys, w), sp.hf.ty(tys, kt), f, x1, h), _ => y)
+    case HkFromSet{}:
+      sp.if(X.Sx, Nat.is_eq(n, 2n), _ => sp.hf.fromset(sp.hf.ty(tys, 0n), sp.hf.ty(tys, 1n), f, x1, h), _ => y)
     case HkMapFoldr{+key, +v, +r, +kt}:
       sp.if(X.Sx, Nat.is_eq(n, 3n), _ => sp.hf.mapfr(key, sp.hf.ty(tys, v), sp.hf.ty(tys, r), sp.hf.ty(tys, kt), f, x1, x2, h, sys), _ => y)
     case Hk1{+s, +at, +a, +r}:
