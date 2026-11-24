@@ -8055,6 +8055,311 @@ def fd.eq.check(gen: Bool, +n: List<&2, U32>, +it: T.BItem, +its: List<&2, T.BIt
     case False{}:
       GotDef{n, it}
 
+def fd.nst.if(-R: Type, c: Bool, t: Unit -> R, e: Unit -> R) -> R:
+  match c:
+    case True{}:
+      t(Unit{})
+    case False{}:
+      e(Unit{})
+
+def fd.dc0.refs(ts: List<&2, T.Bt>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ts:
+    case Nil{}:
+      acc
+    case t <> r:
+      fd.dc0.refs(r, T.tba.refs(t, acc))
+
+# T.eq and T.cmp at a type with a list, a Maybe, an Either or a pair of itself
+# (LocTag's Maybe LocTag, a tree's list of trees): Bend sees no decreasing call
+# in a template argument (hs.eq.maybe(~LocTag, ~LocTag.eq, a, b)), so == at
+# such a field is a def of its own, T.eq.nH (H a hash of its type), hs.eq's
+# or HsCmp's with what it was given in place; T.eq and it are a group, which
+# fd.mu writes.
+type Nk is Data:
+  NkNo{}
+  NkList{c: Bool}
+  NkMaybe{c: Bool}
+  NkEither{c: Bool}
+  NkPair{c: Bool}
+
+def fd.nst.kind(+x: List<&2, U32>) -> Nk:
+  +f = {False{} : Bool}
+  +t = {True{} : Bool}
+  Bool.pick(Nk, fd.is(x, "hs.eq.list"), NkList{f}, Bool.pick(Nk, fd.is(x, "hs.eq.maybe"), NkMaybe{f}, Bool.pick(Nk, fd.is(x, "hs.eq.either"), NkEither{f}, Bool.pick(Nk, fd.is(x, "hs.eq.pair"), NkPair{f}, Bool.pick(Nk, fd.is(x, "HsPrelude.HsCmp.list"), NkList{t}, Bool.pick(Nk, fd.is(x, "HsPrelude.HsCmp.maybe"), NkMaybe{t}, Bool.pick(Nk, fd.is(x, "HsPrelude.HsCmp.either"), NkEither{t}, Bool.pick(Nk, fd.is(x, "HsPrelude.HsCmp.pair"), NkPair{t}, NkNo{}))))))))
+
+def fd.nst.no(k: Nk) -> Bool:
+  match k:
+    case NkNo{}:
+      True{}
+    case _:
+      False{}
+
+# a call's template arguments, and the others
+def fd.nst.targs(as: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match as:
+    case T.BtTplArg{a} <> t:
+      a <> fd.nst.targs(t)
+    case _ <> t:
+      fd.nst.targs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.nst.vargs(as: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match as:
+    case T.BtTplArg{a} <> t:
+      fd.nst.vargs(t)
+    case a <> t:
+      a <> fd.nst.vargs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.nst.text(xs: List<&2, T.Bt>) -> List<&2, U32>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      P.tpr.t(x, P.TpLoose{}, 0n, 59 <> fd.nst.text(t))
+
+def fd.nst.name(+n: List<&2, U32>, +f: List<&2, U32>, ts: List<&2, T.Bt>) -> List<&2, U32>:
+  fd.cat3(n, S.b(".n"), S.b(U32.show(SP.sp.fa.hash(List.append(&2, U32, f, fd.nst.text(ts)), 5381))))
+
+# whether f(as) is such a call, at n (T.eq) in a template argument
+def fd.nst.is(+f: List<&2, U32>, +as: List<&2, T.Bt>, +n: List<&2, U32>) -> Bool:
+  fd.nst.if(Bool, fd.nst.no(fd.nst.kind(f)), _ => False{}, _ => S.mem(n, fd.dc0.refs(fd.nst.targs(as), Nil{})))
+
+# a def made: its name, the call's function and template arguments
+type Nc is Data:
+  Nc{n: List<&2, U32>, f: List<&2, U32>, ts: List<&2, T.Bt>}
+
+def fd.nst.add(b: Bool, c: Nc, r: List<&2, Nc>) -> List<&2, Nc>:
+  match b:
+    case True{}:
+      c <> r
+    case False{}:
+      r
+
+# such calls of a term (not the ones inside another's template arguments:
+# the def made has those)
+def fd.nst.co(t: T.Bt, +n: List<&2, U32>, acc: List<&2, Nc>) -> List<&2, Nc>:
+  match t:
+    case T.BtApp{T.BtVar{+f}, +a}:
+      +as = fd.spine(a)
+      +ts = fd.nst.targs(as)
+      fd.nst.add(fd.nst.is(f, as, n), Nc{fd.nst.name(n, f, ts), f, ts}, fd.nst.co(a, n, acc))
+    case T.BtApp{f, a}:
+      fd.nst.co(a, n, fd.nst.co(f, n, acc))
+    case T.BtArgs{a, r}:
+      fd.nst.co(r, n, fd.nst.co(a, n, acc))
+    case T.BtLam{m, x, b}:
+      fd.nst.co(b, n, acc)
+    case T.BtMatch{xs, cs}:
+      fd.nst.co(cs, n, acc)
+    case T.BtExpr{e}:
+      fd.nst.co(e, n, acc)
+    case T.BtCase{p, b, r}:
+      fd.nst.co(r, n, fd.nst.co(b, n, acc))
+    case u:
+      acc
+
+def fd.nst.call(yes: Bool, +f: List<&2, U32>, +as: List<&2, T.Bt>, a: T.Bt, +n: List<&2, U32>, +lead: List<&2, T.Bt>) -> T.Bt:
+  match yes:
+    case True{}:
+      T.tba.call(T.BtVar{fd.nst.name(n, f, fd.nst.targs(as))}, List.append(&2, T.Bt, lead, fd.nst.vargs(as)))
+    case False{}:
+      T.BtApp{T.BtVar{f}, a}
+
+# the calls as calls of their defs
+def fd.nst.rw(t: T.Bt, +n: List<&2, U32>, +lead: List<&2, T.Bt>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+f}, +a}:
+      +as = fd.spine(a)
+      fd.nst.call(fd.nst.is(f, as, n), f, as, fd.nst.rw(a, n, lead), n, lead)
+    case T.BtApp{f, a}:
+      T.BtApp{fd.nst.rw(f, n, lead), fd.nst.rw(a, n, lead)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.nst.rw(a, n, lead), fd.nst.rw(r, n, lead)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.nst.rw(b, n, lead)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.nst.rw(cs, n, lead)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.nst.rw(e, n, lead)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.nst.rw(b, n, lead), fd.nst.rw(r, n, lead)}
+    case u:
+      u
+
+# == (compare) as it was given, at two variables
+def fd.nst.ap(f: T.Bt, +x: String, +y: String) -> T.Bt:
+  match f:
+    case T.BtLam{m, +p, T.BtLam{m2, +q, b}}:
+      T.tba.subst(T.tba.subst(b, p, fd.v(x)), q, fd.v(y))
+    case T.BtApp{g, a}:
+      T.BtApp{g, T.tba.args(List.append(&2, T.Bt, fd.spine(a), [fd.v(x), fd.v(y)]))}
+    case g:
+      T.tba.call(g, [fd.v(x), fd.v(y)])
+
+def fd.nst.nth(xs: List<&2, T.Bt>, n: Nat) -> T.Bt:
+  match xs n:
+    case Nil{} _:
+      fd.todo("fold:eq-nested")
+    case x <> t 0n:
+      x
+    case x <> t 1n+p:
+      fd.nst.nth(t, p)
+
+def fd.nst.pv(s: String) -> T.Bt:
+  T.BtPv{T.BmLive{}, S.b(s)}
+
+def fd.nst.con(c: String, xs: List<&2, T.Bt>) -> T.Bt:
+  T.BtCon{S.b(c), T.tba.args(xs)}
+
+def fd.nst.case(p: T.Bt, q: T.Bt, b: T.Bt, rest: T.Bt) -> T.Bt:
+  T.BtCase{T.tba.args([p, q]), T.BtExpr{b}, rest}
+
+def fd.nst.and(c: Bool, a: T.Bt, b: T.Bt) -> T.Bt:
+  match c:
+    case False{}:
+      fd.callS("Bool.and", [a, b])
+    case True{}:
+      fd.callS("HsPrelude.HsCmp.on", [fd.ty0("Cmp"), a, T.BtLam{T.BmLive{}, S.b("_"), fd.con0("LT")}, T.BtLam{T.BmLive{}, S.b("_"), b}, T.BtLam{T.BmLive{}, S.b("_"), fd.con0("GT")}])
+
+# the cases after the first: unequal constructors (the first is the less)
+def fd.nst.rest(c: Bool, +p: T.Bt, last: T.Bt) -> T.Bt:
+  match c:
+    case False{}:
+      T.BtCase{T.tba.args([T.BtWild{}, T.BtWild{}]), T.BtExpr{fd.con0("False")}, T.BtCEnd{}}
+    case True{}:
+      fd.nst.case(p, T.BtWild{}, fd.con0("LT"), fd.nst.case(T.BtWild{}, p, fd.con0("GT"), last))
+
+def fd.nst.yes(c: Bool) -> T.Bt:
+  fd.con0(Bool.pick(String, c, "EQ", "True"))
+
+def fd.nst.body(k: Nk, +ts: List<&2, T.Bt>, +self: T.Bt) -> T.Bt:
+  match k:
+    case NkList{+c}:
+      +n = {fd.nst.con("Nil", Nil{}) : T.Bt}
+      +cc = {fd.nst.case(fd.nst.con("Con", [fd.nst.pv("h"), fd.nst.pv("t")]), fd.nst.con("Con", [fd.nst.pv("k"), fd.nst.pv("u")]), fd.nst.and(c, fd.nst.ap(fd.nst.nth(ts, 1n), "h", "k"), self), T.BtCEnd{}) : T.Bt}
+      fd.nst.case(n, n, fd.nst.yes(c), Bool.pick(T.Bt, c, fd.nst.rest(True{}, n, cc), fd.nst.case(fd.nst.con("Con", [fd.nst.pv("h"), fd.nst.pv("t")]), fd.nst.con("Con", [fd.nst.pv("k"), fd.nst.pv("u")]), fd.nst.and(False{}, fd.nst.ap(fd.nst.nth(ts, 1n), "h", "k"), self), fd.nst.rest(False{}, n, T.BtCEnd{}))))
+    case NkMaybe{+c}:
+      +n = {fd.nst.con("None", Nil{}) : T.Bt}
+      +e = {fd.nst.ap(fd.nst.nth(ts, 1n), "h", "k") : T.Bt}
+      +s1 = {fd.nst.con("Some", [fd.nst.pv("h")]) : T.Bt}
+      +s2 = {fd.nst.con("Some", [fd.nst.pv("k")]) : T.Bt}
+      fd.nst.case(n, n, fd.nst.yes(c), Bool.pick(T.Bt, c, fd.nst.rest(True{}, n, fd.nst.case(s1, s2, e, T.BtCEnd{})), fd.nst.case(s1, s2, e, fd.nst.rest(False{}, n, T.BtCEnd{}))))
+    case NkEither{+c}:
+      +l1 = {fd.nst.con("Inl", [fd.nst.pv("h")]) : T.Bt}
+      +l2 = {fd.nst.con("Inl", [fd.nst.pv("k")]) : T.Bt}
+      +r1 = {fd.nst.con("Inr", [fd.nst.pv("h")]) : T.Bt}
+      +r2 = {fd.nst.con("Inr", [fd.nst.pv("k")]) : T.Bt}
+      +ea = {fd.nst.ap(fd.nst.nth(ts, 2n), "h", "k") : T.Bt}
+      +eb = {fd.nst.ap(fd.nst.nth(ts, 3n), "h", "k") : T.Bt}
+      +w = {fd.nst.con("Inl", [T.BtWild{}]) : T.Bt}
+      fd.nst.case(l1, l2, ea, Bool.pick(T.Bt, c, fd.nst.rest(True{}, w, fd.nst.case(r1, r2, eb, T.BtCEnd{})), fd.nst.case(r1, r2, eb, fd.nst.rest(False{}, w, T.BtCEnd{}))))
+    case NkPair{+c}:
+      fd.nst.case(fd.nst.con("Tuple", [fd.nst.pv("h"), fd.nst.pv("t")]), fd.nst.con("Tuple", [fd.nst.pv("k"), fd.nst.pv("u")]), fd.nst.and(c, fd.nst.ap(fd.nst.nth(ts, 2n), "h", "k"), fd.nst.ap(fd.nst.nth(ts, 3n), "t", "u")), T.BtCEnd{})
+    case NkNo{}:
+      T.BtCEnd{}
+
+def fd.nst.ty(k: Nk, +ts: List<&2, T.Bt>) -> T.Bt:
+  match k:
+    case NkList{c}:
+      fd.list(fd.nst.nth(ts, 0n))
+    case NkMaybe{c}:
+      T.BtTyApp{S.b("Maybe"), T.tba.args([fd.v("&2"), fd.nst.nth(ts, 0n)])}
+    case NkEither{c}:
+      fd.either(fd.nst.nth(ts, 0n), fd.nst.nth(ts, 1n))
+    case NkPair{c}:
+      fd.pair(fd.nst.nth(ts, 0n), fd.nst.nth(ts, 1n))
+    case NkNo{}:
+      fd.todo("fold:eq-nested")
+
+def fd.nst.iscmp(k: Nk) -> Bool:
+  match k:
+    case NkList{c}:
+      c
+    case NkMaybe{c}:
+      c
+    case NkEither{c}:
+      c
+    case NkPair{c}:
+      c
+    case NkNo{}:
+      False{}
+
+def fd.nst.leads(ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{T.BmTpl{}, +x, +ty} <> t:
+      T.BParam{T.BmTpl{}, x, ty} <> fd.nst.leads(t)
+    case _:
+      Nil{}
+
+def fd.nst.largs(ps: List<&2, T.BParam>) -> List<&2, T.Bt>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      T.BtTplArg{T.BtVar{x}} <> fd.nst.largs(t)
+    case Nil{}:
+      Nil{}
+
+# the def for a call made (n: T.eq, whose templates lead), its own such calls
+# written too
+def fd.nst.def(c: Nc, +n: List<&2, U32>, +lps: List<&2, T.BParam>) -> T.BItem:
+  match c:
+    case Nc{+m, +f, +ts}:
+      +k = fd.nst.kind(f)
+      +la = fd.nst.largs(lps)
+      +ty = fd.nst.ty(k, ts)
+      +self = T.tba.call(T.BtVar{m}, List.append(&2, T.Bt, la, [fd.v("t"), fd.v("u")]))
+      T.BiDef{m, List.append(&2, T.BParam, lps, [T.BParam{T.BmLive{}, S.b("a"), ty}, T.BParam{T.BmLive{}, S.b("b"), ty}]), Bool.pick(T.Bt, fd.nst.iscmp(k), fd.ty0("Cmp"), fd.ty0("Bool")), T.BtMatch{T.tba.args([fd.v("a"), fd.v("b")]), fd.nst.rw(fd.nst.body(k, ts, self), n, la)}, [fd.cat(S.b("generated: "), fd.cat(f, fd.cat(S.b(" in "), n)))]}
+
+def fd.nst.has(cs: List<&2, List<&2, U32>>, c: Nc) -> Bool:
+  match c:
+    case Nc{m, f, ts}:
+      S.mem(m, cs)
+
+def fd.nst.ncn(c: Nc) -> List<&2, U32>:
+  match c:
+    case Nc{m, f, ts}:
+      m
+
+# the calls a def made has of its own (its body before they are written)
+def fd.nst.more(c: Nc, +n: List<&2, U32>) -> List<&2, Nc>:
+  match c:
+    case Nc{m, +f, +ts}:
+      fd.nst.co(fd.nst.body(fd.nst.kind(f), ts, T.BtWild{}), n, Nil{})
+
+def fd.nst.defs(fuel: Nat, todo: List<&2, Nc>, +seen: List<&2, List<&2, U32>>, +n: List<&2, U32>, +lps: List<&2, T.BParam>) -> List<&2, T.BItem>:
+  match fuel todo:
+    case 1n+(+p) +c <> +t:
+      fd.nst.if(List<&2, T.BItem>, fd.nst.has(seen, c), _ => fd.nst.defs(p, t, seen, n, lps), _ => fd.nst.def(c, n, lps) <> fd.nst.defs(p, List.append(&2, Nc, fd.nst.more(c, n), t), fd.nst.ncn(c) <> seen, n, lps))
+    case _ _:
+      Nil{}
+
+# T.eq (T.cmp) and the defs it needs
+def fd.nst.item(it: T.BItem) -> List<&2, T.BItem>:
+  match it:
+    case T.BiDef{+n, +ps, r, +b, d}:
+      +lps = fd.nst.leads(ps)
+      T.BiDef{n, ps, r, fd.nst.rw(b, n, fd.nst.largs(lps)), d} <> fd.nst.defs(60n, fd.nst.co(b, n, Nil{}), Nil{}, n, lps)
+    case h:
+      [h]
+
+def fd.nst.gots(its: List<&2, T.BItem>) -> List<&2, Got>:
+  match its:
+    case +h <> t:
+      GotDef{fd.lift.iname(h), h} <> fd.nst.gots(t)
+    case Nil{}:
+      Nil{}
+
+def fd.nst.all(gs: List<&2, Got>) -> List<&2, Got>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case GotDef{+n, +it} <> t:
+      List.append(&2, Got, fd.nst.if(List<&2, Got>, fd.eq.isgen(it), _ => fd.nst.gots(fd.nst.item(it)), _ => [GotDef{n, it}]), fd.nst.all(t))
+    case g <> t:
+      g <> fd.nst.all(t)
+
 def fd.eq.fix(gs: List<&2, Got>, +its: List<&2, T.BItem>) -> List<&2, Got>:
   match gs:
     case Nil{}:
@@ -8121,7 +8426,8 @@ def fd.eq.imp(gs: List<&2, Got>, +have: List<&2, List<&2, U32>>) -> List<&2, Got
 def fd.allgots(+xs: List<&2, X.Sx>, +tbs: List<&2, Tb>, +env: Env) -> List<&2, Got>:
   +ds = List.append(&2, Got, fd.datas(xs, env), fd.catas(xs, env))
   +gs = List.append(&2, Got, ds, fd.gots.less(fd.gots(tbs, fd.ok(xs, fd.px.imp(fd.env.px(env))), env), fd.got.defnames(ds)))
-  +g2 = fd.eq.fix(gs, fd.got.items(gs))
+  +g1 = fd.nst.all(gs)
+  +g2 = fd.eq.fix(g1, fd.got.items(g1))
   +g3 = fd.eq.imp(g2, List.append(&2, List<&2, U32>, fd.got.defnames(g2), fd.ix.defs(fd.px.ix(fd.env.px(env)))))
   fd.eq.prune(g3, fd.got.items(g3))
 
