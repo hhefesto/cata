@@ -4221,6 +4221,8 @@ type Hk is Data:
   HkFoldr{at: Bool}
   HkFoldl{at: Bool}
   HkZip{}
+  HkMap{k: String, key: Bool, v: Nat, w: Nat, kt: Nat}
+  HkMapFoldr{key: Bool, v: Nat, r: Nat, kt: Nat}
 
 type Hke is Data:
   Hke{key: String, k: Hk}
@@ -4232,7 +4234,7 @@ def sp.hf.tab() -> List<&2, Hke>:
 # the model's own (Cata.Base), where rule 15 made no copy (inside a copy, at
 # another function): the fold reads them so in spec's output
 def sp.hf.tab2() -> List<&2, Hke>:
-  [Hke{"Cata.Base.foldr", HkFoldr{False{}}}, Hke{"Cata.Base.foldl", HkFoldl{False{}}}, Hke{"Cata.Base.foldl'", HkFoldl{False{}}}, Hke{"Cata.Base.concatMap", Hk1{"concatMap", False{}, 0n, 1n}}, Hke{"Cata.Base.filter", Hk1{"filter", False{}, 0n, 0n}}]
+  [Hke{"Cata.Base.foldr", HkFoldr{False{}}}, Hke{"Cata.Base.foldl", HkFoldl{False{}}}, Hke{"Cata.Base.foldl'", HkFoldl{False{}}}, Hke{"Cata.Base.concatMap", Hk1{"concatMap", False{}, 0n, 1n}}, Hke{"Cata.Base.filter", Hk1{"filter", False{}, 0n, 0n}}, Hke{"Data.Map.Internal.map", HkMap{"map", False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Strict.Internal.map", HkMap{"map", False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Internal.mapWithKey", HkMap{"map", True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Strict.Internal.mapWithKey", HkMap{"map", True{}, 1n, 2n, 0n}}, Hke{"Data.Map.Internal.filter", HkMap{"filter", False{}, 0n, 0n, 1n}}, Hke{"Data.Map.Internal.filterWithKey", HkMap{"filter", True{}, 1n, 1n, 0n}}, Hke{"Data.Map.Internal.foldr", HkMapFoldr{False{}, 0n, 1n, 2n}}, Hke{"Data.Map.Internal.foldrWithKey", HkMapFoldr{True{}, 1n, 2n, 0n}}]
 
 def sp.hf.find(hs: List<&2, Hke>, +k: List<&2, U32>) -> Maybe<&2, Hk>:
   match hs:
@@ -4251,11 +4253,56 @@ def sp.hf.part(+s: String, +a: X.Sx, +r: X.Sx, +f: X.Sx, +h: List<&2, U32>) -> X
   +m = sp.hf.match([sp.hf.pv(l, sp.hf.list(a))], sp.hf.k1(s, a, r, f, l, h))
   sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([sp.hf.list(a)]), sp.hf.ans(s, a, r), sp.a("source"), sp.l([m])])])
 
+# A Map's map, filter, mapWithKey, filterWithKey, foldr and foldrWithKey at
+# such a lambda are the list's over its pairs, in order:
+# fromDistinctAscList (hfH (toAscList m)), hfH the list function's recursion
+# at the pairs' function (read time only: tab2's, when an IntMap is a Map)
+def sp.hf.mg(+s: String, ts: List<&2, X.Sx>) -> X.Sx:
+  sp.pc.tyapps(ts, sp.g(S.b("Data.Map.Internal"), S.b(s), "var"))
+
+def sp.hf.tup(+k: X.Sx, +v: X.Sx) -> X.Sx:
+  sp.tc(S.b("GHC.Tuple"), S.b("Tuple2"), [k, v])
+
+# the function at a pair: \(k, v) -> (k, f v), f v, with the key f k v
+def sp.hf.mapf(+pair: Bool, +key: Bool, +kt: X.Sx, +v: X.Sx, +ans: X.Sx, +f: X.Sx, +h: List<&2, U32>) -> X.Sx:
+  +k = sp.hf.v("hfk", h)
+  +e = sp.hf.v("hfv", h)
+  +c = sp.hf.app(sp.if(X.Sx, key, _ => sp.hf.app(f, k), _ => f), e)
+  +b = sp.if(X.Sx, pair, _ => sp.l([sp.a("tuple"), k, c]), _ => c)
+  +p = sp.l([sp.a("ptuple"), sp.l([sp.hf.pv(k, kt), sp.hf.pv(e, v)])])
+  sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([sp.hf.tup(kt, v)]), ans, sp.a("source"), sp.l([sp.hf.match([p], b)])])])
+
+def sp.hf.map(+s: String, +key: Bool, +v: X.Sx, +w: X.Sx, +kt: X.Sx, +f: X.Sx, +m: X.Sx, +h: List<&2, U32>) -> X.Sx:
+  +ism = sp.is(S.b(s), "map")
+  +ans = sp.if(X.Sx, ism, _ => sp.hf.tup(kt, w), _ => sp.tc(S.b("GHC.Types"), S.b("Bool"), Nil{}))
+  +l = sp.hf.app(sp.hf.mg("toAscList", [kt, v]), m)
+  sp.hf.app(sp.hf.mg("fromDistinctAscList", [kt, w]), sp.hf.k1(s, sp.hf.tup(kt, v), sp.hf.tup(kt, w), sp.hf.mapf(ism, key, kt, v, ans, f, h), l, h))
+
+# foldr's step at a pair: \(k, v) r -> f k v r
+def sp.hf.mapfr(+key: Bool, +v: X.Sx, +r: X.Sx, +kt: X.Sx, +f: X.Sx, +z: X.Sx, +m: X.Sx, +h: List<&2, U32>, +sys: List<&2, Sy>) -> X.Sx:
+  +l = sp.hf.app(sp.hf.mg("toAscList", [kt, v]), m)
+  +k = sp.hf.v("hfk", h)
+  +e = sp.hf.v("hfv", h)
+  +a = sp.hf.v("hfr", h)
+  +b = sp.hf.app(sp.hf.app(sp.if(X.Sx, key, _ => sp.hf.app(f, k), _ => f), e), a)
+  +p = sp.l([sp.a("ptuple"), sp.l([sp.hf.pv(k, kt), sp.hf.pv(e, v)])])
+  +g = {sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([sp.hf.tup(kt, v), r]), r, sp.a("source"), sp.l([sp.hf.match([p, sp.hf.pv(a, r)], b)])])]) : X.Sx}
+  sp.hf.foldr(sp.hf.tup(kt, v), r, g, z, l, h, sp.hf.lam(g, 2n), sys)
+
+# fmap and <$> at a Map
+def sp.hf.atmap(+tys: List<&2, X.Sx>) -> Bool:
+  +t = sp.first(tys)
+  Bool.and(sp.is(sp.tckey(t), "Data.Map.Internal.Map"), Nat.is_eq(X.tsx.len(t), 4n))
+
 def sp.hf.mk.of(k: Hk, +tys: List<&2, X.Sx>, +f: X.Sx, +x1: X.Sx, +x2: X.Sx, +n: Nat, +h: List<&2, U32>, +y: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
   match k:
+    case HkMap{+s, +key, +v, +w, +kt}:
+      sp.if(X.Sx, Nat.is_eq(n, 2n), _ => sp.hf.map(s, key, sp.hf.ty(tys, v), sp.hf.ty(tys, w), sp.hf.ty(tys, kt), f, x1, h), _ => y)
+    case HkMapFoldr{+key, +v, +r, +kt}:
+      sp.if(X.Sx, Nat.is_eq(n, 3n), _ => sp.hf.mapfr(key, sp.hf.ty(tys, v), sp.hf.ty(tys, r), sp.hf.ty(tys, kt), f, x1, x2, h, sys), _ => y)
     case Hk1{+s, +at, +a, +r}:
       +ls = Bool.or(Bool.not(at), sp.pc.atlist(tys))
-      sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 2n)), _ => sp.hf.k1(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, x1, h), _ => sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 1n)), _ => sp.hf.part(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, h), _ => y))
+      sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 2n)), _ => sp.hf.k1(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, x1, h), _ => sp.if(X.Sx, Bool.and(ls, Nat.is_eq(n, 1n)), _ => sp.hf.part(s, sp.hf.ty(tys, a), sp.hf.ty(tys, r), f, h), _ => sp.if(X.Sx, Bool.and(Bool.and(at, sp.is(S.b(s), "map")), Bool.and(Nat.is_eq(n, 2n), sp.hf.atmap(tys))), _ => sp.hf.map("map", False{}, sp.hf.ty(tys, 1n), sp.hf.ty(tys, 2n), sp.at(sp.first(tys), 3n), f, x1, h), _ => y)))
     case HkFoldr{+at}:
       +o = Bool.pick(Nat, at, 1n, 0n)
       sp.if(X.Sx, Bool.and(Nat.is_eq(n, 3n), Bool.or(Bool.not(at), sp.pc.atlist(tys))), _ => sp.hf.foldr(sp.hf.ty(tys, o), sp.hf.ty(tys, 1n+o), f, x1, x2, h, sp.hf.lam(f, 2n), sys), _ => y)
@@ -4599,8 +4646,68 @@ def sp.lg.group.of(+g: X.Sx, +abs: Maybe<&2, X.Sx>) -> List<&2, X.Sx>:
   +n = List.length(&2, X.Sx, fs)
   sp.if(List<&2, X.Sx>, Nat.is_gt(n, 1n), _ => sp.lg.out(sp.lg.split(n, sp.lg.etas(fs), Nil{}), abs, g), _ => [g])
 
+def sp.fl.snoc0(+xs: X.Sx, +y: X.Sx) -> X.Sx:
+  sp.l(List.append(&2, X.Sx, sp.els(xs), [y]))
+
+# xs with y sixth
+def sp.le.at5(xs: List<&2, X.Sx>, +y: X.Sx) -> List<&2, X.Sx>:
+  match xs:
+    case a <> b <> c <> d <> e <> f <> t:
+      a <> b <> c <> d <> e <> y <> t
+    case u:
+      u
+
+# A local that is no group: one of no parameters whose type is a function
+# and whose right-hand side is a call or a name (ind = indent 2, merge =
+# Map.unionWith f), no where, takes its arguments (ind x = indent 2 x): a
+# let of a closure, which Bend uses at most once and a template cannot name,
+# is then a local function, lifted as any is. The parameters are named
+# after it (NAME_e0, ..).
+def sp.le.v(+f: X.Sx, +i: Nat) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{List.concat(&2, U32, [sp.sat(sp.lg.key(f), 1n), S.b("_e"), S.b(Nat.show(i))])}, sp.a("0")])
+
+# f (its one clause plain) with a parameter more
+def sp.le.add(+f: X.Sx, +i: Nat) -> X.Sx:
+  +ms = sp.at(f, 4n)
+  +ty = sp.at(ms, 2n)
+  +m0 = sp.first(sp.els(sp.at(ms, 4n)))
+  +g0 = sp.first(sp.els(sp.at(sp.at(m0, 2n), 1n)))
+  +v = sp.le.v(f, i)
+  +y = sp.l([sp.a("app"), sp.at(g0, 2n), v])
+  +body = sp.if(X.Sx, Nat.is_eq(i, 0n), _ => sp.lg.dot(8n, y), _ => y)
+  +gr = sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, body])]), sp.l([sp.a("binds")])])
+  +ps = sp.fl.snoc0(sp.at(m0, 1n), sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, sp.at(ty, 1n)])]))
+  +ms2 = sp.l([sp.a("matches"), sp.fl.snoc0(sp.at(ms, 1n), sp.at(ty, 1n)), sp.at(ty, 2n), sp.at(ms, 3n), sp.l([sp.l([sp.a("match"), ps, gr])])])
+  sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), ms2, sp.at(f, 5n)])
+
+def sp.le.go(n: Nat, +i: Nat, +f: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      f
+    case 1n+k:
+      sp.if(X.Sx, sp.head.is(sp.at(sp.at(f, 4n), 2n), "tfun"), _ => sp.le.go(k, 1n+i, sp.le.add(f, i)), _ => f)
+
+def sp.le.fun(+f: X.Sx) -> X.Sx:
+  +ms = sp.at(f, 4n)
+  +m0 = sp.first(sp.els(sp.at(ms, 4n)))
+  +gr = sp.at(m0, 2n)
+  +g0 = sp.first(sp.els(sp.at(gr, 1n)))
+  +e = sp.pc.strip(sp.at(g0, 2n))
+  +one = Bool.and(Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n)), Bool.and(Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")])))))
+  +hd = sp.pc.strip(sp.spine.head(e))
+  +call = Bool.and(Bool.or(Bool.or(sp.head.is(e, "app"), sp.head.is(e, "g")), Bool.or(sp.head.is(e, "tyapp"), sp.head.is(e, "evapp"))), Bool.or(sp.head.is(hd, "g"), sp.head.is(hd, "l")))
+  sp.if(X.Sx, Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(sp.at(ms, 2n), "tfun")), Bool.and(one, call)), _ => sp.le.go(3n, 0n, f), _ => f)
+
+# (nonrec F), or (nonrec (abs () () EXPORTS EVBINDS (F) ..))
+def sp.le(+g: X.Sx) -> X.Sx:
+  +a = sp.at(g, 1n)
+  +ab = Maybe.is_some(&2, X.Sx, sp.lg.abs(g))
+  +fs = sp.at(a, 5n)
+  +one = Bool.and(ab, Nat.is_eq(X.tsx.len(fs), 1n))
+  sp.if(X.Sx, sp.head.is(a, "fun"), _ => sp.l([sp.a("nonrec"), sp.le.fun(a)]), _ => sp.if(X.Sx, one, _ => sp.l([sp.a("nonrec"), sp.l(sp.le.at5(sp.els(a), sp.l([sp.le.fun(sp.first(sp.els(fs)))])))]), _ => g))
+
 def sp.lg.group(+g: X.Sx) -> List<&2, X.Sx>:
-  sp.if(List<&2, X.Sx>, sp.head.is(g, "rec"), _ => sp.lg.group.of(g, sp.lg.abs(g)), _ => [g])
+  sp.if(List<&2, X.Sx>, sp.head.is(g, "rec"), _ => sp.lg.group.of(g, sp.lg.abs(g)), _ => sp.if(List<&2, X.Sx>, Bool.and(sp.head.is(g, "nonrec"), Nat.is_eq(X.tsx.len(g), 2n)), _ => [sp.le(g)], _ => [g]))
 
 def sp.lg.groups(gs: List<&2, X.Sx>) -> List<&2, X.Sx>:
   match gs:

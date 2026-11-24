@@ -648,6 +648,7 @@ b'HsPrelude'HsMap'toList m = case m of { B'HsPrelude'HsMap'Tip -> []; B'HsPrelud
 b'HsPrelude'HsMap'fromList'go cmp xs acc = case xs of { [] -> acc; (k, v) : t -> b'HsPrelude'HsMap'fromList'go cmp t (b'HsPrelude'HsMap'insert cmp k v acc) }
 b'HsPrelude'HsMap'fromList cmp xs = b'HsPrelude'HsMap'fromList'go cmp xs B'HsPrelude'HsMap'Tip
 b'HsPrelude'HsMap'fromListWith'go cmp f xs acc = case xs of { [] -> acc; (k, v) : t -> b'HsPrelude'HsMap'fromListWith'go cmp f t (b'HsPrelude'HsMap'insertWith cmp f k v acc) }
+b'HsPrelude'HsMap'fromAsc xs = case xs of { [] -> B'HsPrelude'HsMap'Tip; (k, v) : t -> B'HsPrelude'HsMap'Bin k v (b'HsPrelude'HsMap'fromAsc t) }
 b'HsPrelude'HsMap'fromListWith cmp f xs = b'HsPrelude'HsMap'fromListWith'go cmp f xs B'HsPrelude'HsMap'Tip
 b'HsPrelude'HsMap'elems m = map snd (b'HsPrelude'HsMap'toList m)
 b'HsPrelude'HsMap'keys m = map fst (b'HsPrelude'HsMap'toList m)

@@ -101,3 +101,12 @@ def HsMap.isize(~K: Data, ~V: Data, m: HsMap<K, V>) -> HsInt:
 
 def HsSet.isize(~K: Data, s: HsSet<K>) -> HsInt:
   HsInt.Pos{HsSet.size(~K, s)}
+
+# fromDistinctAscList: the pairs as they are (ascending and distinct, its
+# caller's word, as containers takes it)
+def HsMap.fromAsc(~K: Data, ~V: Data, xs: List<&2, Sigma<&2, &2, K, _ => V>>) -> HsMap<K, V>:
+  match xs:
+    case Nil{}:
+      HsMap.Tip{}
+    case (k, v) <> t:
+      HsMap.Bin{k, v, HsMap.fromAsc(~K, ~V, t)}
