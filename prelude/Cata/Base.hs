@@ -18,9 +18,10 @@ import Prelude hiding (concatMap, filter, foldl, foldl', foldr, until)
 import Control.Applicative (Alternative (..))
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
+import Control.Exception (Exception)
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
-import Data.Functor.Classes (Show1 (..))
+import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Functor.Foldable (cata)
 import qualified Data.Map as Map
 import GHC.Show (showList__)
@@ -276,6 +277,107 @@ productDefault t = F.product (toListDefault t)
 
 lengthDefault :: forall t a. Foldable t => t a -> Int
 lengthDefault t = F.length (toListDefault t)
+
+-- | free's unwrap (ComonadCofree's) at Cofree: the layer under the
+-- annotation (the instance's Functor f, unused, makes a call of it a copy
+-- at its f, as the model's other defs are)
+unwrapCofree :: forall f a. Functor f => C.Cofree f a -> f (C.Cofree f a)
+unwrapCofree (_ C.:< x) = x
+
+-- | GHC.Show's shows at a package's own type: base's definition, so that
+-- the specialiser writes it at the type's own showsPrec (a derived one's)
+showsDefault :: forall a. Show a => a -> ShowS
+showsDefault x = showsPrec 0 x
+
+-- | base's functions over a Functor, a Monad or a Foldable that are no
+-- methods, at a package's own: base's definitions, so that the specialiser
+-- writes them at its instance's methods.
+fmapOp :: forall f a b. Functor f => (a -> b) -> f a -> f b
+fmapOp g x = fmap g x
+
+fmapFlip :: forall f a b. Functor f => f a -> (a -> b) -> f b
+fmapFlip x g = fmap g x
+
+bindFlip :: forall m a b. Monad m => (a -> m b) -> m a -> m b
+bindFlip k m = m >>= k
+
+voidOp :: forall f a. Functor f => f a -> f ()
+voidOp x = fmap (\_ -> ()) x
+
+whenOp :: forall f. Applicative f => Bool -> f () -> f ()
+whenOp b x = if b then x else pure ()
+
+unlessOp :: forall f. Applicative f => Bool -> f () -> f ()
+unlessOp b x = if b then pure () else x
+
+liftM2Op :: forall m a b r. Monad m => (a -> b -> r) -> m a -> m b -> m r
+liftM2Op f m n = m >>= \x -> n >>= \y -> pure (f x y)
+
+anyDefault :: forall t a. Foldable t => (a -> Bool) -> t a -> Bool
+anyDefault p t = F.any p (toListDefault t)
+
+allDefault :: forall t a. Foldable t => (a -> Bool) -> t a -> Bool
+allDefault p t = F.all p (toListDefault t)
+
+orDefault :: forall t. Foldable t => t Bool -> Bool
+orDefault t = F.or (toListDefault t)
+
+andDefault :: forall t. Foldable t => t Bool -> Bool
+andDefault t = F.and (toListDefault t)
+
+nullDefault :: forall t a. Foldable t => t a -> Bool
+nullDefault t = F.null (toListDefault t)
+
+elemDefault :: forall t a. (Foldable t, Eq a) => a -> t a -> Bool
+elemDefault x t = F.elem x (toListDefault t)
+
+concatMapDefault :: forall t a b. Foldable t => (a -> [b]) -> t a -> [b]
+concatMapDefault f t = concatMap f (toListDefault t)
+
+-- | the classes' default methods at a package's own instance
+thenOp :: forall m a b. Monad m => m a -> m b -> m b
+thenOp m k = m >>= \_ -> k
+
+returnOp :: forall m a. Monad m => a -> m a
+returnOp x = pure x
+
+mapMOp :: forall t m a b. (Traversable t, Monad m) => (a -> m b) -> t a -> m (t b)
+mapMOp f t = traverse f t
+
+sequenceOp :: forall t m a. (Traversable t, Monad m) => t (m a) -> m (t a)
+sequenceOp t = traverse (\x -> x) t
+
+constMap :: forall f a b. Functor f => a -> f b -> f a
+constMap x t = fmap (\_ -> x) t
+
+-- | data-fix's Eq at Fix f: base's Eq1 at f, its liftEq (the package's
+-- instance) at the recursion
+fixEq :: forall f. Eq1 f => Fix f -> Fix f -> Bool
+fixEq (Fix a) (Fix b) = liftEq fixEq a b
+
+fixNe :: forall f. Eq1 f => Fix f -> Fix f -> Bool
+fixNe a b = not (fixEq a b)
+
+-- | Control.Exception's throw of a package's own exception: a failure value
+-- with what it shows (the message of a Haskell error call)
+throwOp :: forall a e. Exception e => e -> a
+throwOp x = errorWithoutStackTrace (show x)
+
+-- | Foldable's foldMap, traverse_ and for_ at Maybe
+maybeFoldMap :: forall m a. Monoid m => (a -> m) -> Maybe a -> m
+maybeFoldMap f t = case t of
+  Nothing -> mempty
+  Just x -> f x
+
+maybeTraverse_ :: forall f a b. Applicative f => (a -> f b) -> Maybe a -> f ()
+maybeTraverse_ f t = case t of
+  Nothing -> pure ()
+  Just x -> fmap (\_ -> ()) (f x)
+
+maybeFor_ :: forall f a b. Applicative f => Maybe a -> (a -> f b) -> f ()
+maybeFor_ t f = case t of
+  Nothing -> pure ()
+  Just x -> fmap (\_ -> ()) (f x)
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one

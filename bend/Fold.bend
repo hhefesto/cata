@@ -1742,7 +1742,7 @@ def fd.dm.specs.map1() -> List<&2, DmS>:
   [DmS{"empty", "HsMap.empty", "KV", "V", "KV", 0n, 0n}, DmS{"singleton", "HsMap.singleton", "KV", "V", "KV", 0n, 2n}, DmS{"insert", "HsMap.insert", "KV", "V", "KVc", 0n, 3n}, DmS{"insertWith", "HsMap.insertWith", "KV", "V", "KVc", 0n, 4n}, DmS{"lookup", "HsMap.lookup", "KV", "V", "KVc", 0n, 2n}, DmS{"member", "HsMap.member", "KV", "V", "KVc", 0n, 2n}, DmS{"notMember", "HsMap.notMember", "KV", "V", "KVc", 0n, 2n}, DmS{"findWithDefault", "HsMap.findWithDefault", "KV", "V", "KVc", 0n, 3n}, DmS{"delete", "HsMap.delete", "KV", "V", "KVc", 0n, 2n}]
 
 def fd.dm.specs.map2() -> List<&2, DmS>:
-  [DmS{"adjust", "HsMap.adjust", "KV", "V", "KVc", 0n, 3n}, DmS{"toList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"toAscList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"assocs", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"fromList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromDistinctAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromListWith", "HsMap.fromListWith", "KV", "V", "KVc", 1n, 2n}, DmS{"elems", "HsMap.elems", "KV", "V", "KV", 0n, 1n}]
+  [DmS{"adjust", "HsMap.adjust", "KV", "V", "KVc", 0n, 3n}, DmS{"toList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"toAscList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"assocs", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"fromList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromDistinctAscList", "HsMap.fromAsc", "KV", "V", "KV", 0n, 1n}, DmS{"fromListWith", "HsMap.fromListWith", "KV", "V", "KVc", 1n, 2n}, DmS{"elems", "HsMap.elems", "KV", "V", "KV", 0n, 1n}]
 
 def fd.dm.specs.map3() -> List<&2, DmS>:
   [DmS{"keys", "HsMap.keys", "KV", "V", "KV", 0n, 1n}, DmS{"keysSet", "HsMap.keysSet", "KV", "V", "KV", 0n, 1n}, DmS{"size", "HsMap.isize", "KV", "V", "KV", 0n, 1n}, DmS{"null", "HsMap.null", "KV", "V", "KV", 0n, 1n}, DmS{"union", "HsMap.union", "KV", "V", "KVc", 0n, 2n}, DmS{"unionWith", "HsMap.unionWith", "KV", "V", "KVc", 1n, 3n}, DmS{"difference", "HsMap.difference", "KVW", "VW", "KVWc", 0n, 2n}, DmS{"map", "HsMap.map", "VWK", "VW", "KVW", 1n, 2n}, DmS{"mapWithKey", "HsMap.mapWithKey", "KVW", "VW", "KVW", 1n, 2n}]
@@ -2605,6 +2605,8 @@ def fd.sum(q: Tq, +prod: Bool, +t: T.Bt, xs: T.Bt) -> T.Bt:
       fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(fd.ty0("Nat")), fd.tpl0(Bool.pick(T.Bt, prod, fd.nmul(), fd.v("Nat.add"))), xs, T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])
     case TqInt{}:
       fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(t), fd.tpl0(t), fd.tpl0(fd.v(Bool.pick(String, prod, "HsPrelude.HsInt.mul", "HsPrelude.HsInt.add"))), xs, T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])}])
+    case TqRat{}:
+      fd.callS("List.foldl", [fd.tpl0(fd.v("&2")), fd.tpl0(t), fd.tpl0(t), fd.tpl0(fd.v(Bool.pick(String, prod, "HsPrelude.HsRational.mul", "HsPrelude.HsRational.add"))), xs, fd.callS("HsPrelude.HsRational.of", [T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{Bool.pick(List<&2, U32>, prod, S.b("1"), S.b("0"))}])}])])
     case _:
       fd.todo("fold:sum-at-type")
 
@@ -4844,8 +4846,80 @@ def fd.fvs.go(xs: List<&2, List<&2, U32>>, +lts: List<&2, Lt>, +own: List<&2, Li
     case +x <> t:
       fd.fvs.put(Bool.pick(Maybe<&2, T.Bt>, S.mem(x, own), None{}, fd.lt.find(lts, x)), x, fd.fvs.go(t, lts, own))
 
+# a let's name without the + fd.mark gave it
+def fd.unplus(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case 43 <> t:
+      t
+    case u:
+      u
+
+# ns without the names in xs, in front of acc
+def fd.less.vs(+xs: List<&2, List<&2, U32>>, ns: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case +n <> t:
+      T.tba.keep(S.mem(n, xs), n, fd.less.vs(xs, t, acc))
+    case Nil{}:
+      acc
+
+# The names a term mentions from outside it: tba.frees, less what its
+# cases' patterns bind, and with what its matches scrutinize. A template
+# argument `x0 => match x0: case Tuple{t, Sigma{_, ty}}: ..` names neither
+# t nor ty (tba.frees keeps a case's binders in), so neither a parameter
+# named t becomes a template nor is a def that binds a t elsewhere out
+# (fold:closure-argument), as EAL's selfReferential was.
+def fd.sfrees(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtCase{p, b, rest}:
+      fd.less.vs(T.tba.pvars(p, Nil{}), fd.sfrees(b, Nil{}), fd.sfrees(rest, acc))
+    case T.BtMatch{xs, cs}:
+      T.tba.refs(xs, fd.sfrees(cs, acc))
+    case T.BtRw{e, p, b}:
+      fd.sfrees(e, fd.sfrees(p, fd.sfrees(b, acc)))
+    case T.BtLet{x, v, b}:
+      fd.sfrees(v, T.tba.less(fd.unplus(x), fd.sfrees(b, Nil{}), acc))
+    case T.BtDead{a}:
+      fd.sfrees(a, acc)
+    case T.BtVar{x}:
+      x <> acc
+    case T.BtApp{f, a}:
+      fd.sfrees(f, fd.sfrees(a, acc))
+    case T.BtTplArg{a}:
+      fd.sfrees(a, acc)
+    case T.BtLam{m, x, b}:
+      T.tba.less(x, fd.sfrees(b, Nil{}), acc)
+    case T.BtPi{m, x, d, a, b}:
+      fd.sfrees(a, T.tba.less(x, fd.sfrees(b, Nil{}), acc))
+    case T.BtCon{c, a}:
+      c <> fd.sfrees(a, acc)
+    case T.BtTyApp{n, a}:
+      n <> fd.sfrees(a, acc)
+    case T.BtEq{ty, a, b}:
+      fd.sfrees(ty, fd.sfrees(a, fd.sfrees(b, acc)))
+    case T.BtSucc{a}:
+      fd.sfrees(a, acc)
+    case T.BtAnn{a, ty}:
+      fd.sfrees(a, fd.sfrees(ty, acc))
+    case T.BtExpr{e}:
+      fd.sfrees(e, acc)
+    case T.BtArgs{a, rest}:
+      fd.sfrees(a, fd.sfrees(rest, acc))
+    case _:
+      acc
+
+# ns, those of them in keep (in ns's order)
+def fd.only(ns: List<&2, List<&2, U32>>, +keep: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case +n <> t:
+      T.tba.keep(Bool.not(S.mem(n, keep)), n, fd.only(t, keep))
+    case Nil{}:
+      Nil{}
+
+# A case's binders are not the body's locals (fd.sfrees): a lambda
+# `\(t, Sigma _ ty) -> .. tau vis' ty` lifted where a local t is in scope
+# (EAL's selfReferential, inside tau) does not take that t.
 def fd.fvs(+body: T.Bt, +lts: List<&2, Lt>, +own: List<&2, List<&2, U32>>) -> List<&2, Lt>:
-  fd.fvs.go(T.tba.nub(T.tba.frees(body, fd.scrs(body, Nil{}))), lts, own)
+  fd.fvs.go(fd.only(T.tba.nub(T.tba.frees(body, fd.scrs(body, Nil{}))), fd.sfrees(body, Nil{})), lts, own)
 
 def fd.lift.args(lam: Bool, +own: List<&2, List<&2, U32>>, e: T.Bt) -> List<&2, T.Bt>:
   match lam:
@@ -6259,7 +6333,9 @@ def fd.occurs(x: X.Sx, +t: X.Sx) -> Bool:
     case y:
       V.sv.sxeq(y, t)
 
-# a local value: a let, lifted when its body is a statement; one that names
+# a local value: a let, lifted when its body is a statement; an action (a
+# value of a State's type, a function in Bend: EAL's intrinsic's dataLeaf) is
+# a local function of no parameters, so it can run twice; one that names
 # itself (go = do .. go ..) is a local function of no parameters, lifted
 # (its def recurs: the gate's fuel)
 def fd.lbind.val(rec: Bool, +x: List<&2, U32>, +res: T.Bt, +cls: List<&2, R>, +env: Env) -> R:
@@ -6269,12 +6345,19 @@ def fd.lbind.val(rec: Bool, +x: List<&2, U32>, +res: T.Bt, +cls: List<&2, R>, +e
     case False{}:
       RB{x, T.BtAnn{fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env), res}}
 
+def fd.isact(t: T.Bt) -> Bool:
+  match t:
+    case T.BtPi{m, x, i, a, b}:
+      True{}
+    case _:
+      False{}
+
 # a local binding: a value (a fun with no arguments) is a let (see
 # fd.lbind.val); a local function is lifted (RLf)
-def fd.lbind(+x: List<&2, U32>, r: R, +env: Env, rec: Bool) -> R:
+def fd.lbind(+x: List<&2, U32>, r: R, +env: Env, act: Bool, rec: Bool) -> R:
   match r:
     case RMs{Nil{}, +res, +cls}:
-      fd.lbind.val(rec, x, res, cls, env)
+      fd.lbind.val(Bool.or(rec, Bool.and(act, fd.isfn(res))), x, res, cls, env)
     case RMs{tys, +res, cls}:
       RLf{x, tys, res, fd.exh.name(fd.exh.fname(x), res, cls)}
     case _:
@@ -6642,6 +6725,7 @@ type K is Data:
   KBinds{}
   KGroups{}
   KNonrec{}
+  KRecs{}
   KBfun{}
   KBabs{}
   KBpat{}
@@ -6721,8 +6805,11 @@ def fd.k.anybind(gs: List<&2, X.Sx>) -> Bool:
 def fd.k.grhs(+x: X.Sx) -> K:
   Bool.pick(K, fd.k.anybind(SP.sp.els(V.sv.at(x, 1n))), KGrhsP{}, KGrhs{})
 
+# a rec of several bindings (a local and a copy of a def at it, both
+# calling each other: traverseScoped's goPattern and listTraverse at it) is
+# an abs's group: each lifted, their cycle fd.mu.all's
 def fd.k.group(+x: X.Sx) -> K:
-  Bool.pick(K, Bool.or(V.sv.is(V.sv.hd(x), "nonrec"), Bool.and(V.sv.is(V.sv.hd(x), "rec"), Nat.is_eq(X.tsx.len(x), 2n))), KNonrec{}, KBad{S.b("fold:recursive-local")})
+  Bool.pick(K, Bool.or(V.sv.is(V.sv.hd(x), "nonrec"), Bool.and(V.sv.is(V.sv.hd(x), "rec"), Nat.is_eq(X.tsx.len(x), 2n))), KNonrec{}, Bool.pick(K, V.sv.is(V.sv.hd(x), "rec"), KRecs{}, KBad{S.b("fold:recursive-local")}))
 
 # a local abs (GHC's generalised group) that takes no dictionary is its one
 # bind (its type variables are erased in a let)
@@ -6923,6 +7010,8 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.nil()
     case X.SxCons{_, X.SxCons{+b, _}} KNonrec{}:
       fd.go(b, fd.k.bind(b), env)
+    case X.SxCons{_, bs} KRecs{}:
+      fd.go(bs, KAbs1{}, env)
     case X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{_, X.SxCons{bs, _}}}}}} KBabs{}:
       fd.go(bs, KAbs1{}, env)
     # one binding, or a group of several: mutually recursive locals (EAL's
@@ -6943,7 +7032,7 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     case X.SxCons{_, X.SxCons{+p, X.SxCons{_, X.SxCons{g, X.SxCons{+ty, _}}}}} KBpat{}:
       RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.ft.off(fd.rt(fd.go(g, KGrhss{}, fd.notail(env)))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env)), Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{+ms, _}}}}} KBfun{}:
-      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.withal(fd.notail(env), Nil{})), env, fd.occurs(ms, fd.unself(v)))
+      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.withal(fd.notail(env), Nil{})), env, Bool.or(fd.occurs(ms, fd.unself(v)), V.sv.is(V.sv.hd(V.sv.at(ms, 2n)), "tc")), fd.occurs(ms, fd.unself(v)))
     # binders' types (see Lifting)
     case X.SxCons{_, X.SxCons{+v, X.SxCons{+t, _}}} KLbv{}:
       fd.lt1(fd.vname(V.sv.str(v, 1n)), fd.go(t, fd.k(RoTy{}, t), env))
@@ -7247,67 +7336,6 @@ def fd.cmp.got(drv: Bool, ins: Bool, +it: T.BItem) -> List<&2, Got>:
       [GotOut{fd.cmp.iname(it), S.b("fold:ord-instance")}]
     case False{} False{}:
       Nil{}
-
-# a let's name without the + fd.mark gave it
-def fd.unplus(x: List<&2, U32>) -> List<&2, U32>:
-  match x:
-    case 43 <> t:
-      t
-    case u:
-      u
-
-# ns without the names in xs, in front of acc
-def fd.less.vs(+xs: List<&2, List<&2, U32>>, ns: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match ns:
-    case +n <> t:
-      T.tba.keep(S.mem(n, xs), n, fd.less.vs(xs, t, acc))
-    case Nil{}:
-      acc
-
-# The names a term mentions from outside it: tba.frees, less what its
-# cases' patterns bind, and with what its matches scrutinize. A template
-# argument `x0 => match x0: case Tuple{t, Sigma{_, ty}}: ..` names neither
-# t nor ty (tba.frees keeps a case's binders in), so neither a parameter
-# named t becomes a template nor is a def that binds a t elsewhere out
-# (fold:closure-argument), as EAL's selfReferential was.
-def fd.sfrees(t: T.Bt, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
-  match t:
-    case T.BtCase{p, b, rest}:
-      fd.less.vs(T.tba.pvars(p, Nil{}), fd.sfrees(b, Nil{}), fd.sfrees(rest, acc))
-    case T.BtMatch{xs, cs}:
-      T.tba.refs(xs, fd.sfrees(cs, acc))
-    case T.BtRw{e, p, b}:
-      fd.sfrees(e, fd.sfrees(p, fd.sfrees(b, acc)))
-    case T.BtLet{x, v, b}:
-      fd.sfrees(v, T.tba.less(fd.unplus(x), fd.sfrees(b, Nil{}), acc))
-    case T.BtDead{a}:
-      fd.sfrees(a, acc)
-    case T.BtVar{x}:
-      x <> acc
-    case T.BtApp{f, a}:
-      fd.sfrees(f, fd.sfrees(a, acc))
-    case T.BtTplArg{a}:
-      fd.sfrees(a, acc)
-    case T.BtLam{m, x, b}:
-      T.tba.less(x, fd.sfrees(b, Nil{}), acc)
-    case T.BtPi{m, x, d, a, b}:
-      fd.sfrees(a, T.tba.less(x, fd.sfrees(b, Nil{}), acc))
-    case T.BtCon{c, a}:
-      c <> fd.sfrees(a, acc)
-    case T.BtTyApp{n, a}:
-      n <> fd.sfrees(a, acc)
-    case T.BtEq{ty, a, b}:
-      fd.sfrees(ty, fd.sfrees(a, fd.sfrees(b, acc)))
-    case T.BtSucc{a}:
-      fd.sfrees(a, acc)
-    case T.BtAnn{a, ty}:
-      fd.sfrees(a, fd.sfrees(ty, acc))
-    case T.BtExpr{e}:
-      fd.sfrees(e, acc)
-    case T.BtArgs{a, rest}:
-      fd.sfrees(a, fd.sfrees(rest, acc))
-    case _:
-      acc
 
 # an eq out (fold:eq-...) that nothing uses goes
 # the names the template arguments in t use
@@ -15038,8 +15066,11 @@ def fd.kd.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   +ks = fd.kd.fix(30n, List.append(&2, T.BItem, its, dt), Nil{})
   fd.kd.if(List<&2, T.BItem>, List.is_empty(&2, List<&2, U32>, ks), _ => its, _ => fd.kd.items(its, ks))
 
+# fd.kd.all again after fd.mu.all: a fuelled group's In (its members'
+# arguments) holds a function where one is a local action (IC's eraRegion's
+# dropLeaf), and is a Type then
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.tm.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)))
+  fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
