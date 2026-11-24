@@ -1,5 +1,6 @@
 -- functions written as compositions: a recursion through traverse
 -- (Resolve's resolveModule and resolveItems)
+{-# LANGUAGE TupleSections #-}
 module Compose where
 
 import Data.Maybe (mapMaybe)
@@ -39,3 +40,9 @@ total :: Int -> [Int] -> Int
 total k
   | k > 5 = sum . evens k
   | otherwise = length . mapMaybe (\x -> if x > k then Just x else Nothing)
+
+sectioned :: Int -> [Int] -> [(Int, Int, String)]
+sectioned k xs = map (\x -> (k,,"b") x) xs ++ map (\(a, b) -> (, b, "a") a) (zip xs [k, 1])
+
+pairs :: Int -> [Int] -> Either String [(Int, Int)]
+pairs k xs = traverse (\x -> (x,) <$> (if x > k then Left "big" else Right (x + k))) xs

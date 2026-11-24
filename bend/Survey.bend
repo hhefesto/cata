@@ -1922,7 +1922,8 @@ def sv.module.if(err: Bool, +file: List<&2, U32>, +xs: List<&2, X.Sx>, +tb: Tb, 
 # list functions at a lambda over locals, applied lambdas, and ifs and lets
 # in arguments as a package's (Spec's sp.lc, sp.p8, sp.hf, sp.beta, sp.ifl)
 def sv.alone(+x: X.Sx, +cts: List<&2, SP.Ct>) -> X.Sx:
-  +a = SP.sp.p8(SP.sp.lc(x, SP.sp.fa.binds(x, Nil{}), cts), False{})
+  +xt = SP.sp.ts(x)
+  +a = SP.sp.p8(SP.sp.lc(xt, SP.sp.fa.binds(xt, Nil{}), cts), False{})
   SP.sp.ifl(SP.sp.beta(SP.sp.hf(a, SP.sp.hf.env(a, Nil{}), Nil{}, List.append(&2, SP.Hke, SP.sp.hf.tab(), SP.sp.hf.tab2())), Nil{}))
 
 # an export's items as survey, fold and law read them: each local pattern

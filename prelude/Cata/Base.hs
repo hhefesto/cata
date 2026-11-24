@@ -18,6 +18,7 @@ import Prelude hiding (concatMap, filter, foldl, foldl', foldr, until)
 import Control.Applicative (Alternative (..))
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
+import Control.Exception (Exception)
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
@@ -356,6 +357,27 @@ fixEq (Fix a) (Fix b) = liftEq fixEq a b
 
 fixNe :: forall f. Eq1 f => Fix f -> Fix f -> Bool
 fixNe a b = not (fixEq a b)
+
+-- | Control.Exception's throw of a package's own exception: a failure value
+-- with what it shows (the message of a Haskell error call)
+throwOp :: forall a e. Exception e => e -> a
+throwOp x = errorWithoutStackTrace (show x)
+
+-- | Foldable's foldMap, traverse_ and for_ at Maybe
+maybeFoldMap :: forall m a. Monoid m => (a -> m) -> Maybe a -> m
+maybeFoldMap f t = case t of
+  Nothing -> mempty
+  Just x -> f x
+
+maybeTraverse_ :: forall f a b. Applicative f => (a -> f b) -> Maybe a -> f ()
+maybeTraverse_ f t = case t of
+  Nothing -> pure ()
+  Just x -> fmap (\_ -> ()) (f x)
+
+maybeFor_ :: forall f a b. Applicative f => Maybe a -> (a -> f b) -> f ()
+maybeFor_ t f = case t of
+  Nothing -> pure ()
+  Just x -> fmap (\_ -> ()) (f x)
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one

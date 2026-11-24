@@ -6333,7 +6333,9 @@ def fd.occurs(x: X.Sx, +t: X.Sx) -> Bool:
     case y:
       V.sv.sxeq(y, t)
 
-# a local value: a let, lifted when its body is a statement; one that names
+# a local value: a let, lifted when its body is a statement; an action (a
+# value of a State's type, a function in Bend: EAL's intrinsic's dataLeaf) is
+# a local function of no parameters, so it can run twice; one that names
 # itself (go = do .. go ..) is a local function of no parameters, lifted
 # (its def recurs: the gate's fuel)
 def fd.lbind.val(rec: Bool, +x: List<&2, U32>, +res: T.Bt, +cls: List<&2, R>, +env: Env) -> R:
@@ -6343,12 +6345,19 @@ def fd.lbind.val(rec: Bool, +x: List<&2, U32>, +res: T.Bt, +cls: List<&2, R>, +e
     case False{}:
       RB{x, T.BtAnn{fd.lam.if(fd.lam.flat(cls), Nil{}, res, cls, env), res}}
 
+def fd.isact(t: T.Bt) -> Bool:
+  match t:
+    case T.BtPi{m, x, i, a, b}:
+      True{}
+    case _:
+      False{}
+
 # a local binding: a value (a fun with no arguments) is a let (see
 # fd.lbind.val); a local function is lifted (RLf)
-def fd.lbind(+x: List<&2, U32>, r: R, +env: Env, rec: Bool) -> R:
+def fd.lbind(+x: List<&2, U32>, r: R, +env: Env, act: Bool, rec: Bool) -> R:
   match r:
     case RMs{Nil{}, +res, +cls}:
-      fd.lbind.val(rec, x, res, cls, env)
+      fd.lbind.val(Bool.or(rec, Bool.and(act, fd.isfn(res))), x, res, cls, env)
     case RMs{tys, +res, cls}:
       RLf{x, tys, res, fd.exh.name(fd.exh.fname(x), res, cls)}
     case _:
@@ -7023,7 +7032,7 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     case X.SxCons{_, X.SxCons{+p, X.SxCons{_, X.SxCons{g, X.SxCons{+ty, _}}}}} KBpat{}:
       RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.ft.off(fd.rt(fd.go(g, KGrhss{}, fd.notail(env)))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env)), Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{+ms, _}}}}} KBfun{}:
-      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.withal(fd.notail(env), Nil{})), env, fd.occurs(ms, fd.unself(v)))
+      fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.withal(fd.notail(env), Nil{})), env, Bool.or(fd.occurs(ms, fd.unself(v)), V.sv.is(V.sv.hd(V.sv.at(ms, 2n)), "tc")), fd.occurs(ms, fd.unself(v)))
     # binders' types (see Lifting)
     case X.SxCons{_, X.SxCons{+v, X.SxCons{+t, _}}} KLbv{}:
       fd.lt1(fd.vname(V.sv.str(v, 1n)), fd.go(t, fd.k(RoTy{}, t), env))

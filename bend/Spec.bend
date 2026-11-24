@@ -1733,10 +1733,10 @@ type Pgk is Data:
 def sp.pc.gtab() -> List<&2, Pgk>:
   +tr = {"GHC.Internal.Data.Traversable." : String}
   +fo = {"GHC.Internal.Data.Foldable." : String}
-  [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkS{"GHC.Internal.Show.shows", "showsDefault"}, PgkO{"GHC.Internal.Data.Functor.<$>", "fmapOp"}, PgkO{"GHC.Internal.Data.Functor.<&>", "fmapFlip"}, PgkO{"GHC.Internal.Base.=<<", "bindFlip"}, PgkO{"GHC.Internal.Data.Functor.void", "voidOp"}, PgkO{"GHC.Internal.Base.when", "whenOp"}, PgkO{"GHC.Internal.Control.Monad.unless", "unlessOp"}, PgkO{"GHC.Internal.Base.liftM2", "liftM2Op"}, PgkO{"GHC.Internal.Base.>>", "thenOp"}, PgkO{"GHC.Internal.Base.return", "returnOp"}, PgkO{tr ++ "mapM", "mapMOp"}, PgkO{tr ++ "sequence", "sequenceOp"}, PgkO{"GHC.Internal.Base.<$", "constMap"}, PgkO{fo ++ "any", "anyDefault"}, PgkO{fo ++ "all", "allDefault"}, PgkO{fo ++ "or", "orDefault"}, PgkO{fo ++ "and", "andDefault"}, PgkO{fo ++ "null", "nullDefault"}, PgkO{fo ++ "elem", "elemDefault"}, PgkO{fo ++ "concatMap", "concatMapDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}]
+  [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkM{fo ++ "foldMap", "maybeFoldMap"}, PgkM{fo ++ "traverse_", "maybeTraverse_"}, PgkM{fo ++ "mapM_", "maybeTraverse_"}, PgkM{fo ++ "for_", "maybeFor_"}, PgkM{fo ++ "forM_", "maybeFor_"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkS{"GHC.Internal.Show.shows", "showsDefault"}, PgkO{"GHC.Internal.Data.Functor.<$>", "fmapOp"}, PgkO{"GHC.Internal.Data.Functor.<&>", "fmapFlip"}, PgkO{"GHC.Internal.Base.=<<", "bindFlip"}, PgkO{"GHC.Internal.Data.Functor.void", "voidOp"}, PgkO{"GHC.Internal.Base.when", "whenOp"}, PgkO{"GHC.Internal.Control.Monad.unless", "unlessOp"}, PgkO{"GHC.Internal.Base.liftM2", "liftM2Op"}, PgkO{"GHC.Internal.Base.>>", "thenOp"}, PgkO{"GHC.Internal.Base.return", "returnOp"}, PgkO{tr ++ "mapM", "mapMOp"}, PgkO{tr ++ "sequence", "sequenceOp"}, PgkO{"GHC.Internal.Base.<$", "constMap"}, PgkO{fo ++ "any", "anyDefault"}, PgkO{fo ++ "all", "allDefault"}, PgkO{fo ++ "or", "orDefault"}, PgkO{fo ++ "and", "andDefault"}, PgkO{fo ++ "null", "nullDefault"}, PgkO{fo ++ "elem", "elemDefault"}, PgkO{fo ++ "concatMap", "concatMapDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}]
 
 def sp.pc.gkeys() -> List<&2, List<&2, U32>>:
-  [S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform"), S.b("Control.Comonad.Cofree.Class.unwrap")]
+  [S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform"), S.b("Control.Comonad.Cofree.Class.unwrap"), S.b("GHC.Internal.Exception.throw")]
 
 def sp.pc.gm.some(b: Bool, n: String, ts: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   match b:
@@ -1775,8 +1775,9 @@ def sp.pc.gm(+k: List<&2, U32>, +ty: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   +fx = sp.is(h, "Data.Fix.Fix")
   +app = Bool.or(sp.is(k, "GHC.Internal.Base.<>"), sp.is(k, "GHC.Internal.Base.mappend"))
   +t1 = Maybe.default(&2, X.Sx, sp.nth(ty, 1n), X.SxNil{})
+  +th = Bool.and(sp.is(k, "GHC.Internal.Exception.throw"), sp.pc.own(Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})))
   +uw = Bool.and(sp.is(k, "Control.Comonad.Cofree.Class.unwrap"), sp.is(sp.tckey(t1), "Control.Comonad.Cofree.Cofree"))
-  Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, app), "maybeAppend", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, sp.is(k, "GHC.Internal.Base.mempty")), "maybeMempty", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Data.Functor.Foldable.ana")), "anaCofree", x <> y <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(fx, sp.is(k, "Data.Functor.Foldable.ana")), "anaFix", x <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Control.Lens.Plated.transform")), "transformCofree", [x, y]), Maybe.or(&2, Pgm, sp.pc.gm.some(uw, "unwrapCofree", [sp.at(t1, 3n), Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})]), sp.pc.gm.tab(sp.pc.gtab(), k, ty)))))))
+  Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, app), "maybeAppend", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, sp.is(k, "GHC.Internal.Base.mempty")), "maybeMempty", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Data.Functor.Foldable.ana")), "anaCofree", x <> y <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(fx, sp.is(k, "Data.Functor.Foldable.ana")), "anaFix", x <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Control.Lens.Plated.transform")), "transformCofree", [x, y]), Maybe.or(&2, Pgm, sp.pc.gm.some(th, "throwOp", sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(uw, "unwrapCofree", [sp.at(t1, 3n), Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})]), sp.pc.gm.tab(sp.pc.gtab(), k, ty))))))))
 
 def sp.strs0(xs: List<String>) -> List<&2, List<&2, U32>>:
   match xs:
@@ -1789,7 +1790,7 @@ def sp.strs0(xs: List<String>) -> List<&2, List<&2, U32>>:
 def sp.pc.gn(+n: String) -> Nat:
   +b = S.b(n)
   +one = S.mem(b, sp.strs0(["maybeAppend", "maybeMempty", "showsDefault", "whenOp", "unlessOp", "orDefault", "andDefault"]))
-  +two = Bool.or(S.prefix(b, S.b("listSequence")), S.mem(b, sp.strs0(["transformCofree", "unwrapCofree", "anaFix", "toListDefault", "sumDefault", "productDefault", "lengthDefault", "maybeSequenceA", "voidOp", "anyDefault", "allDefault", "nullDefault", "elemDefault", "returnOp"])))
+  +two = Bool.or(S.prefix(b, S.b("listSequence")), S.mem(b, sp.strs0(["transformCofree", "unwrapCofree", "anaFix", "toListDefault", "sumDefault", "productDefault", "lengthDefault", "maybeSequenceA", "voidOp", "anyDefault", "allDefault", "nullDefault", "elemDefault", "returnOp", "maybeFoldMap", "throwOp"])))
   Bool.pick(Nat, one, 1n, Bool.pick(Nat, two, 2n, Bool.pick(Nat, Bool.or(sp.is(b, "liftM2Op"), sp.is(b, "mapMOp")), 4n, 3n)))
 
 def sp.pc.gput(m: Maybe<&2, Pgm>) -> Maybe<&2, X.Sx>:
@@ -6772,6 +6773,86 @@ def sp.ssb(x: X.Sx, k: Mk, +fs: List<&2, Mf>) -> X.Sx:
     case z _:
       z
 
+# A tuple section, (tuple (missing T) e), is the lambda over what is missing,
+# \ts_0 -> (ts_0, e). Its answer's type is the parts': a local's, what is
+# missing's, a nullary constructor's; a part of no known type has a type
+# variable (a lambda's answer's type is asked for where it is lifted).
+def sp.ts.ty(+e: X.Sx, +env: List<&2, Asb>) -> X.Sx:
+  +y = sp.pc.strip(e)
+  +h = sp.vhead(y)
+  +m = sp.as.look(y, env)
+  +un = Bool.and(sp.head.is(y, "g"), sp.is(sp.gkey(y), "GHC.Tuple.()"))
+  +nl = Bool.and(sp.head.is(y, "tyapp"), sp.is(sp.gkey(h), "GHC.Types.[]"))
+  +no = Bool.and(sp.head.is(y, "tyapp"), sp.is(sp.gkey(h), "GHC.Internal.Maybe.Nothing"))
+  sp.if(X.Sx, sp.head.is(y, "missing"), _ => sp.at(y, 1n), _ => sp.if(X.Sx, Maybe.is_some(&2, X.Sx, m), _ => sp.or(m, y), _ => sp.if(X.Sx, un, _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => sp.if(X.Sx, nl, _ => sp.hf.list(sp.at(y, 2n)), _ => sp.if(X.Sx, no, _ => sp.tc(S.b("GHC.Internal.Maybe"), S.b("Maybe"), [sp.at(y, 2n)]), _ => sp.l([sp.a("tv"), X.SxStr{S.b("%ts")}]))))))
+
+def sp.ts.tys(es: List<&2, X.Sx>, +env: List<&2, Asb>) -> List<&2, X.Sx>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case e <> t:
+      sp.ts.ty(e, env) <> sp.ts.tys(t, env)
+
+def sp.ts.v(+i: Nat) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("ts_"), S.b(Nat.show(i)))}, sp.a("0")])
+
+def sp.ts.has(es: List<&2, X.Sx>) -> Bool:
+  match es:
+    case Nil{}:
+      False{}
+    case e <> t:
+      Bool.or(sp.head.is(e, "missing"), sp.ts.has(t))
+
+def sp.ts.pats(es: List<&2, X.Sx>, +i: Nat) -> List<&2, X.Sx>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case +e <> t:
+      +rest = sp.ts.pats(t, 1n+i)
+      Bool.pick(List<&2, X.Sx>, sp.head.is(e, "missing"), sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.ts.v(i), sp.at(e, 1n)])]) <> rest, rest)
+
+def sp.ts.els(es: List<&2, X.Sx>, +i: Nat) -> List<&2, X.Sx>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case +e <> t:
+      Bool.pick(X.Sx, sp.head.is(e, "missing"), sp.ts.v(i), e) <> sp.ts.els(t, 1n+i)
+
+def sp.ts.mis(es: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case +e <> t:
+      +rest = sp.ts.mis(t)
+      Bool.pick(List<&2, X.Sx>, sp.head.is(e, "missing"), sp.at(e, 1n) <> rest, rest)
+
+# (tuple E..) with a (missing T)
+def sp.ts.lam(+es: List<&2, X.Sx>, +env: List<&2, Asb>) -> X.Sx:
+  +n = List.length(&2, X.Sx, es)
+  +res = sp.tc(S.b("GHC.Tuple"), sp.cat(S.b("Tuple"), S.b(Nat.show(n))), sp.ts.tys(es, env))
+  +m = sp.l([sp.a("match"), sp.l(sp.ts.pats(es, 0n)), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, X.SxCons{sp.a("tuple"), sp.l(sp.ts.els(es, 0n))}])]), sp.l([sp.a("binds")])])])
+  sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l(sp.ts.mis(es)), res, sp.a("source"), sp.l([m])])])
+
+def sp.ts.go(x: X.Sx, +env: List<&2, Asb>) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, t}:
+      +t2 = sp.ts.go(t, env)
+      sp.if(X.Sx, sp.is(a, "tuple"), _ => sp.if(X.Sx, sp.ts.has(sp.els(t2)), _ => sp.ts.lam(sp.els(t2), env), _ => X.SxCons{X.SxAtom{a}, t2}), _ => X.SxCons{X.SxAtom{a}, t2})
+    case X.SxCons{h, t}:
+      X.SxCons{sp.ts.go(h, env), sp.ts.go(t, env)}
+    case y:
+      y
+
+def sp.ts.any(x: X.Sx) -> Bool:
+  match x:
+    case X.SxCons{+h, t}:
+      Bool.or(sp.is(X.tsx.atom.of(h), "missing"), Bool.or(sp.ts.any(h), sp.ts.any(t)))
+    case y:
+      False{}
+
+def sp.ts(+x: X.Sx) -> X.Sx:
+  sp.if(X.Sx, sp.ts.any(x), _ => sp.ts.go(x, sp.fa.binds(x, Nil{})), _ => x)
+
 # an item, read where no copy of it is made after (alone), or before the copies
 def sp.ssb.start(alone: Bool) -> List<&2, Mf>:
   match alone:
@@ -6788,7 +6869,7 @@ def sp.p5s.go(xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
     case Nil{}:
       Nil{}
     case x <> t:
-      sp.ssb.item(False{}, sp.pb(sp.p5(sp.p6(sp.lm(x)), True{}), cts)) <> sp.p5s.go(t, cts)
+      sp.ssb.item(False{}, sp.pb(sp.p5(sp.p6(sp.lm(sp.ts(x))), True{}), cts)) <> sp.p5s.go(t, cts)
 
 # (cts: the constructors of the package's modules before it)
 def sp.p5s(+xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:

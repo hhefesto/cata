@@ -66,3 +66,23 @@ exInst t a = case runState (runExceptT (instantiate t (Port 7 a) (Port 8 a))) st
   where
     st = S 10 (IntMap.fromList [(1, tpl)]) [] []
     tpl = Tpl 0 (IntMap.fromList [(0, Node KPair (IntMap.fromList [(0, Port 1 0), (1, Port 2 1)])), (1, Node (KDup a) (IntMap.fromList [(0, Port 0 0), (1, Port 2 0)])), (2, Node KPair (IntMap.fromList [(0, Port 1 1), (1, Port 0 1)]))])
+
+-- an action bound by a let, run twice, in a local function too (EAL's
+-- intrinsic: dataLeaf, childView)
+leaf :: Int -> M [Int]
+leaf a = do
+  let fresh = (\n -> n * 10) <$> newNode (KDup a)
+      pairUp k
+        | k > 2 = do
+            l <- fresh
+            r <- fresh
+            pure [l, r, k]
+        | otherwise = (: []) <$> fresh
+  xs <- pairUp a
+  ys <- pairUp (a + 1)
+  z <- fresh
+  pure (xs <> ys <> [z])
+
+exLeaf :: Int -> (Either String [Int], Int)
+exLeaf a = case runState (runExceptT (leaf a)) (S 1 IntMap.empty [] []) of
+  (r, s) -> (r, length (sKinds s))
