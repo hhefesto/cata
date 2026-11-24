@@ -3516,6 +3516,34 @@ def sp.lec(x: X.Sx) -> X.Sx:
     case y:
       y
 
+def sp.fa.hash(xs: List<&2, U32>, +h: U32) -> U32:
+  match xs:
+    case Nil{}:
+      h
+    case c <> t:
+      sp.fa.hash(t, (h * 33 + c : U32))
+
+# a composition as a value, at a known argument: id . f is f, another the
+# lambda over its argument (f . g is \x -> f (g x), x's type the third of
+# (.)'s)
+def sp.lec.val(fuel: Nat, +e: X.Sx) -> X.Sx:
+  match fuel:
+    case 0n:
+      e
+    case 1n+p:
+      +y = sp.pc.strip(e)
+      +f = sp.pc.strip(sp.at(y, 1n))
+      +pp = sp.pc.peel(sp.at(f, 1n), Nil{}, Nil{})
+      +ts = sp.pc.tys(pp)
+      +ty = Maybe.default(&2, X.Sx, sp.nth(ts, 2n), X.SxNil{})
+      +rs = Maybe.default(&2, X.Sx, sp.nth(ts, 1n), X.SxNil{})
+      +v = sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("cv_"), S.b(U32.show(sp.fa.hash(X.tsx.show(y), 5381))))}, sp.a("0")])
+      +g = sp.pc.strip(sp.at(f, 2n))
+      +isid = sp.is(sp.gkey(sp.vhead(g)), "GHC.Internal.Base.id")
+      +m = {sp.l([sp.a("match"), sp.l([sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, ty])])]), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, sp.lg.dot(8n, sp.l([sp.a("app"), y, v]))])]), sp.l([sp.a("binds")])])]) : X.Sx}
+      +lam = {sp.l([sp.a("lam"), sp.a("single"), sp.l([sp.a("matches"), sp.l([ty]), rs, sp.a("source"), sp.l([m])])]) : X.Sx}
+      sp.if(X.Sx, Bool.not(sp.lec.comp(e)), _ => e, _ => sp.if(X.Sx, isid, _ => sp.lec.val(p, sp.at(y, 2n)), _ => sp.if(X.Sx, Nat.is_eq(List.length(&2, X.Sx, ts), 3n), _ => lam, _ => e)))
+
 # an argument with its applied lambdas reduced and its ifs and lets out of
 # arguments, until that changes nothing (three rounds): the copy's own call
 # of itself at it, read by the copy's passes, then has the same name
@@ -3585,7 +3613,7 @@ def sp.fa.inl.one(+a: X.Sx, +lf: Lf) -> X.Sx:
       +fr = sp.fa.frees(a2, sp.fa.binds(a2, Nil{}), Nil{})
       +rt = sp.fa.inl.rt(fr, sp.fa.inl.vars(all))
       +fs = Bool.pick(List<&2, Asb>, Bool.or(sp.rg.any(a, meg <> rg), rt), all, need)
-      sp.fa.norm(sp.fa.inl(List.length(&2, Asb, fs), a, fs))
+      sp.fa.norm(sp.lec.val(8n, sp.fa.inl(List.length(&2, Asb, fs), a, fs)))
 
 def sp.fa.inl.all(xs: List<&2, X.Sx>, +lf: Lf) -> List<&2, X.Sx>:
   match xs:
@@ -3798,13 +3826,6 @@ def sp.fa.both(xs: List<&2, X.Sx>, +ys: List<&2, X.Sx>) -> List<&2, X.Sx>:
 # a local copy's local: (l N 0)
 def sp.fl.var(+n: List<&2, U32>) -> X.Sx:
   sp.l([sp.a("l"), X.SxStr{n}, sp.a("0")])
-
-def sp.fa.hash(xs: List<&2, U32>, +h: U32) -> U32:
-  match xs:
-    case Nil{}:
-      h
-    case c <> t:
-      sp.fa.hash(t, (h * 33 + c : U32))
 
 def sp.fa.isat(fas: List<&2, Fa>, +i: Nat) -> Bool:
   match fas:
@@ -4074,7 +4095,7 @@ def sp.fa.tom(d: Maybe<&2, Fd>, +r: Rq) -> Maybe<&2, Fd>:
 def sp.fa.islam(+x: X.Sx, +rl: List<&2, X.Sx>) -> Bool:
   +y = sp.pc.strip(x)
   +h = sp.pc.strip(sp.spine.head(y))
-  Bool.or(Bool.or(sp.head.is(y, "lam"), Bool.and(sp.head.is(y, "app"), sp.head.is(h, "lam"))), sp.fa.mem(sp.fa.unself(h), rl))
+  Bool.or(Bool.or(sp.head.is(y, "lam"), Bool.or(sp.lec.comp(x), Bool.and(sp.head.is(y, "app"), sp.head.is(h, "lam")))), sp.fa.mem(sp.fa.unself(h), rl))
 
 def sp.fa.haslam(xs: List<&2, X.Sx>, +rl: List<&2, X.Sx>) -> Bool:
   match xs:
