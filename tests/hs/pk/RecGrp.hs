@@ -37,7 +37,7 @@ traverseScoped f ann0 = \case
   other -> traverse (f []) other
 
 mapScoped :: ([Int] -> Term -> Term) -> TF Pat Term -> TF Pat Term
-mapScoped f = runIdentity . traverseScoped (\bs t -> Identity (f bs t)) (Ann 0)
+mapScoped f = runIdentity . traverseScoped (\bs -> Identity . f bs) (Ann 0)
 
 qualify :: Int -> Term -> Term
 qualify k = go [] where

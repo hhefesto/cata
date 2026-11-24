@@ -41,3 +41,18 @@ showFixSF x = show x
 
 showFixLF :: Fix (LF (LTy ()) Int) -> String
 showFixLF x = show x
+
+-- Show at Fix inside a list of pairs (UnprocessedParsedTermF's derived Show)
+data CaseF p r = CaseN r [(p, r)] | LitN Int
+  deriving (Eq, Show, Functor)
+
+instance Show p => Show1 (CaseF p) where
+  liftShowsPrec sp _ d c = case c of
+    CaseN s as -> showParen (d > 10) (showString "CaseN " . sp 11 s . shows (length as))
+    LitN n -> showString "LitN " . shows n
+
+showCase :: CaseF (Fix SF) Int -> String
+showCase c = show c
+
+exCase :: Int -> Int -> String
+exCase a b = showCase (CaseN a [(Fix (LeftSF (Fix EnvSF)), b), (Fix (DeferSF (FI b) (Fix EnvSF)), a)])

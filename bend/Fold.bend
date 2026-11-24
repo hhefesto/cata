@@ -1758,7 +1758,7 @@ def fd.dm.specs.set2() -> List<&2, DmS>:
 
 # (map5 and set3: prelude/HsMapMore.bend's; unionsWith's Foldable a list)
 def fd.dm.specs.map5() -> List<&2, DmS>:
-  [DmS{"intersectionWith", "HsMap.intersectionWith", "KVWX", "VWX", "KVWXc", 1n, 3n}, DmS{"restrictKeys", "HsMap.restrictKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"withoutKeys", "HsMap.withoutKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"fromSet", "HsMap.fromSet", "KV", "V", "KV", 1n, 2n}, DmS{"unionWithKey", "HsMap.unionWithKey", "KV", "V", "KVc", 1n, 3n}, DmS{"unionsWith", "HsMap.unionsWith", "XKV", "XV", "KVc", 1n, 2n}, DmS{"split", "HsMap.split", "KV", "V", "KVc", 0n, 2n}]
+  [DmS{"intersectionWith", "HsMap.intersectionWith", "KVWX", "VWX", "KVWXc", 1n, 3n}, DmS{"restrictKeys", "HsMap.restrictKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"withoutKeys", "HsMap.withoutKeys", "KV", "V", "KVc", 0n, 2n}, DmS{"fromSet", "HsMap.fromSet", "KV", "V", "KV", 1n, 2n}, DmS{"unionWithKey", "HsMap.unionWithKey", "KV", "V", "KVc", 1n, 3n}, DmS{"unionsWith", "HsMap.unionsWith", "XKV", "XV", "KVc", 1n, 2n}, DmS{"unions", "HsMap.unions", "XKV", "XV", "KVc", 0n, 1n}, DmS{"split", "HsMap.split", "KV", "V", "KVc", 0n, 2n}]
 
 # (Map's !: partial, prelude/HsPartial.bend)
 def fd.dm.specs.map6() -> List<&2, DmS>:
@@ -2014,11 +2014,14 @@ def fd.tq(t: T.Bt) -> Tq:
       TqOther{}
 
 # Foldable's functions at a list (the container argument is the marker List)
-# how many times x is used (the most of any one case of a match)
+# how many times x is used (the most of any one case of a match; given to a
+# lambda at once, as often as the lambda uses it)
 def fd.uses(t: T.Bt, +x: List<&2, U32>) -> Nat:
   match t:
     case T.BtVar{y}:
       Bool.pick(Nat, S.eq(y, x), 1n, 0n)
+    case T.BtApp{T.BtLam{m, +y, +b}, T.BtArgs{T.BtVar{+v}, T.BtANil{}}}:
+      Nat.add(Bool.pick(Nat, S.eq(y, x), 0n, fd.uses(b, x)), Bool.pick(Nat, S.eq(v, x), Nat.max(1n, fd.uses(b, y)), 0n))
     case T.BtApp{f, a}:
       Nat.add(fd.uses(f, x), fd.uses(a, x))
     case T.BtArgs{a, rest}:

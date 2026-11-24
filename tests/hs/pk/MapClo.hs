@@ -5,6 +5,7 @@ module MapClo where
 
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.List (intercalate)
 
 type Row = IntMap.IntMap Int
@@ -57,3 +58,27 @@ exKeys :: Int -> [Int] -> [(Int, Int)]
 exKeys n xs = Map.toList (go xs (Map.fromList [(1, n), (2, 3)])) where
   go [] m = m
   go (y : ys) m = go ys (addKey (sumFrom y m) m)
+
+exUnions :: Int -> Int -> ([(Int, Int)], [(Int, Int)])
+exUnions a b = (Map.toList (Map.unions [Map.fromList [(a, 1)], Map.fromList [(b, 2), (3, 3)]]), IntMap.toList (IntMap.unions (map (\x -> IntMap.fromList [(x, b), (1, x)]) [a, 2])))
+
+-- a list function over a local in a condition, under && and not
+covered :: Int -> [[Int]] -> [(Int, Int)] -> [(Int, Int)]
+covered k ps xs = [ (a, b) | (a, b) <- xs, a > k && not (any (\p -> a `elem` p) ps), b /= k ]
+
+exCovered :: Int -> [Int] -> [(Int, Int)]
+exCovered k ys = go ys where
+  go [] = []
+  go (y : r) = covered y [[k, y], r] (zip ys (y : r)) ++ go r
+
+-- a Set's any and foldr at a function over a local that changes (Size's
+-- initialInput)
+grow :: Int -> Int -> [Int] -> Int
+grow fuel n xs
+  | fuel <= 0 = n
+  | any (\x -> x > n) s = grow (fuel - 1) (n * 2 + 1) xs
+  | otherwise = foldr (\x r -> x * n + r) fuel s
+  where s = Set.fromList xs
+
+exGrow :: Int -> [Int] -> Int
+exGrow n xs = grow 4 n xs
