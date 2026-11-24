@@ -69,6 +69,9 @@ tuples `(tc "GHC.Tuple" "Tuple2" A B)`, unit `(tc "GHC.Tuple" "Unit")`.
     (synonym NAME (TV...) TYPE SPAN)
     (class NAME (TV...) ((method NAME TYPE)...) (SUPERCLASS...) SPAN)
 
+A data type's `TV...` are its visible variables, the ones a `tc` of it
+applies: a kind variable GHC adds (`data Resource a` with `a` unused, its
+kind generalised to `k` under PolyKinds, GHC2021's default) is not one.
 `ex` counts a constructor's existential variables and its own constraints.
 An instance's `cls` is its class's variables and dictionary fields:
 NSUPER superclasses, then the methods in this order.

@@ -521,7 +521,9 @@ Data.Map's `!`, and Foldable's `maximum`, `minimum`, `maximumBy`,
 message}` where GHC throws its `ErrorCall` (the message alone, as
 `ErrorCall m` matches it: "Prelude.head: empty list", "Map.!: given key
 is not an element in the map"), `Inr{the answer}` else. The survey takes
-them (info `partial:NAME`, not out).
+them (info `partial:NAME`, not out). `xs !! n` is `HsList.index` at an
+HsInt index in a package (Spec writes it `HsPrelude.Z.!!`), and
+`HsList.index.go` at a Nat one in a module alone, where Int is Nat.
 
 So are `div`, `mod`, `quot` and `rem` by a divisor that is not a known
 non-zero literal, and Rational's `/`: GHC throws an `ArithException` at

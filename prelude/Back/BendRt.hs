@@ -352,6 +352,8 @@ b'HsPrelude'HsList'minimumBy cmp xs = case xs of { [] -> Left "minimumBy: empty 
 b'HsPrelude'HsList'foldr1 f xs = case xs of { [] -> Left "Prelude.foldr1: empty list"; _ -> Right (foldr1 f xs) }
 b'HsPrelude'HsList'foldl1 f xs = case xs of { [] -> Left "Prelude.foldl1: empty list"; _ -> Right (foldl1 f xs) }
 b'HsPrelude'HsList'index xs n = if n < 0 then Left "Prelude.!!: negative index" else case genericDrop n xs of { [] -> Left "Prelude.!!: index too large"; (x : _) -> Right x }
+-- xs !! n where Int is Nat (a module alone): n is never negative
+b'HsPrelude'HsList'index'go xs n = b'HsPrelude'HsList'index xs n
 -- div, mod, quot and rem by what may be 0 (HsNum: GHC's DivideByZero,
 -- shown "divide by zero"); at Nat (non-negative) quot is div, rem mod
 b'HsPrelude'HsNum'div :: Integral a => a -> a -> Either String a

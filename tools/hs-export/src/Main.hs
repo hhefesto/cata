@@ -34,7 +34,7 @@ import GHC.Core.DataCon (dataConExTyCoVars, dataConFieldLabels, dataConOrigArgTy
 import GHC.Core.InstEnv (ClsInst (..))
 import GHC.Core.FamInstEnv (FamInst (..))
 import GHC.Core.TyCo.Rep (Scaled (..), TyLit (..), Type (..))
-import GHC.Core.TyCon (isAlgTyCon, isNewTyCon, synTyConDefn_maybe, tyConClass_maybe, tyConDataCons, tyConTyVars)
+import GHC.Core.TyCon (isAlgTyCon, isNewTyCon, isVisibleTyConBinder, synTyConDefn_maybe, tyConBinders, tyConClass_maybe, tyConDataCons)
 import GHC.Core.Type (filterOutInvisibleTypes)
 import GHC.Data.Bag (bagToList)
 import GHC.Data.FastString (unpackFS)
@@ -52,7 +52,7 @@ import GHC.Types.Name (getOccString, getSrcSpan, isExternalName, nameModule_mayb
 import GHC.Types.SourceText (FractionalLit (..), IntegralLit (..), SourceText (..), rationalFromFractionalLit)
 import GHC.Types.SrcLoc
 import GHC.Types.Unique (Uniquable (..), getKey)
-import GHC.Types.Var (FunTyFlag, VarBndr (..), isInvisibleFunArg)
+import GHC.Types.Var (FunTyFlag, VarBndr (..), binderVar, isInvisibleFunArg)
 import GHC.Driver.Backend (noBackend)
 import GHC.Utils.Outputable (showPprUnsafe)
 import GHC.Utils.Logger (pushLogHook)
@@ -290,7 +290,9 @@ tyConS tc
   | isAlgTyCon tc =
       pure $ tagged (if isNewTyCon tc then "newtype" else "data")
         [ S (getOccString tc)
-        , list [S (getOccString v) | v <- tyConTyVars tc]
+        -- its visible variables, as a tc of it applies them (FORMAT.md):
+        -- not a kind variable PolyKinds adds
+        , list [S (getOccString (binderVar b)) | b <- tyConBinders tc, isVisibleTyConBinder b]
         , list (map conS (tyConDataCons tc))
         , spanS (getSrcSpan tc)
         ]

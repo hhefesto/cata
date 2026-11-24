@@ -1584,12 +1584,14 @@ def sp.pc.app(+f: X.Sx, +a: X.Sx) -> X.Sx:
 
 # iterate g x !! n is the model's iterateIndex g x n (prelude/Cata/Base.hs:
 # g applied n times, the infinite list never built), at iterate's type
-# argument; f is (!!) applied to the list, already rewritten
+# argument; f is (!!) applied to the list, already rewritten (its (!!)
+# HsPrelude.Z's, sp.p5.ident, or base's)
 def sp.pc.isiter(+f: X.Sx) -> Bool:
   +sf = sp.pc.strip(f)
   +l = sp.pc.strip(sp.at(sf, 2n))
   +i = sp.pc.strip(sp.at(l, 1n))
-  +bang = sp.is(sp.pc.key(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{})), "GHC.Internal.List.!!")
+  +bk = sp.pc.key(sp.pc.peel(sp.at(sf, 1n), Nil{}, Nil{}))
+  +bang = Bool.or(sp.is(bk, "GHC.Internal.List.!!"), sp.is(bk, "HsPrelude.Z.!!"))
   +iter = sp.is(sp.pc.key(sp.pc.peel(sp.at(i, 1n), Nil{}, Nil{})), "GHC.Internal.List.iterate")
   Bool.and(Bool.and(sp.head.is(sf, "app"), bang), Bool.and(Bool.and(sp.head.is(l, "app"), sp.head.is(i, "app")), iter))
 
@@ -4150,12 +4152,12 @@ def sp.p5.isg(+x: X.Sx) -> Bool:
 
 # Identity's constructor and runIdentity are id (the fold erases the
 # newtype), a pattern Identity p is p; base's functions whose Int is HsInt
-# here (length, take, drop, replicate, ord, chr) are HsPrelude.Z's
+# here (length, take, drop, replicate, ord, chr, !!) are HsPrelude.Z's
 def sp.p5.ident(+y: X.Sx) -> X.Sx:
   +k = sp.gkey(y)
   +idc = Bool.or(sp.is(k, "GHC.Internal.Data.Functor.Identity.Identity"), sp.is(k, "GHC.Internal.Data.Functor.Identity.runIdentity"))
   +pid = Bool.and(sp.head.is(y, "pcon"), sp.is(sp.gkey(sp.at(y, 1n)), "GHC.Internal.Data.Functor.Identity.Identity"))
-  +z = Bool.or(Bool.or(sp.is(k, "GHC.Internal.Data.Foldable.length"), sp.is(k, "GHC.Internal.List.take")), Bool.or(Bool.or(sp.is(k, "GHC.Internal.List.drop"), sp.is(k, "GHC.Internal.List.replicate")), Bool.or(sp.is(k, "GHC.Internal.Base.ord"), sp.is(k, "GHC.Internal.Char.chr"))))
+  +z = Bool.or(Bool.or(Bool.or(sp.is(k, "GHC.Internal.Data.Foldable.length"), sp.is(k, "GHC.Internal.List.take")), Bool.or(Bool.or(sp.is(k, "GHC.Internal.List.drop"), sp.is(k, "GHC.Internal.List.replicate")), Bool.or(sp.is(k, "GHC.Internal.Base.ord"), sp.is(k, "GHC.Internal.Char.chr")))), sp.is(k, "GHC.Internal.List.!!"))
   Bool.pick(X.Sx, idc, sp.g(S.b("GHC.Internal.Base"), S.b("id"), "var"), Bool.pick(X.Sx, pid, sp.at(sp.at(y, 3n), 1n), Bool.pick(X.Sx, z, sp.l([sp.a("g"), X.SxStr{S.b("HsPrelude.Z")}, sp.at(y, 2n), sp.at(y, 3n)]), sp.p5.gr(y))))
 
 # zip [n ..] xs, zip xs [n ..], zipWith f [n ..] xs and zipWith f xs [n ..]
