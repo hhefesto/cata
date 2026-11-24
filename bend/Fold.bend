@@ -202,13 +202,36 @@ def fd.uses.go(its: List<&2, T.BItem>, +n: List<&2, U32>, hit: Bool) -> Bool:
 def fd.uses.name(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
   fd.uses.go(its, n, False{})
 
+# whether a type, as the fold wrote it, holds a function and is no Data: an
+# arrow, a twin (.fn), or a list, Maybe, Either or pair of one, whose
+# quantity for it is &1 (Bend copies none of its values); and the quantity
+# for a type
+def fd.nd.q1(a: T.Bt) -> Bool:
+  match a:
+    case T.BtArgs{T.BtVar{+x}, t}:
+      Bool.or(fd.is(x, "&1"), fd.nd.q1(t))
+    case _:
+      False{}
+
+def fd.nd(t: T.Bt) -> Bool:
+  match t:
+    case T.BtPi{m, x, i, a, b}:
+      True{}
+    case T.BtTyApp{+n, a}:
+      Bool.or(S.suffix(n, S.b(".fn")), Bool.and(Bool.or(Bool.or(fd.is(n, "List"), fd.is(n, "Maybe")), Bool.or(fd.is(n, "Either"), fd.is(n, "Sigma"))), fd.nd.q1(a)))
+    case _:
+      False{}
+
+def fd.q(+a: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, fd.nd(a), fd.v("&1"), fd.v("&2"))
+
 # List<&2, A>
-def fd.list(a: T.Bt) -> T.Bt:
-  T.BtTyApp{S.b("List"), T.tba.args([fd.v("&2"), a])}
+def fd.list(+a: T.Bt) -> T.Bt:
+  T.BtTyApp{S.b("List"), T.tba.args([fd.q(a), a])}
 
 # Sigma<&2, &2, A, _ => B>: a pair Bend may copy
-def fd.pair(a: T.Bt, b: T.Bt) -> T.Bt:
-  T.BtTyApp{S.b("Sigma"), T.tba.args([fd.v("&2"), fd.v("&2"), a, T.BtLam{T.BmLive{}, S.b("_"), b}])}
+def fd.pair(+a: T.Bt, +b: T.Bt) -> T.Bt:
+  T.BtTyApp{S.b("Sigma"), T.tba.args([fd.q(a), fd.q(b), a, T.BtLam{T.BmLive{}, S.b("_"), b}])}
 
 # a spine's elements
 def fd.spine(t: T.Bt) -> List<&2, T.Bt>:
@@ -321,6 +344,22 @@ def fd.tk.find(xs: List<&2, TkE>, +k: List<&2, U32>) -> Tk:
 
 # a list type; a list with no element is Foldable's container, the marker
 # List (Base's list functions are written for it)
+# a Maybe's and an Either's arguments, their quantities before them (Maybe
+# and Either e alone, a functor, as they were)
+def fd.ty.qm(args: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match args:
+    case +a <> Nil{}:
+      [fd.q(a), a]
+    case as:
+      fd.v("&2") <> as
+
+def fd.ty.qe(args: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match args:
+    case +a <> +b <> Nil{}:
+      [fd.q(a), fd.q(b), a, b]
+    case as:
+      fd.v("&2") <> fd.v("&2") <> as
+
 def fd.ty.list(args: List<&2, T.Bt>) -> T.Bt:
   match args:
     case a <> t:
@@ -639,8 +678,8 @@ def fd.ty.identity(args: List<&2, T.Bt>) -> T.Bt:
 # S -> Either E A & S; over Identity, Either E A. ExceptT e m alone, a
 # monad argument, is the marker hs.ExceptS<E, S> (Either's marker over
 # Identity), ExceptT e alone (lift's transformer) hs.ExceptT<E>
-def fd.either(e: T.Bt, a: T.Bt) -> T.Bt:
-  T.BtTyApp{S.b("Either"), T.tba.args([fd.v("&2"), fd.v("&2"), e, a])}
+def fd.either(+e: T.Bt, +a: T.Bt) -> T.Bt:
+  T.BtTyApp{S.b("Either"), T.tba.args([fd.q(e), fd.q(a), e, a])}
 
 # the monad under an ExceptT, as the fold wrote it
 type Em is Data:
@@ -918,9 +957,9 @@ def fd.tc.base(k: Tk, args: List<&2, T.Bt>) -> T.Bt:
     case TkList{}:
       fd.ty.list(args)
     case TkMaybe{}:
-      T.BtTyApp{S.b("Maybe"), T.tba.args(fd.v("&2") <> args)}
+      T.BtTyApp{S.b("Maybe"), T.tba.args(fd.ty.qm(args))}
     case TkEither{}:
-      T.BtTyApp{S.b("Either"), T.tba.args(fd.v("&2") <> fd.v("&2") <> args)}
+      T.BtTyApp{S.b("Either"), T.tba.args(fd.ty.qe(args))}
     case TkT2{}:
       fd.ty.t2(args)
     case TkT3{}:
@@ -1662,6 +1701,7 @@ type Bf is Data:
   BfLift2{}
   BfZ{op: String}
   BfRange{}
+  BfRange3{}
   BfOne{f: String}
   BfParity{op: String}
   BfDmF{d: String, r: String, p: String, nt: Nat, n: Nat}
@@ -1698,10 +1738,10 @@ type DmS is Data:
   DmS{n: String, d: String, rm: String, ri: String, p: String, nt: Nat, k: Nat}
 
 def fd.dm.specs.map1() -> List<&2, DmS>:
-  [DmS{"empty", "HsMap.empty", "KV", "V", "KV", 0n, 0n}, DmS{"singleton", "HsMap.singleton", "KV", "V", "KV", 0n, 2n}, DmS{"insert", "HsMap.insert", "KV", "V", "KVc", 0n, 3n}, DmS{"insertWith", "HsMap.insertWith", "KV", "V", "KVc", 1n, 4n}, DmS{"lookup", "HsMap.lookup", "KV", "V", "KVc", 0n, 2n}, DmS{"member", "HsMap.member", "KV", "V", "KVc", 0n, 2n}, DmS{"notMember", "HsMap.notMember", "KV", "V", "KVc", 0n, 2n}, DmS{"findWithDefault", "HsMap.findWithDefault", "KV", "V", "KVc", 0n, 3n}, DmS{"delete", "HsMap.delete", "KV", "V", "KVc", 0n, 2n}]
+  [DmS{"empty", "HsMap.empty", "KV", "V", "KV", 0n, 0n}, DmS{"singleton", "HsMap.singleton", "KV", "V", "KV", 0n, 2n}, DmS{"insert", "HsMap.insert", "KV", "V", "KVc", 0n, 3n}, DmS{"insertWith", "HsMap.insertWith", "KV", "V", "KVc", 0n, 4n}, DmS{"lookup", "HsMap.lookup", "KV", "V", "KVc", 0n, 2n}, DmS{"member", "HsMap.member", "KV", "V", "KVc", 0n, 2n}, DmS{"notMember", "HsMap.notMember", "KV", "V", "KVc", 0n, 2n}, DmS{"findWithDefault", "HsMap.findWithDefault", "KV", "V", "KVc", 0n, 3n}, DmS{"delete", "HsMap.delete", "KV", "V", "KVc", 0n, 2n}]
 
 def fd.dm.specs.map2() -> List<&2, DmS>:
-  [DmS{"adjust", "HsMap.adjust", "KV", "V", "KVc", 1n, 3n}, DmS{"toList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"toAscList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"assocs", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"fromList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromDistinctAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromListWith", "HsMap.fromListWith", "KV", "V", "KVc", 1n, 2n}, DmS{"elems", "HsMap.elems", "KV", "V", "KV", 0n, 1n}]
+  [DmS{"adjust", "HsMap.adjust", "KV", "V", "KVc", 0n, 3n}, DmS{"toList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"toAscList", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"assocs", "HsMap.toList", "KV", "V", "KV", 0n, 1n}, DmS{"fromList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromDistinctAscList", "HsMap.fromList", "KV", "V", "KVc", 0n, 1n}, DmS{"fromListWith", "HsMap.fromListWith", "KV", "V", "KVc", 1n, 2n}, DmS{"elems", "HsMap.elems", "KV", "V", "KV", 0n, 1n}]
 
 def fd.dm.specs.map3() -> List<&2, DmS>:
   [DmS{"keys", "HsMap.keys", "KV", "V", "KV", 0n, 1n}, DmS{"keysSet", "HsMap.keysSet", "KV", "V", "KV", 0n, 1n}, DmS{"size", "HsMap.isize", "KV", "V", "KV", 0n, 1n}, DmS{"null", "HsMap.null", "KV", "V", "KV", 0n, 1n}, DmS{"union", "HsMap.union", "KV", "V", "KVc", 0n, 2n}, DmS{"unionWith", "HsMap.unionWith", "KV", "V", "KVc", 1n, 3n}, DmS{"difference", "HsMap.difference", "KVW", "VW", "KVWc", 0n, 2n}, DmS{"map", "HsMap.map", "VWK", "VW", "KVW", 1n, 2n}, DmS{"mapWithKey", "HsMap.mapWithKey", "KVW", "VW", "KVW", 1n, 2n}]
@@ -1752,7 +1792,7 @@ def fd.bftab0() -> List<&2, BfE>:
 
 # Num's and Enum's functions beyond the first table
 def fd.bftab1() -> List<&2, BfE>:
-  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfToI{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"GHC.Internal.Real.numerator", BfOne{"HsPrelude.HsRational.numerator"}}, BfE{"GHC.Internal.Real.denominator", BfOne{"HsPrelude.HsRational.denominator"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
+  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfToI{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"GHC.Internal.Enum.enumFromThenTo", BfRange3{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Data.ByteArray.Methods.convert", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Crypto.Hash.digestFromByteString", BfOne{"HsPrelude.HsDigest.fromBytes"}}, BfE{"GHC.Internal.Real.numerator", BfOne{"HsPrelude.HsRational.numerator"}}, BfE{"GHC.Internal.Real.denominator", BfOne{"HsPrelude.HsRational.denominator"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
 
 # Data.List's, Data.Maybe's, Data.Either's, Data.Tuple's and Data.Bifunctor's
 # functions (HsPrelude's HsList, see fd.dm), mempty, flip, trace, liftM2
@@ -1894,6 +1934,8 @@ def fd.bf.n(f: Bf) -> Nat:
     case BfIdAt{}:
       1n
     case BfLift2{}:
+      3n
+    case BfRange3{}:
       3n
     case BfOne{f}:
       1n
@@ -2568,6 +2610,8 @@ def fd.show(q: Tq, x: T.Bt) -> T.Bt:
       fd.callS("HsPrelude.HsRational.show", [x])
     case TqNat{}:
       fd.callS("String.to_list", [fd.callS("Nat.show", [x])])
+    case TqU32{}:
+      fd.callS("String.to_list", [fd.callS("Nat.show", [fd.callS("U32.to_nat", [x])])])
     case _:
       fd.todo("fold:show-at-type")
 
@@ -2593,6 +2637,8 @@ def fd.sp.prim(q: Tq, +n: List<&2, U32>, +d: T.Bt, +x: T.Bt, +r: T.Bt) -> T.Bt:
       fd.callS("HsPrelude.HsRational.shows", [d, x, r])
     case TqNat{}:
       fd.callS("HsPrelude.HsShow.nat", [d, x, r])
+    case TqU32{}:
+      fd.callS("HsPrelude.HsShow.string", [fd.callS("String.to_list", [fd.callS("Nat.show", [fd.callS("U32.to_nat", [x])])]), r])
     case TqChar{}:
       fd.callS("HsPrelude.HsShow.charq", [x, r])
     case TqBool{}:
@@ -3213,6 +3259,10 @@ def fd.conv(a: Tq, b: Tq, x: T.Bt) -> T.Bt:
       fd.callS("U32.to_nat", [x])
     case TqU32{} TqU32{}:
       x
+    case TqInt{} TqU32{}:
+      fd.callS("U32.from_nat", [fd.callS("HsPrelude.HsInt.mag", [fd.callS("HsPrelude.HsInt.mod", [x, T.BtCon{S.b("HsPrelude.HsInt.Pos"), T.tba.args([T.BtNat{S.b("256")}])}])])])
+    case TqNat{} TqU32{}:
+      fd.callS("U32.from_nat", [fd.callS("Nat.mod", [x, T.BtNat{S.b("256")}])])
     case TqInt{} TqRat{}:
       fd.callS("HsPrelude.HsRational.of", [x])
     case TqRat{} TqRat{}:
@@ -3266,11 +3316,26 @@ def fd.z(+op: List<&2, U32>, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>) -> T.Bt:
 def fd.one(+f: List<&2, U32>, +x: T.Bt) -> T.Bt:
   Bool.pick(T.Bt, S.eq(f, Nil{}), x, T.tba.call(T.BtVar{f}, [x]))
 
-# [a .. b] at HsInt
+# [a .. b] at HsInt, at Nat and at Char (prelude/HsRange.bend)
 def fd.range(q: Tq, a: T.Bt, b: T.Bt) -> T.Bt:
   match q:
     case TqInt{}:
       fd.callS("HsPrelude.HsInt.range", [a, b])
+    case TqNat{}:
+      fd.callS("HsPrelude.HsList.range", [a, b])
+    case TqChar{}:
+      fd.callS("HsPrelude.HsList.rangeChar", [a, b])
+    case _:
+      fd.todo("fold:range-at-type")
+
+# [a, b .. c] at HsInt and at Nat, a and b two different literals (Spec's
+# sp.arith)
+def fd.range3(q: Tq, a: T.Bt, b: T.Bt, c: T.Bt) -> T.Bt:
+  match q:
+    case TqInt{}:
+      fd.callS("HsPrelude.HsInt.rangeBy", [a, b, c])
+    case TqNat{}:
+      fd.callS("HsPrelude.HsList.rangeBy", [a, b, c])
     case _:
       fd.todo("fold:range-at-type")
 
@@ -3667,6 +3732,8 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.z(S.b(op), tys, xs)
     case BfRange{} t <> _ a <> b <> _:
       fd.range(fd.tq(t), a, b)
+    case BfRange3{} t <> _ a <> b <> c <> _:
+      fd.range3(fd.tq(t), a, b, c)
     case BfOne{f} _ x <> _:
       fd.one(S.b(f), x)
     case BfParity{op} t <> _ x <> _:
@@ -4341,8 +4408,24 @@ def fd.hsint.lit(+v: X.Sx) -> T.Bt:
   +a = V.sv.at(v, 1n)
   Bool.pick(T.Bt, V.sv.is(V.sv.hd(a), "neg"), fd.hsint(True{}, X.tsx.atom.of(V.sv.at(a, 1n))), fd.hsint(False{}, X.tsx.atom.of(a)))
 
+# a Word8 literal's text, a U32's own (a byte: GHC wraps one above 255)
+def fd.byte.go(n: List<&2, U32>, acc: U32) -> U32:
+  match n:
+    case c <> t:
+      fd.byte.go(t, U32.add(U32.mul(acc, 10), U32.sub(c, 48)))
+    case Nil{}:
+      acc
+
+def fd.byte(+v: X.Sx, +why: String) -> T.Bt:
+  +a = V.sv.at(v, 1n)
+  +n = X.tsx.atom.of(a)
+  +ok = Bool.and(Bool.and(V.sv.is(V.sv.hd(v), "int"), Bool.not(V.sv.is(V.sv.hd(a), "neg"))), Bool.and(Nat.is_gt(List.length(&2, U32, n), 0n), Nat.is_lt(List.length(&2, U32, n), 4n)))
+  Bool.pick(T.Bt, Bool.and(ok, U32.is_lt(fd.byte.go(n, 0), 256)), T.BtVar{n}, fd.todo(why))
+
 def fd.olit.of(q: Tq, +v: X.Sx) -> T.Bt:
   match q:
+    case TqU32{}:
+      fd.byte(v, "fold:literal")
     case TqInt{}:
       Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "int"), fd.hsint.lit(v), fd.todo("fold:literal"))
     case TqNat{}:
@@ -6093,6 +6176,8 @@ def fd.plist(ps: R) -> R:
 
 def fd.pnlit.at(q: Tq, +neg: Bool, +v: X.Sx) -> T.Bt:
   match q:
+    case TqU32{}:
+      Bool.pick(T.Bt, neg, fd.todo("fold:literal-pattern"), fd.byte(v, "fold:literal-pattern"))
     case TqInt{}:
       Bool.pick(T.Bt, V.sv.is(V.sv.hd(v), "int"), fd.hsint(neg, X.tsx.atom.of(V.sv.at(v, 1n))), fd.todo("fold:literal-pattern"))
     case _:
@@ -6320,6 +6405,36 @@ def fd.k.lt(+x: X.Sx) -> K:
   +h = V.sv.hd(x)
   Bool.pick(K, V.sv.is(h, "bv"), KLbv{}, Bool.pick(K, Bool.or(V.sv.is(h, "fun"), V.sv.is(h, "export")), KLfun{}, Bool.pick(K, Bool.or(V.sv.is(h, "matches"), Bool.or(V.sv.is(h, "grhss"), V.sv.is(h, "evbinds"))), KLstop{}, KLtw{})))
 
+# the names of the local functions of a let's bindings (a binding with
+# parameters; the values are the rest): a binding's value can use the values
+# bound beside it, so their types are in scope of the lifting there (env's
+# lt), and their names locals (GHC orders the bindings: none uses a later one)
+def fd.lfns.if(fun: Bool, par: Bool, stop: Bool, x: List<&2, U32>, r: Unit -> List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match fun par stop:
+    case True{} True{} _:
+      [x]
+    case True{} False{} _:
+      Nil{}
+    case False{} _ True{}:
+      Nil{}
+    case False{} _ False{}:
+      r(Unit{})
+
+def fd.lfns(x: X.Sx) -> List<&2, List<&2, U32>>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +a = V.sv.hd(n)
+      +par = Nat.is_gt(X.tsx.len(V.sv.at(V.sv.at(n, 4n), 1n)), 0n)
+      +stop = Bool.or(V.sv.is(a, "export"), Bool.or(V.sv.is(a, "evbinds"), V.sv.is(a, "patbind")))
+      fd.lfns.if(V.sv.is(a, "fun"), par, stop, fd.vname(V.sv.str(fd.unself(V.sv.at(n, 1n)), 1n)), _ => List.append(&2, List<&2, U32>, fd.lfns(h), fd.lfns(t)))
+    case _:
+      Nil{}
+
+def fd.bindenv(+env: Env, +lt: List<&2, Lt>, +bs: X.Sx) -> Env:
+  +vs = fd.lt.minus(lt, fd.lfns(bs))
+  fd.addlts(fd.addls(env, fd.ft.lt.names(vs)), vs)
+
 # The fold: one def over the export's tree, the form k of x given by the
 # parent (Bend allows no mutual recursion, so types, patterns, expressions
 # and clauses are one walk).  Each case takes x apart and folds its parts.
@@ -6406,8 +6521,9 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       +ty = fd.go(t, fd.k(RoTy{}, t), env)
       fd.multiif(ty, fd.go(gs, KGrhsL{}, fd.withres(env, fd.rt(ty))), env)
     case X.SxCons{_, X.SxCons{+bs, X.SxCons{+e, _}}} KElet{}:
-      +rb = fd.go(bs, KBinds{}, fd.notail(env))
-      +env2 = fd.addal(fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(fd.lts.of(fd.go(bs, KLtw{}, env)), fd.rlf.names(fd.items(rb)))), fd.bnames(fd.items(rb)))
+      +lt0 = fd.lts.of(fd.go(bs, KLtw{}, env))
+      +rb = fd.go(bs, KBinds{}, fd.notail(fd.bindenv(env, lt0, bs)))
+      +env2 = fd.addal(fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(lt0, fd.rlf.names(fd.items(rb)))), fd.bnames(fd.items(rb)))
       fd.elet(rb, fd.go(e, fd.k(RoEx{}, e), env2), env2, env)
     case X.SxCons{_, X.SxCons{+t, X.SxCons{es, _}}} KElist{}:
       fd.elist(fd.go(es, KEs{}, fd.typed(env, fd.rt(fd.go(t, fd.k(RoTy{}, t), env)))), env)
@@ -6438,8 +6554,9 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       +al = List.append(&2, List<&2, U32>, fd.pnames(List.drop(&2, T.Bt, bs, n)), fd.env.al(env))
       fd.clause(rp, fd.go(g, KGrhss{}, fd.withal(fd.addlts(fd.addls(env, fd.pnames(bs)), lt), al)), lt, SP.sp.ftw.falls(g))
     case X.SxCons{_, X.SxCons{gs, X.SxCons{+bs, _}}} KGrhss{}:
-      +rb = fd.go(bs, KBinds{}, fd.notail(env))
-      +env2 = fd.addal(fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(fd.lts.of(fd.go(bs, KLtw{}, env)), fd.rlf.names(fd.items(rb)))), fd.bnames(fd.items(rb)))
+      +lt0 = fd.lts.of(fd.go(bs, KLtw{}, env))
+      +rb = fd.go(bs, KBinds{}, fd.notail(fd.bindenv(env, lt0, bs)))
+      +env2 = fd.addal(fd.addlts(fd.addls(env, fd.bnames(fd.items(rb))), fd.lt.minus(lt0, fd.rlf.names(fd.items(rb)))), fd.bnames(fd.items(rb)))
       fd.grhss(rb, fd.go(gs, KGrhsL{}, env2), env2)
     case X.SxCons{+h, t} KGrhsL{}:
       fd.cons(fd.go(h, fd.k.grhs(h), env), fd.go(t, KGrhsL{}, env))
@@ -7733,10 +7850,10 @@ def fd.hsprelude() -> String:
 # HsPrelude's Data.Map and Data.Set (see Types), in pieces: bend's
 # compiler takes no longer literal
 def fd.hsprelude.m1() -> String:
-  "# Data.Map's Map k v and Data.Set's Set k (IntMap a is Map Int a, IntSet\n# Set Int): the pairs (keys) in ascending order of the key, each key once,\n# so two equal maps are one term. compare at K is a template, ~cmp; the\n# functions are structural on the map (a list), Data.Map's semantics, not\n# its balanced tree's cost.\ntype HsMap<-K: Data, -V: Data> is Data:\n  HsMap.Tip{}\n  HsMap.Bin{key: K, val: V, rest: HsMap<K, V>}\n\ntype HsSet<-K: Data> is Data:\n  HsSet.Tip{}\n  HsSet.Bin{key: K, rest: HsSet<K>}\n\n# an if (Bend matches only parameters)\ndef HsBool.if(-R: Type, c: Bool, t: Unit -> R, e: Unit -> R) -> R:\n  match c:\n    case True{}:\n      t(Unit{})\n    case False{}:\n      e(Unit{})\n\n# Cmp's three cases, the branches thunks (Bend matches only parameters)\ndef HsCmp.on(-R: Type, c: Cmp, lt: Unit -> R, eq: Unit -> R, gt: Unit -> R) -> R:\n  match c:\n    case LT{}:\n      lt(Unit{})\n    case EQ{}:\n      eq(Unit{})\n    case GT{}:\n      gt(Unit{})\n\ndef HsMap.insert(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, +v: V, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Bin{k, v, HsMap.Tip{}}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(HsMap<K, V>, cmp(k, k2), _ => HsMap.Bin{k, v, HsMap.Bin{k2, v2, t}}, _ => HsMap.Bin{k, v, t}, _ => HsMap.Bin{k2, v2, HsMap.insert(~K, ~V, ~cmp, k, v, t)})\n\n# insertWith f k new: f new old at a key there\ndef HsMap.insertWith(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, +k: K, +v: V, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Bin{k, v, HsMap.Tip{}}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(HsMap<K, V>, cmp(k, k2), _ => HsMap.Bin{k, v, HsMap.Bin{k2, v2, t}}, _ => HsMap.Bin{k, f(v)(v2), t}, _ => HsMap.Bin{k2, v2, HsMap.insertWith(~K, ~V, ~cmp, ~f, k, v, t)})\n\ndef HsMap.lookup(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, m: HsMap<K, V>) -> Maybe<&2, V>:\n  match m:\n    case HsMap.Tip{}:\n      None{}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(Maybe<&2, V>, cmp(k, k2), _ => None{}, _ => Some{v2}, _ => HsMap.lookup(~K, ~V, ~cmp, k, t))\n\ndef HsMap.member(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, m: HsMap<K, V>) -> Bool:\n  match m:\n    case HsMap.Tip{}:\n      False{}\n    case HsMap.Bin{+k2, v2, +t}:\n      HsCmp.on(Bool, cmp(k, k2), _ => False{}, _ => True{}, _ => HsMap.member(~K, ~V, ~cmp, k, t))\n\ndef HsMap.findWithDefault(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +d: V, +k: K, m: HsMap<K, V>) -> V:\n  match m:\n    case HsMap.Tip{}:\n      d\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(V, cmp(k, k2), _ => d, _ => v2, _ => HsMap.findWithDefault(~K, ~V, ~cmp, d, k, t))\n\ndef HsMap.delete(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(HsMap<K, V>, cmp(k, k2), _ => HsMap.Bin{k2, v2, t}, _ => t, _ => HsMap.Bin{k2, v2, HsMap.delete(~K, ~V, ~cmp, k, t)})\n\n"
+  "# Data.Map's Map k v and Data.Set's Set k (IntMap a is Map Int a, IntSet\n# Set Int): the pairs (keys) in ascending order of the key, each key once,\n# so two equal maps are one term. compare at K is a template, ~cmp; the\n# functions are structural on the map (a list), Data.Map's semantics, not\n# its balanced tree's cost.\ntype HsMap<-K: Data, -V: Data> is Data:\n  HsMap.Tip{}\n  HsMap.Bin{key: K, val: V, rest: HsMap<K, V>}\n\ntype HsSet<-K: Data> is Data:\n  HsSet.Tip{}\n  HsSet.Bin{key: K, rest: HsSet<K>}\n\n# an if (Bend matches only parameters)\ndef HsBool.if(-R: Type, c: Bool, t: Unit -> R, e: Unit -> R) -> R:\n  match c:\n    case True{}:\n      t(Unit{})\n    case False{}:\n      e(Unit{})\n\n# Cmp's three cases, the branches thunks (Bend matches only parameters)\ndef HsCmp.on(-R: Type, c: Cmp, lt: Unit -> R, eq: Unit -> R, gt: Unit -> R) -> R:\n  match c:\n    case LT{}:\n      lt(Unit{})\n    case EQ{}:\n      eq(Unit{})\n    case GT{}:\n      gt(Unit{})\n\ndef HsMap.insert(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, +v: V, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Bin{k, v, HsMap.Tip{}}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(HsMap<K, V>, cmp(k, k2), _ => HsMap.Bin{k, v, HsMap.Bin{k2, v2, t}}, _ => HsMap.Bin{k, v, t}, _ => HsMap.Bin{k2, v2, HsMap.insert(~K, ~V, ~cmp, k, v, t)})\n\n# insertWith f k new: f new old at a key there\n# how a key compares with a map's first (LT at an empty map)\ndef HsMap.first(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, k: K, m: HsMap<K, V>) -> Cmp:\n  match m:\n    case HsMap.Tip{}:\n      LT{}\n    case HsMap.Bin{k2, v2, t}:\n      cmp(k, k2)\n\n# insertWith and adjust run f at most once: a closure may be given\ndef HsMap.insertWith.go(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, f: V -> V -> V, +k: K, +v: V, m: HsMap<K, V>, c: Cmp) -> HsMap<K, V>:\n  match m c:\n    case HsMap.Tip{} _:\n      HsMap.Bin{k, v, HsMap.Tip{}}\n    case HsMap.Bin{k2, v2, t} LT{}:\n      HsMap.Bin{k, v, HsMap.Bin{k2, v2, t}}\n    case HsMap.Bin{k2, v2, t} EQ{}:\n      HsMap.Bin{k, f(v)(v2), t}\n    case HsMap.Bin{k2, v2, +t} GT{}:\n      HsMap.Bin{k2, v2, HsMap.insertWith.go(~K, ~V, ~cmp, f, k, v, t, HsMap.first(~K, ~V, ~cmp, k, t))}\n\ndef HsMap.insertWith(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, f: V -> V -> V, +k: K, v: V, +m: HsMap<K, V>) -> HsMap<K, V>:\n  HsMap.insertWith.go(~K, ~V, ~cmp, f, k, v, m, HsMap.first(~K, ~V, ~cmp, k, m))\n\ndef HsMap.lookup(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, m: HsMap<K, V>) -> Maybe<&2, V>:\n  match m:\n    case HsMap.Tip{}:\n      None{}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(Maybe<&2, V>, cmp(k, k2), _ => None{}, _ => Some{v2}, _ => HsMap.lookup(~K, ~V, ~cmp, k, t))\n\ndef HsMap.member(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, m: HsMap<K, V>) -> Bool:\n  match m:\n    case HsMap.Tip{}:\n      False{}\n    case HsMap.Bin{+k2, v2, +t}:\n      HsCmp.on(Bool, cmp(k, k2), _ => False{}, _ => True{}, _ => HsMap.member(~K, ~V, ~cmp, k, t))\n\ndef HsMap.findWithDefault(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +d: V, +k: K, m: HsMap<K, V>) -> V:\n  match m:\n    case HsMap.Tip{}:\n      d\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(V, cmp(k, k2), _ => d, _ => v2, _ => HsMap.findWithDefault(~K, ~V, ~cmp, d, k, t))\n\ndef HsMap.delete(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, +k: K, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(HsMap<K, V>, cmp(k, k2), _ => HsMap.Bin{k2, v2, t}, _ => t, _ => HsMap.Bin{k2, v2, HsMap.delete(~K, ~V, ~cmp, k, t)})\n\n"
 
 def fd.hsprelude.m2() -> String:
-  "def HsMap.adjust(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V, +k: K, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{+k2, +v2, +t}:\n      HsCmp.on(HsMap<K, V>, cmp(k, k2), _ => HsMap.Bin{k2, v2, t}, _ => HsMap.Bin{k2, f(v2), t}, _ => HsMap.Bin{k2, v2, HsMap.adjust(~K, ~V, ~cmp, ~f, k, t)})\n\ndef HsMap.toList(~K: Data, ~V: Data, m: HsMap<K, V>) -> List<&2, Sigma<&2, &2, K, _ => V>>:\n  match m:\n    case HsMap.Tip{}:\n      Nil{}\n    case HsMap.Bin{k, v, t}:\n      (k, v) <> HsMap.toList(~K, ~V, t)\n\ndef HsMap.fromList.go(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, xs: List<&2, Sigma<&2, &2, K, _ => V>>, acc: HsMap<K, V>) -> HsMap<K, V>:\n  match xs:\n    case Nil{}:\n      acc\n    case (k, v) <> t:\n      HsMap.fromList.go(~K, ~V, ~cmp, t, HsMap.insert(~K, ~V, ~cmp, k, v, acc))\n\ndef HsMap.fromList(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, xs: List<&2, Sigma<&2, &2, K, _ => V>>) -> HsMap<K, V>:\n  HsMap.fromList.go(~K, ~V, ~cmp, xs, HsMap.Tip{})\n\ndef HsMap.fromListWith.go(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, xs: List<&2, Sigma<&2, &2, K, _ => V>>, acc: HsMap<K, V>) -> HsMap<K, V>:\n  match xs:\n    case Nil{}:\n      acc\n    case (k, v) <> t:\n      HsMap.fromListWith.go(~K, ~V, ~cmp, ~f, t, HsMap.insertWith(~K, ~V, ~cmp, ~f, k, v, acc))\n\ndef HsMap.fromListWith(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, xs: List<&2, Sigma<&2, &2, K, _ => V>>) -> HsMap<K, V>:\n  HsMap.fromListWith.go(~K, ~V, ~cmp, ~f, xs, HsMap.Tip{})\n\ndef HsMap.elems(~K: Data, ~V: Data, m: HsMap<K, V>) -> List<&2, V>:\n  match m:\n    case HsMap.Tip{}:\n      Nil{}\n    case HsMap.Bin{k, v, t}:\n      v <> HsMap.elems(~K, ~V, t)\n\ndef HsMap.keys(~K: Data, ~V: Data, m: HsMap<K, V>) -> List<&2, K>:\n  match m:\n    case HsMap.Tip{}:\n      Nil{}\n    case HsMap.Bin{k, v, t}:\n      k <> HsMap.keys(~K, ~V, t)\n\ndef HsMap.keysSet(~K: Data, ~V: Data, m: HsMap<K, V>) -> HsSet<K>:\n  match m:\n    case HsMap.Tip{}:\n      HsSet.Tip{}\n    case HsMap.Bin{k, v, t}:\n      HsSet.Bin{k, HsMap.keysSet(~K, ~V, t)}\n\ndef HsMap.size(~K: Data, ~V: Data, m: HsMap<K, V>) -> Nat:\n  match m:\n    case HsMap.Tip{}:\n      0n\n    case HsMap.Bin{k, v, t}:\n      Succ{HsMap.size(~K, ~V, t)}\n\ndef HsMap.null(~K: Data, ~V: Data, m: HsMap<K, V>) -> Bool:\n  match m:\n    case HsMap.Tip{}:\n      True{}\n    case HsMap.Bin{k, v, t}:\n      False{}\n\n# union is left-biased: a's value at a key both have\ndef HsMap.union(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, a: HsMap<K, V>, b: HsMap<K, V>) -> HsMap<K, V>:\n  match a:\n    case HsMap.Tip{}:\n      b\n    case HsMap.Bin{k, v, t}:\n      HsMap.insert(~K, ~V, ~cmp, k, v, HsMap.union(~K, ~V, ~cmp, t, b))\n\ndef HsMap.unionWith(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, a: HsMap<K, V>, b: HsMap<K, V>) -> HsMap<K, V>:\n  match a:\n    case HsMap.Tip{}:\n      b\n    case HsMap.Bin{k, v, t}:\n      HsMap.insertWith(~K, ~V, ~cmp, ~f, k, v, HsMap.unionWith(~K, ~V, ~cmp, ~f, t, b))\n\n"
+  "def HsMap.adjust.go(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, f: V -> V, +k: K, m: HsMap<K, V>, c: Cmp) -> HsMap<K, V>:\n  match m c:\n    case HsMap.Tip{} _:\n      HsMap.Tip{}\n    case HsMap.Bin{k2, v2, t} LT{}:\n      HsMap.Bin{k2, v2, t}\n    case HsMap.Bin{k2, v2, t} EQ{}:\n      HsMap.Bin{k2, f(v2), t}\n    case HsMap.Bin{k2, v2, +t} GT{}:\n      HsMap.Bin{k2, v2, HsMap.adjust.go(~K, ~V, ~cmp, f, k, t, HsMap.first(~K, ~V, ~cmp, k, t))}\n\ndef HsMap.adjust(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, f: V -> V, +k: K, +m: HsMap<K, V>) -> HsMap<K, V>:\n  HsMap.adjust.go(~K, ~V, ~cmp, f, k, m, HsMap.first(~K, ~V, ~cmp, k, m))\n\ndef HsMap.toList(~K: Data, ~V: Data, m: HsMap<K, V>) -> List<&2, Sigma<&2, &2, K, _ => V>>:\n  match m:\n    case HsMap.Tip{}:\n      Nil{}\n    case HsMap.Bin{k, v, t}:\n      (k, v) <> HsMap.toList(~K, ~V, t)\n\ndef HsMap.fromList.go(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, xs: List<&2, Sigma<&2, &2, K, _ => V>>, acc: HsMap<K, V>) -> HsMap<K, V>:\n  match xs:\n    case Nil{}:\n      acc\n    case (k, v) <> t:\n      HsMap.fromList.go(~K, ~V, ~cmp, t, HsMap.insert(~K, ~V, ~cmp, k, v, acc))\n\ndef HsMap.fromList(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, xs: List<&2, Sigma<&2, &2, K, _ => V>>) -> HsMap<K, V>:\n  HsMap.fromList.go(~K, ~V, ~cmp, xs, HsMap.Tip{})\n\ndef HsMap.fromListWith.go(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, xs: List<&2, Sigma<&2, &2, K, _ => V>>, acc: HsMap<K, V>) -> HsMap<K, V>:\n  match xs:\n    case Nil{}:\n      acc\n    case (k, v) <> t:\n      HsMap.fromListWith.go(~K, ~V, ~cmp, ~f, t, HsMap.insertWith(~K, ~V, ~cmp, f, k, v, acc))\n\ndef HsMap.fromListWith(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, xs: List<&2, Sigma<&2, &2, K, _ => V>>) -> HsMap<K, V>:\n  HsMap.fromListWith.go(~K, ~V, ~cmp, ~f, xs, HsMap.Tip{})\n\ndef HsMap.elems(~K: Data, ~V: Data, m: HsMap<K, V>) -> List<&2, V>:\n  match m:\n    case HsMap.Tip{}:\n      Nil{}\n    case HsMap.Bin{k, v, t}:\n      v <> HsMap.elems(~K, ~V, t)\n\ndef HsMap.keys(~K: Data, ~V: Data, m: HsMap<K, V>) -> List<&2, K>:\n  match m:\n    case HsMap.Tip{}:\n      Nil{}\n    case HsMap.Bin{k, v, t}:\n      k <> HsMap.keys(~K, ~V, t)\n\ndef HsMap.keysSet(~K: Data, ~V: Data, m: HsMap<K, V>) -> HsSet<K>:\n  match m:\n    case HsMap.Tip{}:\n      HsSet.Tip{}\n    case HsMap.Bin{k, v, t}:\n      HsSet.Bin{k, HsMap.keysSet(~K, ~V, t)}\n\ndef HsMap.size(~K: Data, ~V: Data, m: HsMap<K, V>) -> Nat:\n  match m:\n    case HsMap.Tip{}:\n      0n\n    case HsMap.Bin{k, v, t}:\n      Succ{HsMap.size(~K, ~V, t)}\n\ndef HsMap.null(~K: Data, ~V: Data, m: HsMap<K, V>) -> Bool:\n  match m:\n    case HsMap.Tip{}:\n      True{}\n    case HsMap.Bin{k, v, t}:\n      False{}\n\n# union is left-biased: a's value at a key both have\ndef HsMap.union(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, a: HsMap<K, V>, b: HsMap<K, V>) -> HsMap<K, V>:\n  match a:\n    case HsMap.Tip{}:\n      b\n    case HsMap.Bin{k, v, t}:\n      HsMap.insert(~K, ~V, ~cmp, k, v, HsMap.union(~K, ~V, ~cmp, t, b))\n\ndef HsMap.unionWith(~K: Data, ~V: Data, ~cmp: K -> K -> Cmp, ~f: V -> V -> V, a: HsMap<K, V>, b: HsMap<K, V>) -> HsMap<K, V>:\n  match a:\n    case HsMap.Tip{}:\n      b\n    case HsMap.Bin{k, v, t}:\n      HsMap.insertWith(~K, ~V, ~cmp, f, k, v, HsMap.unionWith(~K, ~V, ~cmp, ~f, t, b))\n\n"
 
 def fd.hsprelude.m3() -> String:
   "# the keys of a not in b (IntMap's and Set's difference, \\\\)\ndef HsMap.difference(~K: Data, ~V: Data, ~W: Data, ~cmp: K -> K -> Cmp, a: HsMap<K, V>, +b: HsMap<K, W>) -> HsMap<K, V>:\n  match a:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{+k, v, +t}:\n      HsBool.if(HsMap<K, V>, HsMap.member(~K, ~W, ~cmp, k, b), _ => HsMap.difference(~K, ~V, ~W, ~cmp, t, b), _ => HsMap.Bin{k, v, HsMap.difference(~K, ~V, ~W, ~cmp, t, b)})\n\ndef HsMap.map(~K: Data, ~V: Data, ~W: Data, ~f: V -> W, m: HsMap<K, V>) -> HsMap<K, W>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{k, v, t}:\n      HsMap.Bin{k, f(v), HsMap.map(~K, ~V, ~W, ~f, t)}\n\ndef HsMap.mapWithKey(~K: Data, ~V: Data, ~W: Data, ~f: K -> V -> W, m: HsMap<K, V>) -> HsMap<K, W>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{+k, v, t}:\n      HsMap.Bin{k, f(k)(v), HsMap.mapWithKey(~K, ~V, ~W, ~f, t)}\n\ndef HsMap.filter(~K: Data, ~V: Data, ~p: V -> Bool, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{k, +v, +t}:\n      HsBool.if(HsMap<K, V>, p(v), _ => HsMap.Bin{k, v, HsMap.filter(~K, ~V, ~p, t)}, _ => HsMap.filter(~K, ~V, ~p, t))\n\ndef HsMap.filterWithKey(~K: Data, ~V: Data, ~p: K -> V -> Bool, m: HsMap<K, V>) -> HsMap<K, V>:\n  match m:\n    case HsMap.Tip{}:\n      HsMap.Tip{}\n    case HsMap.Bin{+k, +v, +t}:\n      HsBool.if(HsMap<K, V>, p(k)(v), _ => HsMap.Bin{k, v, HsMap.filterWithKey(~K, ~V, ~p, t)}, _ => HsMap.filterWithKey(~K, ~V, ~p, t))\n\ndef HsMap.foldr(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> B, z: B, m: HsMap<K, V>) -> B:\n  match m:\n    case HsMap.Tip{}:\n      z\n    case HsMap.Bin{k, v, t}:\n      f(v)(HsMap.foldr(~K, ~V, ~B, ~f, z, t))\n\ndef HsMap.foldrWithKey(~K: Data, ~V: Data, ~B: Data, ~f: K -> V -> B -> B, z: B, m: HsMap<K, V>) -> B:\n  match m:\n    case HsMap.Tip{}:\n      z\n    case HsMap.Bin{k, v, t}:\n      f(k)(v)(HsMap.foldrWithKey(~K, ~V, ~B, ~f, z, t))\n\ndef HsMap.eq(~K: Data, ~V: Data, ~eqk: K -> K -> Bool, ~eqv: V -> V -> Bool, a: HsMap<K, V>, b: HsMap<K, V>) -> Bool:\n  match a b:\n    case HsMap.Tip{} HsMap.Tip{}:\n      True{}\n    case HsMap.Bin{k1, v1, t1} HsMap.Bin{k2, v2, t2}:\n      Bool.and(Bool.and(eqk(k1)(k2), eqv(v1)(v2)), HsMap.eq(~K, ~V, ~eqk, ~eqv, t1, t2))\n    case _ _:\n      False{}\n\ndef HsSet.insert(~K: Data, ~cmp: K -> K -> Cmp, +k: K, s: HsSet<K>) -> HsSet<K>:\n  match s:\n    case HsSet.Tip{}:\n      HsSet.Bin{k, HsSet.Tip{}}\n    case HsSet.Bin{+k2, +t}:\n      HsCmp.on(HsSet<K>, cmp(k, k2), _ => HsSet.Bin{k, HsSet.Bin{k2, t}}, _ => HsSet.Bin{k2, t}, _ => HsSet.Bin{k2, HsSet.insert(~K, ~cmp, k, t)})\n\ndef HsSet.member(~K: Data, ~cmp: K -> K -> Cmp, +k: K, s: HsSet<K>) -> Bool:\n  match s:\n    case HsSet.Tip{}:\n      False{}\n    case HsSet.Bin{+k2, +t}:\n      HsCmp.on(Bool, cmp(k, k2), _ => False{}, _ => True{}, _ => HsSet.member(~K, ~cmp, k, t))\n\n"
@@ -7770,7 +7887,7 @@ def fd.hsprelude.d2() -> String:
   "# a 64-byte block's 16 words, and the bytes after it\ntype ShaBlk is Data:\n  ShaBlk{ws: List<&2, U32>, rest: List<&2, U32>}\n\ndef HsSha.words(n: Nat, bs: List<&2, U32>, acc: List<&2, U32>) -> ShaBlk:\n  match n bs:\n    case Succ{k} a <> b <> c <> d <> t:\n      HsSha.words(k, t, HsSha.word(a, b, c, d) <> acc)\n    case _ t:\n      ShaBlk{List.reverse(&2, U32, acc), t}\n\n# the schedule: w16..w63 from the last sixteen\ndef HsSha.sched(n: Nat, +win: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:\n  match n:\n    case Zero{}:\n      List.reverse(&2, U32, acc)\n    case Succ{k}:\n      +w = U32.add(U32.add(HsSha.ss1(HsSha.nth(win, 14n)), HsSha.nth(win, 9n)), U32.add(HsSha.ss0(HsSha.nth(win, 1n)), HsSha.nth(win, 0n)))\n      HsSha.sched(k, List.append(&2, U32, List.tail(&2, U32, win), [w]), w <> acc)\n\ntype ShaSt is Data:\n  ShaSt{a: U32, b: U32, c: U32, d: U32, e: U32, f: U32, g: U32, h: U32}\n\ndef HsSha.round(s: ShaSt, k: U32, w: U32) -> ShaSt:\n  match s:\n    case ShaSt{+a, +b, +c, d, +e, +f, +g, h}:\n      +t1 = U32.add(U32.add(U32.add(h, HsSha.bs1(e)), U32.add(HsSha.ch(e, f, g), k)), w)\n      +t2 = U32.add(HsSha.bs0(a), HsSha.maj(a, b, c))\n      ShaSt{U32.add(t1, t2), a, b, c, U32.add(d, t1), e, f, g}\n\ndef HsSha.rounds(ks: List<&2, U32>, ws: List<&2, U32>, s: ShaSt) -> ShaSt:\n  match ks ws:\n    case k <> kt w <> wt:\n      HsSha.rounds(kt, wt, HsSha.round(s, k, w))\n    case _ _:\n      s\n\ndef HsSha.st(hs: List<&2, U32>) -> ShaSt:\n  match hs:\n    case a <> b <> c <> d <> e <> f <> g <> h <> _:\n      ShaSt{a, b, c, d, e, f, g, h}\n    case _:\n      ShaSt{0, 0, 0, 0, 0, 0, 0, 0}\n\ndef HsSha.add(hs: List<&2, U32>, s: ShaSt) -> List<&2, U32>:\n  match hs s:\n    case a <> b <> c <> d <> e <> f <> g <> h <> _ ShaSt{a2, b2, c2, d2, e2, f2, g2, h2}:\n      [U32.add(a, a2), U32.add(b, b2), U32.add(c, c2), U32.add(d, d2), U32.add(e, e2), U32.add(f, f2), U32.add(g, g2), U32.add(h, h2)]\n    case _ _:\n      Nil{}\n\ndef HsSha.block(+hs: List<&2, U32>, +ws: List<&2, U32>) -> List<&2, U32>:\n  HsSha.add(hs, HsSha.rounds(HsSha.k(), HsSha.sched(48n, ws, List.reverse(&2, U32, ws)), HsSha.st(hs)))\n\n# the padded message in 64-byte chunks (k of them)\ndef HsSha.chunks(k: Nat, +bs: List<&2, U32>) -> List<&2, List<&2, U32>>:\n  match k:\n    case Zero{}:\n      Nil{}\n    case Succ{p}:\n      List.take(&2, U32, bs, 64n) <> HsSha.chunks(p, List.drop(&2, U32, bs, 64n))\n\ndef HsSha.ws.of(b: ShaBlk) -> List<&2, U32>:\n  match b:\n    case ShaBlk{ws, rest}:\n      ws\n\ndef HsSha.run(cs: List<&2, List<&2, U32>>, hs: List<&2, U32>) -> List<&2, U32>:\n  match cs:\n    case Nil{}:\n      hs\n    case c <> t:\n      HsSha.run(t, HsSha.block(hs, HsSha.ws.of(HsSha.words(16n, c, Nil{}))))\n\n# a word's four bytes, big-endian\ndef HsSha.bytes(ws: List<&2, U32>) -> List<&2, U32>:\n  match ws:\n    case Nil{}:\n      Nil{}\n    case +w <> t:\n      U32.and(U32.shrn(w, 24n), 255) <> U32.and(U32.shrn(w, 16n), 255) <> U32.and(U32.shrn(w, 8n), 255) <> U32.and(w, 255) <> HsSha.bytes(t)\n\n"
 
 def fd.hsprelude.d3() -> String:
-  "def HsDigest.hash(+m: List<&2, U32>) -> HsDigest:\n  +p = HsSha.pad(m)\n  HsDigest.D{HsSha.bytes(HsSha.run(HsSha.chunks(Nat.div(List.length(&2, U32, p), 64n), p), HsSha.h0()))}\n\ndef HsDigest.bytes(d: HsDigest) -> List<&2, U32>:\n  match d:\n    case HsDigest.D{bs}:\n      bs\n\ndef HsSha.hexd(+n: U32) -> Char:\n  Char.from_u32(Bool.pick(U32, U32.is_lt(n, 10), U32.add(n, 48), U32.add(n, 87)))\n\ndef HsSha.hex(bs: List<&2, U32>) -> List<&2, Char>:\n  match bs:\n    case Nil{}:\n      Nil{}\n    case +b <> t:\n      HsSha.hexd(U32.shrn(b, 4n)) <> HsSha.hexd(U32.and(b, 15)) <> HsSha.hex(t)\n\n# show: the hex digits (crypton shows a digest as its base-16 text)\ndef HsDigest.hexs(d: HsDigest) -> List<&2, Char>:\n  HsSha.hex(HsDigest.bytes(d))\n\ndef HsDigest.cmp.go(a: List<&2, U32>, b: List<&2, U32>) -> Cmp:\n  match a b:\n    case Nil{} Nil{}:\n      EQ{}\n    case Nil{} _:\n      LT{}\n    case _ Nil{}:\n      GT{}\n    case +x <> s +y <> t:\n      HsCmp.on(Cmp, U32.cmp(x, y), _ => LT{}, _ => HsDigest.cmp.go(s, t), _ => GT{})\n\n# Ord at a digest: its bytes, lexicographically (crypton's)\ndef HsDigest.cmp(a: HsDigest, b: HsDigest) -> Cmp:\n  HsDigest.cmp.go(HsDigest.bytes(a), HsDigest.bytes(b))\n\ndef HsDigest.is_eq(a: HsDigest, b: HsDigest) -> Bool:\n  Cmp.is_eq(HsDigest.cmp(a, b))\n\n# utf8-string's encode: a String as its UTF-8 bytes\ndef HsUtf8.char(+c: U32) -> List<&2, U32>:\n  +b = U32.and(c, 63)\n  +b6 = U32.and(U32.shrn(c, 6n), 63)\n  +b12 = U32.and(U32.shrn(c, 12n), 63)\n  Bool.pick(List<&2, U32>, U32.is_lt(c, 128), [c], Bool.pick(List<&2, U32>, U32.is_lt(c, 2048), [U32.or(192, U32.shrn(c, 6n)), U32.or(128, b)], Bool.pick(List<&2, U32>, U32.is_lt(c, 65536), [U32.or(224, U32.shrn(c, 12n)), U32.or(128, b6), U32.or(128, b)], [U32.or(240, U32.shrn(c, 18n)), U32.or(128, b12), U32.or(128, b6), U32.or(128, b)])))\n\ndef HsUtf8.encode(s: List<&2, Char>) -> List<&2, U32>:\n  match s:\n    case Nil{}:\n      Nil{}\n    case c <> t:\n      List.append(&2, U32, HsUtf8.char(Char.to_u32(c)), HsUtf8.encode(t))\n\n\n"
+  "def HsDigest.hash(+m: List<&2, U32>) -> HsDigest:\n  +p = HsSha.pad(m)\n  HsDigest.D{HsSha.bytes(HsSha.run(HsSha.chunks(Nat.div(List.length(&2, U32, p), 64n), p), HsSha.h0()))}\n\ndef HsDigest.bytes(d: HsDigest) -> List<&2, U32>:\n  match d:\n    case HsDigest.D{bs}:\n      bs\n\ndef HsDigest.fromBytes.if(ok: Bool, bs: List<&2, U32>) -> Maybe<&2, HsDigest>:\n  match ok:\n    case True{}:\n      Some{HsDigest.D{bs}}\n    case False{}:\n      None{}\n\ndef HsDigest.fromBytes(+bs: List<&2, U32>) -> Maybe<&2, HsDigest>:\n  HsDigest.fromBytes.if(Nat.is_eq(List.length(&2, U32, bs), 32n), bs)\n\ndef HsSha.hexd(+n: U32) -> Char:\n  Char.from_u32(Bool.pick(U32, U32.is_lt(n, 10), U32.add(n, 48), U32.add(n, 87)))\n\ndef HsSha.hex(bs: List<&2, U32>) -> List<&2, Char>:\n  match bs:\n    case Nil{}:\n      Nil{}\n    case +b <> t:\n      HsSha.hexd(U32.shrn(b, 4n)) <> HsSha.hexd(U32.and(b, 15)) <> HsSha.hex(t)\n\n# show: the hex digits (crypton shows a digest as its base-16 text)\ndef HsDigest.hexs(d: HsDigest) -> List<&2, Char>:\n  HsSha.hex(HsDigest.bytes(d))\n\ndef HsDigest.cmp.go(a: List<&2, U32>, b: List<&2, U32>) -> Cmp:\n  match a b:\n    case Nil{} Nil{}:\n      EQ{}\n    case Nil{} _:\n      LT{}\n    case _ Nil{}:\n      GT{}\n    case +x <> s +y <> t:\n      HsCmp.on(Cmp, U32.cmp(x, y), _ => LT{}, _ => HsDigest.cmp.go(s, t), _ => GT{})\n\n# Ord at a digest: its bytes, lexicographically (crypton's)\ndef HsDigest.cmp(a: HsDigest, b: HsDigest) -> Cmp:\n  HsDigest.cmp.go(HsDigest.bytes(a), HsDigest.bytes(b))\n\ndef HsDigest.is_eq(a: HsDigest, b: HsDigest) -> Bool:\n  Cmp.is_eq(HsDigest.cmp(a, b))\n\n# utf8-string's encode: a String as its UTF-8 bytes\ndef HsUtf8.char(+c: U32) -> List<&2, U32>:\n  +b = U32.and(c, 63)\n  +b6 = U32.and(U32.shrn(c, 6n), 63)\n  +b12 = U32.and(U32.shrn(c, 12n), 63)\n  Bool.pick(List<&2, U32>, U32.is_lt(c, 128), [c], Bool.pick(List<&2, U32>, U32.is_lt(c, 2048), [U32.or(192, U32.shrn(c, 6n)), U32.or(128, b)], Bool.pick(List<&2, U32>, U32.is_lt(c, 65536), [U32.or(224, U32.shrn(c, 12n)), U32.or(128, b6), U32.or(128, b)], [U32.or(240, U32.shrn(c, 18n)), U32.or(128, b12), U32.or(128, b6), U32.or(128, b)])))\n\ndef HsUtf8.encode(s: List<&2, Char>) -> List<&2, U32>:\n  match s:\n    case Nil{}:\n      Nil{}\n    case c <> t:\n      List.append(&2, U32, HsUtf8.char(Char.to_u32(c)), HsUtf8.encode(t))\n\n\n"
 
 def fd.hsprelude.digests() -> String:
   fd.hsprelude.d1() ++ fd.hsprelude.d2() ++ fd.hsprelude.d3()
@@ -7808,7 +7925,7 @@ def fd.hsprelude.lists() -> String:
   fd.hsprelude.l1() ++ fd.hsprelude.l2() ++ fd.hsprelude.l3() ++ fd.hsprelude.l4() ++ fd.hsprelude.l5() ++ fd.hsprelude.l6() ++ fd.hsprelude.l7() ++ fd.hsprelude.l8() ++ fd.hsprelude.l9()
 
 def fd.hsprelude.write(+out: String) -> IO(Unit):
-  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc() ++ PR.pre.HsRational() ++ PR.pre.HsMapMore() ++ PR.pre.HsPartial() ++ PR.pre.HsOrd() ++ PR.pre.HsCopy() ++ PR.pre.HsMonad() ++ PR.pre.HsShowMore()))
+  S.write(out ++ "/HsPrelude.bend", S.b(fd.hsprelude() ++ "\n" ++ fd.hsprelude.maps() ++ fd.hsprelude.ints() ++ fd.hsprelude.digests() ++ fd.hsprelude.lists() ++ PR.pre.HsChar() ++ PR.pre.HsPc() ++ PR.pre.HsRational() ++ PR.pre.HsMapMore() ++ PR.pre.HsPartial() ++ PR.pre.HsOrd() ++ PR.pre.HsCopy() ++ PR.pre.HsMonad() ++ PR.pre.HsShowMore() ++ PR.pre.HsRange()))
 
 # the files a module's text may name: HsPrelude's and the package's
 # earlier modules'
@@ -9450,6 +9567,23 @@ def fd.mu.anytpl(ps: List<&2, T.BParam>) -> Bool:
     case h <> t:
       fd.mu.anytpl(t)
 
+# whether a type's text names Data or Type, the kinds (as a whole name: the
+# package's LamType is no kind)
+def fd.mu.idc(+c: U32) -> Bool:
+  Bool.or(Bool.or(Bool.and(U32.is_ge(c, 48), U32.is_le(c, 57)), Bool.and(U32.is_ge(c, 65), U32.is_le(c, 90))), Bool.or(Bool.and(U32.is_ge(c, 97), U32.is_le(c, 122)), Bool.or(U32.is_eq(c, 46), U32.is_eq(c, 95))))
+
+# (w: the name so far, backwards)
+def fd.mu.kw(+w: List<&2, U32>) -> Bool:
+  Bool.or(S.eq(w, S.b("ataD")), S.eq(w, S.b("epyT")))
+
+def fd.mu.kind(s: List<&2, U32>, +w: List<&2, U32>) -> Bool:
+  match s:
+    case Nil{}:
+      fd.mu.kw(w)
+    case +c <> t:
+      +i = fd.mu.idc(c)
+      Bool.or(Bool.and(Bool.not(i), fd.mu.kw(w)), fd.mu.kind(t, Bool.pick(List<&2, U32>, i, c <> w, Nil{})))
+
 # The group's templates (11-23). Members that lead with the same template
 # parameters (wordsWhen's ~p: Char -> Bool, which its lifted defs take
 # too) and pass them on unchanged at every call of a member keep them as
@@ -9463,7 +9597,7 @@ def fd.mu.tpl1(p: T.BParam) -> Bool:
   match p:
     case T.BParam{T.BmTpl{}, x, ty}:
       +s = P.tpr.t(ty, P.TpLoose{}, 0n, Nil{})
-      Bool.or(S.eq(s, S.b("Data")), Bool.not(Bool.or(S.infix(s, S.b("Data")), S.infix(s, S.b("Type")))))
+      Bool.or(S.eq(s, S.b("Data")), Bool.not(fd.mu.kind(s, Nil{})))
     case _:
       False{}
 
@@ -12633,6 +12767,53 @@ def fd.cy.pickks(val: Bool, +ks: List<&2, Cyk>) -> List<&2, Cyk>:
     case False{}:
       ks
 
+# a name's first part (before its first .)
+def fd.cy.top(xs: List<&2, U32>) -> List<&2, U32>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      Nil{}
+    case h <> t:
+      h <> fd.cy.top(t)
+
+def fd.cy.put1(b: Bool, h: T.BItem, t: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match b:
+    case True{}:
+      h <> t
+    case False{}:
+      t
+
+# the module's defs of one top's (NAME and NAME.x..)
+def fd.cy.family(its: List<&2, T.BItem>, +top: List<&2, U32>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      +in = {Bool.and(fd.mu.isdef(h), S.eq(fd.cy.top(fd.item.name(h)), top)) : Bool}
+      fd.cy.put1(in, h, fd.cy.family(t, top))
+
+def fd.cy.frefs(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      fd.cy.if(List<&2, List<&2, U32>>, S.eq(fd.item.name(h), n), _ => T.tba.item.refs(h), _ => fd.cy.frefs(t, n))
+
+# whether the defs of todo reach l, in l's family
+def fd.cy.reach(fuel: Nat, todo: List<&2, List<&2, U32>>, +seen: List<&2, List<&2, U32>>, +fam: List<&2, T.BItem>, +l: List<&2, U32>) -> Bool:
+  match fuel todo:
+    case 1n+(+p) +x <> +t:
+      fd.cy.if(Bool, S.eq(x, l), _ => True{}, _ => fd.cy.if(Bool, S.mem(x, seen), _ => fd.cy.reach(p, t, seen, fam, l), _ => fd.cy.reach(p, List.append(&2, List<&2, U32>, fd.cy.frefs(fam, x), t), x <> seen, fam, l)))
+    case _ _:
+      False{}
+
+# whether l calls itself, through others of its family: its group is fd.mu's
+# then, whose arguments are Data, and a thunk is not
+def fd.cy.still(+its: List<&2, T.BItem>, +l: List<&2, U32>) -> Bool:
+  +fam = fd.cy.family(its, fd.cy.top(l))
+  fd.cy.reach(4000n, fd.cy.frefs(fam, l), Nil{}, fam, l)
+
 # l, a def lifted out of n, its calls of n (c) moved to its callers
 def fd.cy.move(+its: List<&2, T.BItem>, +l: List<&2, U32>, +lps: List<&2, T.BParam>, +lr: T.Bt, +lb: T.Bt, +ld: List<&2, List<&2, U32>>, +n: List<&2, U32>, +nps: List<&2, T.BParam>, +nr: T.Bt, +nb: T.Bt, +ks0: List<&2, Cyk>) -> Maybe<&2, List<&2, T.BItem>>:
   +one = Nat.is_eq(List.length(&2, Cyk, ks0), 1n)
@@ -12643,7 +12824,8 @@ def fd.cy.move(+its: List<&2, T.BItem>, +l: List<&2, U32>, +lps: List<&2, T.BPar
   +kp = fd.cy.stays(lps, fd.cy.scruts(b2, T.tba.refs(b2, Nil{})))
   +new = fd.cy.new(l, lps, lr, b2, ld, fd.cy.rps(ks, nps, nr), kp, n)
   +ok = fd.cy.uses(ks, b2, fd.cy.ispi(nr))
-  fd.cy.if(Maybe<&2, List<&2, T.BItem>>, ok, _ => Some{fd.cy.items(its, Cyl{l, lps, kp, ks}, new)}, _ => None{})
+  +res = fd.cy.items(its, Cyl{l, lps, kp, ks}, new)
+  fd.cy.if(Maybe<&2, List<&2, T.BItem>>, ok, _ => fd.cy.if(Maybe<&2, List<&2, T.BItem>>, Bool.and(Bool.not(val), fd.cy.still(res, l)), _ => None{}, _ => Some{res}), _ => None{})
 
 def fd.cy.try(li: T.BItem, ni: T.BItem, +its: List<&2, T.BItem>) -> Maybe<&2, List<&2, T.BItem>>:
   match li ni:
@@ -12664,14 +12846,6 @@ def fd.cy.last(xs: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
     case h <> t:
       fd.cy.last(t, h <> acc)
 
-def fd.cy.top(xs: List<&2, U32>) -> List<&2, U32>:
-  match xs:
-    case Nil{}:
-      Nil{}
-    case 46 <> t:
-      Nil{}
-    case h <> t:
-      h <> fd.cy.top(t)
 
 # NAME.lK (a case, an if, a let lifted)
 def fd.cy.islk(x: List<&2, U32>) -> Bool:
@@ -12781,14 +12955,23 @@ def fd.tm.mode(m: T.BMode, n: Nat) -> T.BMode:
     case u:
       u
 
+# a field of a twin (.fn: its last variable a function) is that function, no
+# Data to copy: its variables stay as they are
+def fd.tm.blank(fn: Bool, b: T.Bt) -> T.Bt:
+  match fn:
+    case True{}:
+      T.BtNat{S.b("0")}
+    case False{}:
+      b
+
 def fd.tm.markp(p: T.Bt, +b: T.Bt, +fs: List<&2, List<&2, U32>>) -> T.Bt:
   match p:
     case T.BtPv{m, +x}:
       T.BtPv{fd.tm.mode(m, fd.tm.uses(b, x, fs, False{})), x}
     case T.BtSucc{T.BtPv{m, +x}}:
       fd.succpv(fd.tm.mode(m, fd.tm.uses(b, x, fs, False{})), x)
-    case T.BtCon{c, a}:
-      T.BtCon{c, fd.tm.markp(a, b, fs)}
+    case T.BtCon{+c, a}:
+      T.BtCon{c, fd.tm.markp(a, fd.tm.blank(S.infix(c, S.b(".fn.")), b), fs)}
     case T.BtArgs{a, rest}:
       T.BtArgs{fd.tm.markp(a, b, fs), fd.tm.markp(rest, b, fs)}
     case q:

@@ -266,6 +266,17 @@ toListDefault t = F.foldr (:) [] t
 foldlDefault :: forall t b a. Foldable t => (b -> a -> b) -> b -> t a -> b
 foldlDefault f z t = foldl f z (toListDefault t)
 
+-- | Data.Foldable's sum, product and length at a package's functor, through
+-- its elements (base's definitions at such a Foldable).
+sumDefault :: forall t a. (Foldable t, Num a) => t a -> a
+sumDefault t = F.sum (toListDefault t)
+
+productDefault :: forall t a. (Foldable t, Num a) => t a -> a
+productDefault t = F.product (toListDefault t)
+
+lengthDefault :: forall t a. Foldable t => t a -> Int
+lengthDefault t = F.length (toListDefault t)
+
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
 mapKeys :: forall k2 k1 a. Ord k2 => (k1 -> k2) -> Map.Map k1 a -> Map.Map k2 a

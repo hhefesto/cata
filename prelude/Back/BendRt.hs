@@ -341,6 +341,10 @@ b'HsPrelude'HsInt'pow a e = a ^ abs e
 b'HsPrelude'HsInt'gcd a b = gcd a b
 b'HsPrelude'HsInt'lcm a b = lcm a b
 b'HsPrelude'HsInt'range a b = [a .. b]
+b'HsPrelude'HsInt'rangeBy a b c = [a, b .. c]
+b'HsPrelude'HsList'range a b = [a .. b]
+b'HsPrelude'HsList'rangeBy a b c = [a, b .. c]
+b'HsPrelude'HsList'rangeChar a b = [a .. b]
 
 -- the prelude's partial functions, each a failure value (Left GHC's
 -- message) where GHC throws (bend/Prelude.bend, "Partial functions")
@@ -726,8 +730,15 @@ b'HsPrelude'HsDigest'hash m = B'HsPrelude'HsDigest'D (concatMap bytes (foldl b's
     bytes x = [fromIntegral (x `shiftR` s .&. 255) | s <- [24, 16, 8, 0]]
 
 b'HsPrelude'HsDigest'bytes (B'HsPrelude'HsDigest'D bs) = bs
+b'HsPrelude'HsDigest'fromBytes bs = if length bs == 32 then Just (B'HsPrelude'HsDigest'D bs) else Nothing
 b'HsPrelude'HsDigest'hexs d = concatMap (\b -> [hexd (b `div` 16), hexd (b `mod` 16)]) (b'HsPrelude'HsDigest'bytes d)
   where hexd n = toEnum (if n < 10 then n + 48 else n + 87) :: Char
+b'HsPrelude'HsUtf8'encode s = concatMap (enc . fromEnum) (s :: String)
+  where
+    enc c | c < 0x80 = [c]
+          | c < 0x800 = [0xc0 + c `div` 64, 0x80 + c `mod` 64]
+          | c < 0x10000 = [0xe0 + c `div` 4096, 0x80 + c `div` 64 `mod` 64, 0x80 + c `mod` 64]
+          | otherwise = [0xf0 + c `div` 262144, 0x80 + c `div` 4096 `mod` 64, 0x80 + c `div` 64 `mod` 64, 0x80 + c `mod` 64 :: Int]
 b'HsPrelude'HsDigest'cmp a b = compare (b'HsPrelude'HsDigest'bytes a) (b'HsPrelude'HsDigest'bytes b)
 b'HsPrelude'HsDigest'is_eq a b = b'HsPrelude'HsDigest'cmp a b == EQ
 
@@ -826,6 +837,25 @@ b'hs'rde'map f m = \r -> b'hs'rde'map'e f (m r)
 b'hs'rde'ask = \r -> Right r
 b'hs'rde'local f m = \r -> m (f r)
 b'hs'rde'asks f = \r -> Right (f r)
+-- (signatures: a def that does not run its app, the log's <>, still has it at
+-- the log's type, or GHC finds that type ambiguous in what G writes)
+b'hs'wr'pure :: w -> (w -> w -> w) -> a -> (a, w)
+b'hs'wr'map :: w -> (w -> w -> w) -> (a -> b) -> (a, w) -> (b, w)
+b'hs'wr'bind :: w -> (w -> w -> w) -> (a, w) -> (a -> (b, w)) -> (b, w)
+b'hs'wre'pure :: w -> (w -> w -> w) -> a -> Either e (a, w)
+b'hs'wre'map :: w -> (w -> w -> w) -> (a -> b) -> Either e (a, w) -> Either e (b, w)
+b'hs'wre'bind :: w -> (w -> w -> w) -> Either e (a, w) -> (a -> Either e (b, w)) -> Either e (b, w)
+b'hs'stp'pure :: w -> (w -> w -> w) -> a -> s -> (w, (a, s))
+b'hs'stp'map :: w -> (w -> w -> w) -> (a -> b) -> (s -> (w, (a, s))) -> s -> (w, (b, s))
+b'hs'stp'bind :: w -> (w -> w -> w) -> (s -> (w, (a, s))) -> (a -> s -> (w, (b, s))) -> s -> (w, (b, s))
+b'hs'stp'get :: w -> (w -> w -> w) -> s -> (w, (s, s))
+b'hs'stp'put :: w -> (w -> w -> w) -> s -> s -> (w, ((), s))
+b'hs'stp'modify :: w -> (w -> w -> w) -> (s -> s) -> s -> (w, ((), s))
+b'hs'stp'gets :: w -> (w -> w -> w) -> (s -> a) -> s -> (w, (a, s))
+b'hs'wr'join app w y = case y of { (b, v) -> (b, app w v) }
+b'hs'wr'bind mt app x f = case x of { (a, w) -> b'hs'wr'join app w (f a) }
+b'hs'wr'pure mt app a = (a, mt)
+b'hs'wr'map mt app f x = case x of { (a, w) -> (f a, w) }
 b'hs'wre'join app w y = case y of { Left e -> Left e; Right (b, v) -> Right (b, app w v) }
 b'hs'wre'bind mt app x f = case x of { Left e -> Left e; Right (a, w) -> b'hs'wre'join app w (f a) }
 b'hs'wre'pure mt app a = Right (a, mt)
@@ -882,6 +912,10 @@ b'hs'stp'run m s = m s
 -- HsShow.via)
 b'HsPrelude'HsList'zipWithFrom'go sc f xs n = case xs of { [] -> []; x : t -> f n x : b'HsPrelude'HsList'zipWithFrom'go sc f t (sc n) }
 b'HsPrelude'HsList'zipWithFrom sc f n xs = b'HsPrelude'HsList'zipWithFrom'go sc f xs n
+b'HsPrelude'HsList'zipFrom'go sc xs n = case xs of { [] -> []; x : t -> (n, x) : b'HsPrelude'HsList'zipFrom'go sc t (sc n) }
+b'HsPrelude'HsList'zipFrom sc n xs = b'HsPrelude'HsList'zipFrom'go sc xs n
+b'HsPrelude'HsList'zipR sc xs n = case xs of { [] -> []; x : t -> (x, n) : b'HsPrelude'HsList'zipR sc t (sc n) }
+b'HsPrelude'HsList'zipWithR sc f xs n = case xs of { [] -> []; x : t -> f x n : b'HsPrelude'HsList'zipWithR sc f t (sc n) }
 b'HsPrelude'HsList'second'pair f (a, b) = (a, f b)
 b'HsPrelude'HsShow'via sp x = sp 0 x []
 

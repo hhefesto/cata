@@ -2153,12 +2153,44 @@ def lw.start(g: F.Gs, laws: List<&2, T.BItem>, +bad: List<&2, F.Dr>) -> F.Gs:
 def lw.lost(+laws: Bool, +g0: F.Gs, +g2: F.Gs) -> Bool:
   Bool.and(laws, Bool.and(F.fd.hasdef(lw.gs.its(g0)), Bool.not(F.fd.hasdef(lw.gs.its(g2)))))
 
-def lw.after(lost: Bool, +ck: Kc, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>, +dt: List<&2, T.BItem>, +nm: K.BkN) -> IO(Lk):
+# The laws again, one def's at a time, when the one gate was lost: a law
+# Bend cannot run (a Nat too large to count, a stack) took every law of its
+# module with it. Each def's laws are gated with what is kept so far (g);
+# a check that dies keeps none of them, one that refuses a law drops the def
+# as the one gate does.
+def lw.lawsof(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, T.BItem>:
+  match its:
+    case +h <> t:
+      +k = F.fd.item.name(h)
+      F.fd.without.put(Bool.not(Bool.and(lw.dotted(k), S.eq(lw.undot(k), n))), h, lw.lawsof(t, n))
+    case Nil{}:
+      Nil{}
+
+def lw.each.got(none: Bool, g: F.Gs, g2: F.Gs) -> F.Gs:
+  match none g2:
+    case False{} F.Gs{+k, o, True{}}:
+      Bool.pick(F.Gs, F.fd.hasdef(k), F.Gs{k, o, True{}}, g)
+    case _ _:
+      g
+
+def lw.each(ds: List<&2, T.BItem>, +laws: List<&2, T.BItem>, +g: F.Gs, +ck: Kc, +bend: String, +try: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +dt: List<&2, T.BItem>) -> IO(F.Gs):
+  match ds:
+    case Nil{}:
+      IO.pure(F.Gs, g)
+    case +h <> t:
+      +ls = lw.lawsof(laws, F.fd.item.name(h))
+      +none = List.is_empty(&2, T.BItem, ls)
+      do IO<F.Gs>:
+        +g2 : F.Gs <- lw.gate(Bool.pick(Nat, none, 0n, Nat.mul(3n, 1n+List.length(&2, T.BItem, ls))), lw.start(g, ls, Nil{}), ck, bend, try, file, m, ims, dt)
+        lw.each(t, laws, lw.each.got(none, g, g2), ck, bend, try, file, m, ims, dt)
+
+def lw.after(lost: Bool, +good: List<&2, T.BItem>, +ck: Kc, +bend: String, +out: String, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +path: String, +try: String, +g0: F.Gs, +g2: F.Gs, +ps: List<&2, Pl>, +dt: List<&2, T.BItem>, +nm: K.BkN) -> IO(Lk):
   match lost:
     case True{}:
       do IO<Lk>:
-        g1 : F.Gs <- F.fd.gate(Nat.mul(3n, 1n+List.length(&2, T.BItem, lw.gs.its(g0))), g0, bend, try, file, m, ims, dt)
-        lw.fin(ck, out, file, m, ims, pkg, path, True{}, g1, ps, nm)
+        +g1 : F.Gs <- F.fd.gate(Nat.mul(3n, 1n+List.length(&2, T.BItem, lw.gs.its(g0))), g0, bend, try, file, m, ims, dt)
+        g3 : F.Gs <- lw.each(lw.gs.its(g1), good, lw.done.if(True{}, g1), ck, bend, try, file, m, ims, dt)
+        lw.fin(ck, out, file, m, ims, pkg, path, True{}, g3, ps, nm)
     case False{}:
       lw.fin(ck, out, file, m, ims, pkg, path, False{}, g2, ps, nm)
 
@@ -2172,7 +2204,7 @@ def lw.laws2(+rounds: Nat, +ck: Kc, +bend: String, +out: String, +file: List<&2,
   +n = List.length(&2, T.BItem, lw.gs.its(g1))
   do IO<Lk>:
     +g2 : F.Gs <- lw.gate(Bool.pick(Nat, Nat.is_eq(rounds, 0n), Nat.mul(3n, 1n+n), rounds), lw.done.if(Nat.is_eq(n, 0n), g1), ck, bend, try, file, m, ims, dt)
-    lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), ck, bend, out, file, m, ims, pkg, path, try, g0, g2, ps, dt, nm)
+    lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), good, ck, bend, out, file, m, ims, pkg, path, try, g0, g2, ps, dt, nm)
 
 # GHC's answers for the fold's defs (g0, before any check), then the gate
 def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +xs: List<&2, X.Sx>, +tbs: List<&2, F.Tb>, +path: String, +try: String, +g0: F.Gs, +dt: List<&2, T.BItem>) -> IO(Lk):

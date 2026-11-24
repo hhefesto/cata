@@ -202,6 +202,24 @@ that a caller can pass what it computes: `\x -> a1 (x + 1) ys`. An
 applied lambda is its body, the arguments put in or let (`sp.beta`). Both
 in a package and in a module alone.
 
+So is one at a section or a partial application over them (`takeWhile
+(/= d) xs`, `map (scale k) xs`), and at a local function that uses one
+(`map render rows`, render a where's; `sp.hf.lets`): tests/hs/HofSec.hs.
+In a package `mapM`, `forM`, `traverse`, `for`, `mapM_`, `forM_`,
+`traverse_`, `for_` and `foldM` at a list and such a function are cata's
+model's (Cata.Base's `listMapM`, ..; Spec's `sp.hm`), which are copied at
+it; at a closed one they stay the prelude's.
+
+## Local polymorphism
+
+A local function GHC generalises (`where onlyLeft (Left x) xs = x : xs`)
+has type variables and dictionaries of its own. When its uses are all at
+the same types, in scope at it, every export is read with it at those
+types (Spec's `sp.lm`): its variables are them, its dictionaries the
+use's. One used at two types stays polymorphic, and its lifted def, which
+takes the outer def's type parameters only, is refused (`a defined name:
+A1`).
+
 ## Monads
 
 GHC hands a do block over as its `>>=` and `>>`, and cata writes those at
@@ -337,7 +355,9 @@ cost: `empty`, `singleton`, `insert`, `insertWith`, `lookup`, `member`,
 `unionWithKey`, `unionsWith` (of a list) and `split`
 (`prelude/HsMapMore.bend`); at Set the same names that exist there,
 `unions`, `\\`, `map` and `intersection`; `<>` at a Map or a Set is
-`union`. Each takes compare at the key as a template: `Nat.cmp`
+`union`. `insertWith` and `adjust` run their function at most once and take
+it as a plain argument, a closure too; the others take a closed one, a
+template. Each takes compare at the key as a template: `Nat.cmp`
 at Int, HsPrelude's `HsCmp.char`, `HsCmp.bool`, `HsCmp.unit`, and
 `HsCmp.list`, `HsCmp.pair`, `HsCmp.maybe` given compare at the parts (a
 String key is a list of Char), `HsCmp.either`, `HsCmp.cmp` (Ordering),
@@ -350,7 +370,9 @@ HsPrelude's `HsInt`, an integer: `Pos{n}` is n, `Neg{n}` is -n (n at least
 1), one term per integer; `-`, `negate`, `abs`, `signum`, `subtract`,
 Haskell's `div`, `mod`, `quot` and `rem`, `^`, comparisons, `show`, `succ`,
 `pred`, `toEnum`, `fromEnum`, `fromIntegral` and `toInteger` between them,
-literals and literal patterns below zero; `IntMap v` is `Map HsInt v` and
+literals and literal patterns below zero, `[a .. b]` and `[a, b .. c]` at two
+different literals a and b (at Nat and, the first, at Char too, in a module
+alone; an endless list is out); `IntMap v` is `Map HsInt v` and
 `IntSet` `Set HsInt`. Int's 64-bit wrap-around is not written: F's Int
 is exact, right wherever a run stays in Int's range (`adj/`, section 8,
 proves that, and that it is wrong where a run overflows). A single
@@ -365,7 +387,23 @@ crypton's `Digest SHA256` is HsPrelude's `HsDigest` (its 32 bytes): `hash` is
 SHA-256 written in Bend, `show` its hex text, `==` and `compare` its bytes'
 order (crypton's); a ByteString is a list of `Word8` (Bend's U32), `pack`,
 `unpack`, `toStrict` and `fromStrict` the list itself, Data.ByteArray's
-`unpack` at a digest its bytes, utf8-string's `encode` UTF-8.
+`unpack` and `convert` at a digest its bytes, `digestFromByteString` the
+digest of 32 of them, utf8-string's `encode` UTF-8; a `Word8` literal, in a
+term or a pattern, is a U32's, `show` its decimal text, `fromIntegral` to it
+mod 256.
+
+binary's `Get` and `Put` (telomare's .telc codec, Artifact) are cata's
+model's, `prelude/Cata/Binary.hs`, exported with a package that uses them:
+`Get a` is `ExceptT String (State ([Word8], Int)) a` (the bytes left and how
+many were read: a short read is "not enough bytes" and consumes nothing),
+`PutM a` `Writer [Word8] a`, and `getWord8`, `getInt64le`,
+`getLazyByteString`, `runGetOrFail`, `fail`, `putWord8`, `putInt64le`,
+`putLazyByteString`, `runPut`, utf8-string's `toString` and `fromString`,
+ByteString's `length` and filepath's `takeExtension` are its defs (Spec's
+`sp.bin`); `Int64` is an `HsInt`. The model was run against the libraries
+(49,440 reads, 111,151 UTF-8 strings: none differ), and
+tests/hs/bin/run.zsh checks a codec written as telomare's, GHC running it
+with the libraries and cata's translation with the model.
 
 Data.Void's `Void` is Base's `Empty`, `absurd` `Empty.absurd`, `==` at it `True`.
 
