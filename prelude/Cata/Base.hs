@@ -161,6 +161,28 @@ fixShows x = showString (cata fixShowAlg x)
 fixShowList :: forall f. (Functor f, Show1 f) => [Fix f] -> ShowS
 fixShowList xs = showList__ showString (map (cata fixShowAlg) xs)
 
+-- | free's Show instance at Cofree f a, through f's Show1 and a's Show:
+-- showsPrec d (a :< as) is showParen (d > 5) (showsPrec 6 a . showString
+-- " :< " . liftShowsPrec showsPrec showList 5 as), as a fold to a node's
+-- unparenthesised text (as fixShow's).
+cofreeShowsAt :: Int -> String -> ShowS
+cofreeShowsAt q s = showParen (q >= 6) (showString s)
+
+cofreeShowAlg :: forall f a. (Show1 f, Show a) => CofreeF f a String -> String
+cofreeShowAlg (a :< as) = showsPrec 6 a (showString " :< " (liftShowsPrec cofreeShowsAt (showList__ showString) 5 as ""))
+
+cofreeShowsPrec :: forall f a. (Functor f, Show1 f, Show a) => Int -> C.Cofree f a -> ShowS
+cofreeShowsPrec d x = cofreeShowsAt d (cata cofreeShowAlg x)
+
+cofreeShow :: forall f a. (Functor f, Show1 f, Show a) => C.Cofree f a -> String
+cofreeShow x = cata cofreeShowAlg x
+
+cofreeShows :: forall f a. (Functor f, Show1 f, Show a) => C.Cofree f a -> ShowS
+cofreeShows x = showString (cata cofreeShowAlg x)
+
+cofreeShowList :: forall f a. (Functor f, Show1 f, Show a) => [C.Cofree f a] -> ShowS
+cofreeShowList xs = showList__ showString (map (cata cofreeShowAlg) xs)
+
 -- | base's until (GHC.Base's definition): f applied until p holds. Spec
 -- writes until as this def; Bend sees no argument shrink, so the fold
 -- writes it with fuel, as the bend branch writes such loops (README,

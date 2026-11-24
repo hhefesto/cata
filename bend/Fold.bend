@@ -11500,7 +11500,10 @@ def fd.lc.all(+its: List<&2, T.BItem>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>
 # Template copies ---------------------------------------------------------------
 #
 # A call of a module def at template arguments that name a def reaching
-# back to the caller: Machine's transformNoDefer maps its own recursion
+# back to the caller, or of a def that itself reaches back to it (a Show1's
+# liftShowsPrec given its showsPrec as a template, in the group of a type
+# whose annotations hold it again: ShowCof):
+# Machine's transformNoDefer maps its own recursion
 # over a layer, `fmap c x`, which the fold writes as the derived Functor's
 # copy at a lambda, cfmap(~(eta_0 => c(eta_0)), x), c calling back the def
 # the call is in. Once that group is merged (the fold's .mu, below) the
@@ -11607,11 +11610,11 @@ def fd.ti.q3(ok: Bool, +x: List<&2, U32>, +k: Nat, +as: List<&2, T.Bt>) -> Maybe
 
 def fd.ti.q2(m: Maybe<&2, T.BItem>, +x: List<&2, U32>, +xs: List<&2, T.Bt>, +cx: Tix) -> Maybe<&2, Ti>:
   match m cx:
-    case Some{T.BiDef{n, +ps, r, b, d}} Tix{c, +rs, +ns, its}:
+    case Some{T.BiDef{n, +ps, r, b, d}} Tix{+c, +rs, +ns, its}:
       +k = fd.fu.lead(ps)
       +as = List.take(&2, T.Bt, xs, k)
       +more = Nat.is_gt(List.length(&2, T.BParam, ps), k)
-      +back = fd.lc.back(fd.ti.refs(as, Nil{}), rs, c)
+      +back = Bool.or(fd.lc.back(fd.ti.refs(as, Nil{}), rs, c), fd.lc.back([n], rs, c))
       fd.ti.q3(Bool.and(Bool.and(Nat.is_gt(k, 0n), more), Bool.and(Bool.and(Nat.is_gt(List.length(&2, T.Bt, xs), k), fd.ti.tpls(as)), Bool.and(back, fd.ti.globals(fd.ti.frees(as, Nil{}), ns)))), x, k, as)
     case _ _:
       None{}
@@ -11829,18 +11832,30 @@ def fd.ti.allcalls(its: List<&2, T.BItem>, +cx: Tix) -> List<&2, Ti>:
     case h <> t:
       List.append(&2, Ti, fd.ti.callsof(h, cx), fd.ti.allcalls(t, cx))
 
-# one round: the calls rewritten, the copies written
-def fd.ti.round(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  +ns = fd.mu.names(its)
-  +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
-  +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
-  +cx = {Tix{Nil{}, rs, ns, its} : Tix}
-  List.append(&2, T.BItem, fd.ti.items(its, cx), fd.ti.gens(fd.ti.allcalls(its, cx), its, Nil{}))
+# the calls rewritten, the copies written, round after round (a copy's own
+# body may call another def so; four at most), until there are none
+def fd.ti.if(b: Bool, its: List<&2, T.BItem>, next: Unit -> List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match b:
+    case True{}:
+      its
+    case False{}:
+      next(Unit{})
 
-# the module's items with each such call a copy's (two rounds: a copy's own
-# body may call another def so)
+def fd.ti.round(fuel: Nat, +its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match fuel:
+    case 0n:
+      its
+    case 1n+p:
+      +ns = fd.mu.names(its)
+      +cg = fd.mu.cg(its, T.tba.set(ns, Map.new(&2, Bool)))
+      +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
+      +cx = {Tix{Nil{}, rs, ns, its} : Tix}
+      +cs = fd.ti.allcalls(its, cx)
+      fd.ti.if(List.is_empty(&2, Ti, cs), its, _ => fd.ti.round(p, List.append(&2, T.BItem, fd.ti.items(its, cx), fd.ti.gens(cs, its, Nil{}))))
+
+# the module's items with each such call a copy's
 def fd.ti.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.ti.round(fd.ti.round(its))
+  fd.ti.round(4n, its)
 
 # a module's items as written, before the gate: local catas written, then
 # groups merged (Law.bend's lw.module writes them so too)
