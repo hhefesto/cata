@@ -2202,9 +2202,17 @@ a fresh `--verdict`, no cache, 55 s).
   `adj.FG.int.not` refutes at Nat. Where the run stays in Int's 64 bits
   GHC's Int answers what F's Bend does (`hsint.int`; `hsint.all` for the
   unbounded integer), and not otherwise (`hsint.not`, x + x at 127 at
-  Int8). The model's arithmetic at HsInt is the integers' (`z.add`, ..);
-  that the prelude's own HsInt.add, HsInt.sub, .. are these is not proved
-  yet.
+  Int8). And the prelude's own HsInt is that integer: `adj/HSINT.bend`
+  proves, at every pair of numbers (not a grid), that the HsInt.add, sub
+  and is_lt and HsNum.idiv and imod cata writes into HsPrelude.bend are
+  the model's `z.add`, `z.sub`, `z.lt`, `z.div` and `z.mod` (division by 0
+  a failure value, rounding toward minus infinity), `--verdict` ALL
+  PROOFS CHECK; `adj/hsint.zsh` writes the text it proves them of from
+  Fold.bend and HsPartial.bend and compares it with a HsPrelude.bend
+  (telomare's pkgd14: the same); six mutants of that text (nsub's sign,
+  div truncating, mod with the dividend's sign, imod answering at 0, a
+  comparison of negatives not reversed, a sum of negatives positive)
+  each fail.
 - **Variables and lists, in the model (11).** The fragment could not
   build a list, and its case and foldr saw no variable around them: no map,
   no append, no `\x -> foldr (\h r -> h + x + r) 0 ys`. Both categories now

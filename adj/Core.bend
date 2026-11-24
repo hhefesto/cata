@@ -1578,10 +1578,10 @@ def eval.lz(+t: HTm, +x: Maybe<&2, LV>) -> Maybe<&2, LV>:
 # least 1), one term per integer, as GHC's Integer has.  So at Int the
 # model writes Bend's values as Haskell's, ZV (ZvNat{n} is Pos{n},
 # ZvNeg{n} is Neg{n+1}), and Bend's primitives at HsInt mean the
-# integers' (z.atw): HsInt.add, HsInt.sub and HsInt.is_lt (HSINT.bend
-# proves the prelude's own agree with z.add, z.sub and z.lt at every pair),
-# HsNum.idiv and HsNum.imod (failure values at 0; HSINT.bend checks them on
-# a grid).  A run's range r is the same reading as Haskell's: every
+# integers' (z.atw): HSINT.bend proves the prelude's own HsInt.add, sub and
+# is_lt, and HsNum.idiv and imod (failure values at 0), to be z.add, z.sub,
+# z.lt, z.div and z.mod at every pair, not on a grid (the text cata writes,
+# hsint.zsh).  A run's range r is the same reading as Haskell's: every
 # integer (RgAll), or the run that stays in -(m+1)..m, an error where a
 # number leaves it (RgIn{m}); Bend's own runtime stops a run whose Nat
 # passes 2^48 - 1 (README, "Parsers"), so Bend's HsInt is RgIn{2^48 - 1}.
