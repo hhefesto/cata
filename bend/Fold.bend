@@ -5138,6 +5138,297 @@ def fd.lift.items(t: T.Bt, q: Lq, +name: List<&2, U32>, +n: Nat, +ctx: List<&2, 
     case _ _:
       Nil{}
 
+# Patterns that do not cover -----------------------------------------------------
+#
+# A function's or a case's clauses that leave values out (head' (x : _) = x)
+# are partial in Haskell: GHC throws a PatternMatchFail, "FILE:SPAN:
+# Non-exhaustive patterns in function head'". Its clauses get a last one, all
+# wildcards, that is error's call with that message (without the place, which
+# law drops from GHC's), so the def is partial as any that calls error. What
+# is left out is told from the patterns: base's constructors and the
+# module's own (an imported type's are taken to cover), and a literal's type
+# has always more.
+
+def fd.exh.if(-R: Type, c: Bool, t: Unit -> R, e: Unit -> R) -> R:
+  match c:
+    case True{}:
+      t(Unit{})
+    case False{}:
+      e(Unit{})
+
+# a constructor and its arity
+type Exc is Data:
+  Exc{c: List<&2, U32>, n: Nat}
+
+type Exm is Data:
+  Exm{rows: List<&2, List<&2, T.Bt>>}
+
+def fd.exh.sig.own(cs: List<&2, Ctr>, +t: List<&2, U32>) -> List<&2, Exc>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case Ctr{+c, +u, +n, fs} <> r:
+      List.append(&2, Exc, Bool.pick(List<&2, Exc>, S.eq(u, t), [Exc{fd.cname(u, c), n}], Nil{}), fd.exh.sig.own(r, t))
+
+# the constructors of the type of the module's constructor k
+def fd.exh.sig.of(cs: List<&2, Ctr>, +all: List<&2, Ctr>, +k: List<&2, U32>) -> List<&2, Exc>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case Ctr{+c, +u, n, fs} <> r:
+      fd.exh.if(List<&2, Exc>, S.eq(fd.cname(u, c), k), _ => fd.exh.sig.own(all, u), _ => fd.exh.sig.of(r, all, k))
+
+def fd.exh.base() -> List<&2, List<&2, Exc>>:
+  +z = {0n : Nat}
+  [[Exc{S.b("Nil"), z}, Exc{S.b("Con"), 2n}], [Exc{S.b("None"), z}, Exc{S.b("Some"), 1n}], [Exc{S.b("Inl"), 1n}, Exc{S.b("Inr"), 1n}], [Exc{S.b("True"), z}, Exc{S.b("False"), z}], [Exc{S.b("Tuple"), 2n}], [Exc{S.b("Unit"), z}], [Exc{S.b("LT"), z}, Exc{S.b("EQ"), z}, Exc{S.b("GT"), z}], [Exc{S.b("HsPrelude.HsInt.Pos"), 1n}, Exc{S.b("HsPrelude.HsInt.Neg"), 1n}], [Exc{S.b("HsPrelude.Fix.Fix"), 1n}], [Exc{S.b("HsPrelude.Cofree.Cofree"), 2n}], [Exc{S.b("HsPrelude.CofreeF.CofreeF"), 2n}]]
+
+def fd.exh.has(es: List<&2, Exc>, +k: List<&2, U32>) -> Bool:
+  match es:
+    case Nil{}:
+      False{}
+    case Exc{+c, n} <> t:
+      Bool.or(S.eq(c, k), fd.exh.has(t, k))
+
+def fd.exh.sig.base(ss: List<&2, List<&2, Exc>>, +k: List<&2, U32>) -> List<&2, Exc>:
+  match ss:
+    case Nil{}:
+      Nil{}
+    case +s <> t:
+      fd.exh.if(List<&2, Exc>, fd.exh.has(s, k), _ => s, _ => fd.exh.sig.base(t, k))
+
+def fd.exh.sig(+k: List<&2, U32>, +cs: List<&2, Ctr>) -> List<&2, Exc>:
+  +b = fd.exh.sig.base(fd.exh.base(), k)
+  fd.exh.if(List<&2, Exc>, List.is_empty(&2, Exc, b), _ => fd.exh.sig.of(cs, cs, k), _ => b)
+
+# a row's first pattern: a wildcard (or a variable), a constructor, a literal
+# (a number's, a character's) or a form not read (the clauses are taken to
+# cover)
+type Exk is Data:
+  ExW{}
+  ExC{c: List<&2, U32>, ps: List<&2, T.Bt>}
+  ExL{}
+  ExU{}
+
+def fd.exh.kind(p: T.Bt) -> Exk:
+  match p:
+    case T.BtPv{m, x}:
+      ExW{}
+    case T.BtWild{}:
+      ExW{}
+    case T.BtCon{c, a}:
+      ExC{c, fd.spine(a)}
+    case T.BtNat{s}:
+      ExL{}
+    case T.BtVar{x}:
+      ExL{}
+    case _:
+      ExU{}
+
+def fd.exh.isw(k: Exk, r: Bool) -> Bool:
+  match k:
+    case ExW{}:
+      r
+    case _:
+      False{}
+
+def fd.exh.allw(ps: List<&2, T.Bt>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case p <> t:
+      fd.exh.isw(fd.exh.kind(p), fd.exh.allw(t))
+
+# the first column: whether a row has a literal, a form not read, and the
+# constructors
+type Exh is Data:
+  Exh{lit: Bool, un: Bool, cs: List<&2, List<&2, U32>>}
+
+def fd.exh.col.put(k: Exk, h: Exh) -> Exh:
+  match k h:
+    case ExW{} h2:
+      h2
+    case ExC{c, ps} Exh{l, u, cs}:
+      Exh{l, u, c <> cs}
+    case ExL{} Exh{l, u, cs}:
+      Exh{True{}, u, cs}
+    case ExU{} Exh{l, u, cs}:
+      Exh{l, True{}, cs}
+
+def fd.exh.col(rows: List<&2, List<&2, T.Bt>>) -> Exh:
+  match rows:
+    case Nil{}:
+      Exh{False{}, False{}, Nil{}}
+    case Con{Nil{}, t}:
+      fd.exh.col(t)
+    case Con{Con{p, ps}, t}:
+      fd.exh.col.put(fd.exh.kind(p), fd.exh.col(t))
+
+# the rows left once the first column is the constructor c of n fields, and
+# once it is none of the column's (default)
+def fd.exh.wilds(n: Nat) -> List<&2, T.Bt>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      T.BtWild{} <> fd.exh.wilds(p)
+
+def fd.exh.cons(b: Bool, h: List<&2, T.Bt>, t: List<&2, List<&2, T.Bt>>) -> List<&2, List<&2, T.Bt>>:
+  match b:
+    case True{}:
+      h <> t
+    case False{}:
+      t
+
+def fd.exh.spec.put(k: Exk, ps: List<&2, T.Bt>, +c: List<&2, U32>, n: Nat, rest: List<&2, List<&2, T.Bt>>) -> List<&2, List<&2, T.Bt>>:
+  match k:
+    case ExW{}:
+      List.append(&2, T.Bt, fd.exh.wilds(n), ps) <> rest
+    case ExC{+d, qs}:
+      fd.exh.cons(S.eq(c, d), List.append(&2, T.Bt, qs, ps), rest)
+    case _:
+      rest
+
+def fd.exh.spec(rows: List<&2, List<&2, T.Bt>>, +c: List<&2, U32>, +n: Nat) -> List<&2, List<&2, T.Bt>>:
+  match rows:
+    case Nil{}:
+      Nil{}
+    case Con{Nil{}, t}:
+      fd.exh.spec(t, c, n)
+    case Con{Con{p, ps}, t}:
+      fd.exh.spec.put(fd.exh.kind(p), ps, c, n, fd.exh.spec(t, c, n))
+
+def fd.exh.dflt.put(k: Exk, ps: List<&2, T.Bt>, rest: List<&2, List<&2, T.Bt>>) -> List<&2, List<&2, T.Bt>>:
+  match k:
+    case ExW{}:
+      ps <> rest
+    case _:
+      rest
+
+def fd.exh.dflt(rows: List<&2, List<&2, T.Bt>>) -> List<&2, List<&2, T.Bt>>:
+  match rows:
+    case Nil{}:
+      Nil{}
+    case Con{Nil{}, t}:
+      fd.exh.dflt(t)
+    case Con{Con{p, ps}, t}:
+      fd.exh.dflt.put(fd.exh.kind(p), ps, fd.exh.dflt(t))
+
+def fd.exh.full(sig: List<&2, Exc>, +hs: List<&2, List<&2, U32>>) -> Bool:
+  match sig:
+    case Nil{}:
+      True{}
+    case Exc{+c, n} <> t:
+      Bool.and(S.mem(c, hs), fd.exh.full(t, hs))
+
+def fd.exh.specs(sig: List<&2, Exc>, +rows: List<&2, List<&2, T.Bt>>) -> List<&2, Exm>:
+  match sig:
+    case Nil{}:
+      Nil{}
+    case Exc{c, n} <> t:
+      Exm{fd.exh.spec(rows, c, n)} <> fd.exh.specs(t, rows)
+
+# the matrices still to cover, after a matrix whose first row is no wildcard
+def fd.exh.next(+rows: List<&2, List<&2, T.Bt>>, h: Exh, +cs: List<&2, Ctr>) -> Maybe<&2, List<&2, Exm>>:
+  match h:
+    case Exh{lit, True{}, hs}:
+      None{}
+    case Exh{True{}, False{}, hs}:
+      Some{[Exm{fd.exh.dflt(rows)}]}
+    case Exh{False{}, False{}, Nil{}}:
+      Some{[Exm{fd.exh.dflt(rows)}]}
+    case Exh{False{}, False{}, Con{+k, +t}}:
+      +sig = fd.exh.sig(k, cs)
+      +full = fd.exh.full(sig, k <> t)
+      fd.exh.if(Maybe<&2, List<&2, Exm>>, List.is_empty(&2, Exc, sig), _ => None{}, _ => fd.exh.if(Maybe<&2, List<&2, Exm>>, full, _ => Some{fd.exh.specs(sig, rows)}, _ => Some{[Exm{fd.exh.dflt(rows)}]}))
+
+def fd.exh.first(rows: List<&2, List<&2, T.Bt>>) -> List<&2, T.Bt>:
+  match rows:
+    case Nil{}:
+      Nil{}
+    case r <> t:
+      r
+
+# whether the matrices' rows cover (out of fuel: taken to)
+def fd.exh.go(fuel: Nat, todo: List<&2, Exm>, +cs: List<&2, Ctr>) -> Bool:
+  match fuel todo:
+    case _ Nil{}:
+      True{}
+    case 0n _:
+      True{}
+    case 1n+(+p) Exm{Nil{}} <> t:
+      False{}
+    case 1n+(+p) Exm{Con{+r, +rs}} <> +t:
+      +n = fd.exh.next(r <> rs, fd.exh.col(r <> rs), cs)
+      fd.exh.if(Bool, fd.exh.allw(r), _ => fd.exh.go(p, t, cs), _ => fd.exh.if(Bool, Maybe.is_some(&2, List<&2, Exm>, n), _ => fd.exh.go(p, List.append(&2, Exm, Maybe.default(&2, List<&2, Exm>, n, Nil{}), t), cs), _ => True{}))
+
+def fd.exh.rows(cls: List<&2, R>) -> List<&2, List<&2, T.Bt>>:
+  match cls:
+    case Nil{}:
+      Nil{}
+    case RC{ps, b, lt, False{}} <> t:
+      ps <> fd.exh.rows(t)
+    case RC{ps, b, lt, True{}} <> t:
+      fd.exh.rows(t)
+    case _ <> t:
+      fd.exh.rows(t)
+
+# the clauses, and the last one where they do not cover: its answer is a
+# mark, named by fd.exh.name where the clauses' place is known
+def fd.exh.mark() -> T.Bt:
+  T.BtTodo{S.b("fold:non-exhaustive")}
+
+def fd.exh.add(+cls: List<&2, R>, +tys: List<&2, T.Bt>, +env: Env) -> List<&2, R>:
+  +rows = fd.exh.rows(cls)
+  +some = Bool.and(Bool.not(List.is_empty(&2, T.Bt, tys)), Bool.not(List.is_empty(&2, R, cls)))
+  +cov = fd.exh.if(Bool, some, _ => fd.exh.go(4000n, [Exm{rows}], fd.env.cons(env)), _ => True{})
+  Bool.pick(List<&2, R>, cov, cls, List.append(&2, R, cls, [RC{fd.exh.wilds(List.length(&2, T.Bt, tys)), fd.exh.mark(), Nil{}, False{}}]))
+
+# error's call at the result type, for the mark
+def fd.exh.err(+what: List<&2, U32>, +res: T.Bt) -> T.Bt:
+  +msg = List.append(&2, U32, S.b("Non-exhaustive patterns in "), what)
+  fd.callS("HsPrelude.HsList.error", [fd.tpl0(res), fd.callS("String.to_list", [T.BtStr{msg}])])
+
+# the marks of a clause's body (its own, and a guard's that falls through to
+# the last clause), as error's call e
+def fd.exh.put(t: T.Bt, +e: T.Bt) -> T.Bt:
+  match t:
+    case T.BtTodo{+w}:
+      fd.exh.if(T.Bt, fd.is(w, "fold:non-exhaustive"), _ => e, _ => T.BtTodo{w})
+    case T.BtApp{f, a}:
+      T.BtApp{fd.exh.put(f, e), fd.exh.put(a, e)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.exh.put(a, e), fd.exh.put(r, e)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.exh.put(a, e)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.exh.put(b, e)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.exh.put(a, e)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.exh.put(a, e), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.exh.put(cs, e)}
+    case T.BtExpr{x}:
+      T.BtExpr{fd.exh.put(x, e)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.exh.put(v, e), fd.exh.put(b, e)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.exh.put(b, e), fd.exh.put(r, e)}
+    case u:
+      u
+
+def fd.exh.name(+what: List<&2, U32>, +res: T.Bt, cls: List<&2, R>) -> List<&2, R>:
+  match cls:
+    case Nil{}:
+      Nil{}
+    case RC{ps, b, lt, f} <> t:
+      RC{ps, fd.exh.put(b, fd.exh.err(what, res)), lt, f} <> fd.exh.name(what, res, t)
+    case h <> t:
+      h <> fd.exh.name(what, res, t)
+
+def fd.exh.fname(+n: List<&2, U32>) -> List<&2, U32>:
+  List.append(&2, U32, S.b("function "), n)
+
 # a def from its name, its type variables and its clauses (an RMs)
 def fd.def.of(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, +tys: List<&2, T.Bt>, res: T.Bt, +cls: List<&2, R>) -> List<&2, T.BItem>:
   +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
@@ -5148,8 +5439,8 @@ def fd.def.of(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, +tys: List<&2
 
 def fd.def(+name: List<&2, U32>, +tvs: List<&2, List<&2, U32>>, r: R) -> List<&2, T.BItem>:
   match r:
-    case RMs{tys, res, cls}:
-      fd.def.of(name, tvs, tys, res, cls)
+    case RMs{tys, +res, cls}:
+      fd.def.of(name, tvs, tys, res, fd.exh.name(fd.exh.fname(name), res, cls))
     case _:
       T.BiDef{fd.vname(name), Nil{}, fd.todo("fold:shape"), fd.todo("fold:shape"), Nil{}} <> Nil{}
 
@@ -5368,7 +5659,8 @@ def fd.lam.if(flat: Bool, tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>, +env
 # a lambda: one clause of variables and an expression, else lifted
 def fd.lam(r: R, +env: Env) -> R:
   match r:
-    case RMs{tys, res, +cls}:
+    case RMs{tys, +res, cls0}:
+      +cls = fd.exh.name(S.b("lambda"), res, cls0)
       RE{fd.et(fd.lam.if(fd.lam.flat(cls), tys, res, cls, env))}
     case _:
       fd.bad(S.b("fold:lambda"))
@@ -5385,8 +5677,8 @@ def fd.ecase.of(r0: Maybe<&2, T.Bt>, ok: Bool, +x: List<&2, U32>, tys: List<&2, 
 # case x of ..: a match on the local x (lifted in an argument)
 def fd.ecase(+x: List<&2, U32>, r: R, +env: Env) -> R:
   match r:
-    case RMs{tys, res, cls}:
-      RE{fd.et(fd.ecase.of(fd.env.res(env), S.mem(x, fd.env.al(env)), x, tys, res, cls, env))}
+    case RMs{tys, +res, cls}:
+      RE{fd.et(fd.ecase.of(fd.env.res(env), S.mem(x, fd.env.al(env)), x, tys, res, fd.exh.name(S.b("case"), res, cls), env))}
     case _:
       fd.bad(S.b("fold:case"))
 
@@ -5420,8 +5712,8 @@ def fd.gdenv(+x: X.Sx, gd: X.Sx, +env: Env) -> Env:
 # case e of .. on a computed e: lifted
 def fd.ecasec(e: R, r: R, +env: Env) -> R:
   match r:
-    case RMs{tys, res, cls}:
-      RE{fd.et(fd.lift.of(False{}, tys, res, cls, env, fd.ex(e, env)))}
+    case RMs{tys, +res, cls}:
+      RE{fd.et(fd.lift.of(False{}, tys, res, fd.exh.name(S.b("case"), res, cls), env, fd.ex(e, env)))}
     case _:
       fd.bad(S.b("fold:case"))
 
@@ -5914,7 +6206,8 @@ def fd.ft.all(cls: List<&2, R>, +res: T.Bt, +env: Env) -> List<&2, R>:
 
 # a group of clauses (a def's, a case's, a lambda's)
 def fd.ms(tys: R, +res: T.Bt, cls: R, +env: Env) -> R:
-  RMs{fd.bts(fd.items(tys)), res, fd.ft.all(fd.items(cls), res, env)}
+  +ts = fd.bts(fd.items(tys))
+  RMs{ts, res, fd.ft.all(fd.exh.add(fd.items(cls), ts, env), res, env)}
 
 # whether the local t occurs in x (a recursive local value: its body names
 # it)
@@ -5941,8 +6234,8 @@ def fd.lbind(+x: List<&2, U32>, r: R, +env: Env, rec: Bool) -> R:
   match r:
     case RMs{Nil{}, +res, +cls}:
       fd.lbind.val(rec, x, res, cls, env)
-    case RMs{tys, res, cls}:
-      RLf{x, tys, res, cls}
+    case RMs{tys, +res, cls}:
+      RLf{x, tys, res, fd.exh.name(fd.exh.fname(x), res, cls)}
     case _:
       RB{x, fd.todo("fold:local-function")}
 
