@@ -4948,6 +4948,38 @@ def sp.lec.fun(+f: X.Sx) -> X.Sx:
   +ms2 = sp.l([sp.a("matches"), sp.l(List.append(&2, X.Sx, sp.els(sp.at(ms, 1n)), [sp.at(ty, 1n)])), sp.at(ty, 2n), sp.at(ms, 3n), sp.l(sp.lec.clauses(cs, v, sp.at(ty, 1n)))])
   sp.if(X.Sx, Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(ty, "tfun")), Bool.and(sp.lec.any(es), sp.lec.all(es))), _ => sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), ms2, sp.at(f, 5n)]), _ => f)
 
+# a local function whose one right-hand side is a lambda (resolveItem =
+# \case .., relabel base = \case ..: variable patterns, no guard, no where)
+# has the lambda's clauses as its own
+def sp.lec.vars(ps: List<&2, X.Sx>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case p <> t:
+      Bool.and(sp.head.is(p, "pvar"), sp.lec.vars(t))
+
+def sp.lec.pre(ms: List<&2, X.Sx>, +ps: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match ms:
+    case Nil{}:
+      Nil{}
+    case +m <> t:
+      sp.l([sp.a("match"), sp.l(List.append(&2, X.Sx, ps, sp.els(sp.at(m, 1n)))), sp.at(m, 2n)]) <> sp.lec.pre(t, ps)
+
+def sp.lec.lam(+f: X.Sx) -> X.Sx:
+  +ms = sp.at(f, 4n)
+  +cs = sp.els(sp.at(ms, 4n))
+  +m0 = sp.first(cs)
+  +ps = sp.els(sp.at(m0, 1n))
+  +gr = sp.at(m0, 2n)
+  +g0 = sp.first(sp.els(sp.at(gr, 1n)))
+  +e = sp.pc.strip(sp.at(g0, 2n))
+  +lm = sp.at(e, 2n)
+  +one = Bool.and(Bool.and(Nat.is_eq(List.length(&2, X.Sx, cs), 1n), Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")]))))
+  +loc = Bool.and(sp.head.is(f, "fun"), sp.head.is(sp.lg.key(f), "l"))
+  +ok = Bool.and(Bool.and(loc, one), Bool.and(Bool.and(sp.head.is(e, "lam"), sp.head.is(lm, "matches")), sp.lec.vars(ps)))
+  +ms2 = sp.l([sp.a("matches"), sp.l(List.append(&2, X.Sx, sp.els(sp.at(ms, 1n)), sp.els(sp.at(lm, 1n)))), sp.at(lm, 2n), sp.at(lm, 3n), sp.l(sp.lec.pre(sp.els(sp.at(lm, 4n)), ps))])
+  sp.if(X.Sx, ok, _ => sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), ms2, sp.at(f, 5n)]), _ => f)
+
 # (f . g) x, and (f . g) $ x, is f (g x): the chain read as calls
 def sp.lec.app(+x: X.Sx) -> X.Sx:
   +f = sp.pc.strip(sp.at(x, 1n))
@@ -4960,7 +4992,7 @@ def sp.lec(x: X.Sx) -> X.Sx:
   match x:
     case X.SxCons{X.SxAtom{+a}, t}:
       +n = {X.SxCons{X.SxAtom{a}, sp.lec(t)} : X.Sx}
-      sp.if(X.Sx, sp.is(a, "fun"), _ => sp.lec.fun(n), _ => sp.if(X.Sx, Bool.and(sp.is(a, "app"), Nat.is_eq(X.tsx.len(n), 3n)), _ => sp.lec.app(n), _ => n))
+      sp.if(X.Sx, sp.is(a, "fun"), _ => sp.lec.lam(sp.lec.fun(n)), _ => sp.if(X.Sx, Bool.and(sp.is(a, "app"), Nat.is_eq(X.tsx.len(n), 3n)), _ => sp.lec.app(n), _ => n))
     case X.SxCons{h, t}:
       X.SxCons{sp.lec(h), sp.lec(t)}
     case y:
@@ -5075,11 +5107,34 @@ def sp.fl.copy(+r: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
     case _ _:
       None{}
 
+# A local copy's variables that are named as one of its group's scope (the
+# model's kleisliR has an f, and so has transformNoDeferM around it: both
+# are then parameters of the group's members, by name): NAME_lc.
+def sp.fl.names(vs: List<&2, Asb>) -> List<&2, List<&2, U32>>:
+  match vs:
+    case Nil{}:
+      Nil{}
+    case Asb{+v, e} <> t:
+      sp.sat(v, 1n) <> sp.fl.names(t)
+
+def sp.fl.apart.s(bs: List<&2, Asb>, +ns: List<&2, List<&2, U32>>) -> List<&2, Asb>:
+  match bs:
+    case Nil{}:
+      Nil{}
+    case Asb{+v, e} <> t:
+      +rest = sp.fl.apart.s(t, ns)
+      +w = sp.l([sp.a("l"), X.SxStr{sp.cat(sp.sat(v, 1n), S.b("_lc"))}, sp.at(v, 2n)])
+      Bool.pick(List<&2, Asb>, Bool.and(sp.head.is(v, "l"), S.mem(sp.sat(v, 1n), ns)), Asb{v, w} <> rest, rest)
+
+def sp.fl.apart(+c: X.Sx, +sc: List<&2, Asb>) -> X.Sx:
+  +s = sp.fl.apart.s(sp.fa.binds(c, Nil{}), sp.fl.names(sc))
+  sp.if(X.Sx, List.is_empty(&2, Asb, s), _ => c, _ => sp.as.sub(c, None{}, s))
+
 # the copy's top through the passes, its var (g CUR N var) the local
 def sp.fl.run(m: Maybe<&2, X.Sx>, +n: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +rl: List<&2, X.Sx>, +ol: List<&2, Og>, +kn: List<&2, Rq>) -> Rw:
   match m:
     case Some{+c}:
-      +r = sp.passes0(c, cur, ix, rl, ol, kn)
+      +r = sp.passes0(sp.fl.apart(c, sp.og.base(ol)), cur, ix, rl, ol, kn)
       +s = {[Asb{sp.g(cur, n, "var"), sp.fl.var(n)}] : List<&2, Asb>}
       +y = sp.fl.x(r)
       Rw{sp.as.sub(y, sp.as.look(y, s), s), sp.fl.q(r)}
@@ -5149,7 +5204,7 @@ def sp.fl.fix(fuel: Nat, m: Maybe<&2, Rq>, +x: X.Sx, +q: List<&2, Rq>, +done: Li
 def sp.fl.start(r: Rw, +cur: List<&2, U32>, +ix: Ix, +kn: List<&2, Rq>) -> Rw:
   match r:
     case Rw{+x, +q}:
-      sp.fl.fix(16n, sp.fl.next(q, x, Nil{}), x, q, Nil{}, cur, ix, kn)
+      sp.fl.fix(64n, sp.fl.next(q, x, Nil{}), x, q, Nil{}, cur, ix, kn)
 
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +kn: List<&2, Rq>) -> Rw:
   sp.fl.start(sp.passes0(x, cur, ix, Nil{}, Nil{}, kn), cur, ix, kn)
