@@ -5075,11 +5075,34 @@ def sp.fl.copy(+r: Rq, +cur: List<&2, U32>, +ix: Ix) -> Maybe<&2, X.Sx>:
     case _ _:
       None{}
 
+# A local copy's variables that are named as one of its group's scope (the
+# model's kleisliR has an f, and so has transformNoDeferM around it: both
+# are then parameters of the group's members, by name): NAME_lc.
+def sp.fl.names(vs: List<&2, Asb>) -> List<&2, List<&2, U32>>:
+  match vs:
+    case Nil{}:
+      Nil{}
+    case Asb{+v, e} <> t:
+      sp.sat(v, 1n) <> sp.fl.names(t)
+
+def sp.fl.apart.s(bs: List<&2, Asb>, +ns: List<&2, List<&2, U32>>) -> List<&2, Asb>:
+  match bs:
+    case Nil{}:
+      Nil{}
+    case Asb{+v, e} <> t:
+      +rest = sp.fl.apart.s(t, ns)
+      +w = sp.l([sp.a("l"), X.SxStr{sp.cat(sp.sat(v, 1n), S.b("_lc"))}, sp.at(v, 2n)])
+      Bool.pick(List<&2, Asb>, Bool.and(sp.head.is(v, "l"), S.mem(sp.sat(v, 1n), ns)), Asb{v, w} <> rest, rest)
+
+def sp.fl.apart(+c: X.Sx, +sc: List<&2, Asb>) -> X.Sx:
+  +s = sp.fl.apart.s(sp.fa.binds(c, Nil{}), sp.fl.names(sc))
+  sp.if(X.Sx, List.is_empty(&2, Asb, s), _ => c, _ => sp.as.sub(c, None{}, s))
+
 # the copy's top through the passes, its var (g CUR N var) the local
 def sp.fl.run(m: Maybe<&2, X.Sx>, +n: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +rl: List<&2, X.Sx>, +ol: List<&2, Og>, +kn: List<&2, Rq>) -> Rw:
   match m:
     case Some{+c}:
-      +r = sp.passes0(c, cur, ix, rl, ol, kn)
+      +r = sp.passes0(sp.fl.apart(c, sp.og.base(ol)), cur, ix, rl, ol, kn)
       +s = {[Asb{sp.g(cur, n, "var"), sp.fl.var(n)}] : List<&2, Asb>}
       +y = sp.fl.x(r)
       Rw{sp.as.sub(y, sp.as.look(y, s), s), sp.fl.q(r)}
@@ -5149,7 +5172,7 @@ def sp.fl.fix(fuel: Nat, m: Maybe<&2, Rq>, +x: X.Sx, +q: List<&2, Rq>, +done: Li
 def sp.fl.start(r: Rw, +cur: List<&2, U32>, +ix: Ix, +kn: List<&2, Rq>) -> Rw:
   match r:
     case Rw{+x, +q}:
-      sp.fl.fix(16n, sp.fl.next(q, x, Nil{}), x, q, Nil{}, cur, ix, kn)
+      sp.fl.fix(64n, sp.fl.next(q, x, Nil{}), x, q, Nil{}, cur, ix, kn)
 
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +kn: List<&2, Rq>) -> Rw:
   sp.fl.start(sp.passes0(x, cur, ix, Nil{}, Nil{}, kn), cur, ix, kn)
