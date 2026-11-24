@@ -2238,8 +2238,9 @@ a fresh `--verdict`, no cache, 55 s).
   should be; three Bend refuses, "z consumed more than once"; one matches
   a local), 5 check, 2 fold:partial-in-lambda, 1 dep. A module alone
   (no spec) takes 35. So the model's F is total on the fragment, and
-  cata's is not: where cata's F answers it answered nothing but GHC's
-  answers here, and it is a functor on the part it takes. A foldr's
+  cata's is not; where cata's F answered, it answered nothing but GHC's
+  answers here. And on the part it takes it is not closed under
+  composition. A foldr's
   function that uses a parameter is worse than out: the parameter becomes
   a template (`def a1(~x: Nat, ys)`), which a caller cannot pass a run-time
   value, so F's composite is refused where F took both parts (`check: a
