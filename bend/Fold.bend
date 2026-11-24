@@ -14386,8 +14386,180 @@ def fd.dc.any(its: List<&2, T.BItem>) -> Bool:
 def fd.dc.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.dc.if(List<&2, T.BItem>, fd.dc.any(its), _ => fd.dc.items(its, fd.dc.fix(40n, its, Nil{})), _ => its)
 
+# Types that hold functions --------------------------------------------------------
+#
+# A data type with a field that is a function (`newtype State s a = State
+# { runState :: s -> (a, s) }`), or that holds a value of such a type, is no
+# Data in Bend but a Type, whose values are used at most once; a list, a
+# Maybe, an Either or a pair of one has the quantity &1 for it. Types are
+# found to a fixed point, the package's before too; a use of two, or a
+# prelude function that asks for Data, is Bend's to refuse.
+
+def fd.kd.if(-R: Type, c: Bool, t: Unit -> R, e: Unit -> R) -> R:
+  match c:
+    case True{}:
+      t(Unit{})
+    case False{}:
+      e(Unit{})
+
+def fd.kd.holder(+n: List<&2, U32>) -> Bool:
+  Bool.or(Bool.or(fd.is(n, "List"), fd.is(n, "Maybe")), Bool.or(fd.is(n, "Either"), fd.is(n, "Sigma")))
+
+# whether a type (or one of a spine's) is no Data
+def fd.kd.nd(t: T.Bt, +ks: List<&2, List<&2, U32>>) -> Bool:
+  match t:
+    case T.BtPi{m, x, i, a, b}:
+      True{}
+    case T.BtTyApp{+n, a}:
+      Bool.or(Bool.or(S.mem(n, ks), S.suffix(n, S.b(".fn"))), Bool.and(fd.kd.holder(n), fd.kd.nd(a, ks)))
+    case T.BtVar{+n}:
+      S.mem(n, ks)
+    case T.BtArgs{a, r}:
+      Bool.or(fd.kd.nd(a, ks), fd.kd.nd(r, ks))
+    case T.BtLam{m, x, b}:
+      fd.kd.nd(b, ks)
+    case _:
+      False{}
+
+def fd.kd.fields(fs: List<&2, T.BField>, +ks: List<&2, List<&2, U32>>) -> Bool:
+  match fs:
+    case T.BField{x, ty} <> t:
+      Bool.or(fd.kd.nd(ty, ks), fd.kd.fields(t, ks))
+    case Nil{}:
+      False{}
+
+def fd.kd.ctors(cs: List<&2, T.BCtor>, +ks: List<&2, List<&2, U32>>) -> Bool:
+  match cs:
+    case T.BCtor{c, fs} <> t:
+      Bool.or(fd.kd.fields(fs, ks), fd.kd.ctors(t, ks))
+    case Nil{}:
+      False{}
+
+def fd.kd.istype(k: T.Bt) -> Bool:
+  match k:
+    case T.BtVar{+x}:
+      fd.is(x, "Type")
+    case _:
+      False{}
+
+def fd.kd.add(b: Bool, n: List<&2, U32>, r: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match b:
+    case True{}:
+      n <> r
+    case False{}:
+      r
+
+# one round: the types that are Types, given ks
+def fd.kd.round(its: List<&2, T.BItem>, +ks: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match its:
+    case T.BiType{+n, ps, +k, cs, d} <> t:
+      fd.kd.add(Bool.or(Bool.and(fd.kd.istype(k), Bool.not(S.suffix(n, S.b(".fn")))), fd.kd.ctors(cs, ks)), n, fd.kd.round(t, ks))
+    case _ <> t:
+      fd.kd.round(t, ks)
+    case Nil{}:
+      Nil{}
+
+def fd.kd.fix(fuel: Nat, +its: List<&2, T.BItem>, +ks: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match fuel:
+    case 0n:
+      ks
+    case 1n+p:
+      +k2 = fd.kd.round(its, ks)
+      fd.kd.if(List<&2, List<&2, U32>>, Nat.is_eq(List.length(&2, List<&2, U32>, k2), List.length(&2, List<&2, U32>, ks)), _ => ks, _ => fd.kd.fix(p, its, k2))
+
+# the quantities rewritten
+def fd.kd.q(+a: T.Bt, +q: T.Bt, +ks: List<&2, List<&2, U32>>) -> T.Bt:
+  Bool.pick(T.Bt, fd.kd.nd(a, ks), fd.v("&1"), q)
+
+def fd.kd.args(+n: List<&2, U32>, a: T.Bt, +ks: List<&2, List<&2, U32>>) -> T.Bt:
+  match a:
+    case T.BtArgs{q, T.BtArgs{+x, T.BtANil{}}}:
+      T.tba.args([fd.kd.q(x, q, ks), x])
+    case T.BtArgs{q, T.BtArgs{r, T.BtArgs{+x, T.BtArgs{+y, T.BtANil{}}}}}:
+      T.tba.args([fd.kd.q(x, q, ks), fd.kd.q(y, r, ks), x, y])
+    case u:
+      u
+
+# a call's quantity before the type it is of (List.append(&2, T, ..))
+def fd.kd.first(a: T.Bt, +ks: List<&2, List<&2, U32>>) -> T.Bt:
+  match a:
+    case T.BtArgs{T.BtVar{+q}, T.BtArgs{+x, r}}:
+      T.BtArgs{Bool.pick(T.Bt, Bool.and(fd.is(q, "&2"), fd.kd.nd(x, ks)), fd.v("&1"), T.BtVar{q}), T.BtArgs{x, r}}
+    case u:
+      u
+
+def fd.kd.rw(t: T.Bt, +ks: List<&2, List<&2, U32>>) -> T.Bt:
+  match t:
+    case T.BtTyApp{+n, a}:
+      +b = fd.kd.rw(a, ks)
+      T.BtTyApp{n, Bool.pick(T.Bt, fd.kd.holder(n), fd.kd.args(n, b, ks), b)}
+    case T.BtPi{m, x, i, a, b}:
+      T.BtPi{m, x, i, fd.kd.rw(a, ks), fd.kd.rw(b, ks)}
+    case T.BtApp{f, a}:
+      T.BtApp{fd.kd.rw(f, ks), fd.kd.first(fd.kd.rw(a, ks), ks)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.kd.rw(a, ks), fd.kd.rw(r, ks)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.kd.rw(a, ks)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.kd.rw(b, ks)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.kd.rw(a, ks)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.kd.rw(a, ks)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.kd.rw(a, ks), fd.kd.rw(ty, ks)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.kd.rw(cs, ks)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.kd.rw(e, ks)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.kd.rw(e, ks), p, fd.kd.rw(b, ks)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.kd.rw(v, ks), fd.kd.rw(b, ks)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.kd.rw(b, ks), fd.kd.rw(r, ks)}
+    case u:
+      u
+
+def fd.kd.ps(ps: List<&2, T.BParam>, +ks: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      T.BParam{m, x, fd.kd.rw(ty, ks)} <> fd.kd.ps(t, ks)
+    case Nil{}:
+      Nil{}
+
+def fd.kd.fs(fs: List<&2, T.BField>, +ks: List<&2, List<&2, U32>>) -> List<&2, T.BField>:
+  match fs:
+    case T.BField{x, ty} <> t:
+      T.BField{x, fd.kd.rw(ty, ks)} <> fd.kd.fs(t, ks)
+    case Nil{}:
+      Nil{}
+
+def fd.kd.cs(cs: List<&2, T.BCtor>, +ks: List<&2, List<&2, U32>>) -> List<&2, T.BCtor>:
+  match cs:
+    case T.BCtor{c, fs} <> t:
+      T.BCtor{c, fd.kd.fs(fs, ks)} <> fd.kd.cs(t, ks)
+    case Nil{}:
+      Nil{}
+
+def fd.kd.items(its: List<&2, T.BItem>, +ks: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case T.BiType{+n, ps, k, cs, d} <> t:
+      T.BiType{n, ps, Bool.pick(T.Bt, S.mem(n, ks), fd.v("Type"), k), fd.kd.cs(cs, ks), d} <> fd.kd.items(t, ks)
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, fd.kd.ps(ps, ks), fd.kd.rw(r, ks), fd.kd.rw(b, ks), d} <> fd.kd.items(t, ks)
+    case h <> t:
+      h <> fd.kd.items(t, ks)
+    case Nil{}:
+      Nil{}
+
+def fd.kd.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ks = fd.kd.fix(30n, List.append(&2, T.BItem, its, dt), Nil{})
+  fd.kd.if(List<&2, T.BItem>, List.is_empty(&2, List<&2, U32>, ks), _ => its, _ => fd.kd.items(its, ks))
+
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.tm.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.got.items(gs)), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)))
+  fd.tm.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.all(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:

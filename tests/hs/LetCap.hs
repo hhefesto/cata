@@ -57,7 +57,7 @@ padded x0 y0 xs ys = go xs ys
   where
     go [] [] = []
     go as [] = map (+ y0) as
-    go [] bs = map (\b -> x0 - 0 + b) bs
+    go [] bs = map (\b -> x0 + b) bs
     go (a : as) (b : bs) = (a * b + x0) : go as bs
 
 hides :: Int -> [Int] -> Int
