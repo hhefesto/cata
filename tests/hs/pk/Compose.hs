@@ -1,6 +1,6 @@
 -- functions written as compositions: a recursion through traverse
 -- (Resolve's resolveModule and resolveItems)
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase, TupleSections #-}
 module Compose where
 
 import Data.Maybe (mapMaybe)
@@ -20,7 +20,7 @@ resolveModule ms stack name
 resolveItems :: Mods -> [String] -> [Item] -> Either String [(String, Int)]
 resolveItems ms stack = fmap concat . traverse resolveItem
   where
-    resolveItem it = case it of
+    resolveItem = \case
       Bind n v -> Right [(n, v)]
       Import n -> do
         bs <- resolveModule ms stack n
