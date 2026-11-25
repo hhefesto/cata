@@ -7,6 +7,7 @@
 set -u
 here=${0:A:h} top=${0:A:h:h:h:h}
 spec=${1:A} law=${2:A} w=${3:A}
+cd /  # GHCi looks in the working directory first: the source of a module there, not its G(F(h))
 rm -rf $w; mkdir -p $w/ex $w/o $w/l $w/obj
 print -l -- "-i$here" "-i$top/prelude" -XHaskell2010 -package-db $GHCT/lib/ghc-9.10.3/lib/package.conf.d -- $top/prelude/Cata/Base.hs $top/prelude/Cata/Parsec.hs $here/*.hs > $w/args
 ${HSX:-hs-export} --package $w/ex $w/args > $w/ex.log 2>&1 || { tail -5 $w/ex.log; exit 1 }

@@ -1825,6 +1825,91 @@ way (6 a pattern guard). hs1003: 19 left `out`; four went out, the lazy
 values `fibs2`, `fibs3`, `infinity` and 00473's `fib1` (ok-check, with no
 law any run could try).
 
+## Telomare's rules, 30: local copies, closures to Map, compositions, a package's own monads (2026-11-24)
+
+Spec and Fold, each with a test in `tests/hs/pk` (packages of several
+modules, through hs-export `--package`, spec, law `--package`; its
+`run.zsh SPEC LAW WORK` prints the ledger and GHC's check of G(F(h))):
+
+- **A case's binders are no locals of a lifted body** (Fold's `fd.fvs`,
+  SelfRef): EAL's selfReferential's `\(t, Sigma _ ty) -> .. tau vis' ty`
+  took tau's `t` (fold:closure-argument).
+- **A rec of several bindings** (GHC's MonoLocalBinds groups) is a group,
+  not `fold:recursive-local` (RecGrp: IR.Surface's traverseScoped).
+- **Copies in a group** (Spec's `sp.fl`, RecGrp, Transform, TransformM,
+  FoldRec): an instance's method's copy in a local group (`LoFlm`), a
+  recursive local as a known argument, a dictionary copy's call; their
+  parameters named apart (`fvHASH_i`), their clauses' variables too where
+  one is named as the group's scope (`sp.fl.apart`); what is in scope at
+  the group is no parameter of a copy in it (`sp.og`: the patterns around
+  it, the lets and wheres around it, the groups before it). A copy sees the
+  dictionary copies its module asked for (`kn`: forM_ in forM_'s lambda,
+  Instant: IC's instantiate), knows the defs its recursion goes through
+  (`rg`: FoldRec, Fast's positionsIn), has its closed local functions in it
+  when it has a run-time parameter, and its argument is read to a normal
+  form first (`sp.fa.norm`), so its call of itself is its own.
+- **Compositions** (`sp.lec`, Compose): a function whose right-hand sides
+  are compositions takes its argument, `(f . g) x` is `f (g x)`, a local
+  function written `\case` has its clauses; a local written point-free
+  (`ind = indent 2`, `sp.le`, MapClo) takes its arguments.
+- **Closures to Map and Set** (`sp.hf`'s HkMap, MapClo): Map's map, filter,
+  mapWithKey, filterWithKey, foldr, foldrWithKey and fmap at a function over
+  run-time locals are the list's recursion over its pairs
+  (`HsMap.fromAsc`), a Set's any, all, foldr, foldl over its elements. A let
+  of functions alone goes out over `&&` and `||`, a let out of an if's
+  condition. `Map.unions`.
+- **A package's own Functor, Monad, Foldable, Eq1, Show** (the model's defs
+  in `prelude/Cata/Base.hs`; OwnMonad, FixEq, FixEqG, ShowOwn, Unwrap,
+  Throw): `<$>`, `=<<`, void, when, unless, liftM2, `>>`, return, mapM,
+  sequence, `<$`; any, all, or, and, null, elem, concatMap; `<$>`/`<*>`
+  chains are liftA2; `==` at Fix is its Eq1's liftEq (`Generically1`'s
+  written from the declaration, `sp.g1`); shows at a type of the package;
+  Show at Fix inside a list or a pair; free's unwrap; throw of the package's
+  exception is a failure value; foldMap, for_, traverse_ at Maybe.
+- **Fold**: a local action (a State's value bound by a let) is a local
+  function of no parameters (Instant: EAL's intrinsic), `fd.kd.all` again
+  after the groups (EraReg: IC's eraRegion), sum and product at Rational, a
+  variable given to a lambda at once is used as often as the lambda uses it
+  (`fd.uses`), tuple sections (`sp.ts`).
+
+- **Local functions given functions** (`sp.lh`, LocHof): a one-clause local
+  function given its function, or a class's dictionary, is its lambda where
+  it is used, and its binding goes. A local value that may fail used only
+  inside local functions and lambdas (Certificate's width) is read there
+  (`sp.lz`, LazyLet).
+- **Catas Bend refuses as templates** (Fold): at an algebra that is partial
+  (`fd.lc.part`, PartCata) or over run-time locals (`fd.lcc`, CataClo) a
+  cata is a local recursion of its own. A template def in its own caller's
+  group is copied at its closed arguments (`fd.ti`, ShowCof).
+- **Partial defs** (Fold; PLAN, Partial functions): a lambda given its
+  arguments at once is read in place (`fd.rx`, PartFold); a point-free
+  partial def takes its parameters, in rounds (`fd.el.rounds`), and so does
+  a point-free def given a partial function (`fd.ey`, PartStep: Machine's
+  steps over a handler that errs); a def may be given several partial
+  functions (`n.pt0_1`); a def that answers an action, given a partial one,
+  takes its state (`fd.pc`, PartBuild: IR.Builder's lamS, pairS); an earlier
+  module's def given a partial function is copied (`NAME_im`, `fd.dx`,
+  ImpHof, UseHof: PrettyPrint.Indent's helpers).
+- **What Haskell leaves unforced** (`fd.sc`, LazyLet): the right side of &&
+  and || is an if where it is partial; a partial let only an if's branches
+  use is theirs; `zip xs (tail xs)` is `zip xs (drop 1 xs)`.
+- **IntMap's own error text** (IntMapAt): IntMap's ! is the model's
+  intMapAt, not Map's (mugen's laws found `Map.!: given key ..` there).
+- **IO is the state of what a program sees** (InOut): Spec writes the type
+  IO as `State World`, World the model's (`prelude/Cata/Base.hs`: the
+  console's input not read yet, its output so far, the files), and base's
+  putStr, putStrLn, print, getLine, getContents, interact, readFile,
+  writeFile, appendFile, isEOF, hFlush stdout (and ByteString's readFile and
+  writeFile) as the model's actions, so that IO's code is State's; an action
+  that throws is a partial one. No law runs IO yet: such defs are ok-check.
+  Other handles, caught exceptions, processes, time and randomness are not
+  in the model.
+- **Others**: Map.unionWithKey, Map.mapMaybe, partition at lists, Set, Map
+  and IntMap, `on`, Foldable's functions at Maybe, base's Down (comparing,
+  sortOn), `[a .. b]` at Integer, a type parameter that is a functor
+  (`fd.hk`, HkPar: Desugar's rewriteOuterTag), `iterate f x !! n` as n
+  applications (`iterateTimes`: an action's argument does not grow).
+
 ## cata as a functor (the user's view, 2026-11-22; branch ct)
 
 Haskell and Bend as categories: types are the objects, programs (up to the

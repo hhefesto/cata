@@ -20,6 +20,8 @@ import qualified Control.Applicative as A
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
 import Control.Exception (Exception)
+import Control.Monad.State (State, get, gets, modify, put)
+import Data.Char (chr, ord)
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
@@ -27,6 +29,7 @@ import Data.Functor.Foldable (cata)
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Word (Word8)
 import GHC.Show (showList__)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
@@ -536,3 +539,228 @@ transformCofree g (l C.:< fx) = g (l C.:< fmap (\y -> transformCofree g y) fx)
 -- | GHC.Show's default showsPrec (an instance that defines show)
 showsPrecDefault :: forall a. (a -> String) -> Int -> a -> ShowS
 showsPrecDefault sh _ x s = sh x ++ s
+
+-- | IO, read as the state of what a program sees of the world: its
+-- console's input not read yet, its output so far, its files (a file of
+-- bytes is their characters). Spec writes the type IO as State World and
+-- base's console and file actions as the ones here, so that IO's binds are
+-- State's; an action that throws (the end of the input, a file that is not
+-- there) is a partial one. What the model leaves out (other handles,
+-- exceptions caught, processes, time, randomness) stays IO, and out.
+data World = World String String (Map.Map String String)
+
+ioPutStr :: String -> State World ()
+ioPutStr s = modify (\w -> case w of World i o f -> World i (o ++ s) f)
+
+ioPutStrLn :: String -> State World ()
+ioPutStrLn s = ioPutStr (s ++ "\n")
+
+ioPutChar :: Char -> State World ()
+ioPutChar c = ioPutStr [c]
+
+ioPrint :: forall a. Show a => a -> State World ()
+ioPrint x = ioPutStr (show x ++ "\n")
+
+worldLine :: World -> Maybe (String, World)
+worldLine (World i o f) = case i of
+  [] -> Nothing
+  _ -> case break (== '\n') i of
+    (l, r) -> Just (l, World (drop 1 r) o f)
+
+ioGetLine :: State World String
+ioGetLine = do
+  w <- get
+  case worldLine w of
+    Nothing -> error "<stdin>: hGetLine: end of file"
+    Just (l, v) -> put v >> pure l
+
+worldChar :: World -> Maybe (Char, World)
+worldChar (World i o f) = case i of
+  [] -> Nothing
+  c : r -> Just (c, World r o f)
+
+ioGetChar :: State World Char
+ioGetChar = do
+  w <- get
+  case worldChar w of
+    Nothing -> error "<stdin>: hGetChar: end of file"
+    Just (c, v) -> put v >> pure c
+
+worldIn :: World -> (String, World)
+worldIn (World i o f) = (i, World [] o f)
+
+ioGetContents :: State World String
+ioGetContents = do
+  w <- get
+  case worldIn w of
+    (i, v) -> put v >> pure i
+
+ioInteract :: (String -> String) -> State World ()
+ioInteract f = ioGetContents >>= \s -> ioPutStr (f s)
+
+worldEOF :: World -> Bool
+worldEOF (World i o f) = null i
+
+ioIsEOF :: State World Bool
+ioIsEOF = gets worldEOF
+
+worldFile :: String -> World -> Maybe String
+worldFile p (World i o f) = Map.lookup p f
+
+ioReadFile :: String -> State World String
+ioReadFile p = do
+  w <- get
+  case worldFile p w of
+    Nothing -> error (p ++ ": openFile: does not exist (No such file or directory)")
+    Just s -> pure s
+
+ioWriteFile :: String -> String -> State World ()
+ioWriteFile p s = modify (\w -> case w of World i o f -> World i o (Map.insert p s f))
+
+ioAppendFile :: String -> String -> State World ()
+ioAppendFile p s = modify (\w -> case w of World i o f -> World i o (Map.insert p (Map.findWithDefault [] p f ++ s) f))
+
+-- | a file's bytes
+ioReadBytes :: String -> State World [Word8]
+ioReadBytes p = fmap (map (\c -> fromIntegral (ord c))) (ioReadFile p)
+
+ioWriteBytes :: String -> [Word8] -> State World ()
+ioWriteBytes p bs = ioWriteFile p (map (\b -> chr (fromIntegral b)) bs)
+
+-- | the handle of the output, and its flush
+ioStdout :: ()
+ioStdout = ()
+
+ioFlush :: () -> State World ()
+ioFlush _ = pure ()
+
+-- | base's Down: the order the other way round
+newtype Down a = Down a
+
+instance Eq a => Eq (Down a) where
+  Down x == Down y = x == y
+
+instance Ord a => Ord (Down a) where
+  compare (Down x) (Down y) = compare y x
+
+getDown :: Down a -> a
+getDown (Down x) = x
+
+-- | base's comparing and sortOn at a key that is a Down (their definitions;
+-- sortOn's keys are computed once each in base's)
+comparingOp :: forall a b. Ord a => (b -> a) -> b -> b -> Ordering
+comparingOp f x y = compare (f x) (f y)
+
+sortOnOp :: forall b a. Ord b => (a -> b) -> [a] -> [a]
+sortOnOp f xs = sortByOp (\x y -> compare (f x) (f y)) xs
+
+-- | foldr (.) id (intersperse s (map f xs)): no list of functions
+composeSep :: forall a. ShowS -> (a -> ShowS) -> [a] -> ShowS
+composeSep s f xs r = case xs of
+  [] -> r
+  [y] -> f y r
+  y : ys -> f y (s (composeSep s f ys r))
+
+-- | sequence of a list written out: no list of actions
+sequence1 :: forall m a. Monad m => m a -> m [a]
+sequence1 a = a >>= \x -> pure [x]
+
+sequence2 :: forall m a. Monad m => m a -> m a -> m [a]
+sequence2 a b = a >>= \x -> b >>= \y -> pure [x, y]
+
+sequence3 :: forall m a. Monad m => m a -> m a -> m a -> m [a]
+sequence3 a b c = a >>= \x -> b >>= \y -> c >>= \z -> pure [x, y, z]
+
+sequence4 :: forall m a. Monad m => m a -> m a -> m a -> m a -> m [a]
+sequence4 a b c d = a >>= \x -> b >>= \y -> c >>= \z -> d >>= \u -> pure [x, y, z, u]
+
+sequence5 :: forall m a. Monad m => m a -> m a -> m a -> m a -> m a -> m [a]
+sequence5 a b c d e = a >>= \x -> b >>= \y -> c >>= \z -> d >>= \u -> e >>= \v -> pure [x, y, z, u, v]
+
+-- | Data.List's sortBy (a stable merge sort), and minimumBy, maximumBy,
+-- groupBy and nubBy at lists: at a function over run-time locals, which a
+-- template of the prelude's could not take
+sortByOp :: forall a. (a -> a -> Ordering) -> [a] -> [a]
+sortByOp cmp xs = sortRuns cmp (map (\x -> [x]) xs)
+
+sortRuns :: forall a. (a -> a -> Ordering) -> [[a]] -> [a]
+sortRuns cmp rs = case rs of
+  [] -> []
+  [r] -> r
+  a : b : t -> sortRuns cmp (mergePairs cmp (a : b : t))
+
+mergePairs :: forall a. (a -> a -> Ordering) -> [[a]] -> [[a]]
+mergePairs cmp rs = case rs of
+  a : b : t -> mergeBy cmp a b : mergePairs cmp t
+  t -> t
+
+mergeBy :: forall a. (a -> a -> Ordering) -> [a] -> [a] -> [a]
+mergeBy cmp xs ys = case xs of
+  [] -> ys
+  x : xt -> case ys of
+    [] -> x : xt
+    y : yt -> case cmp x y of
+      GT -> y : mergeBy cmp (x : xt) yt
+      _ -> x : mergeBy cmp xt (y : yt)
+
+minimumByOp :: forall a. (a -> a -> Ordering) -> [a] -> a
+minimumByOp cmp xs = case xs of
+  [] -> error "minimumBy: empty structure"
+  x : t -> minimumGo cmp x t
+
+minimumGo :: forall a. (a -> a -> Ordering) -> a -> [a] -> a
+minimumGo cmp x ys = case ys of
+  [] -> x
+  y : t -> minimumGo cmp (case cmp x y of { GT -> y; _ -> x }) t
+
+maximumByOp :: forall a. (a -> a -> Ordering) -> [a] -> a
+maximumByOp cmp xs = case xs of
+  [] -> error "maximumBy: empty structure"
+  x : t -> maximumGo cmp x t
+
+maximumGo :: forall a. (a -> a -> Ordering) -> a -> [a] -> a
+maximumGo cmp x ys = case ys of
+  [] -> x
+  y : t -> maximumGo cmp (case cmp x y of { GT -> x; _ -> y }) t
+
+groupByOp :: forall a. (a -> a -> Bool) -> [a] -> [[a]]
+groupByOp eq xs = case xs of
+  [] -> []
+  x : t -> case spanBy eq x t of
+    (ys, zs) -> (x : ys) : groupByOp eq zs
+
+spanBy :: forall a. (a -> a -> Bool) -> a -> [a] -> ([a], [a])
+spanBy eq x ys = case ys of
+  [] -> ([], [])
+  y : t -> if eq x y then (case spanBy eq x t of (as, bs) -> (y : as, bs)) else ([], y : t)
+
+nubByOp :: forall a. (a -> a -> Bool) -> [a] -> [a]
+nubByOp eq xs = nubGo eq xs []
+
+nubGo :: forall a. (a -> a -> Bool) -> [a] -> [a] -> [a]
+nubGo eq ys xs = case ys of
+  [] -> []
+  y : t -> if elemBy eq y xs then nubGo eq t xs else y : nubGo eq t (y : xs)
+
+elemBy :: forall a. (a -> a -> Bool) -> a -> [a] -> Bool
+elemBy eq y xs = case xs of
+  [] -> False
+  x : t -> eq x y || elemBy eq y t
+
+minimumOnOp :: forall b a. Ord b => (a -> b) -> [a] -> a
+minimumOnOp f xs = minimumByOp (\x y -> compare (f x) (f y)) xs
+
+maximumOnOp :: forall b a. Ord b => (a -> b) -> [a] -> a
+maximumOnOp f xs = maximumByOp (\x y -> compare (f x) (f y)) xs
+
+-- | Set's filter and map at a function over run-time locals
+setFilterOp :: forall a. Ord a => (a -> Bool) -> Set.Set a -> Set.Set a
+setFilterOp p s = Set.fromList (filter p (Set.toAscList s))
+
+setMapOp :: forall b a. Ord b => (a -> b) -> Set.Set a -> Set.Set b
+setMapOp f s = Set.fromList (mapList f (Set.toAscList s))
+
+mapList :: forall a b. (a -> b) -> [a] -> [b]
+mapList f xs = case xs of
+  [] -> []
+  x : t -> f x : mapList f t
