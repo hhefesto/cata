@@ -4697,11 +4697,23 @@ def sp.fa.decide.at(dc: Maybe<&2, Rq>, +top0: Maybe<&2, X.Sx>, +h0: X.Sx, +x: X.
     case None{}:
       sp.fa.at(Maybe.bind(&2, X.Sx, X.Sx, top0, t => sp.fun.of(t)), h0, x, me, cur, ix, env, lf, None{})
 
-# the request of a copy an argument calls, when its call has a lambda
+# whether one of xs is a call that names one of megs (a def the recursion goes
+# through: stuckStep (abortStep (.. refinementCheckStep ..)) x)
+def sp.fa.hasmeg(xs: List<&2, X.Sx>, +megs: List<&2, X.Sx>) -> Bool:
+  match xs:
+    case Nil{}:
+      False{}
+    case +x <> t:
+      +y = sp.pc.strip(x)
+      sp.if(Bool, sp.if(Bool, sp.head.is(y, "app"), _ => sp.rg.any(y, megs), _ => False{}), _ => True{}, _ => sp.fa.hasmeg(t, megs))
+
+# the request of a copy an argument calls, when its call has a lambda (or a
+# call that names the recursion)
 def sp.fa.kn(+h: X.Sx, +x: X.Sx, +cur: List<&2, U32>, lf: Lf) -> Maybe<&2, Rq>:
   match lf:
-    case Lf{all, need, meg, +rl, ol, +kn, rg}:
-      sp.if(Maybe<&2, Rq>, sp.fa.haslam(sp.spine.args(x, Nil{}), rl), _ => sp.fa.dq.find(kn, h, cur), _ => None{})
+    case Lf{all, need, +meg, +rl, ol, +kn, +rg}:
+      +as = sp.spine.args(x, Nil{})
+      sp.if(Maybe<&2, Rq>, sp.if(Bool, sp.fa.haslam(as, rl), _ => True{}, _ => sp.fa.hasmeg(as, meg <> rg)), _ => sp.fa.dq.find(kn, h, cur), _ => None{})
 
 def sp.fa.decide(+x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +env: List<&2, Asb>, +lf: Lf, +dq: List<&2, Rq>) -> Maybe<&2, Fd>:
   match ix:
@@ -10871,6 +10883,590 @@ def sp.cxs(xs: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
     case +x <> t:
       List.append(&2, X.Sx, sp.if(List<&2, X.Sx>, sp.if(Bool, sp.head.is(x, "top"), _ => sp.cx.has(x), _ => False{}), _ => sp.cxs.each(sp.cb.inls(sp.cb.top(sp.cx.norm(x, ix)), ix)), _ => [x]), sp.cxs(t, ix))
 
+# Answers that hold a function -------------------------------------------------
+#
+# A def whose answer is a tuple with a function in it, telomare's
+#
+#   checkPlan :: CompiledExpr -> (AbortOrigin -> Bool, Maybe CompiledExpr)
+#
+# (the function const False, or erased o = .. lookup o planned, a closure over
+# a Map), bound by a let's tuple pattern, let (erased, prologue) = checkPlan
+# sized, gives the let's body a closure: erased passed on to defs that run it
+# again (eraseChecks's cata, certifiedProgramFrom) is a template's argument
+# naming a pattern's variable, and the def is out (fold:closure-argument).
+# The function is written as data (Reynolds' defunctionalization, the def's
+# answers known): each function the def's answers have at that place (the
+# tuples its clauses, cases, lets and ifs end in; a local function there its
+# lambda) is a constructor of
+#
+#   D = Either D1 (Either D2 (.. Dm)),  Di its free locals: (), the one
+#                                        local, or their tuple
+#
+# a copy of the def, NAME__dfn, answers Di's constructor where the function
+# was, and NAME__dfn_ap d x, by cases on d, is the function at x. The let
+# binds the data (its binder's type D), its right-hand side calls the copy,
+# and each use of its variable v is (NAME__dfn_ap v): a partial application
+# whose free local is data, a known argument (rule 15 copies the defs it is
+# passed to, the data their first parameter). The copy and ap are written into
+# the module of the let, as a def's copies are. The def itself stays; a def
+# that calls itself, an answer that is not a tuple there (a variable, a call),
+# a function there that is a pattern's or a lambda's variable, or a free local
+# of one that is a function, leave the let as it was.
+
+# a def whose answer holds a function: its key M.N and its top
+type Dq is Data:
+  Dq{k: List<&2, U32>, top: X.Sx}
+
+# a let's tuple pattern bound to such a def's call: the variable at the
+# function's place, the def's key and the place
+type Dc is Data:
+  Dc{v: X.Sx, k: List<&2, U32>, i: Nat}
+
+# a function at the place: the answer's component, its value (a lambda, for a
+# local function), its free locals with their types
+type Dl is Data:
+  Dl{c: X.Sx, v: X.Sx, fv: List<&2, Asb>}
+
+# a def's function as data: the def's key, D, the copy's and ap's names, the
+# def's, and the copy's and ap's tops
+type Dd is Data:
+  Dd{k: List<&2, U32>, d: X.Sx, cg: X.Sx, ag: X.Sx, og: X.Sx, tops: List<&2, X.Sx>}
+
+# a type's answer, after its parameters
+def sp.dq.res(t: X.Sx) -> X.Sx:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, X.SxCons{+r, X.SxNil{}}}}:
+      sp.if(X.Sx, sp.is(a, "tfun"), _ => sp.dq.res(r), _ => X.SxCons{X.SxAtom{a}, X.SxCons{p, X.SxCons{r, X.SxNil{}}}})
+    case y:
+      y
+
+# its parameters' count
+def sp.dq.npar(t: X.Sx) -> Nat:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{p, X.SxCons{+r, X.SxNil{}}}}:
+      sp.if(Nat, sp.is(a, "tfun"), _ => 1n+sp.dq.npar(r), _ => 0n)
+    case _:
+      0n
+
+# whether a type is a tuple's, (tc "GHC.Tuple" "TupleN" ..)
+def sp.dq.istup(+t: X.Sx) -> Bool:
+  Bool.and(sp.head.is(t, "tc"), Bool.and(sp.is(sp.sat(t, 1n), "GHC.Tuple"), S.prefix(sp.sat(t, 2n), S.b("Tuple"))))
+
+# the place of the first function among a tuple type's components
+def sp.dq.fnat(cs: List<&2, X.Sx>, +i: Nat) -> Maybe<&2, Nat>:
+  match cs:
+    case Nil{}:
+      None{}
+    case +c <> t:
+      sp.if(Maybe<&2, Nat>, sp.head.is(c, "tfun"), _ => Some{i}, _ => sp.dq.fnat(t, 1n+i))
+
+# the function's place in a def's answer, the def's type monomorphic
+def sp.dq.place(+ty: X.Sx) -> Maybe<&2, Nat>:
+  +r = sp.dq.res(ty)
+  +ok = Bool.and(sp.dq.istup(r), Bool.not(Bool.or(sp.has(ty, S.b("tforall")), sp.has(ty, S.b("tctx")))))
+  sp.if(Maybe<&2, Nat>, ok, _ => sp.dq.fnat(List.drop(&2, X.Sx, sp.els(r), 3n), 0n), _ => None{})
+
+# a top's one export, (export (g M N var) TYPE), else ()
+def sp.dq.exp(+top: X.Sx) -> X.Sx:
+  +abs = sp.at(top, 1n)
+  +es = sp.els(sp.at(abs, 3n))
+  sp.if(X.Sx, Bool.and(sp.head.is(abs, "abs"), Nat.is_eq(List.length(&2, X.Sx, es), 1n)), _ => sp.first(es), _ => X.SxNil{})
+
+def sp.dq.of(+x: X.Sx, +acc: List<&2, Dq>) -> List<&2, Dq>:
+  +e = sp.dq.exp(x)
+  +g = sp.at(e, 1n)
+  +ok = Bool.and(Bool.and(sp.head.is(x, "top"), sp.head.is(g, "g")), Maybe.is_some(&2, Nat, sp.dq.place(sp.at(e, 2n))))
+  sp.if(List<&2, Dq>, ok, _ => Dq{sp.key(sp.sat(g, 1n), sp.sat(g, 2n)), x} <> acc, _ => acc)
+
+# the package's defs whose answers hold a function, a module's added
+def sp.dq.index(xs: List<&2, X.Sx>, +acc: List<&2, Dq>) -> List<&2, Dq>:
+  match xs:
+    case Nil{}:
+      acc
+    case +x <> t:
+      sp.dq.index(t, sp.dq.of(x, acc))
+
+def sp.dq.find(ds: List<&2, Dq>, +k: List<&2, U32>) -> Maybe<&2, X.Sx>:
+  match ds:
+    case Nil{}:
+      None{}
+    case Dq{+dk, +top} <> t:
+      sp.if(Maybe<&2, X.Sx>, S.eq(dk, k), _ => Some{top}, _ => sp.dq.find(t, k))
+
+# an application's head, and its arguments' count
+def sp.dq.head(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, +r}}:
+      sp.if(X.Sx, sp.is(a, "app"), _ => sp.dq.head(f), _ => X.SxCons{X.SxAtom{a}, X.SxCons{f, r}})
+    case y:
+      y
+
+def sp.dq.nargs(x: X.Sx) -> Nat:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, r}}:
+      sp.if(Nat, sp.is(a, "app"), _ => 1n+sp.dq.nargs(f), _ => 0n)
+    case _:
+      0n
+
+# a patbind's one right-hand side, unguarded, else ()
+def sp.dq.rhs(+pb: X.Sx) -> X.Sx:
+  +gs = sp.els(sp.at(sp.at(pb, 3n), 1n))
+  +g0 = sp.first(gs)
+  sp.if(X.Sx, Bool.and(Nat.is_eq(List.length(&2, X.Sx, gs), 1n), Nat.is_eq(X.tsx.len(sp.at(g0, 1n)), 0n)), _ => sp.at(g0, 2n), _ => X.SxNil{})
+
+# a tuple pattern's variable at place i, (pvar (bv V T)), V unselfed, else ()
+def sp.dq.pv(+pat: X.Sx, +i: Nat) -> X.Sx:
+  +p = sp.at(sp.at(pat, 1n), i)
+  sp.if(X.Sx, Bool.and(sp.head.is(pat, "ptuple"), sp.head.is(p, "pvar")), _ => sp.fa.unself(sp.at(sp.at(p, 1n), 1n)), _ => X.SxNil{})
+
+def sp.dq.use.at(m: Maybe<&2, Nat>, sat: Bool, +k: List<&2, U32>, +pat: X.Sx) -> Maybe<&2, Dc>:
+  match m:
+    case Some{+i}:
+      +v = sp.dq.pv(pat, i)
+      sp.if(Maybe<&2, Dc>, Bool.and(sat, sp.head.is(v, "l")), _ => Some{Dc{v, k, i}}, _ => None{})
+    case None{}:
+      None{}
+
+def sp.dq.use.of(m: Maybe<&2, X.Sx>, +k: List<&2, U32>, +n: Nat, +pat: X.Sx) -> Maybe<&2, Dc>:
+  match m:
+    case Some{+top}:
+      +ty = sp.at(sp.dq.exp(top), 2n)
+      sp.dq.use.at(sp.dq.place(ty), Nat.is_eq(sp.dq.npar(ty), n), k, pat)
+    case None{}:
+      None{}
+
+# a patbind bound to a call, all its arguments, of a def whose answer holds a
+# function, its pattern a tuple's with a variable there
+def sp.dq.use(+pb: X.Sx, +ps: List<&2, Dq>) -> Maybe<&2, Dc>:
+  +rhs = sp.dq.rhs(pb)
+  +k = sp.gkey(sp.dq.head(rhs))
+  sp.dq.use.of(sp.dq.find(ps, k), k, sp.dq.nargs(rhs), sp.at(pb, 1n))
+
+def sp.dq.use.add(m: Maybe<&2, Dc>, acc: List<&2, Dc>) -> List<&2, Dc>:
+  match m:
+    case Some{d}:
+      d <> acc
+    case None{}:
+      acc
+
+def sp.dq.uses(x: X.Sx, +ps: List<&2, Dq>, +acc: List<&2, Dc>) -> List<&2, Dc>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +here = sp.if(List<&2, Dc>, sp.head.is(n, "patbind"), _ => sp.dq.use.add(sp.dq.use(n, ps), acc), _ => acc)
+      sp.dq.uses(t, ps, sp.dq.uses(h, ps, here))
+    case _:
+      acc
+
+def sp.dd.uses.all(xs: List<&2, X.Sx>, +ps: List<&2, Dq>) -> List<&2, Dc>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      +rest = sp.dd.uses.all(t, ps)
+      sp.if(List<&2, Dc>, sp.head.is(x, "top"), _ => sp.dq.uses(x, ps, rest), _ => rest)
+
+# x with its element j y
+def sp.dd.set(x: X.Sx, j: Nat, +y: X.Sx) -> X.Sx:
+  match x j:
+    case X.SxCons{h, t} 0n:
+      X.SxCons{y, t}
+    case X.SxCons{h, t} 1n+p:
+      X.SxCons{h, sp.dd.set(t, p, y)}
+    case z _:
+      z
+
+def sp.dd.tl(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      t
+    case z:
+      z
+
+# how often o is in x
+def sp.dd.count(x: X.Sx, +o: X.Sx) -> Nat:
+  match x:
+    case X.SxCons{+h, +t}:
+      sp.if(Nat, sp.eq(X.SxCons{h, t}, o), _ => 1n, _ => Nat.add(sp.dd.count(h, o), sp.dd.count(t, o)))
+    case _:
+      0n
+
+# The ends: the components at place i of the tuples a body ends in, each once
+# (None: an end that is not a tuple)
+
+def sp.dd.add(+c: X.Sx, acc: Maybe<&2, List<&2, X.Sx>>) -> Maybe<&2, List<&2, X.Sx>>:
+  match acc:
+    case Some{+cs}:
+      Some{sp.if(List<&2, X.Sx>, sp.fa.mem(c, cs), _ => cs, _ => List.append(&2, X.Sx, cs, [c]))}
+    case None{}:
+      None{}
+
+def sp.dd.hd1(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      h
+    case z:
+      z
+
+def sp.dd.iscons(x: X.Sx) -> Bool:
+  match x:
+    case X.SxCons{h, t}:
+      True{}
+    case _:
+      False{}
+
+# kind: 0 an expression, 1 a (matches ARGTYPES RESTYPE ORIGIN (MATCH..)), 2
+# its (MATCH..), each (match PATS GRHSS), 3 a (grhss (GRHS..) BINDS), 4 its
+# (GRHS..), each (grhs GUARDS E); one def, its fuel the depth
+def sp.dd.ends(fuel: Nat, +kind: Nat, +x: X.Sx, +i: Nat, +acc: Maybe<&2, List<&2, X.Sx>>) -> Maybe<&2, List<&2, X.Sx>>:
+  match fuel:
+    case 0n:
+      None{}
+    case 1n+(+k):
+      +h = sp.hd(x)
+      sp.if(Maybe<&2, List<&2, X.Sx>>, Nat.is_eq(kind, 0n), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, sp.is(h, "tuple"), _ => sp.dd.add(sp.at(x, 1n+i), acc), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, sp.is(h, "case"), _ => sp.dd.ends(k, 1n, sp.at(x, 2n), i, acc), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, Bool.or(sp.is(h, "let"), sp.is(h, "expanded")), _ => sp.dd.ends(k, 0n, sp.at(x, 2n), i, acc), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, sp.is(h, "if"), _ => sp.dd.ends(k, 0n, sp.at(x, 3n), i, sp.dd.ends(k, 0n, sp.at(x, 2n), i, acc)), _ => None{})))), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, Nat.is_eq(kind, 1n), _ => sp.dd.ends(k, 2n, sp.at(x, 4n), i, acc), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, Nat.is_eq(kind, 3n), _ => sp.dd.ends(k, 4n, sp.at(x, 1n), i, acc), _ => sp.if(Maybe<&2, List<&2, X.Sx>>, sp.dd.iscons(x), _ => sp.dd.ends(k, kind, sp.dd.tl(x), i, sp.dd.ends(k, Bool.pick(Nat, Nat.is_eq(kind, 2n), 3n, 0n), sp.at(sp.dd.hd1(x), 2n), i, acc)), _ => acc))))
+
+# The same ends, each component its constructor's value (ps: component, value)
+
+def sp.dd.at(+c: X.Sx, +ps: List<&2, Asb>) -> X.Sx:
+  Maybe.default(&2, X.Sx, sp.as.look(c, ps), c)
+
+# kind as sp.dd.ends's
+def sp.dd.rw(fuel: Nat, +kind: Nat, +x: X.Sx, +i: Nat, +ps: List<&2, Asb>) -> X.Sx:
+  match fuel:
+    case 0n:
+      x
+    case 1n+(+k):
+      +h = sp.hd(x)
+      sp.if(X.Sx, Nat.is_eq(kind, 0n), _ => sp.if(X.Sx, sp.is(h, "tuple"), _ => sp.dd.set(x, 1n+i, sp.dd.at(sp.at(x, 1n+i), ps)), _ => sp.if(X.Sx, sp.is(h, "case"), _ => sp.dd.set(x, 2n, sp.dd.rw(k, 1n, sp.at(x, 2n), i, ps)), _ => sp.if(X.Sx, Bool.or(sp.is(h, "let"), sp.is(h, "expanded")), _ => sp.dd.set(x, 2n, sp.dd.rw(k, 0n, sp.at(x, 2n), i, ps)), _ => sp.if(X.Sx, sp.is(h, "if"), _ => sp.dd.set(sp.dd.set(x, 2n, sp.dd.rw(k, 0n, sp.at(x, 2n), i, ps)), 3n, sp.dd.rw(k, 0n, sp.at(x, 3n), i, ps)), _ => x)))), _ => sp.if(X.Sx, Nat.is_eq(kind, 1n), _ => sp.dd.set(x, 4n, sp.dd.rw(k, 2n, sp.at(x, 4n), i, ps)), _ => sp.if(X.Sx, Nat.is_eq(kind, 3n), _ => sp.dd.set(x, 1n, sp.dd.rw(k, 4n, sp.at(x, 1n), i, ps)), _ => sp.if(X.Sx, sp.dd.iscons(x), _ => X.SxCons{sp.dd.set(sp.dd.hd1(x), 2n, sp.dd.rw(k, Bool.pick(Nat, Nat.is_eq(kind, 2n), 3n, 0n), sp.at(sp.dd.hd1(x), 2n), i, ps)), sp.dd.rw(k, kind, sp.dd.tl(x), i, ps)}, _ => x))))
+
+# The functions at the ends
+
+# the local function c names, (fun c TYPE SPAN MATCHES), in an unselfed top
+def sp.dd.fun(x: X.Sx, +c: X.Sx) -> Maybe<&2, X.Sx>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +r = sp.dd.fun(h, c)
+      sp.if(Maybe<&2, X.Sx>, Bool.and(sp.head.is(n, "fun"), sp.eq(sp.at(n, 1n), c)), _ => Some{n}, _ => sp.if(Maybe<&2, X.Sx>, Maybe.is_some(&2, X.Sx, r), _ => r, _ => sp.dd.fun(t, c)))
+    case _:
+      None{}
+
+# a local function's value: its lambda (sp.fa.lf.val for one with no parameter)
+def sp.dd.val(m: Maybe<&2, X.Sx>) -> Maybe<&2, X.Sx>:
+  match m:
+    case Some{+f}:
+      sp.if(Maybe<&2, X.Sx>, Nat.is_gt(X.tsx.len(sp.at(sp.at(f, 4n), 1n)), 0n), _ => Some{sp.fa.lam.of(f)}, _ => sp.fa.lf.val(f))
+    case None{}:
+      None{}
+
+# the free locals' types, each data (not a function)
+def sp.dd.fvt.of(m: Maybe<&2, X.Sx>, f: X.Sx, r: Maybe<&2, List<&2, Asb>>) -> Maybe<&2, List<&2, Asb>>:
+  match m r:
+    case Some{+ty} Some{rs}:
+      sp.if(Maybe<&2, List<&2, Asb>>, Bool.or(sp.head.is(ty, "tfun"), sp.head.is(ty, "tforall")), _ => None{}, _ => Some{Asb{f, ty} <> rs})
+    case _ _:
+      None{}
+
+def sp.dd.fvt(fs: List<&2, X.Sx>, +tb: List<&2, Asb>) -> Maybe<&2, List<&2, Asb>>:
+  match fs:
+    case Nil{}:
+      Some{Nil{}}
+    case +f <> t:
+      sp.dd.fvt.of(sp.as.look(f, tb), f, sp.dd.fvt(t, tb))
+
+def sp.dd.leaf.at(m: Maybe<&2, List<&2, Asb>>, c: X.Sx, v: X.Sx) -> Maybe<&2, Dl>:
+  match m:
+    case Some{fs}:
+      Some{Dl{c, v, fs}}
+    case None{}:
+      None{}
+
+def sp.dd.leaf.of(m: Maybe<&2, X.Sx>, c: X.Sx, +tb: List<&2, Asb>) -> Maybe<&2, Dl>:
+  match m:
+    case Some{+v}:
+      sp.dd.leaf.at(sp.dd.fvt(sp.fa.frees(v, sp.fa.binds(v, Nil{}), Nil{}), tb), c, v)
+    case None{}:
+      None{}
+
+# an end's function: a local's is its local function's lambda, anything else
+# itself (a def, a partial application, a lambda)
+def sp.dd.leaf(+c: X.Sx, +utop: X.Sx, +tb: List<&2, Asb>) -> Maybe<&2, Dl>:
+  +mv = {sp.if(Maybe<&2, X.Sx>, sp.head.is(c, "l"), _ => sp.dd.val(sp.dd.fun(utop, c)), _ => Some{c}) : Maybe<&2, X.Sx>}
+  sp.dd.leaf.of(mv, c, tb)
+
+def sp.dd.leaves.of(m: Maybe<&2, Dl>, r: Maybe<&2, List<&2, Dl>>) -> Maybe<&2, List<&2, Dl>>:
+  match m r:
+    case Some{l} Some{ls}:
+      Some{l <> ls}
+    case _ _:
+      None{}
+
+def sp.dd.leaves(cs: List<&2, X.Sx>, +utop: X.Sx, +tb: List<&2, Asb>) -> Maybe<&2, List<&2, Dl>>:
+  match cs:
+    case Nil{}:
+      Some{Nil{}}
+    case c <> t:
+      sp.dd.leaves.of(sp.dd.leaf(c, utop, tb), sp.dd.leaves(t, utop, tb))
+
+# The data D and its constructors
+
+def sp.dd.unit.t() -> X.Sx:
+  sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{})
+
+def sp.dd.tys(fs: List<&2, Asb>) -> List<&2, X.Sx>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case Asb{v, e} <> t:
+      e <> sp.dd.tys(t)
+
+def sp.dd.vs(fs: List<&2, Asb>) -> List<&2, X.Sx>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case Asb{v, e} <> t:
+      v <> sp.dd.vs(t)
+
+def sp.dd.pvs(fs: List<&2, Asb>) -> List<&2, X.Sx>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case Asb{v, e} <> t:
+      sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, e])]) <> sp.dd.pvs(t)
+
+def sp.dd.digits(n: Nat) -> List<&2, U32>:
+  X.tsx.atom.of(X.tsx.at(n, sp.l([sp.a("0"), sp.a("1"), sp.a("2"), sp.a("3"), sp.a("4"), sp.a("5"), sp.a("6"), sp.a("7"), sp.a("8"), sp.a("9")])))
+
+# Di: (), the one local's type, or their tuple's
+def sp.dd.di(+fs: List<&2, Asb>) -> X.Sx:
+  +n = List.length(&2, Asb, fs)
+  sp.if(X.Sx, Nat.is_eq(n, 0n), _ => sp.dd.unit.t(), _ => sp.if(X.Sx, Nat.is_eq(n, 1n), _ => sp.first(sp.dd.tys(fs)), _ => sp.tc(S.b("GHC.Tuple"), sp.cat(S.b("Tuple"), sp.dd.digits(n)), sp.dd.tys(fs))))
+
+# Di's value: (), the local, or the tuple of them
+def sp.dd.fx(+fs: List<&2, Asb>) -> X.Sx:
+  +n = List.length(&2, Asb, fs)
+  sp.if(X.Sx, Nat.is_eq(n, 0n), _ => sp.g(S.b("GHC.Tuple"), S.b("()"), "con"), _ => sp.if(X.Sx, Nat.is_eq(n, 1n), _ => sp.first(sp.dd.vs(fs)), _ => X.SxCons{sp.a("tuple"), sp.l(sp.dd.vs(fs))}))
+
+# Di's pattern
+def sp.dd.fp(+fs: List<&2, Asb>) -> X.Sx:
+  +n = List.length(&2, Asb, fs)
+  sp.if(X.Sx, Nat.is_eq(n, 0n), _ => sp.l([sp.a("pcon"), sp.g(S.b("GHC.Tuple"), S.b("()"), "con"), X.SxNil{}, sp.l([sp.a("args")])]), _ => sp.if(X.Sx, Nat.is_eq(n, 1n), _ => sp.first(sp.dd.pvs(fs)), _ => sp.l([sp.a("ptuple"), sp.l(sp.dd.pvs(fs))])))
+
+def sp.dd.dis(ls: List<&2, Dl>) -> List<&2, X.Sx>:
+  match ls:
+    case Nil{}:
+      Nil{}
+    case Dl{c, v, fs} <> t:
+      sp.dd.di(fs) <> sp.dd.dis(t)
+
+# D: Either D1 (Either D2 (.. Dm))
+def sp.dd.d.of(t: List<&2, X.Sx>, d: X.Sx) -> X.Sx:
+  match t:
+    case Nil{}:
+      d
+    case h <> r:
+      sp.tc(S.b("GHC.Internal.Data.Either"), S.b("Either"), [d, sp.dd.d.of(r, h)])
+
+def sp.dd.d(ds: List<&2, X.Sx>) -> X.Sx:
+  match ds:
+    case Nil{}:
+      sp.dd.unit.t()
+    case d <> t:
+      sp.dd.d.of(t, d)
+
+def sp.dd.con(n: List<&2, U32>, l: X.Sx, r: X.Sx) -> X.Sx:
+  sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.g(S.b("GHC.Internal.Data.Either"), n, "con"), l]), r])
+
+def sp.dd.pcon(n: List<&2, U32>, l: X.Sx, r: X.Sx, p: X.Sx) -> X.Sx:
+  sp.l([sp.a("pcon"), sp.g(S.b("GHC.Internal.Data.Either"), n, "con"), sp.l([l, r]), sp.l([sp.a("args"), p])])
+
+# the j-th of ds's constructors' value, x its fields' (Left at the first D,
+# Right at the rest, the last D alone)
+def sp.dd.inj(ds: List<&2, X.Sx>, +j: Nat, +x: X.Sx) -> X.Sx:
+  match ds:
+    case Nil{}:
+      x
+    case +d <> +r:
+      sp.if(X.Sx, List.is_empty(&2, X.Sx, r), _ => x, _ => sp.if(X.Sx, Nat.is_eq(j, 0n), _ => sp.l([sp.a("app"), sp.dd.con(S.b("Left"), d, sp.dd.d(r)), x]), _ => sp.l([sp.a("app"), sp.dd.con(S.b("Right"), d, sp.dd.d(r)), sp.dd.inj(r, Nat.sub(j, 1n), x)])))
+
+# its pattern, p its fields'
+def sp.dd.pat(ds: List<&2, X.Sx>, +j: Nat, +p: X.Sx) -> X.Sx:
+  match ds:
+    case Nil{}:
+      p
+    case +d <> +r:
+      sp.if(X.Sx, List.is_empty(&2, X.Sx, r), _ => p, _ => sp.if(X.Sx, Nat.is_eq(j, 0n), _ => sp.dd.pcon(S.b("Left"), d, sp.dd.d(r), p), _ => sp.dd.pcon(S.b("Right"), d, sp.dd.d(r), sp.dd.pat(r, Nat.sub(j, 1n), p))))
+
+# each end's component and its constructor's value
+def sp.dd.injs(ls: List<&2, Dl>, +j: Nat, +ds: List<&2, X.Sx>) -> List<&2, Asb>:
+  match ls:
+    case Nil{}:
+      Nil{}
+    case Dl{c, v, fs} <> t:
+      Asb{c, sp.dd.inj(ds, j, sp.dd.fx(fs))} <> sp.dd.injs(t, 1n+j, ds)
+
+# ap's clause for the j-th constructor: a lambda of one clause and one
+# pattern is that clause; anything else is applied to a variable
+def sp.dd.cl(+pj: X.Sx, +v: X.Sx, +a: X.Sx) -> X.Sx:
+  +ms = sp.at(v, 2n)
+  +one = Bool.and(sp.head.is(v, "lam"), Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n), Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 1n)))
+  +m0 = sp.at(sp.at(ms, 4n), 0n)
+  +x = sp.l([sp.a("l"), X.SxStr{S.b("dfn_x")}, sp.a("0")])
+  sp.if(X.Sx, one, _ => sp.l([sp.a("match"), sp.l([pj, sp.at(sp.at(m0, 1n), 0n)]), sp.at(m0, 2n)]), _ => sp.l([sp.a("match"), sp.l([pj, sp.l([sp.a("pvar"), sp.l([sp.a("bv"), x, a])])]), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, sp.beta(sp.l([sp.a("app"), v, x]), Nil{})])]), sp.l([sp.a("binds")])])]))
+
+def sp.dd.cls(ls: List<&2, Dl>, +j: Nat, +ds: List<&2, X.Sx>, +a: X.Sx) -> List<&2, X.Sx>:
+  match ls:
+    case Nil{}:
+      Nil{}
+    case Dl{c, v, fs} <> t:
+      sp.dd.cl(sp.dd.pat(ds, j, sp.dd.fp(fs)), v, a) <> sp.dd.cls(t, 1n+j, ds, a)
+
+# NAME__dfn_ap :: D -> A -> B, f the function's type (tfun A B)
+def sp.dd.ap.top(+g: X.Sx, +d: X.Sx, +f: X.Sx, cls: List<&2, X.Sx>) -> X.Sx:
+  +ty = sp.l([sp.a("tfun"), d, f])
+  +ms = sp.l([sp.a("matches"), sp.l([d, sp.at(f, 1n)]), sp.at(f, 2n), sp.a("source"), sp.l(cls)])
+  sp.l([sp.a("top"), sp.l([sp.a("abs"), X.SxNil{}, X.SxNil{}, sp.l([sp.l([sp.a("export"), g, ty])]), sp.l([sp.l([sp.a("evbinds")])]), sp.l([sp.l([sp.a("fun"), sp.l([sp.a("self"), g]), ty, sp.a("nospan"), ms])]), sp.a("nospan")])])
+
+# the def's one clause group's matches, with its ends rewritten
+def sp.dd.rw.top(+top: X.Sx, +i: Nat, +ps: List<&2, Asb>) -> X.Sx:
+  +abs = sp.at(top, 1n)
+  +fun = sp.first(sp.els(sp.at(abs, 5n)))
+  sp.dd.set(top, 1n, sp.dd.set(abs, 5n, sp.l([sp.dd.set(fun, 4n, sp.dd.rw(2000n, 1n, sp.at(fun, 4n), i, ps))])))
+
+def sp.dd.mk.of(m: Maybe<&2, List<&2, Dl>>, +top: X.Sx, +k: List<&2, U32>, +i: Nat, +cur: List<&2, U32>, +og: X.Sx, +tup: X.Sx, +f: X.Sx) -> Maybe<&2, Dd>:
+  match m:
+    case Some{+ls}:
+      +ds = sp.dd.dis(ls)
+      +d = sp.dd.d(ds)
+      +n = sp.sat(og, 2n)
+      +cg = sp.g(cur, sp.cat(n, S.b("__dfn")), "var")
+      +ag = sp.g(cur, sp.cat(n, S.b("__dfn_ap")), "var")
+      +tup2 = sp.dd.set(tup, Nat.add(3n, i), d)
+      +ct = sp.beta.sub(sp.beta.sub(sp.dd.rw.top(top, i, sp.dd.injs(ls, 0n, ds)), tup, tup2), og, cg)
+      Some{Dd{k, d, cg, ag, og, [ct, sp.dd.ap.top(ag, d, f, sp.dd.cls(ls, 0n, ds, sp.at(f, 1n)))]}}
+    case None{}:
+      None{}
+
+def sp.dd.mk.ls(m: Maybe<&2, List<&2, X.Sx>>, +utop: X.Sx, +tb: List<&2, Asb>) -> Maybe<&2, List<&2, Dl>>:
+  match m:
+    case Some{cs}:
+      sp.dd.leaves(cs, utop, tb)
+    case None{}:
+      None{}
+
+# a def's function at place i as data, its copy and ap written in module cur:
+# a def of one fun, not calling itself
+def sp.dd.mk(+top: X.Sx, +k: List<&2, U32>, +i: Nat, +cur: List<&2, U32>) -> Maybe<&2, Dd>:
+  +abs = sp.at(top, 1n)
+  +e = sp.dq.exp(top)
+  +og = sp.at(e, 1n)
+  +tup = sp.dq.res(sp.at(e, 2n))
+  +f = sp.at(tup, Nat.add(3n, i))
+  +bs = sp.els(sp.at(abs, 5n))
+  +fun = sp.first(bs)
+  +ok = Bool.and(Bool.and(sp.head.is(fun, "fun"), Nat.is_eq(List.length(&2, X.Sx, bs), 1n)), Nat.is_eq(sp.dd.count(top, og), 2n))
+  +utop = sp.fa.unself(top)
+  sp.if(Maybe<&2, Dd>, ok, _ => sp.dd.mk.of(sp.dd.mk.ls(sp.dd.ends(2000n, 1n, sp.at(fun, 4n), i, Some{Nil{}}), utop, sp.fa.binds(utop, Nil{})), top, k, i, cur, og, tup, f), _ => None{})
+
+def sp.dd.get(dds: List<&2, Dd>, +k: List<&2, U32>) -> Maybe<&2, Dd>:
+  match dds:
+    case Nil{}:
+      None{}
+    case Dd{+dk, +d, +cg, +ag, +og, +tops} <> t:
+      sp.if(Maybe<&2, Dd>, S.eq(dk, k), _ => Some{Dd{dk, d, cg, ag, og, tops}}, _ => sp.dd.get(t, k))
+
+def sp.dd.mk.find(m: Maybe<&2, X.Sx>, +k: List<&2, U32>, +i: Nat, +cur: List<&2, U32>) -> Maybe<&2, Dd>:
+  match m:
+    case Some{top}:
+      sp.dd.mk(top, k, i, cur)
+    case None{}:
+      None{}
+
+def sp.dd.make.at(m: Maybe<&2, Dd>, dds: List<&2, Dd>) -> List<&2, Dd>:
+  match m:
+    case Some{d}:
+      d <> dds
+    case None{}:
+      dds
+
+# each used def's data, once
+def sp.dd.make(us: List<&2, Dc>, +ps: List<&2, Dq>, +cur: List<&2, U32>, +dds: List<&2, Dd>) -> List<&2, Dd>:
+  match us:
+    case Nil{}:
+      dds
+    case Dc{v, +k, +i} <> t:
+      +have = Maybe.is_some(&2, Dd, sp.dd.get(dds, k))
+      sp.dd.make(t, ps, cur, sp.if(List<&2, Dd>, have, _ => dds, _ => sp.dd.make.at(sp.dd.mk.find(sp.dq.find(ps, k), k, i, cur), dds)))
+
+# The lets: a use's variable's data, when its def's was made
+def sp.dd.uv(+v: X.Sx, us: List<&2, Dc>, +dds: List<&2, Dd>) -> Maybe<&2, Dd>:
+  match us:
+    case Nil{}:
+      None{}
+    case Dc{+u, +k, i} <> t:
+      sp.if(Maybe<&2, Dd>, sp.eq(u, v), _ => sp.dd.get(dds, k), _ => sp.dd.uv(v, t, dds))
+
+def sp.dd.rw.bv(+n: X.Sx, m: Maybe<&2, Dd>) -> X.Sx:
+  match m:
+    case Some{Dd{k, d, cg, ag, og, tops}}:
+      sp.dd.set(n, 2n, d)
+    case None{}:
+      n
+
+def sp.dd.rw.l(+n: X.Sx, m: Maybe<&2, Dd>) -> X.Sx:
+  match m:
+    case Some{Dd{k, d, cg, ag, og, tops}}:
+      sp.l([sp.a("app"), ag, sp.fa.unself(n)])
+    case None{}:
+      n
+
+def sp.dd.pb.dd(m: Maybe<&2, Dc>, +dds: List<&2, Dd>) -> Maybe<&2, Dd>:
+  match m:
+    case Some{Dc{v, k, i}}:
+      sp.dd.get(dds, k)
+    case None{}:
+      None{}
+
+# the let's right-hand side calls the copy; its type, written, has D at i
+def sp.dd.rw.pb.of(m: Maybe<&2, Dc>, md: Maybe<&2, Dd>, +y: X.Sx) -> X.Sx:
+  match m md:
+    case Some{Dc{v, k, +i}} Some{Dd{dk, +d, +cg, ag, +og, tops}}:
+      +z = sp.dd.set(y, 3n, sp.beta.sub(sp.at(y, 3n), og, cg))
+      sp.if(X.Sx, Nat.is_gt(X.tsx.len(y), 4n), _ => sp.dd.set(z, 4n, sp.dd.set(sp.at(y, 4n), Nat.add(3n, i), d)), _ => z)
+    case _ _:
+      y
+
+def sp.dd.rw.use(x: X.Sx, +us: List<&2, Dc>, +dds: List<&2, Dd>, +ps: List<&2, Dq>) -> X.Sx:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +a = sp.hd(n)
+      sp.if(X.Sx, Bool.or(sp.is(a, "bv"), sp.is(a, "export")), _ => sp.dd.rw.bv(n, sp.dd.uv(sp.fa.unself(sp.at(n, 1n)), us, dds)), _ => sp.if(X.Sx, Bool.or(sp.is(a, "l"), sp.is(a, "self")), _ => sp.dd.rw.l(n, sp.dd.uv(sp.fa.unself(n), us, dds)), _ => sp.if(X.Sx, sp.is(a, "patbind"), _ => sp.dd.rw.pb.of(sp.dq.use(n, ps), sp.dd.pb.dd(sp.dq.use(n, ps), dds), X.SxCons{h, sp.dd.rw.use(t, us, dds, ps)}), _ => X.SxCons{sp.dd.rw.use(h, us, dds, ps), sp.dd.rw.use(t, us, dds, ps)})))
+    case y:
+      y
+
+def sp.dd.tops.rw(xs: List<&2, X.Sx>, +us: List<&2, Dc>, +dds: List<&2, Dd>, +ps: List<&2, Dq>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      sp.if(X.Sx, sp.head.is(x, "top"), _ => sp.dd.rw.use(x, us, dds, ps), _ => x) <> sp.dd.tops.rw(t, us, dds, ps)
+
+def sp.dd.tops(dds: List<&2, Dd>) -> List<&2, X.Sx>:
+  match dds:
+    case Nil{}:
+      Nil{}
+    case Dd{k, d, cg, ag, og, tops} <> t:
+      List.append(&2, X.Sx, tops, sp.dd.tops(t))
+
+# a module's tops, its lets bound to a function's def as data, then the copies
+# and aps they call
+def sp.dd.module(+xs: List<&2, X.Sx>, +ps: List<&2, Dq>, +cur: List<&2, U32>) -> List<&2, X.Sx>:
+  +us = sp.if(List<&2, Dc>, List.is_empty(&2, Dq, ps), _ => Nil{}, _ => sp.dd.uses.all(xs, ps))
+  +dds = sp.dd.make(us, ps, cur, Nil{})
+  sp.if(List<&2, X.Sx>, List.is_empty(&2, Dd, dds), _ => xs, _ => List.append(&2, X.Sx, sp.dd.tops.rw(xs, us, dds, ps), sp.dd.tops(dds)))
+
 # The program ------------------------------------------------------------------------
 
 def sp.text(xs: List<&2, X.Sx>) -> List<&2, U32>:
@@ -10941,7 +11537,7 @@ def sp.dups(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
     case +x <> t:
       sp.if(X.Sx, sp.head.is(x, "top"), _ => sp.dup.go(sp.dup.funs(x, Nil{}), Nil{}, x), _ => x) <> sp.dups(t)
 
-def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: List<&2, Wc>, +dg: List<&2, List<&2, U32>>) -> IO(Unit):
+def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: List<&2, Wc>, +dg: List<&2, List<&2, U32>>, +pq: List<&2, Dq>) -> IO(Unit):
   match fs:
     case Nil{}:
       S.write(out ++ "/modules.txt", list)
@@ -10951,17 +11547,19 @@ def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: Lis
         +xsr : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(sp.phan(sp.deq(sp.g1(X.tsx.read(bytes)), ix)), sp.ix.cts(ix)))
         +dg2 : List<&2, List<&2, U32>> <- IO.pure(List<&2, List<&2, U32>>, List.append(&2, List<&2, U32>, sp.dg.snds(xsr, sp.dg.offs(xsr)), dg))
         +xs0 : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.dg(xsr, dg2))
-        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.cxs(sp.hg(sp.kn(xs0), ix), sp.ix.module(xs0, ix)))
+        +xs1 : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.cxs(sp.hg(sp.kn(xs0), ix), sp.ix.module(xs0, ix)))
+        +pq2 : List<&2, Dq> <- IO.pure(List<&2, Dq>, sp.dq.index(xs1, pq))
+        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.dd.module(xs1, pq2, sp.modname(xs1)))
         +ix2 : Ix <- IO.pure(Ix, sp.ix.module(xs, ix))
         +p : String <- IO.pure(String, out ++ "/" ++ S.base(f))
         +md : Md <- IO.pure(Md, sp.module(xs, ix2, ws))
         S.write(p, sp.text(sp.dups(sp.pstys(sp.md.xs(md), sp.ix.cts(ix2)))))
-        sp.run(t, out, ix2, sp.cat(list, sp.cat(S.b(p), [10])), sp.md.wc(md), dg2)
+        sp.run(t, out, ix2, sp.cat(list, sp.cat(S.b(p), [10])), sp.md.wc(md), dg2, pq2)
 
 def sp.main(args: List<String>) -> IO(Unit):
   match args:
     case out <> files:
-      sp.run(files, out, sp.ix0(), Nil{}, Nil{}, Nil{})
+      sp.run(files, out, sp.ix0(), Nil{}, Nil{}, Nil{}, Nil{})
     case Nil{}:
       IO.print("usage: spec OUTDIR FILE.sexp...")
 
