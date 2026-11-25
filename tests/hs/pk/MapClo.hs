@@ -6,6 +6,7 @@ module MapClo where
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Function (on)
 import Data.List (intercalate)
 
 type Row = IntMap.IntMap Int
@@ -82,3 +83,16 @@ grow fuel n xs
 
 exGrow :: Int -> [Int] -> Int
 exGrow n xs = grow 4 n xs
+
+-- partition at a Set, a Map and an IntMap, mapMaybe, on
+parts :: Int -> [Int] -> (([Int], [Int]), ([(Int, Int)], [(Int, Int)]))
+parts k xs =
+  let (a, b) = Set.partition (== k) (Set.fromList xs)
+      (c, d) = Map.partition (> k) (Map.fromList (zip xs [1 ..]))
+      (e, f) = IntMap.partition (\v -> v - k > 0) (IntMap.fromList (zip xs (k : xs)))
+      g = Map.mapMaybe (\v -> if v > k then Just (v * k) else Nothing) c
+  in ((Set.toList a, Set.toList b ++ Map.elems d), (Map.toList g ++ IntMap.toList e, IntMap.toList f))
+
+exParts :: Int -> [Int] -> (([Int], [Int]), ([(Int, Int)], [(Int, Int)]))
+exParts k xs = case parts (k + 1) (k : xs) of
+  ((a, b), cd) -> if ((==) `on` length) a b then ((b, a), cd) else parts k xs

@@ -25,6 +25,7 @@ import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Functor.Foldable (cata)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import GHC.Show (showList__)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
@@ -412,6 +413,35 @@ partition p xs = case xs of
   [] -> ([], [])
   y : ys -> case partition p ys of
     (ts, fs) -> if p y then (y : ts, fs) else (ts, y : fs)
+
+-- | containers' partition at Set and Map, Map's mapMaybe (its pairs, in
+-- order), Data.Function's on
+setPartition :: forall a. Ord a => (a -> Bool) -> Set.Set a -> (Set.Set a, Set.Set a)
+setPartition p s = case partition p (Set.toAscList s) of
+  (ts, fs) -> (Set.fromList ts, Set.fromList fs)
+
+mapPartition :: forall a k. (a -> Bool) -> Map.Map k a -> (Map.Map k a, Map.Map k a)
+mapPartition p m = case partitionPairs p (Map.toAscList m) of
+  (ts, fs) -> (Map.fromDistinctAscList ts, Map.fromDistinctAscList fs)
+
+partitionPairs :: forall a k. (a -> Bool) -> [(k, a)] -> ([(k, a)], [(k, a)])
+partitionPairs p xs = case xs of
+  [] -> ([], [])
+  (k, v) : t -> case partitionPairs p t of
+    (ts, fs) -> if p v then ((k, v) : ts, fs) else (ts, (k, v) : fs)
+
+mapMapMaybe :: forall a b k. (a -> Maybe b) -> Map.Map k a -> Map.Map k b
+mapMapMaybe f m = Map.fromDistinctAscList (mapMaybePairs f (Map.toAscList m))
+
+mapMaybePairs :: forall a b k. (a -> Maybe b) -> [(k, a)] -> [(k, b)]
+mapMaybePairs f xs = case xs of
+  [] -> []
+  (k, v) : t -> case f v of
+    Nothing -> mapMaybePairs f t
+    Just w -> (k, w) : mapMaybePairs f t
+
+onOp :: forall b c a. (b -> b -> c) -> (a -> b) -> a -> a -> c
+onOp f g x y = f (g x) (g y)
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
