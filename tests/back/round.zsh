@@ -31,34 +31,57 @@ if (( ${#names} == 0 )); then
     [[ -f $lawout/$n.ghci ]] && names+=($n)
   done
 fi
-one() {
-  local n=$1 d=$work/$1
-  rm -rf $d; mkdir -p $d/ex $d/l $d/obj
-  print -l -- "-i$rt" -XHaskell2010 -- $rt/BendRt.hs $lawout/hs/$n.hs > $d/args
-  local t0=$SECONDS
-  if ! $hsx --package $d/ex $d/args > $d/ex.log 2>&1; then print "hsx $? 0" > $work/$n.done; return; fi
+# the modules are run JOBS batches at a time, each batch one package (BendRt
+# and BendPc, the runtime, are the slow part of a run: minutes, the same in
+# every run): WORK/batch_I/src/rNAME.hs is G(b) with its module renamed
+# RNAME (G(b)'s modules' names repeat), and WORK/NAME/l that module's part of
+# the batch's output
+batch() {
+  local i=$1 d=$work/batch_$1 n
+  shift
+  rm -rf $d; mkdir -p $d/ex $d/l $d/obj $d/src
+  for n in "$@"; do
+    sed "1,20s/^module [A-Za-z0-9_.']* /module R$n /" $lawout/hs/$n.hs > $d/src/R$n.hs
+  done
+  print -l -- "-i$rt" -XHaskell2010 -- $rt/BendRt.hs $d/src/*.hs > $d/args
+  local t0=$SECONDS rc
+  local bad
+  while ! $hsx --package $d/ex $d/args > $d/ex.log 2>&1; do
+    # a module GHC refuses is left out, the others are exported without it
+    bad=(${(u)${(f)"$(grep -oE 'src/R[^/]*\.hs:[0-9]+:[0-9]+: error' $d/ex.log | sed 's,^src/R,,; s,\.hs:.*,,')"}})
+    for n in $bad; do rm -f $d/src/R$n.hs; print "hsx 1 0" > $work/$n.done; rm -rf $work/$n; done
+    (( ${#bad} )) && [[ -n $bad[1] ]] || { for n in "$@"; do print "hsx 1 0" > $work/$n.done; done; return }
+    print -l -- "-i$rt" -XHaskell2010 -- $rt/BendRt.hs $d/src/*.hs(N) > $d/args
+  done
   (cd $d && GHC="${ghc} -i$rt -fobject-code -outputdir $d/obj" CATA_BEND2HS= nice -n 10 $law --package l $(cat ex/modules.txt) > l.log 2>&1)
-  print "law $? $((SECONDS - t0))" > $work/$n.done
+  rc=$?
+  for n in "$@"; do
+    [[ -f $d/src/R$n.hs ]] || continue
+    rm -rf $work/$n; mkdir -p $work/$n/l
+    for f in $d/l/*.bend(N); do [[ ${f:t} == R[0-9]* || ${f:t} == *_try.bend || ${f:t} == *_all.bend ]] || cp $f $work/$n/l/; done
+    [[ -f $d/l/R$n.bend ]] && cp $d/l/R$n.bend $work/$n/l/
+    awk -F'\t' -v m=/R$n.sexp 'substr($1, length($1) - length(m) + 1) == m' $d/l/ledger.tsv > $work/$n/l/ledger.tsv
+    print "law $rc $((SECONDS - t0))" > $work/$n.done
+  done
 }
 if [[ ${STAGE:-all} != cmp ]]; then
-  for n in $names; do
-    while (( ${#jobstates} >= jobs )); do sleep 0.2; done
-    one $n &
+  nb=$jobs
+  (( ${#names} < nb )) && nb=${#names}
+  for ((i = 1; i <= nb; i++)); do
+    part=()
+    for ((k = i; k <= ${#names}; k += nb)); do part+=($names[k]); done
+    batch $i $part &
   done
   wait
 fi
 bend=${BEND:-bend}
-# the runtime's own modules (prelude/Back: BendRt, BendPc), exported with
-# every G(b): the module compared is the one that is not one of them
-rtm=($rt/*.hs(N:t:r))
 (cd ${here:h:h}/bend && BEND_NO_TELEMETRY=1 $bend Round.bend -o $work/round > $work/round.build.log 2>&1) || { print "round: build failed ($work/round.build.log)"; exit 1 }
 : > $work/round.tsv
 for n in $names; do
   d=$work/$n
   rm -f $d/l/round_*.bend(N)
-  m=$(grep -v -E "/(${(j:|:)rtm})\.sexp\$" $d/ex/modules.txt 2>/dev/null | head -1)
-  m=${${m:t}%.sexp}
-  if [[ -z $m || ! -f $d/l/ledger.tsv ]]; then print "$n\t*\tno-run\t$(cat $work/$n.done 2>/dev/null)" >> $work/round.tsv; continue; fi
+  m=R$n
+  if [[ ! -f $d/l/ledger.tsv ]]; then print "$n\t*\tno-run\t$(cat $work/$n.done 2>/dev/null)" >> $work/round.tsv; continue; fi
   # law writes no MOD.bend when it keeps nothing of the module: every def
   # is then missing, with the ledger's reason
   f=$d/l/$m.bend

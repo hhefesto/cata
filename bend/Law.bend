@@ -3223,9 +3223,19 @@ def lw.back.own(ds: List<&2, Dd>, +n: List<&2, U32>) -> Bool:
     case Dd{+m, tvs, cs} <> t:
       Bool.or(S.eq(m, n), lw.back.own(t, n))
 
+# h's number type for Nat by what the export names: no Int and no Integer,
+# Natural; Int alone, Int
+def lw.back.nt.of(i: Bool, z: Bool, n: Bool, +dds: List<&2, Dd>) -> List<&2, U32>:
+  match i z n:
+    case False{} False{} _:
+      Bool.pick(List<&2, U32>, lw.back.own(dds, S.b("Natural")), Nil{}, S.b("Natural"))
+    case True{} False{} False{}:
+      Bool.pick(List<&2, U32>, lw.back.own(dds, S.b("Int")), Nil{}, S.b("Int"))
+    case _ _ _:
+      Nil{}
+
 def lw.back.nt(+dds: List<&2, Dd>, +xs: List<&2, X.Sx>) -> List<&2, U32>:
-  +int = Bool.or(lw.has.str(xs, S.b("Int")), lw.has.str(xs, S.b("Integer")))
-  Bool.pick(List<&2, U32>, Bool.or(int, lw.back.own(dds, S.b("Natural"))), Nil{}, S.b("Natural"))
+  lw.back.nt.of(lw.has.str(xs, S.b("Int")), lw.has.str(xs, S.b("Integer")), lw.has.str(xs, S.b("Natural")), dds)
 
 # what G needs of the module (Back.bend's BkN), when CATA_BEND2HS is set
 # (on): nothing is computed when it is not

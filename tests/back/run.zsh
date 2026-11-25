@@ -56,6 +56,21 @@ for n in $names; do
   nice -n 10 ${=ghc} --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/l/hs "*$work/l/hs/$n.hs" +RTS -M2g -RTS < <(sed -f $lawg $work/l/$n.ghci) > $work/l/hs/$n.ghc 2>&1 &
 done
 wait
+# the limits of a law's call (2 s, 500 MB: Law.bend's lawRun) are h's: where
+# h answers within them and G(F(h)) (interpreted, BendRt with it) does not,
+# G's calls run again with 10 s and 8 GB
+for n in $names; do
+  o=$work/l/hs/$n.ghc
+  again=$(awk 'NR == FNR { if ($1 == "@law" && $4 == "timeout") g[$2 " " $3]; next } $1 == "@law" && $4 == "ok" && ($2 " " $3) in g { print "lawRun \"" $2 "\" " $3 " " }' $o $work/l/$n.ghc)
+  [[ -n $again ]] || continue
+  while (( ${#jobstates} >= jobs )); do sleep 0.2; done
+  print -r -- $again > $work/l/hs/$n.again
+  { sed -f $lawg $work/l/$n.ghci | awk -v A=$work/l/hs/$n.again 'BEGIN { while ((getline x < A) > 0) k[++c] = x } /^lawRun "/ { for (i = 1; i <= c; i++) if (index($0, k[i]) == 1) { print; next } next } { print }' |
+    sed 's/setAllocationCounter 500000000/setAllocationCounter 8000000000/; s/LawT.timeout 2000000/LawT.timeout 10000000/' |
+    nice -n 10 ${=ghc} --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/l/hs "*$work/l/hs/$n.hs" +RTS -M2g -RTS > $work/l/hs/$n.ghc2 2>&1
+    awk 'NR == FNR { if ($1 == "@law" && $4 != "timeout") g[$2 " " $3] = $0; next } $1 == "@law" && $4 == "timeout" && ($2 " " $3) in g { print g[$2 " " $3]; next } { print }' $work/l/hs/$n.ghc2 $o > $o.new && mv $o.new $o } &
+done
+wait
 T=0 S=0 R=0 D=0 M=0 X=0 L=0 N=0
 for n in $names; do
   N=$((N + 1))
