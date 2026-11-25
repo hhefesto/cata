@@ -60,8 +60,14 @@ concatMap f (x : xs) = f x ++ concatMap f xs
 iterateIndex :: (a -> a) -> a -> Int -> a
 iterateIndex f x n
   | n < 0 = error "Prelude.!!: negative index"
-  | n == 0 = x
-  | otherwise = iterateIndex f (f x) (n - 1)
+  | otherwise = iterateTimes f x n
+
+-- | f applied n times to x: x is f's argument at the bottom, so that at an
+-- action (a function) no argument grows
+iterateTimes :: (a -> a) -> a -> Int -> a
+iterateTimes f x n
+  | n <= 0 = x
+  | otherwise = f (iterateTimes f x (n - 1))
 
 -- | base's instances at pairs, (,) w: Functor, Applicative (at a Monoid
 -- w) and Traversable. Spec writes a method at (,) w as the def here, at w

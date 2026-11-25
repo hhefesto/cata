@@ -12398,7 +12398,7 @@ def fd.fi.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
 # Either)
 type Pt is Data:
   Pt{n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt}
-  Ph{n: List<&2, U32>, i: Nat, ps: List<&2, T.BParam>, b: T.Bt, r: T.Bt}
+  Ph{n: List<&2, U32>, iz: List<&2, Nat>, ps: List<&2, T.BParam>, r: T.Bt}
 
 # a partial call bound before an answer: its variable, answer and call
 type Pb is Data:
@@ -12423,6 +12423,7 @@ type Ptm is Data:
   PtIm{}
   PtJm{}
   PtFm{fs: List<&2, Bool>}
+  PtGm{ts: List<&2, Maybe<&2, T.Bt>>}
   PtLm{nx: Ptm}
 
 def fd.pt.sty() -> T.Bt:
@@ -12531,7 +12532,7 @@ def fd.pt.own(ks: List<&2, Pt>, +f: List<&2, U32>, +xs: List<&2, T.Bt>) -> Maybe
       None{}
     case Pt{n, +ps, r} <> t:
       Bool.pick(Maybe<&2, T.Bt>, S.eq(n, f), Some{fd.pt.put(ps, xs, fd.pt.ren(ps, r))}, fd.pt.own(t, f, xs))
-    case Ph{n, i, ps, b, r} <> t:
+    case Ph{n, iz, ps, r} <> t:
       fd.pt.own(t, f, xs)
 
 def fd.pt.ans.of(+ks: List<&2, Pt>, +f: List<&2, U32>, +xs: List<&2, T.Bt>) -> Maybe<&2, T.Bt>:
@@ -12544,7 +12545,7 @@ def fd.pt.isown(ks: List<&2, Pt>, +f: List<&2, U32>) -> Bool:
       False{}
     case Pt{n, ps, r} <> t:
       Bool.or(S.eq(n, f), fd.pt.isown(t, f))
-    case Ph{n, i, ps, b, r} <> t:
+    case Ph{n, iz, ps, r} <> t:
       fd.pt.isown(t, f)
 
 def fd.pt.is(+ks: List<&2, Pt>, +f: List<&2, U32>) -> Bool:
@@ -12588,6 +12589,7 @@ def fd.pt.amode(brh: Bool) -> Ptm:
 # forced there; the laws compare.
 type Ho is Data:
   Ho{f: List<&2, U32>, fs: List<&2, Bool>, pre: List<&2, T.Bt>, b: T.Bt, r: T.Bt}
+  Hg{f: List<&2, U32>, ts: List<&2, Maybe<&2, T.Bt>>, r: T.Bt}
 
 def fd.pt.ho.lam(+ks: List<&2, Pt>, g: T.Bt) -> Bool:
   match g:
@@ -12701,13 +12703,66 @@ def fd.pt.hoq(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe
 
 # a def given a partial function as its i-th argument (Ph, fd.ph): its
 # variant n.pt<i>, whose function answers the Either and which answers it
-def fd.ph.name(+n: List<&2, U32>, i: Nat) -> List<&2, U32>:
-  fd.cat(n, fd.cat(S.b(".pt"), fd.nshow(i)))
+def fd.ph.suf(iz: List<&2, Nat>) -> List<&2, U32>:
+  match iz:
+    case Nil{}:
+      Nil{}
+    case i <> Nil{}:
+      fd.nshow(i)
+    case i <> t:
+      fd.cat(fd.nshow(i), fd.cat(S.b("_"), fd.ph.suf(t)))
 
-def fd.ph.hit(hit: Bool, +all: List<&2, Pt>, +n: List<&2, U32>, +i: Nat, +ps: List<&2, T.BParam>, +b: T.Bt, +r: T.Bt, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
+def fd.ph.name(+n: List<&2, U32>, iz: List<&2, Nat>) -> List<&2, U32>:
+  fd.cat(n, fd.cat(S.b(".pt"), fd.ph.suf(iz)))
+
+def fd.ph.fun(+ty: T.Bt) -> Bool:
+  Nat.is_gt(fd.ee.arrows(ty), 0n)
+
+def fd.ph.idx(ps: List<&2, T.BParam>, +i: Nat) -> List<&2, Nat>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, +ty} <> t:
+      +rest = fd.ph.idx(t, 1n+i)
+      Bool.pick(List<&2, Nat>, fd.ph.fun(ty), i <> rest, rest)
+
+# the arguments, of those at js, that are partial functions
+def fd.ph.which(js: List<&2, Nat>, +as: List<&2, T.Bt>, +ks: List<&2, Pt>) -> List<&2, Nat>:
+  match js:
+    case Nil{}:
+      Nil{}
+    case +i <> t:
+      +rest = fd.ph.which(t, as, ks)
+      Bool.pick(List<&2, Nat>, fd.pt.has(ks, fd.pt.nth(as, i)), i <> rest, rest)
+
+def fd.ph.eqs(iz: List<&2, Nat>, js: List<&2, Nat>) -> Bool:
+  match iz js:
+    case Nil{} Nil{}:
+      True{}
+    case i <> t j <> u:
+      Bool.and(Nat.is_eq(i, j), fd.ph.eqs(t, u))
+    case _ _:
+      False{}
+
+def fd.ph.in(iz: List<&2, Nat>, +i: Nat) -> Bool:
+  match iz:
+    case Nil{}:
+      False{}
+    case j <> t:
+      Bool.or(Nat.is_eq(i, j), fd.ph.in(t, i))
+
+# what each argument answers, where it is one of those
+def fd.ph.ts(qs: List<&2, T.BParam>, +i: Nat, +iz: List<&2, Nat>, +ps: List<&2, T.BParam>, +as: List<&2, T.Bt>) -> List<&2, Maybe<&2, T.Bt>>:
+  match qs:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, +ty} <> t:
+      fd.pt.if(Maybe<&2, T.Bt>, fd.ph.in(iz, i), _ => Some{fd.pt.put(ps, as, fd.pt.ren(ps, fd.ee.cod(ty)))}, _ => None{}) <> fd.ph.ts(t, 1n+i, iz, ps, as)
+
+def fd.ph.hit(hit: Bool, +all: List<&2, Pt>, +n: List<&2, U32>, +iz: List<&2, Nat>, +ps: List<&2, T.BParam>, +r: T.Bt, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   match hit:
     case True{}:
-      fd.pt.if(Maybe<&2, Ho>, fd.pt.has(all, fd.pt.nth(as, i)), _ => Some{Ho{fd.ph.name(n, i), fd.pt.ho.fs(i), Nil{}, fd.pt.put(ps, as, fd.pt.ren(ps, b)), fd.pt.put(ps, as, fd.pt.ren(ps, r))}}, _ => None{})
+      fd.pt.if(Maybe<&2, Ho>, fd.ph.eqs(iz, fd.ph.which(fd.ph.idx(ps, 0n), as, all)), _ => Some{Hg{fd.ph.name(n, iz), fd.ph.ts(ps, 0n, iz, ps, as), fd.pt.put(ps, as, fd.pt.ren(ps, r))}}, _ => None{})
     case False{}:
       None{}
 
@@ -12715,8 +12770,8 @@ def fd.ph.find(ks: List<&2, Pt>, +all: List<&2, Pt>, +f: List<&2, U32>, +as: Lis
   match ks:
     case Nil{}:
       None{}
-    case Ph{+n, i, ps, b, r} <> t:
-      Maybe.or(&2, Ho, fd.ph.hit(S.eq(n, f), all, n, i, ps, b, r, as), fd.ph.find(t, all, f, as))
+    case Ph{+n, iz, ps, r} <> t:
+      Maybe.or(&2, Ho, fd.ph.hit(S.eq(n, f), all, n, iz, ps, r, as), fd.ph.find(t, all, f, as))
     case Pt{n, ps, r} <> t:
       fd.ph.find(t, all, f, as)
 
@@ -12728,6 +12783,8 @@ def fd.pt.ho.mode(m: Maybe<&2, Ho>, d: Ptm) -> Ptm:
   match m:
     case Some{Ho{f, fs, pre, b, r}}:
       PtFm{fs}
+    case Some{Hg{f, ts, r}}:
+      PtGm{ts}
     case None{}:
       d
 
@@ -12735,6 +12792,8 @@ def fd.pt.ho.ty(m: Maybe<&2, Ho>, d: T.Bt) -> T.Bt:
   match m:
     case Some{Ho{f, fs, pre, b, r}}:
       b
+    case Some{Hg{f, ts, r}}:
+      d
     case None{}:
       d
 
@@ -12863,6 +12922,10 @@ def fd.pt.app2(ho: Maybe<&2, Ho>, +ks: List<&2, Pt>, m: Ptm, +f: List<&2, U32>, 
       match w:
         case Pw{a, bs, k, bad, e, at}:
           fd.pt.app.go(Some{r}, m, T.BtVar{g}, fd.pt.pre(pre, a), bs, k, bad, lam)
+    case Some{Hg{g, ts, r}}:
+      match w:
+        case Pw{a, bs, k, bad, e, at}:
+          fd.pt.app.go(Some{r}, m, T.BtVar{g}, a, bs, k, bad, lam)
     case None{}:
       fd.pt.app(ks, m, f, w, lam, brh)
 
@@ -13015,6 +13078,12 @@ def fd.pt.go(+ks: List<&2, Pt>, t: T.Bt, m: Ptm, +ty: T.Bt, +n: Nat, +lam: Bool)
       fd.pt.mk.args(wh, fd.pt.go(ks, rest, PtJm{}, ty, fd.pt.n(wh), lam))
     case u PtJm{}:
       Pw{u, Nil{}, n, False{}, False{}, T.BtType{}}
+    case T.BtArgs{h, rest} PtGm{Some{+fty} <> ts}:
+      +wh = fd.pt.go(ks, h, PtLm{PtAm{}}, fty, n, False{})
+      fd.pt.mk.args(wh, fd.pt.go(ks, rest, PtGm{ts}, ty, fd.pt.n(wh), lam))
+    case T.BtArgs{h, rest} PtGm{None{} <> ts}:
+      +wh = fd.pt.go(ks, h, PtWm{}, ty, n, lam)
+      fd.pt.mk.args(wh, fd.pt.go(ks, rest, PtGm{ts}, ty, fd.pt.n(wh), lam))
     case T.BtArgs{h, rest} PtFm{True{} <> fs}:
       +wh = fd.pt.go(ks, h, PtLm{PtAm{}}, ty, n, False{})
       fd.pt.mk.args(wh, fd.pt.go(ks, rest, PtFm{fs}, ty, fd.pt.n(wh), lam))
@@ -13525,62 +13594,46 @@ def fd.pa.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
 # Either, itself a partial def. The variants are those the module's calls
 # need, and those the variants' bodies do (the function passed on).
 type Hkf is Data:
-  Hkf{g: List<&2, U32>, i: Nat}
+  Hkf{g: List<&2, U32>, iz: List<&2, Nat>}
 
 # the function parameters of a def: their places
-def fd.ph.fun(+ty: T.Bt) -> Bool:
-  Nat.is_gt(fd.ee.arrows(ty), 0n)
-
-def fd.ph.idx(ps: List<&2, T.BParam>, +i: Nat) -> List<&2, Nat>:
+# a function's parameters, as a partial def's (only its answer is asked)
+def fd.ph.pts(ps: List<&2, T.BParam>, +i: Nat, +iz: List<&2, Nat>) -> List<&2, Pt>:
   match ps:
     case Nil{}:
       Nil{}
-    case T.BParam{m, x, +ty} <> t:
-      +rest = fd.ph.idx(t, 1n+i)
-      Bool.pick(List<&2, Nat>, fd.ph.fun(ty), i <> rest, rest)
+    case T.BParam{k, x, +ty} <> t:
+      +rest = fd.ph.pts(t, 1n+i, iz)
+      Bool.pick(List<&2, Pt>, fd.ph.in(iz, i), Pt{x, fd.ee.ps(ty, 0n), fd.ee.cod(ty)} <> rest, rest)
 
-def fd.ph.param(ps: List<&2, T.BParam>, i: Nat) -> Maybe<&2, T.BParam>:
-  match ps i:
-    case Nil{} _:
-      None{}
-    case p <> t 0n:
-      Some{p}
-    case p <> t 1n+j:
-      fd.ph.param(t, j)
-
-# a function's parameters, as a partial def's (only its answer is asked)
-def fd.ph.pt(m: Maybe<&2, T.BParam>) -> List<&2, Pt>:
-  match m:
-    case Some{T.BParam{k, x, +ty}}:
-      [Pt{x, fd.ee.ps(ty, 0n), fd.ee.cod(ty)}]
-    case None{}:
-      Nil{}
-
-def fd.ph.mem(hs: List<&2, Hkf>, +g: List<&2, U32>, +i: Nat) -> Bool:
+def fd.ph.mem(hs: List<&2, Hkf>, +g: List<&2, U32>, +iz: List<&2, Nat>) -> Bool:
   match hs:
     case Nil{}:
       False{}
-    case Hkf{h, j} <> t:
-      Bool.or(Bool.and(S.eq(h, g), Nat.is_eq(i, j)), fd.ph.mem(t, g, i))
+    case Hkf{h, js} <> t:
+      Bool.or(Bool.and(S.eq(h, g), fd.ph.eqs(iz, js)), fd.ph.mem(t, g, iz))
 
-def fd.ph.add(new: Bool, g: List<&2, U32>, i: Nat, hs: List<&2, Hkf>) -> List<&2, Hkf>:
+def fd.ph.add(new: Bool, g: List<&2, U32>, iz: List<&2, Nat>, hs: List<&2, Hkf>) -> List<&2, Hkf>:
   match new:
     case True{}:
-      Hkf{g, i} <> hs
+      Hkf{g, iz} <> hs
     case False{}:
       hs
 
-def fd.ph.adds(js: List<&2, Nat>, +g: List<&2, U32>, +as: List<&2, T.Bt>, +ks: List<&2, Pt>, +hs: List<&2, Hkf>) -> List<&2, Hkf>:
-  match js:
-    case Nil{}:
-      hs
-    case +i <> t:
-      +rest = fd.ph.adds(t, g, as, ks, hs)
-      fd.ph.add(Bool.and(fd.pt.has(ks, fd.pt.nth(as, i)), Bool.not(fd.ph.mem(rest, g, i))), g, i, rest)
+def fd.ph.adds(+iz: List<&2, Nat>, +g: List<&2, U32>, +hs: List<&2, Hkf>) -> List<&2, Hkf>:
+  fd.ph.add(Bool.and(Bool.not(List.is_empty(&2, Nat, iz)), Bool.not(fd.ph.mem(hs, g, iz))), g, iz, hs)
 
 # the module's defs with function parameters (whose answer is Data)
 type Hdf is Data:
   Hdf{n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, js: List<&2, Nat>}
+
+# (whose answer is Data, or an action's result)
+def fd.ph.ans(r: T.Bt) -> Bool:
+  match r:
+    case T.BtTyApp{+n, +b}:
+      Bool.or(fd.is(n, "Sigma"), Bool.not(fd.nd(T.BtTyApp{n, b})))
+    case u:
+      Bool.not(fd.nd(u))
 
 def fd.ph.hds(its: List<&2, T.BItem>) -> List<&2, Hdf>:
   match its:
@@ -13589,7 +13642,7 @@ def fd.ph.hds(its: List<&2, T.BItem>) -> List<&2, Hdf>:
     case T.BiDef{n, +ps, +r, b, d} <> t:
       +js = fd.ph.idx(ps, 0n)
       +rest = fd.ph.hds(t)
-      Bool.pick(List<&2, Hdf>, Bool.and(Bool.not(List.is_empty(&2, Nat, js)), Bool.not(fd.nd(r))), Hdf{n, ps, r, b, js} <> rest, rest)
+      Bool.pick(List<&2, Hdf>, Bool.and(Bool.not(List.is_empty(&2, Nat, js)), fd.ph.ans(r)), Hdf{n, ps, r, b, js} <> rest, rest)
     case h <> t:
       fd.ph.hds(t)
 
@@ -13603,7 +13656,7 @@ def fd.ph.hd(hds: List<&2, Hdf>, +g: List<&2, U32>) -> Maybe<&2, Hdf>:
 def fd.ph.call(m: Maybe<&2, Hdf>, +as: List<&2, T.Bt>, +ks: List<&2, Pt>, +hs: List<&2, Hkf>) -> List<&2, Hkf>:
   match m:
     case Some{Hdf{+n, ps, r, b, js}}:
-      fd.ph.adds(js, n, as, ks, hs)
+      fd.ph.adds(fd.ph.which(js, as, ks), n, hs)
     case None{}:
       hs
 
@@ -13650,10 +13703,10 @@ def fd.ph.scans(its: List<&2, T.BItem>, +hds: List<&2, Hdf>, +ks: List<&2, Pt>, 
 
 # the variants' own calls: each one's body with its function partial, until
 # none is new (the ones done before; fuel)
-def fd.ph.body(m: Maybe<&2, Hdf>, +i: Nat, +hds: List<&2, Hdf>, +ks: List<&2, Pt>, +hs: List<&2, Hkf>) -> List<&2, Hkf>:
+def fd.ph.body(m: Maybe<&2, Hdf>, +iz: List<&2, Nat>, +hds: List<&2, Hdf>, +ks: List<&2, Pt>, +hs: List<&2, Hkf>) -> List<&2, Hkf>:
   match m:
     case Some{Hdf{n, +ps, r, b, js}}:
-      fd.ph.scan(b, hds, List.append(&2, Pt, fd.ph.pt(fd.ph.param(ps, i)), ks), hs)
+      fd.ph.scan(b, hds, List.append(&2, Pt, fd.ph.pts(ps, 0n, iz), ks), hs)
     case None{}:
       hs
 
@@ -13674,26 +13727,19 @@ def fd.ph.fix(fuel: Nat, done: Bool, +hds: List<&2, Hdf>, +ks: List<&2, Pt>, +hs
       +h2 = fd.ph.round(hs, hds, ks, hs)
       fd.ph.fix(k, Nat.is_eq(List.length(&2, Hkf, h2), List.length(&2, Hkf, hs)), hds, ks, h2)
 
-def fd.ph.at(hs: List<&2, Hkf>, +g: List<&2, U32>) -> List<&2, Nat>:
+def fd.ph.at(hs: List<&2, Hkf>, +g: List<&2, U32>) -> List<&2, List<&2, Nat>>:
   match hs:
     case Nil{}:
       Nil{}
-    case Hkf{h, i} <> t:
+    case Hkf{h, iz} <> t:
       +rest = fd.ph.at(t, g)
-      Bool.pick(List<&2, Nat>, S.eq(h, g), i <> rest, rest)
+      Bool.pick(List<&2, List<&2, Nat>>, S.eq(h, g), iz <> rest, rest)
 
 # what the walk is told of them (Ph)
-def fd.ph.phof(m: Maybe<&2, T.BParam>, n: List<&2, U32>, i: Nat, ps: List<&2, T.BParam>, r: T.Bt) -> List<&2, Pt>:
+def fd.ph.ph(m: Maybe<&2, Hdf>, iz: List<&2, Nat>) -> List<&2, Pt>:
   match m:
-    case Some{T.BParam{k, x, ty}}:
-      [Ph{n, i, ps, fd.ee.cod(ty), r}]
-    case None{}:
-      Nil{}
-
-def fd.ph.ph(m: Maybe<&2, Hdf>, +i: Nat) -> List<&2, Pt>:
-  match m:
-    case Some{Hdf{n, +ps, r, b, js}}:
-      fd.ph.phof(fd.ph.param(ps, i), n, i, ps, r)
+    case Some{Hdf{n, ps, r, b, js}}:
+      [Ph{n, iz, ps, r}]
     case None{}:
       Nil{}
 
@@ -13704,7 +13750,7 @@ def fd.ph.phs(hs: List<&2, Hkf>, +hds: List<&2, Hdf>) -> List<&2, Pt>:
     case Hkf{+g, i} <> t:
       List.append(&2, Pt, fd.ph.ph(fd.ph.hd(hds, g), i), fd.ph.phs(t, hds))
 
-# the i-th parameter's type, its answer an Either
+# a partial function's type, its answer an Either
 def fd.ph.ety(t: T.Bt) -> T.Bt:
   match t:
     case T.BtPi{m, x, False{}, a, b}:
@@ -13712,27 +13758,25 @@ def fd.ph.ety(t: T.Bt) -> T.Bt:
     case u:
       fd.pt.ety(u)
 
-def fd.ph.ps(ps: List<&2, T.BParam>, i: Nat) -> List<&2, T.BParam>:
-  match ps i:
-    case Nil{} _:
-      Nil{}
-    case T.BParam{m, x, ty} <> t 0n:
-      T.BParam{m, x, fd.ph.ety(ty)} <> t
-    case p <> t 1n+j:
-      p <> fd.ph.ps(t, j)
-
-# the variants of a def, after it
-def fd.ph.vars(js: List<&2, Nat>, +ks: List<&2, Pt>, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt) -> List<&2, T.BItem>:
-  match js:
+def fd.ph.ps(ps: List<&2, T.BParam>, +i: Nat, +iz: List<&2, Nat>) -> List<&2, T.BParam>:
+  match ps:
     case Nil{}:
       Nil{}
-    case +i <> t:
-      fd.pt.def(fd.ph.name(n, i), fd.ph.ps(ps, i), r, fd.pt.go(List.append(&2, Pt, fd.ph.pt(fd.ph.param(ps, i)), ks), fd.pt.norm(b), PtBm{}, r, 0n, False{}), [fd.cat(S.b("generated: given a partial function: "), n)]) <> fd.ph.vars(t, ks, n, ps, r, b)
+    case T.BParam{m, x, +ty} <> t:
+      T.BParam{m, x, Bool.pick(T.Bt, fd.ph.in(iz, i), fd.ph.ety(ty), ty)} <> fd.ph.ps(t, 1n+i, iz)
 
-def fd.ph.vars.of(m: Maybe<&2, Hdf>, js: List<&2, Nat>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+# the variants of a def, after it
+def fd.ph.vars(jss: List<&2, List<&2, Nat>>, +ks: List<&2, Pt>, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt) -> List<&2, T.BItem>:
+  match jss:
+    case Nil{}:
+      Nil{}
+    case +iz <> t:
+      fd.pt.def(fd.ph.name(n, iz), fd.ph.ps(ps, 0n, iz), r, fd.pt.go(List.append(&2, Pt, fd.ph.pts(ps, 0n, iz), ks), fd.pt.norm(b), PtBm{}, r, 0n, False{}), [fd.cat(S.b("generated: given a partial function: "), n)]) <> fd.ph.vars(t, ks, n, ps, r, b)
+
+def fd.ph.vars.of(m: Maybe<&2, Hdf>, jss: List<&2, List<&2, Nat>>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
   match m:
     case Some{Hdf{n, ps, r, b, qs}}:
-      fd.ph.vars(js, ks, n, ps, r, b)
+      fd.ph.vars(jss, ks, n, ps, r, b)
     case None{}:
       Nil{}
 
@@ -13767,7 +13811,7 @@ def fd.pt.pnames(ks: List<&2, Pt>) -> List<&2, List<&2, U32>>:
       fd.pt.prenames(fd.pt.pres())
     case Pt{n, ps, r} <> t:
       n <> fd.pt.pnames(t)
-    case Ph{n, i, ps, b, r} <> t:
+    case Ph{n, iz, ps, r} <> t:
       fd.pt.pnames(t)
 
 def fd.lc.allp(+its: List<&2, T.BItem>, +fz: List<&2, Fz>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
@@ -13915,7 +13959,7 @@ def fd.ey.keep(es: List<&2, Een>, +hs: List<&2, Hkf>) -> List<&2, Een>:
       Nil{}
     case Een{+n, k} <> t:
       +rest = fd.ey.keep(t, hs)
-      Bool.pick(List<&2, Een>, List.is_empty(&2, Nat, fd.ph.at(hs, n)), rest, Een{n, k} <> rest)
+      Bool.pick(List<&2, Een>, List.is_empty(&2, List<&2, Nat>, fd.ph.at(hs, n)), rest, Een{n, k} <> rest)
 
 def fd.ey.hs(+its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, Hkf>:
   +hds = fd.ph.hds(its)
@@ -13928,11 +13972,133 @@ def fd.ey.all1(+es: List<&2, Een>, +its: List<&2, T.BItem>, +dt: List<&2, T.BIte
 def fd.ey.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.ey.all1(fd.ey.names(its), its, dt)
 
+# the partial defs' names
+def fd.pc.parts(ks: List<&2, Pt>) -> List<&2, Een>:
+  match ks:
+    case Nil{}:
+      Nil{}
+    case Pt{n, ps, r} <> t:
+      Een{n, 0n} <> fd.pc.parts(t)
+    case Ph{n, iz, ps, r} <> t:
+      fd.pc.parts(t)
+
+# Actions given partial actions: a def with a function parameter that
+# answers an action (Builder's lamS x = pairS (x >>= deferS) (pure EnvB)),
+# called at a partial one, takes its state as its last parameter too (as a
+# partial action does, fd.pa), so that its variant answers the Either. In
+# such defs, and in the partial ones, an action passed on as an argument
+# that is an application (x >>= deferS) is the lambda over its state.
+def fd.pc.names(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, Een>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, r, b, d} <> t:
+      +rest = fd.pc.names(t, ks)
+      Bool.pick(List<&2, Een>, Bool.and(Bool.not(fd.pt.isown(ks, n)), Bool.and(Bool.not(List.is_empty(&2, Nat, fd.ph.idx(ps, 0n))), fd.pa.isact(r))), Een{n, Nat.add(List.length(&2, T.BParam, ps), 1n)} <> rest, rest)
+    case h <> t:
+      fd.pc.names(t, ks)
+
+def fd.pc.arg(act: Bool, u: T.Bt) -> T.Bt:
+  match act u:
+    case True{} T.BtApp{f, a}:
+      fd.pa.lam(fd.pa.go(T.BtApp{f, a}, PmB{}))
+    case True{} T.BtTplArg{T.BtApp{f, a}}:
+      T.BtTplArg{fd.pa.lam(fd.pa.go(T.BtApp{f, a}, PmB{}))}
+    case _ u:
+      u
+
+def fd.pc.put(ps: List<&2, T.BParam>, a: T.Bt) -> T.Bt:
+  match ps a:
+    case T.BParam{m, x, ty} <> t T.BtArgs{h, rest}:
+      T.BtArgs{fd.pc.arg(fd.pa.isact(ty), h), fd.pc.put(t, rest)}
+    case _ u:
+      u
+
+def fd.pc.call(m: Maybe<&2, Hdf>, +f: List<&2, U32>, a: T.Bt) -> T.Bt:
+  match m:
+    case Some{Hdf{n, ps, r, b, js}}:
+      T.BtApp{T.BtVar{f}, fd.pc.put(ps, a)}
+    case None{}:
+      T.BtApp{T.BtVar{f}, a}
+
+def fd.pc.app(f: T.Bt, a: T.Bt, +hds: List<&2, Hdf>) -> T.Bt:
+  match f:
+    case T.BtVar{+x}:
+      fd.pc.call(fd.ph.hd(hds, x), x, a)
+    case h:
+      T.BtApp{h, a}
+
+def fd.pc.go(t: T.Bt, +hds: List<&2, Hdf>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.pc.app(fd.pc.go(f, hds), fd.pc.go(a, hds), hds)
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.pc.go(a, hds), fd.pc.go(r, hds)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.pc.go(a, hds)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.pc.go(b, hds)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.pc.go(a, hds)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.pc.go(cs, hds)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.pc.go(b, hds), fd.pc.go(r, hds)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.pc.go(v, hds), fd.pc.go(b, hds)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{e, p, fd.pc.go(b, hds)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.pc.go(e, hds)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.pc.go(a, hds), ty}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.pc.go(a, hds)}
+    case u:
+      u
+
+def fd.pc.def(m: Maybe<&2, Nat>, n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Een>, +hds: List<&2, Hdf>) -> T.BItem:
+  match m:
+    case Some{k}:
+      +b2 = fd.stmt(fd.ee.rw(fd.pc.go(b, hds), False{}, es))
+      T.BiDef{n, fd.rx.ps(ps, b2), r, b2, d}
+    case None{}:
+      T.BiDef{n, ps, r, b, d}
+
+def fd.pc.items(its: List<&2, T.BItem>, +own: List<&2, Een>, +es: List<&2, Een>, +hds: List<&2, Hdf>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, ps, r, b, d} <> t:
+      fd.pc.def(fd.ee.find(own, n), n, ps, r, b, d, es, hds) <> fd.pc.items(t, own, es, hds)
+    case h <> t:
+      h <> fd.pc.items(t, own, es, hds)
+
+# the items, those of own (partial or given a partial action) at their state
+def fd.pc.at(+own: List<&2, Een>, +imp: List<&2, Een>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+  +ex = fd.pa.of(own, imp, its, ks)
+  fd.pc.items(ex, List.append(&2, Een, own, fd.pc.parts(ks)), List.append(&2, Een, own, imp), fd.ph.hds(ex))
+
+def fd.pc.all2(+own: List<&2, Een>, +cand: List<&2, Een>, +imp: List<&2, Een>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ex = fd.pc.at(List.append(&2, Een, own, cand), imp, its, ks)
+  fd.pc.at(List.append(&2, Een, own, fd.ey.keep(cand, fd.ey.hs(ex, fd.pt.ks(ex, dt)))), imp, its, ks)
+
+def fd.pc.all1(cand: List<&2, Een>, +own: List<&2, Een>, +imp: List<&2, Een>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match cand:
+    case Nil{}:
+      fd.pa.of(own, imp, its, ks)
+    case +h <> +t:
+      fd.pc.all2(own, h <> t, imp, its, ks, dt)
+
+def fd.pc.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ks = fd.pt.ks(its, dt)
+  fd.pc.all1(fd.pc.names(its, ks), fd.pa.names(its, ks), fd.pa.imported(dt), its, ks, dt)
+
 def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.ph.all(its, fd.pt.ks(its, dt))
 
 def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.pt.all2(fd.pa.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
+  fd.pt.all2(fd.pc.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
 
 def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all1(fd.rx.items(its, fd.pt.ks(its, dt)), dt)
