@@ -14587,6 +14587,39 @@ def fd.rx.apart(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bo
 def fd.rx.once(+x: List<&2, U32>, +b: T.Bt, +l: T.Bt) -> Bool:
   Bool.and(Nat.is_lt(fd.uses(b, x), 2n), fd.rx.apart(fd.binds(b, Nil{}), T.tba.frees(l, Nil{})))
 
+# whether x is in a lambda of t
+def fd.rx.under(t: T.Bt, +x: List<&2, U32>) -> Bool:
+  match t:
+    case T.BtLam{m, y, b}:
+      S.mem(x, T.tba.frees(b, Nil{}))
+    case T.BtApp{f, a}:
+      Bool.or(fd.rx.under(f, x), fd.rx.under(a, x))
+    case T.BtArgs{a, r}:
+      Bool.or(fd.rx.under(a, x), fd.rx.under(r, x))
+    case T.BtTplArg{a}:
+      fd.rx.under(a, x)
+    case T.BtDead{a}:
+      fd.rx.under(a, x)
+    case T.BtCon{c, a}:
+      fd.rx.under(a, x)
+    case T.BtSucc{a}:
+      fd.rx.under(a, x)
+    case T.BtAnn{a, ty}:
+      fd.rx.under(a, x)
+    case T.BtExpr{e}:
+      fd.rx.under(e, x)
+    case T.BtLet{y, v, b}:
+      Bool.or(fd.rx.under(v, x), fd.rx.under(b, x))
+    case T.BtMatch{xs, cs}:
+      True{}
+    case _:
+      False{}
+
+# an argument that goes in its place: used once there, in no lambda, no
+# binder it goes under naming one of its variables
+def fd.rx.val(+x: List<&2, U32>, +b: T.Bt, +a: T.Bt) -> Bool:
+  Bool.and(fd.rx.once(x, b, a), Bool.not(fd.rx.under(b, x)))
+
 def fd.rx.red(fuel: Nat, f: T.Bt, +as: List<&2, T.Bt>) -> T.Bt:
   match fuel f as:
     case 1n+p T.BtLam{m, +x, +b} T.BtVar{+v} <> +t:
@@ -14594,6 +14627,8 @@ def fd.rx.red(fuel: Nat, f: T.Bt, +as: List<&2, T.Bt>) -> T.Bt:
     case 1n+(+p) T.BtLam{+m, +x, +b} T.BtLam{+ml, +xl, +bl} <> +t:
       +l = {T.BtLam{ml, xl, bl} : T.Bt}
       fd.pt.if(T.Bt, fd.rx.once(x, b, l), _ => fd.rx.red(p, T.tba.subst(b, x, l), t), _ => T.BtApp{T.BtLam{m, x, b}, T.tba.args(l <> t)})
+    case 1n+(+p) T.BtLam{+m, +x, +b} +a <> Nil{}:
+      fd.pt.if(T.Bt, fd.rx.val(x, b, a), _ => fd.rx.red(p, T.tba.subst(b, x, a), Nil{}), _ => T.BtApp{T.BtLam{m, x, b}, T.tba.args([a])})
     case 1n+(+p) T.BtLam{+m, +x, +b} a <> +h <> +t:
       +r = {h <> t : List<&2, T.Bt>}
       +cl = S.mem(x, fd.sfrees(T.tba.args(r), Nil{}))
@@ -15647,7 +15682,8 @@ def fd.pl.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ks: List<&2, Pt
   fd.pl.run(fd.pl.merge(fd.pl.rqs(its, its, ks), Nil{}), its, dt, ks)
 
 def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.pl.all2(its, dt, fd.pt.ks(its, dt))
+  +ks = fd.pt.ks(its, dt)
+  fd.pl.all2(fd.rx.items(its, ks), dt, ks)
 
 def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all2(fd.pc.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
