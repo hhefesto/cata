@@ -134,17 +134,41 @@ keysOf ((v, (_, k, _)) : rest) = IntMap.insert v k (keysOf rest)
 nodeAt :: forall node key. IntMap (node, key, [key]) -> Int -> (node, key, [key])
 nodeAt m v = m IntMap.! v
 
+-- | the probes of a binary search over the vertices' keys (vertexOf's), as a
+-- tree: the middle vertex's key, and the two halves' probes. Built once, so
+-- that a graph's every key is searched with no map read.
+data KeyTree key = KeyTip | KeyBin key Int (KeyTree key) (KeyTree key)
+
+keyTree :: forall key. Ord key => IntMap key -> Int -> Int -> KeyTree key
+keyTree keys a b = if a > b then KeyTip else keyTreeAt keys a b (a + (b - a) `div` 2)
+
+keyTreeAt :: forall key. Ord key => IntMap key -> Int -> Int -> Int -> KeyTree key
+keyTreeAt keys a b mid = case IntMap.lookup mid keys of
+  Nothing -> KeyTip
+  Just km -> KeyBin km mid (keyTree keys a (mid - 1)) (keyTree keys (mid + 1) b)
+
+-- | vertexOf keys k, keys' tree given
+findKey :: forall key. Ord key => KeyTree key -> key -> Maybe Int
+findKey KeyTip k = Nothing
+findKey (KeyBin km v l r) k = case compare k km of
+  LT -> findKey l k
+  EQ -> Just v
+  GT -> findKey r k
+
 -- | the graph of numbered nodes: each vertex's successors, the keys its
 -- node names that are some node's
-graphOf :: forall node key. Ord key => IntMap key -> [(Int, (node, key, [key]))] -> IntMap [Int]
-graphOf keys [] = IntMap.empty
-graphOf keys ((v, (_, _, ks)) : rest) = IntMap.insert v (keyVertices keys ks) (graphOf keys rest)
+graphOf :: forall key node. Ord key => IntMap key -> [(Int, (node, key, [key]))] -> IntMap [Int]
+graphOf keys ns = graphIn (keyTree keys 0 (IntMap.size keys - 1)) ns
 
-keyVertices :: forall key. Ord key => IntMap key -> [key] -> [Int]
-keyVertices keys [] = []
-keyVertices keys (k : ks) = case vertexOf keys k of
-  Just v -> v : keyVertices keys ks
-  Nothing -> keyVertices keys ks
+graphIn :: forall key node. Ord key => KeyTree key -> [(Int, (node, key, [key]))] -> IntMap [Int]
+graphIn tree [] = IntMap.empty
+graphIn tree ((v, (_, _, ks)) : rest) = IntMap.insert v (keyVertices tree ks) (graphIn tree rest)
+
+keyVertices :: forall key. Ord key => KeyTree key -> [key] -> [Int]
+keyVertices tree [] = []
+keyVertices tree (k : ks) = case findKey tree k of
+  Just v -> v : keyVertices tree ks
+  Nothing -> keyVertices tree ks
 
 -- | containers' key_vertex: a binary search over the vertices' keys,
 -- sorted (so that, at a key two nodes have, it finds containers' one)
@@ -248,7 +272,10 @@ stronglyConnCompR [] = []
 stronglyConnCompR edges0 = sccOfNumbered (number (sortNodes edges0) 0)
 
 sccOfNumbered :: forall node key. Ord key => [(Int, (node, key, [key]))] -> [SCC (node, key, [key])]
-sccOfNumbered ns = decodeAll (graphOf (keysOf ns) ns) (IntMap.fromList ns) (scc (graphOf (keysOf ns) ns))
+sccOfNumbered ns = sccOfGraph (graphOf (keysOf ns) ns) (IntMap.fromList ns)
+
+sccOfGraph :: forall n. IntMap [Int] -> IntMap n -> [SCC n]
+sccOfGraph g m = decodeAll g m (scc g)
 
 decodeAll :: forall n. IntMap [Int] -> IntMap n -> [Tree Int] -> [SCC n]
 decodeAll g m [] = []

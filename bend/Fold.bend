@@ -12753,6 +12753,7 @@ def fd.fi.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
 type Pt is Data:
   Pt{n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt}
   Ph{n: List<&2, U32>, iz: List<&2, Nat>, ps: List<&2, T.BParam>, r: T.Bt}
+  Ptx{m: Map<&2, Bool>}
 
 # a partial call bound before an answer: its variable, answer and call
 type Pb is Data:
@@ -12886,6 +12887,8 @@ def fd.pt.own(ks: List<&2, Pt>, +f: List<&2, U32>, +xs: List<&2, T.Bt>) -> Maybe
       None{}
     case Pt{n, +ps, r} <> t:
       Bool.pick(Maybe<&2, T.Bt>, S.eq(n, f), Some{fd.pt.put(ps, xs, fd.pt.ren(ps, r))}, fd.pt.own(t, f, xs))
+    case Ptx{m} <> t:
+      fd.pt.own(t, f, xs)
     case Ph{n, iz, ps, r} <> t:
       fd.pt.own(t, f, xs)
 
@@ -12893,17 +12896,72 @@ def fd.pt.ans.of(+ks: List<&2, Pt>, +f: List<&2, U32>, +xs: List<&2, T.Bt>) -> M
   +k = fd.pt.pre.find(fd.pt.pres(), f)
   Bool.pick(Maybe<&2, T.Bt>, Nat.is_gt(k, 0n), fd.pt.pre.ans(k, xs), fd.pt.own(ks, f, xs))
 
-def fd.pt.isown(ks: List<&2, Pt>, +f: List<&2, U32>) -> Bool:
-  match ks:
-    case Nil{}:
+# (Ptx: the names of the partial defs after it, and at False the prelude's)
+def fd.pt.im.got(r: Map<&2, Bool> & Bool) -> Bool:
+  match r:
+    case Tuple{m, b}:
+      b
+
+def fd.pt.isown.go(ks: List<&2, Pt>, e: Bool, +f: List<&2, U32>) -> Bool:
+  match ks e:
+    case _ True{}:
+      True{}
+    case Nil{} False{}:
       False{}
-    case Pt{n, ps, r} <> t:
-      Bool.or(S.eq(n, f), fd.pt.isown(t, f))
-    case Ph{n, iz, ps, r} <> t:
-      fd.pt.isown(t, f)
+    case Pt{n, ps, r} <> t False{}:
+      fd.pt.isown.go(t, S.eq(n, f), f)
+    case Ph{n, iz, ps, r} <> t False{}:
+      fd.pt.isown.go(t, False{}, f)
+    case Ptx{m} <> t False{}:
+      fd.pt.im.got(Map.get(Bool, False{}, m, S.str(f)))
+
+def fd.pt.isown(ks: List<&2, Pt>, +f: List<&2, U32>) -> Bool:
+  fd.pt.isown.go(ks, False{}, f)
+
+def fd.pt.is.go(ks: List<&2, Pt>, e: Bool, +f: List<&2, U32>) -> Bool:
+  match ks e:
+    case _ True{}:
+      True{}
+    case Nil{} False{}:
+      Nat.is_gt(fd.pt.pre.find(fd.pt.pres(), f), 0n)
+    case Pt{n, ps, r} <> t False{}:
+      fd.pt.is.go(t, S.eq(n, f), f)
+    case Ph{n, iz, ps, r} <> t False{}:
+      fd.pt.is.go(t, False{}, f)
+    case Ptx{m} <> t False{}:
+      T.tba.has.got(Map.has(&2, Bool, m, S.str(f)))
 
 def fd.pt.is(+ks: List<&2, Pt>, +f: List<&2, U32>) -> Bool:
-  Bool.or(Nat.is_gt(fd.pt.pre.find(fd.pt.pres(), f), 0n), fd.pt.isown(ks, f))
+  fd.pt.is.go(ks, False{}, f)
+
+# ks with its index in front (and no other in it)
+def fd.pt.im.pre(xs: List<&2, Pp>, m: Map<&2, Bool>) -> Map<&2, Bool>:
+  match xs:
+    case Nil{}:
+      m
+    case Pp{s, k} <> t:
+      fd.pt.im.pre(t, Map.set(&2, Bool, m, s, False{}))
+
+def fd.pt.im.put(ks: List<&2, Pt>, m: Map<&2, Bool>) -> Map<&2, Bool>:
+  match ks:
+    case Nil{}:
+      fd.pt.im.pre(fd.pt.pres(), m)
+    case Pt{n, ps, r} <> t:
+      fd.pt.im.put(t, Map.set(&2, Bool, m, S.str(n), True{}))
+    case _ <> t:
+      fd.pt.im.put(t, m)
+
+def fd.pt.im.off(ks: List<&2, Pt>) -> List<&2, Pt>:
+  match ks:
+    case Nil{}:
+      Nil{}
+    case Ptx{m} <> t:
+      fd.pt.im.off(t)
+    case k <> t:
+      k <> fd.pt.im.off(t)
+
+def fd.pt.im(+ks: List<&2, Pt>) -> List<&2, Pt>:
+  Ptx{fd.pt.im.put(ks, Map.new(&2, Bool))} <> fd.pt.im.off(ks)
 
 def fd.pt.any(+ks: List<&2, Pt>, rs: List<&2, List<&2, U32>>) -> Bool:
   match rs:
@@ -13193,6 +13251,8 @@ def fd.ph.find(ks: List<&2, Pt>, +all: List<&2, Pt>, +f: List<&2, U32>, +as: Lis
       None{}
     case Ph{+n, iz, ps, r} <> t:
       Maybe.or(&2, Ho, fd.ph.hit(S.eq(n, f), all, n, iz, ps, r, as), fd.ph.find(t, all, f, as))
+    case Ptx{m} <> t:
+      fd.ph.find(t, all, f, as)
     case Pt{n, ps, r} <> t:
       fd.ph.find(t, all, f, as)
 
@@ -13601,7 +13661,7 @@ def fd.pt.fix(fuel: Nat, done: Bool, +rs: List<&2, Pr>, +ks: List<&2, Pt>) -> Li
       ks
     case 1n+k False{}:
       +ks2 = fd.pt.round(rs, ks)
-      fd.pt.fix(k, Nat.is_eq(List.length(&2, Pt, ks2), List.length(&2, Pt, ks)), rs, ks2)
+      fd.pt.fix(k, Nat.is_eq(List.length(&2, Pt, ks2), List.length(&2, Pt, ks)), rs, fd.pt.im(ks2))
 
 def fd.pt.def(n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, w: Pw, d: List<&2, List<&2, U32>>) -> T.BItem:
   match w:
@@ -13779,7 +13839,7 @@ def fd.el.items(its: List<&2, T.BItem>, +es: List<&2, Een>) -> List<&2, T.BItem>
 
 def fd.pt.ks(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, Pt>:
   +rs = fd.pt.prs(its)
-  fd.pt.fix(List.length(&2, Pr, rs), False{}, rs, fd.pt.imported(dt))
+  fd.pt.fix(List.length(&2, Pr, rs), False{}, rs, fd.pt.im(fd.pt.imported(dt)))
 
 # Partial actions ------------------------------------------------------------------
 
@@ -14366,6 +14426,8 @@ def fd.pt.pnames(ks: List<&2, Pt>) -> List<&2, List<&2, U32>>:
       fd.pt.prenames(fd.pt.pres())
     case Pt{n, ps, r} <> t:
       n <> fd.pt.pnames(t)
+    case Ptx{m} <> t:
+      fd.pt.pnames(t)
     case Ph{n, iz, ps, r} <> t:
       fd.pt.pnames(t)
 
@@ -14657,6 +14719,8 @@ def fd.pc.parts(ks: List<&2, Pt>) -> List<&2, Een>:
       Nil{}
     case Pt{n, ps, r} <> t:
       Een{n, 0n} <> fd.pc.parts(t)
+    case Ptx{m} <> t:
+      fd.pc.parts(t)
     case Ph{n, iz, ps, r} <> t:
       fd.pc.parts(t)
 
