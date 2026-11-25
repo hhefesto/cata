@@ -623,6 +623,42 @@ b'HsPrelude'HsPt'mfilter :: (v -> (B'Either (B'List B'Char) B'Bool)) -> (B'HsPre
 b'HsPrelude'HsPt'mfilter p m = case m of { B'HsPrelude'HsMap'Tip -> Right B'HsPrelude'HsMap'Tip; B'HsPrelude'HsMap'Bin k v t -> p v >>= \b -> b'HsPrelude'HsPt'mfilter p t >>= \r -> Right (if b then B'HsPrelude'HsMap'Bin k v r else r) }
 b'HsPrelude'HsPt'mfoldr :: (v -> b -> (B'Either (B'List B'Char) b)) -> b -> (B'HsPrelude'HsMap k v) -> (B'Either (B'List B'Char) b)
 b'HsPrelude'HsPt'mfoldr f z m = case m of { B'HsPrelude'HsMap'Tip -> Right z; B'HsPrelude'HsMap'Bin _ v t -> b'HsPrelude'HsPt'mfoldr f z t >>= \r -> f v r }
+b'HsPrelude'HsList'lookup1 :: (k -> k -> B'Bool) -> k -> (B'List (B'Sigma k v)) -> (B'Maybe v)
+b'HsPrelude'HsList'lookup1 eq k xs = case [v | (k', v) <- xs, eq k k'] of { (v : _) -> Just v; [] -> Nothing }
+b'HsPrelude'HsList'fst1 :: (B'Sigma a b) -> a
+b'HsPrelude'HsList'fst1 = fst
+b'HsPrelude'HsList'snd1 :: (B'Sigma a b) -> b
+b'HsPrelude'HsList'snd1 = snd
+b'HsPrelude'HsPt'state'ap'fin :: (a -> b) -> (B'Sigma a s) -> (B'Either (B'List B'Char) (B'Sigma b s))
+b'HsPrelude'HsPt'state'ap'fin f q = case q of { (a, s) -> Right (f a, s) }
+b'HsPrelude'HsPt'state'ap :: (B'Sigma (a -> b) s) -> (s -> (B'Either (B'List B'Char) (B'Sigma a s))) -> (B'Either (B'List B'Char) (B'Sigma b s))
+b'HsPrelude'HsPt'state'ap p m = case p of { (f, s) -> m s >>= \q -> b'HsPrelude'HsPt'state'ap'fin f q }
+b'HsPrelude'HsPt'ste'bind :: (B'Either e (B'Sigma a s)) -> (a -> s -> (B'Either (B'List B'Char) (B'Either e (B'Sigma b s)))) -> (B'Either (B'List B'Char) (B'Either e (B'Sigma b s)))
+b'HsPrelude'HsPt'ste'bind r f = case r of { Left e -> Right (Left e); Right (a, s) -> f a s }
+b'HsPrelude'HsPt'ste'map'go :: (a -> (B'Either (B'List B'Char) b)) -> (B'Either e (B'Sigma a s)) -> (B'Either (B'List B'Char) (B'Either e (B'Sigma b s)))
+b'HsPrelude'HsPt'ste'map'go f r = case r of { Left e -> Right (Left e); Right (a, s) -> f a >>= \b -> Right (Right (b, s)) }
+b'HsPrelude'HsPt'ste'map :: (a -> (B'Either (B'List B'Char) b)) -> (B'Either e (B'Sigma a s)) -> (B'Either (B'List B'Char) (B'Either e (B'Sigma b s)))
+b'HsPrelude'HsPt'ste'map f r = b'HsPrelude'HsPt'ste'map'go f r
+b'HsPrelude'HsPt'ste'gets :: (s -> (B'Either (B'List B'Char) a)) -> s -> (B'Either (B'List B'Char) (B'Either e (B'Sigma a s)))
+b'HsPrelude'HsPt'ste'gets f s = f s >>= \a -> Right (Right (a, s))
+b'HsPrelude'HsPt'state'gets :: (s -> (B'Either (B'List B'Char) a)) -> s -> (B'Either (B'List B'Char) (B'Sigma a s))
+b'HsPrelude'HsPt'state'gets f s = f s >>= \a -> Right (a, s)
+b'HsPrelude'HsPt'rde'bind :: (B'Either e a) -> (a -> r -> (B'Either (B'List B'Char) (B'Either e b))) -> r -> (B'Either (B'List B'Char) (B'Either e b))
+b'HsPrelude'HsPt'rde'bind x f r = case x of { Left e -> Right (Left e); Right a -> f a r }
+b'HsPrelude'HsPt'rde'map :: (a -> (B'Either (B'List B'Char) b)) -> (B'Either e a) -> (B'Either (B'List B'Char) (B'Either e b))
+b'HsPrelude'HsPt'rde'map f x = case x of { Left e -> Right (Left e); Right a -> f a >>= \b -> Right (Right b) }
+b'HsPrelude'HsPt'attempt :: (B'Either (B'List B'Char) a) -> (B'Maybe a)
+b'HsPrelude'HsPt'attempt m = case m of { Left _ -> Nothing; Right a -> Just a }
+b'HsPrelude'HsPt'either'cons :: b -> (B'Either e (B'List b)) -> (B'Either e (B'List b))
+b'HsPrelude'HsPt'either'cons b r = case r of { Left e -> Left e; Right bs -> Right (b : bs) }
+b'HsPrelude'HsPt'either'next :: (B'Either e b) -> (B'Unit -> (B'Either (B'List B'Char) (B'Either e (B'List b)))) -> (B'Either (B'List B'Char) (B'Either e (B'List b)))
+b'HsPrelude'HsPt'either'next r rest = case r of { Left e -> Right (Left e); Right b -> rest () >>= \s -> Right (b'HsPrelude'HsPt'either'cons b s) }
+b'HsPrelude'HsPt'either'mapm :: (a -> (B'Either (B'List B'Char) (B'Either e b))) -> (B'List a) -> (B'Either (B'List B'Char) (B'Either e (B'List b)))
+b'HsPrelude'HsPt'either'mapm f xs = case xs of { [] -> Right (Right []); (h : t) -> f h >>= \r -> b'HsPrelude'HsPt'either'next r (\_ -> b'HsPrelude'HsPt'either'mapm f t) }
+b'HsPrelude'HsPt'either'unit :: (B'Either e (B'List b)) -> (B'Either e B'Unit)
+b'HsPrelude'HsPt'either'unit r = case r of { Left e -> Left e; Right _ -> Right () }
+b'HsPrelude'HsPt'either'mapm_ :: (a -> (B'Either (B'List B'Char) (B'Either e b))) -> (B'List a) -> (B'Either (B'List B'Char) (B'Either e B'Unit))
+b'HsPrelude'HsPt'either'mapm_ f xs = b'HsPrelude'HsPt'either'mapm f xs >>= \r -> Right (b'HsPrelude'HsPt'either'unit r)
 b'HsPrelude'HsNum'div :: B'Nat -> B'Nat -> (B'Either (B'List B'Char) B'Nat)
 b'HsPrelude'HsNum'div a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
 b'HsPrelude'HsNum'sub :: B'Nat -> B'Nat -> (B'Either (B'List B'Char) B'Nat)
