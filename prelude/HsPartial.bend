@@ -505,3 +505,11 @@ def HsPt.mfoldr(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> Either<&2, &2, List<
 def HsPt.uncurry(~q: Quant, ~A: Data, ~B: Data, ~C: Kind(q), f: A -> B -> Either<&2, q, List<&2, Char>, C>, p: Sigma<&2, &2, A, _ => B>) -> Either<&2, q, List<&2, Char>, C>:
   (a, b) = p
   f(a)(b)
+
+# Cata.Base's attempt given a partial call (fd.pt.ho.att)
+def HsPt.attempt(-A: Data, m: Either<&2, &2, List<&2, Char>, A>) -> Maybe<&2, A>:
+  match m:
+    case Inl{e}:
+      None{}
+    case Inr{a}:
+      Some{a}

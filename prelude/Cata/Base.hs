@@ -367,6 +367,9 @@ elemDefault x t = F.elem x (toListDefault t)
 concatMapDefault :: forall t a b. Foldable t => (a -> [b]) -> t a -> [b]
 concatMapDefault f t = concatMap f (toListDefault t)
 
+concatDefault :: forall t a. Foldable t => t [a] -> [a]
+concatDefault t = F.concat (toListDefault t)
+
 -- | the classes' default methods at a package's own instance
 thenOp :: forall m a b. Monad m => m a -> m b -> m b
 thenOp m k = m >>= \_ -> k
@@ -422,6 +425,18 @@ partition p xs = case xs of
   [] -> ([], [])
   y : ys -> case partition p ys of
     (ts, fs) -> if p y then (y : ts, fs) else (ts, y : fs)
+
+-- | Data.List's break and span, their function a known argument
+breakOp :: forall a. (a -> Bool) -> [a] -> ([a], [a])
+breakOp p xs = case xs of
+  [] -> ([], [])
+  y : ys -> if p y then ([], y : ys) else case breakOp p ys of
+    (ts, fs) -> (y : ts, fs)
+
+spanOp :: forall a. (a -> Bool) -> [a] -> ([a], [a])
+spanOp p xs = case xs of
+  [] -> ([], [])
+  y : ys -> if p y then (case spanOp p ys of (ts, fs) -> (y : ts, fs)) else ([], y : ys)
 
 -- | containers' partition at Set and Map, Map's mapMaybe (its pairs, in
 -- order), Data.Function's on
@@ -817,6 +832,57 @@ foldlPairs f ((k, x) : xs) z = foldlPairs f xs (f z k x)
 
 setDisjoint :: forall a. Ord a => Set.Set a -> Set.Set a -> Bool
 setDisjoint a b = Set.null (Set.intersection a b)
+
+-- | containers' foldl and foldl' at a Set, void at a Map, and seq (Bend is
+-- strict: its first argument is evaluated where it is given)
+setFoldl :: forall a b. (a -> b -> a) -> a -> Set.Set b -> a
+setFoldl f z s = foldl f z (Set.toAscList s)
+
+mapVoid :: forall k a. Map.Map k a -> Map.Map k ()
+mapVoid m = Map.map (\_ -> ()) m
+
+seqOp :: forall a b. a -> b -> b
+seqOp _ b = b
+
+-- | x, or Nothing where x errs (cata reads it so: an error is a failure value;
+-- in Haskell an error is an error)
+attempt :: forall a. a -> Maybe a
+attempt x = Just x
+
+-- | the Map m that is m = Map.mapWithKey (g m) d: g's lookups in it are
+-- knotLookup's and knotFind's, an error at a key of d with no answer yet. By
+-- rounds: a key whose answer errs waits for the next; when a round adds none,
+-- its error is the Map's (GHC's <<loop>> when the keys wait on each other)
+knotLookup :: forall k a b. Ord k => Map.Map k a -> Map.Map k b -> k -> Maybe b
+knotLookup d m h = case Map.lookup h m of
+  Just v  -> Just v
+  Nothing -> if Map.member h d then error "<<loop>>" else Nothing
+
+knotFind :: forall k a b. Ord k => Map.Map k a -> Map.Map k b -> b -> k -> b
+knotFind d m e h = case knotLookup d m h of
+  Just v  -> v
+  Nothing -> e
+
+mapKnot :: forall k a b. Ord k => (Map.Map k b -> k -> a -> b) -> Map.Map k a -> Map.Map k b
+mapKnot g d = knotRounds g (Map.toList d) (Map.toList d) Map.empty
+
+knotRounds :: forall k a b. Ord k => (Map.Map k b -> k -> a -> b) -> [(k, a)] -> [(k, a)] -> Map.Map k b -> Map.Map k b
+knotRounds g [] todo done = knotStuck g todo done
+knotRounds g (_ : fuel) todo done = case knotPass g todo done of
+  (done', rest) -> if length rest == length todo then knotStuck g rest done' else knotRounds g fuel rest done'
+
+knotPass :: forall k a b. Ord k => (Map.Map k b -> k -> a -> b) -> [(k, a)] -> Map.Map k b -> (Map.Map k b, [(k, a)])
+knotPass g [] done = (done, [])
+knotPass g ((k, x) : r) done = case attempt (g done k x) of
+  Just v  -> knotPass g r (Map.insert k v done)
+  Nothing -> knotKeep k x (knotPass g r done)
+
+knotKeep :: forall k a b. k -> a -> (Map.Map k b, [(k, a)]) -> (Map.Map k b, [(k, a)])
+knotKeep k x (m, r) = (m, (k, x) : r)
+
+knotStuck :: forall k a b. Ord k => (Map.Map k b -> k -> a -> b) -> [(k, a)] -> Map.Map k b -> Map.Map k b
+knotStuck g [] done = done
+knotStuck g ((k, x) : r) done = knotStuck g r (Map.insert k (g done k x) done)
 
 -- | containers' traverseWithKey, and Foldable's foldMap at a Map
 mapTraverseWithKey :: forall t k a b. Applicative t => (k -> a -> t b) -> Map.Map k a -> t (Map.Map k b)

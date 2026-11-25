@@ -11716,10 +11716,31 @@ def fd.lc.gen(z: Maybe<&2, Fz>, ty: Maybe<&2, T.BItem>, +n: List<&2, U32>, +d: L
     case _ _:
       Nil{}
 
+# a local cata's free locals under names that are not its defs' own
+def fd.lc.own(+x: List<&2, U32>) -> Bool:
+  Bool.or(S.prefix(x, S.b("y")), S.mem(x, [S.b("x"), S.b("v"), S.b("w0"), S.b("h"), S.b("t"), S.b("a"), S.b("b")]))
+
+def fd.lc.rnm(+x: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, fd.lc.own(x), fd.cat(S.b("lc_"), x), x)
+
+def fd.lc.rfv(ps: List<&2, T.BParam>) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{m, +x, ty} <> t:
+      T.BParam{m, fd.lc.rnm(x), ty} <> fd.lc.rfv(t)
+    case Nil{}:
+      Nil{}
+
+def fd.lc.ralg(ps: List<&2, T.BParam>, +alg: T.Bt) -> T.Bt:
+  match ps:
+    case T.BParam{m, +x, ty} <> t:
+      fd.lc.ralg(t, fd.exh.if(T.Bt, fd.lc.own(x), _ => T.tba.subst(alg, x, T.BtVar{fd.lc.rnm(x)}), _ => alg))
+    case Nil{}:
+      alg
+
 def fd.lc.defs(c: Lc, cx: Lcx) -> List<&2, T.BItem>:
   match c cx:
-    case Lc{+n, +g, cof, as, w, r, alg, fv} Lcx{d, rs, +fz, +tys, ps, bs}:
-      fd.lc.gen(fd.lc.fzb(fz, g), fd.dv.find(tys, g), n, d, cof, as, w, r, alg, fz, tys, fv)
+    case Lc{+n, +g, cof, as, w, r, alg, +fv} Lcx{d, rs, +fz, +tys, ps, bs}:
+      fd.lc.gen(fd.lc.fzb(fz, g), fd.dv.find(tys, g), n, d, cof, as, w, r, fd.lc.ralg(fv, alg), fz, tys, fd.lc.rfv(fv))
 
 def fd.lc.gen1(dup: Bool, c: Lc, cx: Lcx, rest: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match dup:
@@ -12892,8 +12913,48 @@ def fd.pt.any(+ks: List<&2, Pt>, rs: List<&2, List<&2, U32>>) -> Bool:
       Bool.or(fd.pt.is(ks, r), fd.pt.any(ks, t))
 
 # whether a term calls (or names) a partial def
+# Cata.Base's attempt sees its argument's error (Nothing): what it is given is no
+# partial call of the def it is in
+def fd.att.is(+f: List<&2, U32>) -> Bool:
+  fd.is(f, "Cata_Base.attempt")
+
+def fd.att.drop(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, +a}:
+      Bool.pick(T.Bt, fd.att.is(x), T.BtVar{x}, T.BtApp{T.BtVar{x}, fd.att.drop(a)})
+    case T.BtApp{h, a}:
+      T.BtApp{fd.att.drop(h), fd.att.drop(a)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.att.drop(a)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.att.drop(b)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.att.drop(a)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.att.drop(a)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.att.drop(a), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{fd.att.drop(xs), fd.att.drop(cs)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.att.drop(e)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.att.drop(e), p, fd.att.drop(b)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.att.drop(v), fd.att.drop(b)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.att.drop(b), fd.att.drop(rest)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.att.drop(a), fd.att.drop(rest)}
+    case u:
+      u
+
+def fd.pt.refs(+t: T.Bt) -> List<&2, List<&2, U32>>:
+  +rs = T.tba.refs(t, Nil{})
+  fd.exh.if(List<&2, List<&2, U32>>, S.mem(S.b("Cata_Base.attempt"), rs), _ => T.tba.refs(fd.att.drop(t), Nil{}), _ => rs)
+
 def fd.pt.has(+ks: List<&2, Pt>, t: T.Bt) -> Bool:
-  fd.pt.any(ks, T.tba.refs(t, Nil{}))
+  fd.pt.any(ks, fd.pt.refs(t))
 
 # the defs whose thunks are answers: an if, a compare's three ways
 def fd.pt.br(+f: List<&2, U32>) -> Bool:
@@ -12923,6 +12984,7 @@ def fd.pt.amode(brh: Bool) -> Ptm:
 type Ho is Data:
   Ho{f: List<&2, U32>, fs: List<&2, Bool>, pre: List<&2, T.Bt>, b: T.Bt, r: T.Bt}
   Hg{f: List<&2, U32>, ts: List<&2, Maybe<&2, T.Bt>>, r: T.Bt}
+  Hz{f: List<&2, U32>, fs: List<&2, Bool>, t: T.Bt}
 
 def fd.pt.ho.lam(+ks: List<&2, Pt>, g: T.Bt) -> Bool:
   match g:
@@ -13123,9 +13185,17 @@ def fd.ph.find(ks: List<&2, Pt>, +all: List<&2, Pt>, +f: List<&2, U32>, +as: Lis
     case Pt{n, ps, r} <> t:
       fd.ph.find(t, all, f, as)
 
+# attempt given a partial call: the Either that call answers, seen
+def fd.pt.ho.att(+ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
+  match as:
+    case t <> +x <> Nil{}:
+      Bool.pick(Maybe<&2, Ho>, fd.pt.has(ks, x), Some{Hz{S.b("HsPrelude.HsPt.attempt"), [False{}, True{}], t}}, None{})
+    case _:
+      None{}
+
 def fd.pt.ho(+f: List<&2, U32>, +ks: List<&2, Pt>, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   +c = Bool.or(Bool.or(S.prefix(f, S.b("List.")), S.prefix(f, S.b("HsPrelude.HsList."))), Bool.or(fd.is(f, "hs.map"), S.prefix(f, S.b("HsPrelude.HsMap."))))
-  fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.unc(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as)))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => fd.ph.find(ks, ks, f, as)))
+  fd.pt.if(Maybe<&2, Ho>, fd.att.is(f), _ => fd.pt.ho.att(ks, as), _ => fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.unc(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as)))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => fd.ph.find(ks, ks, f, as))))
 
 def fd.pt.ho.mode(m: Maybe<&2, Ho>, d: Ptm) -> Ptm:
   match m:
@@ -13133,6 +13203,8 @@ def fd.pt.ho.mode(m: Maybe<&2, Ho>, d: Ptm) -> Ptm:
       PtFm{fs}
     case Some{Hg{f, ts, r}}:
       PtGm{ts}
+    case Some{Hz{f, fs, t}}:
+      PtFm{fs}
     case None{}:
       d
 
@@ -13142,6 +13214,8 @@ def fd.pt.ho.ty(m: Maybe<&2, Ho>, d: T.Bt) -> T.Bt:
       b
     case Some{Hg{f, ts, r}}:
       d
+    case Some{Hz{f, fs, t}}:
+      t
     case None{}:
       d
 
@@ -13274,6 +13348,10 @@ def fd.pt.app2(ho: Maybe<&2, Ho>, +ks: List<&2, Pt>, m: Ptm, +f: List<&2, U32>, 
       match w:
         case Pw{a, bs, k, bad, e, at}:
           fd.pt.app.go(Some{r}, m, T.BtVar{g}, a, bs, k, bad, lam)
+    case Some{Hz{g, fs, t}}:
+      match w:
+        case Pw{a, bs, k, bad, e, at}:
+          Pw{T.BtApp{T.BtVar{g}, a}, bs, k, bad, False{}, T.BtType{}}
     case None{}:
       fd.pt.app(ks, m, f, w, lam, brh)
 
@@ -13484,7 +13562,7 @@ def fd.pt.prs(its: List<&2, T.BItem>) -> List<&2, Pr>:
     case Nil{}:
       Nil{}
     case T.BiDef{n, ps, r, b, d} <> t:
-      Pr{n, ps, r, T.tba.refs(b, Nil{})} <> fd.pt.prs(t)
+      Pr{n, ps, r, fd.pt.refs(b)} <> fd.pt.prs(t)
     case _ <> t:
       fd.pt.prs(t)
 
@@ -17236,11 +17314,19 @@ def fd.tpl.who(t: T.Bt, +bs: List<&2, List<&2, U32>>) -> Maybe<&2, List<&2, U32>
     case _:
       None{}
 
+# the first of xs that is in ys
+def fd.firstin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> List<&2, U32>:
+  match xs:
+    case +h <> t:
+      Bool.pick(List<&2, U32>, S.mem(h, ys), h, fd.firstin(t, ys))
+    case Nil{}:
+      Nil{}
+
 # a def whose template argument is a closure is out
 def fd.tpl.check.of(clo: Bool, +b: T.Bt) -> T.Bt:
   match clo:
     case True{}:
-      T.BtTodo{fd.cat(S.b("fold:closure-argument:"), Maybe.default(&2, List<&2, U32>, fd.tpl.who(b, fd.binds(b, Nil{})), S.b("?")))}
+      T.BtTodo{fd.cat3(S.b("fold:closure-argument:"), Maybe.default(&2, List<&2, U32>, fd.tpl.who(b, fd.binds(b, Nil{})), S.b("?")), fd.cat(S.b(":"), fd.firstin(fd.tas(b, Nil{}), fd.binds(b, Nil{}))))}
     case False{}:
       b
 
