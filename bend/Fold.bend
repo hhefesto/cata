@@ -13768,11 +13768,110 @@ def fd.el.of(es: List<&2, Een>, its: List<&2, T.BItem>) -> List<&2, T.BItem>:
     case +h <> +t:
       fd.el.items(its, h <> t)
 
+# A lambda given its arguments at once ((tab => x1 => l5(tab, x1))(z, x),
+# foldl's copy at a known step; (x0 => tab => l3(x0, tab))(x, pt_0)), in the
+# defs that are partial, read in its arguments' places: a partial call in it
+# is then where it can be bound. An argument that is a variable is put in
+# its place; another is the lambda's alone, the arguments after it inside
+# (a parameter of theirs named so renamed x_rx). Fuel: the arguments.
+def fd.rx.flat(t: T.Bt, +as: List<&2, T.Bt>) -> List<&2, T.Bt>:
+  match t:
+    case T.BtArgs{a, r}:
+      a <> fd.rx.flat(r, as)
+    case _:
+      as
+
+def fd.rx.red(fuel: Nat, f: T.Bt, +as: List<&2, T.Bt>) -> T.Bt:
+  match fuel f as:
+    case 1n+p T.BtLam{m, +x, +b} T.BtVar{+v} <> +t:
+      fd.rx.red(p, T.tba.subst(b, x, T.BtVar{v}), t)
+    case 1n+(+p) T.BtLam{+m, +x, +b} a <> +h <> +t:
+      +r = {h <> t : List<&2, T.Bt>}
+      +cl = S.mem(x, fd.sfrees(T.tba.args(r), Nil{}))
+      +y = Bool.pick(List<&2, U32>, cl, fd.cat(x, S.b("_rx")), x)
+      +b2 = Bool.pick(T.Bt, cl, T.tba.subst(b, x, T.BtVar{y}), b)
+      T.BtApp{T.BtLam{m, y, fd.rx.red(p, b2, r)}, T.tba.args([a])}
+    case _ g Nil{}:
+      g
+    case _ g xs:
+      T.BtApp{g, T.tba.args(xs)}
+
+def fd.rx.islam(t: T.Bt) -> Bool:
+  match t:
+    case T.BtLam{m, x, b}:
+      True{}
+    case _:
+      False{}
+
+# a spine's head and arguments: f(a)(b) as f(a, b) where its head is a lambda
+def fd.rx.app(f: T.Bt, +a: T.Bt) -> T.Bt:
+  match f:
+    case T.BtApp{T.BtLam{m, x, b}, c}:
+      fd.rx.red(16n, T.BtLam{m, x, b}, fd.rx.flat(c, fd.rx.flat(a, Nil{})))
+    case T.BtLam{m, x, b}:
+      fd.rx.red(16n, T.BtLam{m, x, b}, fd.rx.flat(a, Nil{}))
+    case g:
+      T.BtApp{g, a}
+
+def fd.rx(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.rx.app(fd.rx(f), fd.rx(a))
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.rx(a), fd.rx(r)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.rx(a)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.rx(b)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.rx(a)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.rx(cs)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.rx(b), fd.rx(r)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.rx(v), fd.rx(b)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{e, p, fd.rx(b)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.rx(e)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.rx(a), ty}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.rx(a)}
+    case u:
+      u
+
+# a parameter the body uses twice now is marked +
+def fd.rx.ps(ps: List<&2, T.BParam>, +b: T.Bt) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{T.BmLive{}, +x, ty} <> t:
+      T.BParam{fd.mode(fd.uses(b, x)), x, ty} <> fd.rx.ps(t, b)
+    case h <> t:
+      h <> fd.rx.ps(t, b)
+    case Nil{}:
+      Nil{}
+
+def fd.rx.item(n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>) -> T.BItem:
+  T.BiDef{n, fd.rx.ps(ps, b), r, b, d}
+
+def fd.rx.items(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, +r, +b, +d} <> t:
+      Bool.pick(T.BItem, fd.pt.isown(ks, n), fd.rx.item(n, ps, r, fd.mark(fd.rx(b)), d), T.BiDef{n, ps, r, b, d}) <> fd.rx.items(t, ks)
+    case h <> t:
+      h <> fd.rx.items(t, ks)
+
 def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.ph.all(its, fd.pt.ks(its, dt))
 
-def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all2(fd.pa.all(fd.el.of(fd.el.names(its, fd.pt.ks(its, dt)), its), dt), dt)
+
+def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.pt.all1(fd.rx.items(its, fd.pt.ks(its, dt)), dt)
 
 # Recursion through a lifted def ------------------------------------------------
 
