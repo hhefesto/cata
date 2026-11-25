@@ -16143,11 +16143,159 @@ def fd.kd.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   +ks = fd.kd.fix(30n, List.append(&2, T.BItem, its, dt), Nil{})
   fd.kd.if(List<&2, T.BItem>, List.is_empty(&2, List<&2, U32>, ks), _ => its, _ => fd.kd.items(its, ks))
 
+# Type parameters that are functors ------------------------------------------------
+
+# A def polymorphic in a functor (Desugar's rewriteOuterTag, at any Cofree f
+# a): its type parameter, the first of a Cofree, a CofreeF or a Fix, is a
+# Data -> Data, and a call's argument there, a type given all but its last
+# parameter, a lambda over the last.
+def fd.hk.ho(+n: List<&2, U32>) -> Bool:
+  Bool.or(fd.is(n, "HsPrelude.Cofree"), Bool.or(fd.is(n, "HsPrelude.CofreeF"), fd.is(n, "HsPrelude.Fix")))
+
+def fd.hk.first(a: T.Bt, +x: List<&2, U32>) -> Bool:
+  match a:
+    case T.BtArgs{T.BtVar{+y}, r}:
+      S.eq(y, x)
+    case _:
+      False{}
+
+def fd.hk.in(t: T.Bt, +x: List<&2, U32>) -> Bool:
+  match t:
+    case T.BtTyApp{+n, +a}:
+      Bool.or(Bool.and(fd.hk.ho(n), fd.hk.first(a, x)), fd.hk.in(a, x))
+    case T.BtArgs{a, r}:
+      Bool.or(fd.hk.in(a, x), fd.hk.in(r, x))
+    case T.BtPi{m, y, d, a, b}:
+      Bool.or(fd.hk.in(a, x), fd.hk.in(b, x))
+    case T.BtLam{m, y, b}:
+      fd.hk.in(b, x)
+    case _:
+      False{}
+
+def fd.hk.inps(ps: List<&2, T.BParam>, +x: List<&2, U32>) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case T.BParam{m, y, ty} <> t:
+      Bool.or(fd.hk.in(ty, x), fd.hk.inps(t, x))
+
+def fd.hk.isdata(t: T.Bt) -> Bool:
+  match t:
+    case T.BtVar{+x}:
+      fd.is(x, "Data")
+    case _:
+      False{}
+
+# the places of a def's functor parameters
+def fd.hk.idx(ps: List<&2, T.BParam>, +all: List<&2, T.BParam>, +r: T.Bt, +i: Nat) -> List<&2, Nat>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, +x, ty} <> t:
+      +rest = fd.hk.idx(t, all, r, 1n+i)
+      Bool.pick(List<&2, Nat>, Bool.and(fd.hk.isdata(ty), Bool.or(fd.hk.inps(all, x), fd.hk.in(r, x))), i <> rest, rest)
+
+def fd.hk.ps(ps: List<&2, T.BParam>, +iz: List<&2, Nat>, +i: Nat) -> List<&2, T.BParam>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, +ty} <> t:
+      T.BParam{m, x, Bool.pick(T.Bt, fd.ph.in(iz, i), T.BtPi{T.BmLive{}, S.b("_"), False{}, ty, ty}, ty)} <> fd.hk.ps(t, iz, 1n+i)
+
+def fd.hk.defs(its: List<&2, T.BItem>) -> List<&2, Hdf>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, +r, b, d} <> t:
+      +js = fd.hk.idx(ps, ps, r, 0n)
+      +rest = fd.hk.defs(t)
+      Bool.pick(List<&2, Hdf>, List.is_empty(&2, Nat, js), rest, Hdf{n, ps, r, b, js} <> rest)
+    case h <> t:
+      fd.hk.defs(t)
+
+def fd.hk.arg(a: T.Bt) -> T.Bt:
+  match a:
+    case T.BtTyApp{n, as}:
+      T.BtLam{T.BmLive{}, S.b("r_"), T.BtTyApp{n, T.tba.args(List.append(&2, T.Bt, fd.spine(as), [T.BtVar{S.b("r_")}]))}}
+    case T.BtTplArg{T.BtTyApp{n, as}}:
+      T.BtTplArg{T.BtLam{T.BmLive{}, S.b("r_"), T.BtTyApp{n, T.tba.args(List.append(&2, T.Bt, fd.spine(as), [T.BtVar{S.b("r_")}]))}}}
+    case u:
+      u
+
+def fd.hk.args(a: T.Bt, +iz: List<&2, Nat>, +i: Nat) -> T.Bt:
+  match a:
+    case T.BtArgs{+h, r}:
+      T.BtArgs{Bool.pick(T.Bt, fd.ph.in(iz, i), fd.hk.arg(h), h), fd.hk.args(r, iz, 1n+i)}
+    case u:
+      u
+
+def fd.hk.call(m: Maybe<&2, Hdf>, f: List<&2, U32>, a: T.Bt) -> T.Bt:
+  match m:
+    case Some{Hdf{n, ps, r, b, js}}:
+      T.BtApp{T.BtVar{f}, fd.hk.args(a, js, 0n)}
+    case None{}:
+      T.BtApp{T.BtVar{f}, a}
+
+def fd.hk.app(f: T.Bt, a: T.Bt, +hds: List<&2, Hdf>) -> T.Bt:
+  match f:
+    case T.BtVar{+x}:
+      fd.hk.call(fd.ph.hd(hds, x), x, a)
+    case g:
+      T.BtApp{g, a}
+
+def fd.hk.go(t: T.Bt, +hds: List<&2, Hdf>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.hk.app(fd.hk.go(f, hds), fd.hk.go(a, hds), hds)
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.hk.go(a, hds), fd.hk.go(r, hds)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.hk.go(a, hds)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.hk.go(b, hds)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.hk.go(a, hds)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.hk.go(cs, hds)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{p, fd.hk.go(b, hds), fd.hk.go(r, hds)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.hk.go(v, hds), fd.hk.go(b, hds)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{e, p, fd.hk.go(b, hds)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.hk.go(e, hds)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.hk.go(a, hds), ty}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.hk.go(a, hds)}
+    case u:
+      u
+
+def fd.hk.items(its: List<&2, T.BItem>, +hds: List<&2, Hdf>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, +r, b, d} <> t:
+      T.BiDef{n, fd.hk.ps(ps, fd.hk.idx(ps, ps, r, 0n), 0n), r, fd.hk.go(b, hds), d} <> fd.hk.items(t, hds)
+    case h <> t:
+      h <> fd.hk.items(t, hds)
+
+def fd.hk.of(hds: List<&2, Hdf>, its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match hds:
+    case Nil{}:
+      its
+    case +h <> +t:
+      fd.hk.items(its, h <> t)
+
+def fd.hk.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.hk.of(fd.hk.defs(its), its)
+
 # fd.kd.all again after fd.mu.all: a fuelled group's In (its members'
 # arguments) holds a function where one is a local action (IC's eraRegion's
 # dropLeaf), and is a Type then
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dtall(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))
+  fd.hk.all(fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dtall(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px))))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
