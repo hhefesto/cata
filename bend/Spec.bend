@@ -10302,6 +10302,88 @@ def sp.pstys(xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
     case x <> t:
       sp.psty(x, cts) <> sp.pstys(t, cts)
 
+# mapM, traverse, forM, .. at a list and a function that names the def's own
+# recursion group (expandTerm's traverse (traverse expandPattern) pats, and
+# expandPattern's back to expandTerm): the prelude's take a template, which no
+# recursion goes through; so the call is the model's (sp.hm), copied at it.
+type Hgd is Data:
+  Hgd{n: List<&2, U32>, rs: List<&2, List<&2, U32>>}
+
+def sp.hg.name(+x: X.Sx) -> List<&2, U32>:
+  sp.sat(sp.at(sp.or(sp.nth(sp.exports(x), 0n), X.SxNil{}), 1n), 2n)
+
+def sp.hg.defs(xs: List<&2, X.Sx>, +cur: List<&2, U32>) -> List<&2, Hgd>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      +rest = sp.hg.defs(t, cur)
+      sp.if(List<&2, Hgd>, sp.head.is(x, "top"), _ => Hgd{sp.hg.name(x), sp.lr.gs(x, cur, Nil{})} <> rest, _ => rest)
+
+def sp.hg.find(ds: List<&2, Hgd>, +n: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Hgd{m, +rs} <> t:
+      Bool.pick(List<&2, List<&2, U32>>, S.eq(m, n), rs, sp.hg.find(t, n))
+
+def sp.hg.reaches(fuel: Nat, todo: List<&2, List<&2, U32>>, +seen: List<&2, List<&2, U32>>, +goal: List<&2, U32>, +ds: List<&2, Hgd>) -> Bool:
+  match fuel todo:
+    case 1n+p +n <> +t:
+      sp.if(Bool, S.eq(n, goal), _ => True{}, _ => sp.hg.reaches(p, sp.if(List<&2, List<&2, U32>>, S.mem(n, seen), _ => t, _ => List.append(&2, List<&2, U32>, sp.hg.find(ds, n), t)), n <> seen, goal, ds))
+    case _ _:
+      False{}
+
+def sp.hg.any(rs: List<&2, List<&2, U32>>, +me: List<&2, U32>, +ds: List<&2, Hgd>) -> Bool:
+  match rs:
+    case Nil{}:
+      False{}
+    case +r <> +t:
+      sp.if(Bool, sp.hg.reaches(8000n, [r], Nil{}, me, ds), _ => True{}, _ => sp.hg.any(t, me, ds))
+
+def sp.hg.call(m: Maybe<&2, Hme>, +tys: List<&2, X.Sx>, +h: X.Sx, +xs: List<&2, X.Sx>, +y: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ds: List<&2, Hgd>) -> X.Sx:
+  match m:
+    case Some{Hme{q, +i, n}}:
+      +f = sp.pc.strip(sp.hf.ty(xs, i))
+      +ok = Bool.and(Bool.and(Nat.is_gt(List.length(&2, X.Sx, xs), i), Nat.is_le(List.length(&2, X.Sx, xs), n)), sp.pc.atlist(tys))
+      sp.if(X.Sx, sp.if(Bool, ok, _ => sp.hg.any(sp.lr.gs(f, cur, Nil{}), me, ds), _ => False{}), _ => sp.hm.apps(xs, sp.hm.put(h)), _ => y)
+    case None{}:
+      y
+
+def sp.hg.at(s: Bs, +y: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ds: List<&2, Hgd>) -> X.Sx:
+  match s:
+    case Bs{+h, +xs}:
+      +p = sp.pc.peel(h, Nil{}, Nil{})
+      sp.hg.call(sp.hm.find(sp.hm.tab(), sp.pc.key(p)), sp.pc.tys(p), h, xs, y, me, cur, ds)
+
+def sp.hg.w(x: X.Sx, +me: List<&2, U32>, +cur: List<&2, U32>, +ds: List<&2, Hgd>) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+f, X.SxCons{+e, X.SxNil{}}}}:
+      +y = {X.SxCons{X.SxAtom{a}, X.SxCons{sp.hg.w(f, me, cur, ds), X.SxCons{sp.hg.w(e, me, cur, ds), X.SxNil{}}}} : X.Sx}
+      sp.if(X.Sx, sp.is(a, "app"), _ => sp.hg.at(sp.beta.spine(y, Nil{}), y, me, cur, ds), _ => y)
+    case X.SxCons{h, t}:
+      X.SxCons{sp.hg.w(h, me, cur, ds), sp.hg.w(t, me, cur, ds)}
+    case y:
+      y
+
+def sp.hg.each(xs: List<&2, X.Sx>, +cur: List<&2, U32>, +ds: List<&2, Hgd>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      sp.if(X.Sx, sp.head.is(x, "top"), _ => sp.hg.w(x, sp.hg.name(x), cur, ds), _ => x) <> sp.hg.each(t, cur, ds)
+
+def sp.hg.cur(xs: List<&2, X.Sx>) -> List<&2, U32>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> +t:
+      sp.if(List<&2, U32>, sp.head.is(x, "top"), _ => sp.sat(sp.at(sp.or(sp.nth(sp.exports(x), 0n), X.SxNil{}), 1n), 1n), _ => sp.hg.cur(t))
+
+def sp.hg(+xs: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
+  +cur = sp.hg.cur(xs)
+  sp.if(List<&2, X.Sx>, sp.ix.hasgen(ix), _ => sp.hg.each(xs, cur, sp.hg.defs(xs, cur)), _ => xs)
+
 # Two local functions of a def with one name (letsToApps' f, its algebra's and
 # its annotations'): the fold lifts each as DEF.NAME, so all but the first are
 # NAME_ID
@@ -10346,7 +10428,7 @@ def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: Lis
         +xsr : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(sp.g1(X.tsx.read(bytes)), sp.ix.cts(ix)))
         +dg2 : List<&2, List<&2, U32>> <- IO.pure(List<&2, List<&2, U32>>, List.append(&2, List<&2, U32>, sp.dg.snds(xsr, sp.dg.offs(xsr)), dg))
         +xs0 : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.dg(xsr, dg2))
-        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.cxs(sp.kn(xs0), sp.ix.module(xs0, ix)))
+        +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.cxs(sp.hg(sp.kn(xs0), ix), sp.ix.module(xs0, ix)))
         +ix2 : Ix <- IO.pure(Ix, sp.ix.module(xs, ix))
         +p : String <- IO.pure(String, out ++ "/" ++ S.base(f))
         +md : Md <- IO.pure(Md, sp.module(xs, ix2, ws))
