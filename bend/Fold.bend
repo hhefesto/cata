@@ -9771,7 +9771,7 @@ def fd.dv.txt(v: String) -> T.Bt:
   T.BtVar{S.b(v)}
 
 def fd.dv.bases() -> List<&2, DfB>:
-  [DfB{"Nat", fd.dv.nat("0")}, DfB{"U32", fd.dv.txt("0")}, DfB{"Char", fd.dv.txt("' '")}, DfB{"Bool", fd.dv.c0("False")}, DfB{"Unit", fd.dv.c0("Unit")}, DfB{"F32", fd.dv.txt("0.0")}, DfB{"Cmp", fd.dv.c0("EQ")}, DfB{"List", fd.dv.txt("[]")}, DfB{"Maybe", fd.dv.c0("None")}, DfB{"HsPrelude.HsInt", fd.dv.cn("HsPrelude.HsInt.Pos", [fd.dv.nat("0")])}, DfB{"HsPrelude.HsRational", fd.dv.cn("HsPrelude.HsRational", [fd.dv.cn("HsPrelude.HsInt.Pos", [fd.dv.nat("0")]), fd.dv.nat("1")])}, DfB{"HsPrelude.HsMap", fd.dv.c0("HsPrelude.HsMap.Tip")}, DfB{"HsPrelude.HsSet", fd.dv.c0("HsPrelude.HsSet.Tip")}, DfB{"HsPrelude.HsPcRep", fd.dv.cn("HsPrelude.HsPcRep", [fd.dv.c0("False"), fd.dv.cn("HsPrelude.HsPcRes.Bad", [fd.dv.cn("HsPrelude.HsPcError.Fancy", [fd.dv.nat("0"), fd.dv.txt("[]")]), fd.dv.cn("HsPrelude.HsPcSt", [fd.dv.txt("[]"), fd.dv.nat("0"), fd.dv.nat("1"), fd.dv.nat("1"), fd.dv.txt("[]")])])])}, DfB{"HsPrelude.HsPcPos", fd.dv.cn("HsPrelude.HsPcPos", [fd.dv.txt("[]"), fd.dv.nat("1"), fd.dv.nat("1")])}]
+  [DfB{"Nat", fd.dv.nat("0")}, DfB{"U32", fd.dv.txt("0")}, DfB{"Char", fd.dv.txt("' '")}, DfB{"Bool", fd.dv.c0("False")}, DfB{"Unit", fd.dv.c0("Unit")}, DfB{"F32", fd.dv.txt("0.0")}, DfB{"Cmp", fd.dv.c0("EQ")}, DfB{"List", fd.dv.txt("[]")}, DfB{"Maybe", fd.dv.c0("None")}, DfB{"HsPrelude.HsInt", fd.dv.cn("HsPrelude.HsInt.Pos", [fd.dv.nat("0")])}, DfB{"HsPrelude.HsRational", fd.dv.cn("HsPrelude.HsRational", [fd.dv.cn("HsPrelude.HsInt.Pos", [fd.dv.nat("0")]), fd.dv.nat("1")])}, DfB{"HsPrelude.HsDigest", fd.dv.cn("HsPrelude.HsDigest.D", [fd.dv.txt("[]")])}, DfB{"HsPrelude.HsMap", fd.dv.c0("HsPrelude.HsMap.Tip")}, DfB{"HsPrelude.HsSet", fd.dv.c0("HsPrelude.HsSet.Tip")}, DfB{"HsPrelude.HsPcRep", fd.dv.cn("HsPrelude.HsPcRep", [fd.dv.c0("False"), fd.dv.cn("HsPrelude.HsPcRes.Bad", [fd.dv.cn("HsPrelude.HsPcError.Fancy", [fd.dv.nat("0"), fd.dv.txt("[]")]), fd.dv.cn("HsPrelude.HsPcSt", [fd.dv.txt("[]"), fd.dv.nat("0"), fd.dv.nat("1"), fd.dv.nat("1"), fd.dv.txt("[]")])])])}, DfB{"HsPrelude.HsPcPos", fd.dv.cn("HsPrelude.HsPcPos", [fd.dv.txt("[]"), fd.dv.nat("1"), fd.dv.nat("1")])}]
 
 def fd.dv.base(xs: List<&2, DfB>, +n: List<&2, U32>) -> Maybe<&2, T.Bt>:
   match xs:
@@ -13012,11 +13012,15 @@ def fd.pt.ho.put(ok: Bool, s: String, k: Nat, b: T.Bt, r: T.Bt) -> Maybe<&2, Ho>
 def fd.pt.ho.map(k: T.Bt, v: T.Bt) -> T.Bt:
   T.BtTyApp{S.b("HsPrelude.HsMap"), T.tba.args([k, v])}
 
+# Either E B
+def fd.pt.ho.eit(e: T.Bt, b: T.Bt) -> T.Bt:
+  T.BtTyApp{S.b("Either"), T.tba.args([T.BtVar{S.b("&2")}, T.BtVar{S.b("&2")}, e, b])}
+
 def fd.pt.ho.of(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   match as:
     case T.BtTplArg{+a} <> T.BtTplArg{+b} <> T.BtTplArg{+c} <> +g <> t:
       +w = fd.pt.ho.lam(ks, g)
-      Bool.pick(Maybe<&2, Ho>, Bool.not(w), None{}, Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.zipWith"), "HsPrelude.HsPt.zipWith", 3n, c, fd.list(c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.map"), "HsPrelude.HsPt.mmap", 3n, c, fd.pt.ho.map(a, c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.mapWithKey"), "HsPrelude.HsPt.mmapk", 3n, c, fd.pt.ho.map(a, c)), fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.foldr"), "HsPrelude.HsPt.mfoldr", 3n, c, c)))))
+      Bool.pick(Maybe<&2, Ho>, Bool.not(w), None{}, Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.zipWith"), "HsPrelude.HsPt.zipWith", 3n, c, fd.list(c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.map"), "HsPrelude.HsPt.mmap", 3n, c, fd.pt.ho.map(a, c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.mapWithKey"), "HsPrelude.HsPt.mmapk", 3n, c, fd.pt.ho.map(a, c)), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsMap.foldr"), "HsPrelude.HsPt.mfoldr", 3n, c, c), Maybe.or(&2, Ho, fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.either.mapm"), "HsPrelude.HsPt.either.mapm", 3n, fd.pt.ho.eit(a, c), fd.pt.ho.eit(a, fd.list(c))), fd.pt.ho.put(fd.is(f, "HsPrelude.HsList.either.mapm_"), "HsPrelude.HsPt.either.mapm_", 3n, fd.pt.ho.eit(a, c), fd.pt.ho.eit(a, fd.ty0("Unit")))))))))
     case _:
       None{}
 
@@ -14128,7 +14132,7 @@ def fd.pa.of(own: List<&2, Een>, +imp: List<&2, Een>, its: List<&2, T.BItem>, +k
 
 def fd.pa.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   +ks = fd.pt.ks(its, dt)
-  fd.pa.of(fd.pa.names(its, ks), fd.pa.imported(dt), its, ks)
+  fd.pa.of(fd.pa.names(its, ks), List.append(&2, Een, fd.pa.imported(its), fd.pa.imported(dt)), its, ks)
 
 # Partial functions as arguments ------------------------------------------------------
 
@@ -14764,13 +14768,13 @@ def fd.pc.all2(+own: List<&2, Een>, +cand: List<&2, Een>, +imp: List<&2, Een>, +
 def fd.pc.all1(cand: List<&2, Een>, +own: List<&2, Een>, +imp: List<&2, Een>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match cand:
     case Nil{}:
-      fd.pa.of(own, imp, its, ks)
+      fd.exh.if(List<&2, T.BItem>, List.is_empty(&2, Een, fd.pa.imported(its)), _ => fd.pa.of(own, imp, its, ks), _ => fd.pc.at(own, imp, its, ks))
     case +h <> +t:
       fd.pc.all2(own, h <> t, imp, its, ks, dt)
 
 def fd.pc.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   +ks = fd.pt.ks(its, dt)
-  fd.pc.all1(fd.pc.names(its, ks), fd.pa.names(its, ks), fd.pa.imported(dt), its, ks, dt)
+  fd.pc.all1(fd.pc.names(its, ks), fd.pa.names(its, ks), List.append(&2, Een, fd.pa.imported(its), fd.pa.imported(dt)), its, ks, dt)
 
 # the copies
 def fd.dx.hds(its: List<&2, T.BItem>) -> List<&2, Hdf>:

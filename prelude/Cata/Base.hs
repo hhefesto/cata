@@ -833,16 +833,13 @@ foldlPairs f ((k, x) : xs) z = foldlPairs f xs (f z k x)
 setDisjoint :: forall a. Ord a => Set.Set a -> Set.Set a -> Bool
 setDisjoint a b = Set.null (Set.intersection a b)
 
--- | containers' foldl and foldl' at a Set, void at a Map, and seq (Bend is
--- strict: its first argument is evaluated where it is given)
+-- | containers' foldl and foldl' at a Set, void at a Map
 setFoldl :: forall a b. (a -> b -> a) -> a -> Set.Set b -> a
 setFoldl f z s = foldl f z (Set.toAscList s)
 
 mapVoid :: forall k a. Map.Map k a -> Map.Map k ()
 mapVoid m = Map.map (\_ -> ()) m
 
-seqOp :: forall a b. a -> b -> b
-seqOp _ b = b
 
 -- | x, or Nothing where x errs (cata reads it so: an error is a failure value;
 -- in Haskell an error is an error)

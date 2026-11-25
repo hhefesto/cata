@@ -513,3 +513,36 @@ def HsPt.attempt(-A: Data, m: Either<&2, &2, List<&2, Char>, A>) -> Maybe<&2, A>
       None{}
     case Inr{a}:
       Some{a}
+
+# mapM and mapM_ in Either at a partial function: the first failure, GHC's or
+# the Either's, ends it
+def HsPt.either.cons(-E: Data, -B: Data, b: B, r: Either<&2, &2, E, List<&2, B>>) -> Either<&2, &2, E, List<&2, B>>:
+  match r:
+    case Inl{e}:
+      Inl{e}
+    case Inr{bs}:
+      Inr{b <> bs}
+
+def HsPt.either.next(-E: Data, -B: Data, r: Either<&2, &2, E, B>, rest: Unit -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, List<&2, B>>>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, List<&2, B>>>:
+  match r:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{b}:
+      HsPt.bind(Either<&2, &2, E, List<&2, B>>, Either<&2, &2, E, List<&2, B>>, rest(Unit{}), s => Inr{HsPt.either.cons(E, B, b, s)})
+
+def HsPt.either.mapm(~E: Data, ~A: Data, ~B: Data, ~f: A -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, List<&2, B>>>:
+  match xs:
+    case Nil{}:
+      Inr{Inr{Nil{}}}
+    case h <> t:
+      HsPt.bind(Either<&2, &2, E, B>, Either<&2, &2, E, List<&2, B>>, f(h), r => HsPt.either.next(E, B, r, _ => HsPt.either.mapm(~E, ~A, ~B, ~f, t)))
+
+def HsPt.either.unit(-E: Data, -B: Data, r: Either<&2, &2, E, List<&2, B>>) -> Either<&2, &2, E, Unit>:
+  match r:
+    case Inl{e}:
+      Inl{e}
+    case Inr{bs}:
+      Inr{Unit{}}
+
+def HsPt.either.mapm_(~E: Data, ~A: Data, ~B: Data, ~f: A -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Unit>>:
+  HsPt.bind(Either<&2, &2, E, List<&2, B>>, Either<&2, &2, E, Unit>, HsPt.either.mapm(~E, ~A, ~B, ~f, xs), r => Inr{HsPt.either.unit(E, B, r)})
