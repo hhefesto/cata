@@ -13200,11 +13200,24 @@ def fd.el.names(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, Een>:
     case h <> t:
       fd.el.names(t, ks)
 
-def fd.el.def(m: Maybe<&2, Nat>, +n: List<&2, U32>, ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Een>) -> T.BItem:
+# the first ee_ of a def that has some already (an earlier round's): its
+# parameters' number
+def fd.el.hasee(ps: List<&2, T.BParam>) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case T.BParam{m, x, ty} <> t:
+      Bool.or(S.prefix(x, S.b("ee_")), fd.el.hasee(t))
+
+def fd.el.start(+ps: List<&2, T.BParam>) -> Nat:
+  Bool.pick(Nat, fd.el.hasee(ps), List.length(&2, T.BParam, ps), 0n)
+
+def fd.el.def(m: Maybe<&2, Nat>, +n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Een>) -> T.BItem:
   match m:
     case Some{a}:
       +k = fd.el.k(b, r)
-      T.BiDef{n, List.append(&2, T.BParam, ps, fd.el.ps(b, r, k, 0n)), fd.el.cod(r, k), fd.stmt(fd.ee.rw(fd.el.strip(b, k, 0n), False{}, es)), d}
+      +i = fd.el.start(ps)
+      T.BiDef{n, List.append(&2, T.BParam, ps, fd.el.ps(b, r, k, i)), fd.el.cod(r, k), fd.stmt(fd.ee.rw(fd.el.strip(b, k, i), False{}, es)), d}
     case None{}:
       T.BiDef{n, ps, r, fd.ee.rw(b, False{}, es), d}
 
@@ -13864,11 +13877,62 @@ def fd.rx.items(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
     case h <> t:
       h <> fd.rx.items(t, ks)
 
+# the point-free partial defs given their parameters, in rounds: a use of
+# one given fewer arguments is a lambda then, so that its def may be one too
+# (eval = transformND check; fuel)
+def fd.el.rounds.of(es: List<&2, Een>, +its: List<&2, T.BItem>, k: List<&2, T.BItem> -> List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match es:
+    case Nil{}:
+      its
+    case +h <> +t:
+      k(fd.el.items(its, h <> t))
+
+def fd.el.rounds(fuel: Nat, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match fuel:
+    case 0n:
+      its
+    case 1n+k:
+      fd.el.rounds.of(fd.el.names(its, fd.pt.ks(its, dt)), its, u => fd.el.rounds(k, u, dt))
+
+# a def with a function parameter, written point-free (transformND f = c
+# where c = f . ..), given a partial function (fd.ph): it takes its lambda's
+# variables as parameters too, for its variant to answer the Either (the
+# defs the module gives one, were they all written so)
+def fd.ey.names(its: List<&2, T.BItem>) -> List<&2, Een>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, +r, +b, d} <> t:
+      +rest = fd.ey.names(t)
+      +k = fd.el.k(b, r)
+      Bool.pick(List<&2, Een>, Bool.and(Nat.is_gt(k, 0n), Bool.not(List.is_empty(&2, Nat, fd.ph.idx(ps, 0n)))), Een{n, Nat.add(List.length(&2, T.BParam, ps), k)} <> rest, rest)
+    case h <> t:
+      fd.ey.names(t)
+
+def fd.ey.keep(es: List<&2, Een>, +hs: List<&2, Hkf>) -> List<&2, Een>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case Een{+n, k} <> t:
+      +rest = fd.ey.keep(t, hs)
+      Bool.pick(List<&2, Een>, List.is_empty(&2, Nat, fd.ph.at(hs, n)), rest, Een{n, k} <> rest)
+
+def fd.ey.hs(+its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, Hkf>:
+  +hds = fd.ph.hds(its)
+  fd.ph.fix(50n, False{}, hds, ks, fd.ph.scans(its, hds, ks, Nil{}))
+
+def fd.ey.all1(+es: List<&2, Een>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  +ex = fd.el.of(es, its)
+  fd.el.of(fd.ey.keep(es, fd.ey.hs(ex, fd.pt.ks(ex, dt))), its)
+
+def fd.ey.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.ey.all1(fd.ey.names(its), its, dt)
+
 def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.ph.all(its, fd.pt.ks(its, dt))
 
 def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.pt.all2(fd.pa.all(fd.el.of(fd.el.names(its, fd.pt.ks(its, dt)), its), dt), dt)
+  fd.pt.all2(fd.pa.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
 
 def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all1(fd.rx.items(its, fd.pt.ks(its, dt)), dt)
