@@ -15378,8 +15378,9 @@ def fd.pl.vars(t: T.Bt, +tys: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
 
 # the calls ------------------------------------------------------------------
 
+# (the last two: an earlier module's, fd.dx's copy of it in this one)
 def fd.pl.cata(+c: List<&2, U32>) -> Bool:
-  Bool.or(S.suffix(c, S.b(".cata.fn")), S.suffix(c, S.b(".cata.cofree.fn")))
+  Bool.or(Bool.or(S.suffix(c, S.b(".cata.fn")), S.suffix(c, S.b(".cata.cofree.fn"))), Bool.or(S.suffix(c, S.b("_cata_fn_im")), S.suffix(c, S.b("_cata_cofree_fn_im"))))
 
 def fd.pl.find(as: List<&2, T.Bt>) -> Maybe<&2, Pl>:
   match as:
