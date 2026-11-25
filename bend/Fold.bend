@@ -14126,12 +14126,48 @@ def fd.sc.zip(a: T.Bt) -> T.Bt:
     case u:
       u
 
+# first and second at a pair, of a partial function: the pair's parts, the
+# function at its part
+def fd.sc.at(f: T.Bt, +x: T.Bt, ks: List<&2, Pt>) -> T.Bt:
+  match f:
+    case T.BtLam{+m, +y, +b}:
+      fd.pt.if(T.Bt, Bool.and(Nat.is_lt(fd.uses(b, y), 2n), fd.rx.apart(fd.binds(b, Nil{}), T.tba.frees(x, Nil{}))), _ => T.tba.subst(b, y, x), _ => fd.rx.red(1n, T.BtLam{m, y, b}, [x]))
+    case g:
+      T.tba.call(g, [x])
+
+def fd.sc.pair(first: Bool, +a: T.Bt, +c: T.Bt, f: T.Bt, +p: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  match first:
+    case True{}:
+      T.BtCon{S.b("Tuple"), T.tba.args([fd.sc.at(f, fd.callS("HsPrelude.HsList.fst", [a, c, p]), ks), fd.callS("HsPrelude.HsList.snd", [a, c, p])])}
+    case False{}:
+      T.BtCon{S.b("Tuple"), T.tba.args([fd.callS("HsPrelude.HsList.fst", [c, a, p]), fd.sc.at(f, fd.callS("HsPrelude.HsList.snd", [c, a, p]), ks)])}
+
+def fd.sc.bi(+a: T.Bt, +c: T.Bt, f: T.Bt, g: T.Bt, +p: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  T.BtCon{S.b("Tuple"), T.tba.args([fd.sc.at(f, fd.callS("HsPrelude.HsList.fst", [a, c, p]), ks), fd.sc.at(g, fd.callS("HsPrelude.HsList.snd", [a, c, p]), ks)])}
+
+# over a variable (the pair is used twice), else under a lambda for it
+def fd.sc.over(p: T.Bt, k: T.Bt -> T.Bt) -> T.Bt:
+  match p:
+    case T.BtVar{x}:
+      k(T.BtVar{x})
+    case u:
+      T.BtApp{T.BtLam{T.BmLive{}, S.b("fp_"), k(T.BtVar{S.b("fp_")})}, T.tba.args([u])}
+
+def fd.sc.two(+x: List<&2, U32>, u: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  match u:
+    case T.BtArgs{+a, T.BtArgs{+b, T.BtArgs{+c, T.BtArgs{+f, T.BtArgs{+p, T.BtANil{}}}}}}:
+      fd.pt.if(T.Bt, Bool.and(Bool.or(fd.is(x, "HsPrelude.HsList.first.pair"), fd.is(x, "HsPrelude.HsList.second.pair")), fd.pt.has(ks, f)), _ => fd.sc.over(p, +q => fd.sc.pair(fd.is(x, "HsPrelude.HsList.first.pair"), a, c, f, q, ks)), _ => T.BtApp{T.BtVar{x}, T.tba.args([a, b, c, f, p])})
+    case T.BtArgs{+a, T.BtArgs{+b, T.BtArgs{+c, T.BtArgs{+d, T.BtArgs{+f, T.BtArgs{+g, T.BtArgs{+p, T.BtANil{}}}}}}}}:
+      fd.pt.if(T.Bt, Bool.and(fd.is(x, "HsPrelude.HsList.bimap.pair"), Bool.or(fd.pt.has(ks, f), fd.pt.has(ks, g))), _ => fd.sc.over(p, +q => fd.sc.bi(a, c, f, g, q, ks)), _ => T.BtApp{T.BtVar{x}, T.tba.args([a, b, c, d, f, g, p])})
+    case w:
+      T.BtApp{T.BtVar{x}, w}
+
 def fd.sc.app(f: T.Bt, a: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
   match f a:
     case T.BtVar{+x} T.BtArgs{+p, T.BtArgs{+q, T.BtANil{}}}:
       Bool.pick(T.Bt, Bool.and(Bool.or(fd.is(x, "Bool.and"), fd.is(x, "Bool.or")), fd.pt.has(ks, q)), fd.sc.op(fd.is(x, "Bool.and"), fd.is(x, "Bool.or"), p, q), T.BtApp{T.BtVar{x}, T.tba.args([p, q])})
     case T.BtVar{+x} +u:
-      T.BtApp{T.BtVar{x}, Bool.pick(T.Bt, Bool.or(fd.is(x, "HsPrelude.HsList.zip"), fd.is(x, "HsPrelude.HsList.zipWith")), fd.sc.zip(u), u)}
+      fd.sc.two(x, Bool.pick(T.Bt, Bool.or(fd.is(x, "HsPrelude.HsList.zip"), fd.is(x, "HsPrelude.HsList.zipWith")), fd.sc.zip(u), u), ks)
     case g u:
       T.BtApp{g, u}
 

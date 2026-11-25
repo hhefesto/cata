@@ -1766,7 +1766,7 @@ def sp.pc.gm.some(b: Bool, n: String, ts: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
 def sp.pc.fixin(t: X.Sx) -> Bool:
   match t:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+m}, X.SxCons{X.SxStr{+n}, +r}}}:
-      Bool.or(Bool.and(sp.is(a, "tc"), Bool.or(sp.is(sp.key(m, n), "Data.Fix.Fix"), sp.is(sp.key(m, n), "Control.Comonad.Cofree.Cofree"))), sp.pc.fixin(r))
+      Bool.or(Bool.and(sp.is(a, "tc"), Bool.or(Bool.or(sp.is(sp.key(m, n), "Data.Fix.Fix"), sp.is(sp.key(m, n), "Control.Comonad.Cofree.Cofree")), Bool.and(Bool.not(S.prefix(m, S.b("HsPrelude"))), sp.pc.own(sp.l([X.SxAtom{a}, X.SxStr{m}, X.SxStr{n}]))))), sp.pc.fixin(r))
     case X.SxCons{h, r}:
       Bool.or(sp.pc.fixin(h), sp.pc.fixin(r))
     case u:
