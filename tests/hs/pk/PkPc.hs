@@ -50,3 +50,10 @@ upTo n = do
 
 two :: Char -> Char -> P (Char, Char)
 two a b = (,) <$> char a <*> (char b <|> char ' ')
+
+-- a parser as an argument
+twice :: P a -> P (a, a)
+twice p = (,) <$> p <*> p
+
+orElse :: P Int -> Int -> P Int
+orElse p n = p <|> pure n

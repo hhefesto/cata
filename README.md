@@ -696,6 +696,43 @@ an `ErrorCall m` into `Inl m` (an `ArithException` into `Inl` of its
 show) and an answer into `Inr`, so the laws check GHC's message too
 (tests/hs/Partial.hs, tests/hs/DivZero.hs).
 
+## What the laws reach
+
+A def's law needs inputs of its type and an answer GHC can print. Beyond
+base's types, lists, Maybe, Either, tuples and the module's own types
+(`bend/Law.bend`):
+
+- **A package's types**: a type or a synonym of another module of the
+  package is read where it is declared (`lw.pd.use`, `lw.pu.syns`), a synonym
+  with more arguments than parameters (`type M = ExceptT E (State S)`, used as
+  `M a`) too. `lawSx`'s instance for a type asks for its fields' in its
+  context, so types that name each other have theirs in any order.
+- **Map, Set, IntMap, IntSet, Fix, Cofree**: inputs written with `lawMap`,
+  `lawSet`, `lawFix`, `lawCof`, so one script runs against h (containers',
+  data-fix's, free's) and against G(F(h)) (BendRt's). Spec reads an IntMap as
+  a Map, so the type of a Map at Int is a wildcard in h's script and a Map in
+  G's (`tests/back/lawg.sed`).
+- **State, and ExceptT over State**: the def is run from a state, an input
+  too: the answer and the state after. A partial one under `LawEw`.
+- **A parser** (`Parsec Void String`): run on 16 small inputs; the law says
+  its answer and the offset after it, or the error's text
+  (`errorBundlePretty`; the prelude's `HsPc.answer`).
+- **Word8, crypton's SHA-256 digest, Rational, ShowS**, and a function as an
+  input (constant functions).
+- **The order of the inputs**: Fold puts template parameters first and says
+  so in the def's doc (`fd.tpl.doc`); the laws' inputs, and G's def under
+  h's name, are in h's order (Back's `bk.o`; `lw.ord.head` is a law that the
+  two files name the doc alike).
+- **A type with no small constructor** (a record of records): below depth 3
+  it keeps its constructors whose fields are base types, or its first.
+- `lawRun` gives each call 2 s and 500 MB of allocation: a loop that keeps
+  all it makes ends the same way on every run (GHC at its heap's limit did
+  not: one took 37 minutes).
+
+A type outside these has no law, and the ledger says which
+(`nolaw:argument-type:..`, `nolaw:result-type:..`): `Writer`, Identity, a
+parser as an argument, Float, a class's method as a function.
+
 ## Equality
 
 Haskell's `==` and `/=` at a type Base has no `==` for: at lists, Maybe,

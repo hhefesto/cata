@@ -525,7 +525,7 @@ def lw.notype(h: Hy) -> List<&2, U32>:
     case HyStA{l, s, a}:
       S.b("type:Control.Monad.Trans.State.State")
     case HyPc{a}:
-      S.b("type:Text.Megaparsec.Parsec")
+      lw.notype(a)
     case _:
       Nil{}
 
@@ -1008,12 +1008,76 @@ def lw.nullary(cs: List<&2, Ck>) -> List<&2, Ck>:
     case Nil{}:
       Nil{}
 
-# at depth 0 only the constructors with no fields
-def lw.atd(d: Nat, cs: List<&2, Ck>) -> List<&2, Ck>:
+def lw.flats.put(c: Bool, x: Ck, xs: List<&2, Ck>) -> List<&2, Ck>:
+  match c:
+    case True{}:
+      x <> xs
+    case False{}:
+      xs
+
+# a type with values that need none of the package's types
+def lw.hy.flat(h: Hy) -> Bool:
+  match h:
+    case HyUser{n, args}:
+      False{}
+    case HyFix{f}:
+      False{}
+    case HyCof{f, a}:
+      False{}
+    case HyNo{w}:
+      False{}
+    case HyEither{a, b}:
+      Bool.or(lw.hy.flat(a), lw.hy.flat(b))
+    case HyT2{a, b}:
+      Bool.and(lw.hy.flat(a), lw.hy.flat(b))
+    case HyT3{a, b, c}:
+      Bool.and(lw.hy.flat(a), Bool.and(lw.hy.flat(b), lw.hy.flat(c)))
+    case HyFun{a, b}:
+      lw.hy.flat(b)
+    case HyArgs{a, r}:
+      Bool.and(lw.hy.flat(a), lw.hy.flat(r))
+    case _:
+      True{}
+
+def lw.flats(cs: List<&2, Ck>) -> List<&2, Ck>:
+  match cs:
+    case Ck{hs, b, +fs} <> t:
+      lw.flats.put(lw.hy.flat(fs), Ck{hs, b, fs}, lw.flats(t))
+    case Nil{}:
+      Nil{}
+
+# no constructor without fields: those whose fields are base types, else the
+# first
+def lw.zone2(fl: List<&2, Ck>, cs: List<&2, Ck>) -> List<&2, Ck>:
+  match fl cs:
+    case h <> t _:
+      h <> t
+    case Nil{} h <> t:
+      [h]
+    case Nil{} Nil{}:
+      Nil{}
+
+def lw.zone(nu: List<&2, Ck>, +cs: List<&2, Ck>) -> List<&2, Ck>:
+  match nu:
+    case h <> t:
+      h <> t
+    case Nil{}:
+      lw.zone2(lw.flats(cs), cs)
+
+# below depth 3 only the constructors with no fields, where a type has some;
+# a type with none keeps a constructor or two, three times (a record of
+# records), then has no value
+def lw.atd(d: Nat, +cs: List<&2, Ck>) -> List<&2, Ck>:
   match d:
     case 0n:
       lw.nullary(cs)
-    case 1n+p:
+    case 1n+0n:
+      lw.zone(lw.nullary(cs), cs)
+    case 1n+(1n+0n):
+      lw.zone(lw.nullary(cs), cs)
+    case 1n+(1n+(1n+0n)):
+      lw.zone(lw.nullary(cs), cs)
+    case 1n+(1n+(1n+(1n+p))):
       cs
 
 def lw.dec(d: Nat) -> Nat:
@@ -1037,6 +1101,7 @@ type Va is Data:
   VaMap{st: Bool, xs: Va}
   VaFn{n: Nat, v: Va}
   VaPin{s: List<&2, U32>}
+  VaPc{eat: Bool, ty: T.Bt, v: Va}
   VaW8{n: Nat}
   VaArgs{a: Va, rest: Va}
   VaANil{}
@@ -1071,6 +1136,14 @@ def lw.cmps() -> List<&2, Va>:
 
 def lw.units() -> List<&2, Va>:
   [lw.c0("()", "Unit")]
+
+# a parser's values: v after the character a, or at once
+def lw.pcs(+ty: T.Bt, vs: List<&2, Va>) -> List<&2, Va>:
+  match vs:
+    case +v <> t:
+      VaPc{True{}, ty, v} <> VaPc{False{}, ty, v} <> lw.pcs(ty, t)
+    case Nil{}:
+      Nil{}
 
 # a byte; a digest (its 32 bytes, all of them b); a rational n % d
 def lw.w8s() -> List<&2, Va>:
@@ -1315,7 +1388,7 @@ type Q is Data:
   QCons{k: Nat, cs: List<&2, Ck>}
 
 # the inputs of a type, smallest first; d: how many of the module's own
-# types deep (at 0, only their constructors with no fields)
+# types deep (lw.atd)
 def lw.vals(fuel: Nat, +d: Nat, +le: Le, +dds: List<&2, Dd>, q: Q) -> List<&2, Va>:
   match fuel q:
     case 0n _:
@@ -1334,6 +1407,8 @@ def lw.vals(fuel: Nat, +d: Nat, +le: Le, +dds: List<&2, Dd>, q: Q) -> List<&2, V
       lw.cmps()
     case 1n+p QTy{HyPin{}}:
       lw.pins()
+    case 1n+p QTy{HyPc{+a}}:
+      lw.pcs(lw.bty(a), List.take(&2, Va, lw.vals(p, d, le, dds, QTy{a}), 2n))
     case 1n+p QTy{HyW8{}}:
       lw.w8s()
     case 1n+p QTy{HyDig{}}:
@@ -1435,6 +1510,10 @@ def lw.va.hs(v: Va, mode: Vm) -> List<&2, U32>:
   match v mode:
     case VaPin{s} _:
       34 <> lw.hs.lit(s)
+    case VaPc{True{}, ty, v} _:
+      40 <> lw.cat(lw.va.hs(v, VmVal{}), S.b(" LawP.<$ Text.Megaparsec.single 'a')"))
+    case VaPc{False{}, ty, v} _:
+      lw.cat3(S.b("(LawP.pure "), lw.va.hs(v, VmVal{}), [41])
     case VaW8{n} _:
       lw.nshow(n)
     case VaNat{n} _:
@@ -1468,6 +1547,10 @@ def lw.va.bt(v: Va, mode: Vm) -> T.Bt:
   match v mode:
     case VaPin{s} _:
       F.fd.callS("HsPrelude.HsPc.st0", [F.fd.con0("Nil"), lw.bt.lit(s)])
+    case VaPc{True{}, ty, v} _:
+      F.fd.callS("HsPrelude.HsPc.const", [ty, F.fd.ty0("Char"), lw.va.bt(v, VmVal{}), F.fd.callS("HsPrelude.HsPc.char", [F.fd.char(97n)])])
+    case VaPc{False{}, ty, v} _:
+      F.fd.callS("HsPrelude.HsPc.pure", [ty, lw.va.bt(v, VmVal{})])
     case VaW8{n} _:
       T.BtVar{lw.nshow(n)}
     case VaNat{n} _:
@@ -1892,7 +1975,7 @@ def lw.plan.many(w: Maybe<&2, T.Bt>) -> Nat:
       8n
 
 def lw.plan.go(+f: List<&2, U32>, +pt: Bool, +b: List<&2, U32>, +hf: Hy, +rt: T.Bt, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>, +ord: List<&2, Nat>, +w: Maybe<&2, T.Bt>) -> Pl:
-  lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(hf)}), lw.plan.many(w)), b, f, K.bk.o.kinds(ps), lw.tpls(ps, K.bk.o.hp(K.bk.o.fit(ord, ps), K.bk.o.kinds(ps))), lw.pt.ret(pt, rt), lw.pt.hy(pt, lw.res(hf)), w)
+  lw.plan.ins(List.take(&2, Va, lw.vals(40n, 5n, le, dds, QFields{lw.args(hf)}), lw.plan.many(w)), b, f, K.bk.o.kinds(ps), lw.tpls(ps, K.bk.o.hp(K.bk.o.fit(ord, ps), K.bk.o.kinds(ps))), lw.pt.ret(pt, rt), lw.pt.hy(pt, lw.res(hf)), w)
 
 # the GHCi call's head (h's type named, an ExceptT's or a parser's run
 # applied to it: a partial parser's not yet) and the plan at the type as run
