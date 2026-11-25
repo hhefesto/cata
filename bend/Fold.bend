@@ -12206,7 +12206,7 @@ def fd.ti.round(fuel: Nat, +its: List<&2, T.BItem>) -> List<&2, T.BItem>:
 
 # the module's items with each such call a copy's
 def fd.ti.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.ti.round(4n, its)
+  fd.ti.round(10n, its)
 
 # a module's items as written, before the gate: local catas written, then
 # groups merged (Law.bend's lw.module writes them so too)
@@ -13532,11 +13532,19 @@ def fd.pa.act(sg: Bool, t: T.Bt) -> Maybe<&2, T.Bt>:
     case False{}:
       None{}
 
-# an action's type: what it answers
+# whether a type is an arrow
+def fd.pa.isarr(t: T.Bt) -> Bool:
+  match t:
+    case T.BtPi{m, x, d, a, b}:
+      True{}
+    case _:
+      False{}
+
+# an action's type (a function's of one argument, a ShowS's): what it answers
 def fd.pa.cod(r: T.Bt) -> Maybe<&2, T.Bt>:
   match r:
-    case T.BtPi{m, x, False{}, a, T.BtTyApp{+n, +b}}:
-      fd.pa.act(Bool.and(fd.is(n, "Sigma"), fd.nd(T.BtTyApp{n, b})), T.BtTyApp{n, b})
+    case T.BtPi{m, x, False{}, a, +b}:
+      fd.pa.act(Bool.not(fd.pa.isarr(b)), b)
     case _:
       None{}
 
@@ -13547,8 +13555,23 @@ def fd.pa.some(m: Maybe<&2, T.Bt>) -> Bool:
     case None{}:
       False{}
 
+# an action: S -> Sigma<&1, &1, A, _ => S>
+def fd.pa.issig(t: T.Bt) -> Bool:
+  match t:
+    case T.BtTyApp{+n, +b}:
+      Bool.and(fd.is(n, "Sigma"), fd.nd(T.BtTyApp{n, b}))
+    case _:
+      False{}
+
+def fd.pa.sigm(m: Maybe<&2, T.Bt>) -> Bool:
+  match m:
+    case Some{c}:
+      fd.pa.issig(c)
+    case None{}:
+      False{}
+
 def fd.pa.isact(r: T.Bt) -> Bool:
-  fd.pa.some(fd.pa.cod(r))
+  fd.pa.sigm(fd.pa.cod(r))
 
 def fd.pa.codof(m: Maybe<&2, T.Bt>, d: T.Bt) -> T.Bt:
   match m:
@@ -13741,7 +13764,7 @@ def fd.pa.names(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, Een>:
       Nil{}
     case T.BiDef{+n, +ps, r, b, d} <> t:
       +rest = fd.pa.names(t, ks)
-      Bool.pick(List<&2, Een>, Bool.and(fd.pt.isown(ks, n), fd.pa.isact(r)), Een{n, Nat.add(List.length(&2, T.BParam, ps), 1n)} <> rest, rest)
+      Bool.pick(List<&2, Een>, Bool.and(fd.pt.isown(ks, n), fd.pa.some(fd.pa.cod(r))), Een{n, Nat.add(List.length(&2, T.BParam, ps), 1n)} <> rest, rest)
     case h <> t:
       fd.pa.names(t, ks)
 
@@ -14593,11 +14616,39 @@ def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BI
 def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all2(fd.pc.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
 
+# an earlier module's point-free partial def, its parameters now (ee_0, ..):
+# its uses anew
+def fd.el.imported(dt: List<&2, T.BItem>) -> List<&2, Een>:
+  match dt:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      +rest = fd.el.imported(t)
+      Bool.pick(List<&2, Een>, fd.el.hasee(ps), Een{n, List.length(&2, T.BParam, ps)} <> rest, rest)
+    case h <> t:
+      fd.el.imported(t)
+
+def fd.el.rws(its: List<&2, T.BItem>, +es: List<&2, Een>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, ps, r, fd.ee.rw(b, False{}, es), d} <> fd.el.rws(t, es)
+    case h <> t:
+      h <> fd.el.rws(t, es)
+
+def fd.el.imp(es: List<&2, Een>, its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match es:
+    case Nil{}:
+      its
+    case +h <> +t:
+      fd.el.rws(its, h <> t)
+
 def fd.pt.all0(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all1(fd.rx.items(its, fd.pt.ks(its, dt)), dt)
 
 def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.pt.all0(fd.dx.all(its, dt), fd.dx.keep(False{}, dt))
+  fd.pt.all0(fd.el.imp(fd.el.imported(fd.dx.keep(False{}, dt)), fd.dx.all(its, dt)), fd.dx.keep(False{}, dt))
 
 # Recursion through a lifted def ------------------------------------------------
 

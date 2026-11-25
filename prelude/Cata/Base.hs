@@ -205,10 +205,9 @@ until p f x = if p x then x else until p f (f x)
 -- predicate over a local, as Resolve's (`Set.member` reachable) . fst, is
 -- copied in, the local the copy's parameter)
 filter :: forall a. (a -> Bool) -> [a] -> [a]
-filter _pred [] = []
-filter pred (x : xs)
-  | pred x = x : filter pred xs
-  | otherwise = filter pred xs
+filter pred ys = case ys of
+  [] -> []
+  x : xs -> if pred x then x : filter pred xs else filter pred xs
 
 -- | GHC.Show's showsPrec at Maybe, a list and a pair, given showsPrec at the
 -- parts (Spec's sp.shw writes it so at one of the package's types): a type
@@ -764,3 +763,10 @@ mapList :: forall a b. (a -> b) -> [a] -> [b]
 mapList f xs = case xs of
   [] -> []
   x : t -> f x : mapList f t
+
+-- | the one-element monoid
+unitAppend :: () -> () -> ()
+unitAppend a b = ()
+
+unitMempty :: ()
+unitMempty = ()
