@@ -5995,6 +5995,72 @@ def sp.lz.go(n: Nat, +x: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
 def sp.lz(+x: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
   sp.lz.go(8n, x, sys)
 
+# findWithDefault d k m and fromMaybe d m at a default that may fail: Haskell
+# forces d only where there is nothing else, so they are maybe's (d the
+# branch at Nothing), findWithDefault's of a lookup.
+def sp.fw.mod(+m: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, sp.is(m, "Data.Map.Strict.Internal"), S.b("Data.Map.Internal"), Bool.pick(List<&2, U32>, sp.is(m, "Data.IntMap.Strict.Internal"), S.b("Data.IntMap.Internal"), m))
+
+# findWithDefault's head as lookup's (the same type and class arguments)
+def sp.fw.re(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+h, +t}}:
+      sp.if(X.Sx, sp.is(a, "g"), _ => sp.g(sp.fw.mod(sp.sat(X.SxCons{X.SxAtom{a}, X.SxCons{h, t}}, 1n)), S.b("lookup"), "var"), _ => X.SxCons{X.SxAtom{a}, X.SxCons{sp.fw.re(h), t}})
+    case y:
+      y
+
+# a head's last type argument
+def sp.fw.ty(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+h, X.SxCons{+t, X.SxNil{}}}}:
+      sp.if(X.Sx, sp.is(a, "tyapp"), _ => t, _ => sp.fw.ty(h))
+    case y:
+      y
+
+def sp.fw.ap(+f: X.Sx, +x: X.Sx) -> X.Sx:
+  sp.l([sp.a("app"), f, x])
+
+def sp.fw.maybe(+v: X.Sx, +d: X.Sx) -> X.Sx:
+  +mb = sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.g(S.b("GHC.Internal.Data.Maybe"), S.b("maybe"), "var"), v]), v])
+  sp.fw.ap(sp.fw.ap(mb, d), sp.l([sp.a("tyapp"), sp.g(S.b("GHC.Internal.Base"), S.b("id"), "var"), v]))
+
+def sp.fw.put.at(fm: Bool, fd: Bool, xs: List<&2, X.Sx>, +h: X.Sx) -> Maybe<&2, X.Sx>:
+  match fm fd xs:
+    case True{} _ +d <> Nil{}:
+      sp.if(Maybe<&2, X.Sx>, sp.lz.part(d, sp.lz.names()), _ => Some{sp.fw.maybe(sp.fw.ty(h), d)}, _ => None{})
+    case True{} _ +d <> +m <> Nil{}:
+      sp.if(Maybe<&2, X.Sx>, sp.lz.part(d, sp.lz.names()), _ => Some{sp.fw.ap(sp.fw.maybe(sp.fw.ty(h), d), m)}, _ => None{})
+    case False{} True{} +d <> +k <> +m <> Nil{}:
+      sp.if(Maybe<&2, X.Sx>, sp.lz.part(d, sp.lz.names()), _ => Some{sp.fw.ap(sp.fw.maybe(sp.fw.ty(h), d), sp.fw.ap(sp.fw.ap(sp.fw.re(h), k), m))}, _ => None{})
+    case _ _ _:
+      None{}
+
+def sp.fw.put(+h: X.Sx, xs: List<&2, X.Sx>) -> Maybe<&2, X.Sx>:
+  +key = sp.gkey(sp.vhead(h))
+  sp.fw.put.at(sp.is(key, "GHC.Internal.Data.Maybe.fromMaybe"), S.suffix(key, S.b(".findWithDefault")), xs, h)
+
+def sp.fw.at(s: Bs) -> Maybe<&2, X.Sx>:
+  match s:
+    case Bs{+h, +xs}:
+      sp.fw.put(h, xs)
+
+def sp.fw.or(m: Maybe<&2, X.Sx>, e: Unit -> X.Sx) -> X.Sx:
+  match m:
+    case Some{x}:
+      x
+    case None{}:
+      e(Unit{})
+
+# the arguments first, then the call
+def sp.fw(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{+h, t}:
+      +n = {X.SxCons{sp.fw(h), sp.fw(t)} : X.Sx}
+      +y = sp.if(Maybe<&2, X.Sx>, sp.head.is(n, "app"), _ => sp.fw.at(sp.beta.spine(n, Nil{})), _ => None{})
+      sp.fw.or(y, _ => n)
+    case y:
+      y
+
 # show at a known showsPrec, applied (the prelude's showVia sp v): sp 0 v "",
 # and showList (showListVia sp vs): the model's showListWith sp 0 vs.  The
 # showsPrec is then called, not a template of the prelude's: a type that
@@ -6030,7 +6096,7 @@ def sp.rw.sv(r: Rw, +hb: Bool) -> Rw:
       Rw{sp.sv(x, hb), q}
 
 def sp.passes0(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +rl0: List<&2, X.Sx>, +ol0: List<&2, Og>, +kn: List<&2, Rq>, +rg: List<&2, X.Sx>) -> Rw:
-  +xr = sp.lr(sp.lh(sp.lz(sp.lec(x), sp.ix.sys(ix))), cur)
+  +xr = sp.lr(sp.lh(sp.lz(sp.lec(sp.fw(x)), sp.ix.sys(ix))), cur)
   +xl = sp.lc(xr, sp.fa.binds(xr, Nil{}), sp.ix.cts(ix))
   +xm = sp.if(X.Sx, sp.ix.hasgen(ix), _ => sp.hm(xl, sp.hf.env(xl, sp.ix.sys(ix)), sp.ix.sys(ix), rg), _ => xl)
   +xq = sp.pl(sp.pc(xm, sp.ix.hasbase(ix), ix), sp.pl.toptvs(x), ix)
