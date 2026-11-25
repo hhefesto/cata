@@ -1475,6 +1475,8 @@ b'hs'ste'throw :: e -> s -> (B'Either e (B'Sigma a s))
 b'hs'ste'throw e = \_ -> Left e
 b'hs'ste'map :: (a -> b) -> (s -> (B'Either e (B'Sigma a s))) -> s -> (B'Either e (B'Sigma b s))
 b'hs'ste'map f m = \s -> case m s of { Left e -> Left e; Right (a, s') -> Right (f a, s') }
+-- Base's Empty
+data B'Empty
 b'hs'state'ap'go :: (B'Sigma (a -> b) s) -> (s -> (B'Sigma a s)) -> (B'Sigma b s)
 b'hs'state'ap'go p m = let (f, s) = p in b'hs'state'map'go f (m s)
 b'hs'state'gets'go :: (s -> a) -> s -> (B'Sigma a s)

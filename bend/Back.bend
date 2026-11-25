@@ -2297,4 +2297,4 @@ def bk.module(+file: List<&2, U32>, its0: List<&2, T.BItem>, +nm: BkN) -> List<&
   +m = bk.nm.m(nm)
   +as = bk.nm.as(nm)
   +body = bk.items(its, e, bk.aliases(as, e, bk.main(Bool.and(S.eq(m, S.b("Main")), Bool.not(bk.aliased(as, e, S.b("main")))), Nil{})))
-  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\n", bk.hiding(bk.hides(bk.tn(e), bk.hides(bk.cn(e), Nil{})), bk.imps(bk.nm.ims(nm), body, 10 <> body)))))))
+  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances, NoPolyKinds #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\n", bk.hiding(bk.hides(bk.tn(e), bk.hides(bk.cn(e), Nil{})), bk.imps(bk.nm.ims(nm), body, 10 <> body)))))))
