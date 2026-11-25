@@ -27,3 +27,7 @@ note m = do
 
 exNote :: Maybe Int -> [Int]
 exNote m = execState (note m) [0]
+
+-- Foldable's functions at Maybe (Size's sizeTermM)
+atMaybe :: Int -> Maybe Int -> (Bool, Bool, [Int])
+atMaybe n m = (null m || any (> n) m, n `elem` m && all even m, foldr (\x r -> x * n : r) [length m] m ++ concatMap (\x -> [x, n]) m)

@@ -24,6 +24,7 @@ import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Functor.Foldable (cata)
+import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Show (showList__)
@@ -458,6 +459,53 @@ insertPair :: forall k a. Ord k => (k -> a -> a -> a) -> k -> a -> Map.Map k a -
 insertPair f k v m = case Map.lookup k m of
   Nothing -> Map.insert k v m
   Just w -> Map.insert k (f k v w) m
+
+-- | Foldable's functions at Maybe
+maybeNull :: forall a. Maybe a -> Bool
+maybeNull t = case t of
+  Nothing -> True
+  Just _ -> False
+
+maybeAny :: forall a. (a -> Bool) -> Maybe a -> Bool
+maybeAny p t = case t of
+  Nothing -> False
+  Just x -> p x
+
+maybeAll :: forall a. (a -> Bool) -> Maybe a -> Bool
+maybeAll p t = case t of
+  Nothing -> True
+  Just x -> p x
+
+maybeElem :: forall a. Eq a => a -> Maybe a -> Bool
+maybeElem x t = case t of
+  Nothing -> False
+  Just y -> x == y
+
+maybeToListF :: forall a. Maybe a -> [a]
+maybeToListF t = case t of
+  Nothing -> []
+  Just x -> [x]
+
+maybeLength :: forall a. Maybe a -> Int
+maybeLength t = case t of
+  Nothing -> 0
+  Just _ -> 1
+
+maybeFoldr :: forall a b. (a -> b -> b) -> b -> Maybe a -> b
+maybeFoldr f z t = case t of
+  Nothing -> z
+  Just x -> f x z
+
+maybeConcatMap :: forall a b. (a -> [b]) -> Maybe a -> [b]
+maybeConcatMap f t = case t of
+  Nothing -> []
+  Just x -> f x
+
+-- | containers' IntMap (!): its own error text, not Map's
+intMapAt :: forall a. IntMap.IntMap a -> Int -> a
+intMapAt m k = case IntMap.lookup k m of
+  Just v -> v
+  Nothing -> error ("IntMap.!: key " ++ show k ++ " is not an element of the map")
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
