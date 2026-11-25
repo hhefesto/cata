@@ -7,7 +7,7 @@
 # G(b) and BendRt.hs are exported as a package (hs-export --package) and
 # law runs on them (CATA_BEND2HS unset): WORK/NAME/l holds F(G(b)) as
 # WORK/NAME/l/MOD.bend and its ledger.  JOBS at a time (6).
-#   GHC: the ghc; HSX: hs-export; BEND: bend
+#   GHC: the ghc; HSX: hs-export; BEND: bend; SPEC: the specialiser (none)
 # WORK/NAME.done holds law's exit code and seconds.  Then the comparison
 # (bend/Round.bend, built to WORK/round): each def of b same, differ or
 # missing (WORK/round.tsv: NAME, def, status, reason), and each differing
@@ -53,12 +53,25 @@ batch() {
     (( ${#bad} )) && [[ -n $bad[1] ]] || { for n in "$@"; do print "hsx 1 0" > $work/$n.done; done; return }
     print -l -- "-i$rt" -XHaskell2010 -- $rt/BendRt.hs $d/src/*.hs(N) > $d/args
   done
-  (cd $d && GHC="${ghc} -i$rt -fobject-code -outputdir $d/obj" CATA_BEND2HS= nice -n 10 $law --package l $(cat ex/modules.txt) > l.log 2>&1)
+  # SPEC: through the specialiser, as a package goes (Integer is HsInt there,
+  # Natural Nat: G's types for them read back)
+  local ms=ex
+  if [[ -n ${SPEC:-} ]]; then
+    mkdir -p $d/sp
+    (cd $d && nice -n 10 $SPEC sp $(cat ex/modules.txt) > sp.log 2>&1)
+    ms=sp
+  fi
+  (cd $d && GHC="${ghc} -i$rt -fobject-code -outputdir $d/obj" CATA_BEND2HS= nice -n 10 $law --package l $(sed "s,^$d/,," $ms/modules.txt) > l.log 2>&1)
   rc=$?
   for n in "$@"; do
     [[ -f $d/src/R$n.hs ]] || continue
     rm -rf $work/$n; mkdir -p $work/$n/l
-    for f in $d/l/*.bend(N); do [[ ${f:t} == R[0-9]* || ${f:t} == *_try.bend || ${f:t} == *_all.bend ]] || cp $f $work/$n/l/; done
+    # the runtime's modules without their own laws (a law of BendRt's that
+    # runs out of the kernel's fuel is none of NAME's)
+    for f in $d/l/*.bend(N); do
+      [[ ${f:t} == R[0-9]* || ${f:t} == *_try.bend || ${f:t} == *_all.bend ]] && continue
+      if [[ ${f:t} == HsPrelude.bend || ${f:t} == *_rt.bend ]]; then cp $f $work/$n/l/; else awk '/^def [^ ]*\.ex[0-9]+\(/ { s = 1 } s && /^$/ { s = 0 } !s { print }' $f > $work/$n/l/${f:t}; fi
+    done
     [[ -f $d/l/R$n.bend ]] && cp $d/l/R$n.bend $work/$n/l/
     awk -F'\t' -v m=/R$n.sexp 'substr($1, length($1) - length(m) + 1) == m' $d/l/ledger.tsv > $work/$n/l/ledger.tsv
     print "law $rc $((SECONDS - t0))" > $work/$n.done

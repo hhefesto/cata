@@ -4948,12 +4948,12 @@ def fd.only(ns: List<&2, List<&2, U32>>, +keep: List<&2, List<&2, U32>>) -> List
 def fd.fvs(+body: T.Bt, +lts: List<&2, Lt>, +own: List<&2, List<&2, U32>>) -> List<&2, Lt>:
   fd.fvs.go(fd.only(T.tba.nub(T.tba.frees(body, fd.scrs(body, Nil{}))), fd.sfrees(body, Nil{})), lts, own)
 
-def fd.lift.args(lam: Bool, +own: List<&2, List<&2, U32>>, e: T.Bt) -> List<&2, T.Bt>:
+def fd.lift.args(lam: Bool, +own: List<&2, List<&2, U32>>, es: List<&2, T.Bt>) -> List<&2, T.Bt>:
   match lam:
     case True{}:
       fd.vars(own)
     case False{}:
-      e <> Nil{}
+      es
 
 def fd.lift.wrap(lam: Bool, +own: List<&2, List<&2, U32>>, t: T.Bt) -> T.Bt:
   match lam:
@@ -4962,13 +4962,16 @@ def fd.lift.wrap(lam: Bool, +own: List<&2, List<&2, U32>>, t: T.Bt) -> T.Bt:
     case False{}:
       t
 
-# clauses (a lambda's, or a case's: one parameter) as a lifted def, as
-# fd.def.of makes a def of a binding's; lam: a lambda (its parameters are
-# the call's), else a case on e
-def fd.lift.of(+lam: Bool, +tys: List<&2, T.Bt>, +res: T.Bt, +cls: List<&2, R>, +env: Env, e: T.Bt) -> T.Bt:
+# clauses (a lambda's, or a case's: a parameter for each of its scrutinees) as a
+# lifted def, as fd.def.of makes a def of a binding's; lam: a lambda (its
+# parameters are the call's), else a case on es
+def fd.lift.ofs(+lam: Bool, +tys: List<&2, T.Bt>, +res: T.Bt, +cls: List<&2, R>, +env: Env, es: List<&2, T.Bt>) -> T.Bt:
   +pms = fd.pms(List.length(&2, T.Bt, tys), 0n, cls)
   +own = fd.pm.names(pms)
-  fd.lift.wrap(lam, own, fd.callS("%lift", [T.tba.args(fd.lift.lts(fd.lt.zip(own, tys))), res, fd.body.of(fd.anysplit(pms), pms, cls), T.tba.args(fd.lift.args(lam, own, e)), fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))]))
+  fd.lift.wrap(lam, own, fd.callS("%lift", [T.tba.args(fd.lift.lts(fd.lt.zip(own, tys))), res, fd.body.of(fd.anysplit(pms), pms, cls), T.tba.args(fd.lift.args(lam, own, es)), fd.lts.spine(fd.env.lt(env)), T.tba.args(fd.env.self(env))]))
+
+def fd.lift.of(+lam: Bool, +tys: List<&2, T.Bt>, +res: T.Bt, +cls: List<&2, R>, +env: Env, e: T.Bt) -> T.Bt:
+  fd.lift.ofs(lam, tys, res, cls, env, e <> Nil{})
 
 # a body is a statement (a match, a let)
 def fd.isexpr(t: T.Bt) -> Bool:
@@ -5824,6 +5827,53 @@ def fd.ecase(+x: List<&2, U32>, r: R, +env: Env) -> R:
     case _:
       fd.bad(S.b("fold:case"))
 
+# case (x, y) of ..: a match on the locals x and y (fd.tcv), where they may be
+# matched there in their order; else lifted, a parameter for each
+def fd.ecv.ok(xs: List<&2, List<&2, U32>>, +al: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case +x <> t:
+      Bool.and(S.mem(x, al), fd.ecv.ok(t, fd.al.after(al, x)))
+    case Nil{}:
+      True{}
+
+def fd.ecv.after(xs: List<&2, List<&2, U32>>, al: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case x <> t:
+      fd.ecv.after(t, fd.al.after(al, x))
+    case Nil{}:
+      al
+
+def fd.ecv.al(xs: List<&2, List<&2, U32>>, +env: Env) -> List<&2, List<&2, U32>>:
+  fd.al.if(fd.env.res(env), fd.ecv.after(xs, fd.env.al(env)))
+
+def fd.ecv.xs(es: List<&2, X.Sx>) -> List<&2, List<&2, U32>>:
+  match es:
+    case e <> t:
+      fd.vname(V.sv.str(e, 1n)) <> fd.ecv.xs(t)
+    case Nil{}:
+      Nil{}
+
+def fd.ecv.pms(xs: List<&2, List<&2, U32>>) -> List<&2, Pm>:
+  match xs:
+    case x <> t:
+      Pm{x, True{}} <> fd.ecv.pms(t)
+    case Nil{}:
+      Nil{}
+
+def fd.ecasev.of(r0: Maybe<&2, T.Bt>, ok: Bool, +xs: List<&2, List<&2, U32>>, tys: List<&2, T.Bt>, res: T.Bt, cls: List<&2, R>, +env: Env) -> T.Bt:
+  match r0 ok:
+    case Some{r} True{}:
+      T.BtMatch{T.tba.args(fd.vars(xs)), fd.cases(cls, fd.ecv.pms(xs))}
+    case _ _:
+      fd.lift.ofs(False{}, tys, res, cls, env, fd.vars(xs))
+
+def fd.ecasev(+xs: List<&2, List<&2, U32>>, r: R, +env: Env) -> R:
+  match r:
+    case RMs{tys, +res, cls}:
+      RE{fd.et(fd.ecasev.of(fd.env.res(env), fd.ecv.ok(xs, fd.env.al(env)), xs, tys, res, fd.exh.name(S.b("case"), res, cls), env))}
+    case _:
+      fd.bad(S.b("fold:case"))
+
 # the scope of a case's scrutinee: its type the alternatives' patterns'
 def fd.typed.ms(r: R, +env: Env) -> Env:
   match r:
@@ -5842,7 +5892,8 @@ def fd.typed.r(m: Maybe<&2, T.Bt>, +env: Env) -> Env:
 # the scope of an if's branch (a guard's right-hand side), an expression: a
 # case there is lifted (a match is a statement)
 def fd.brenv(+x: X.Sx, +env: Env) -> Env:
-  Bool.pick(Env, V.sv.is(V.sv.hd(SP.sp.pc.strip(x)), "case"), fd.typed.r(fd.env.res(env), env), env)
+  +h = V.sv.hd(SP.sp.pc.strip(x))
+  Bool.pick(Env, Bool.or(V.sv.is(h, "case"), V.sv.is(h, "casev")), fd.typed.r(fd.env.res(env), env), env)
 
 def fd.gdenv(+x: X.Sx, gd: X.Sx, +env: Env) -> Env:
   match gd:
@@ -6804,6 +6855,7 @@ type K is Data:
   KAbs1{}
   KAbsN{}
   KEcaseC{}
+  KEcaseV{}
   KLtw{}
   KLbv{}
   KLfun{}
@@ -6827,7 +6879,7 @@ def fd.k.pats() -> List<&2, Kt>:
   [Kt{"pwild", KPwild{}}, Kt{"pvar", KPvar{}}, Kt{"pbang", KPbang{}}, Kt{"plist", KPlist{}}, Kt{"ptuple", KPtuple{}}, Kt{"pcon", KPcon{}}, Kt{"plit", KPlit{}}, Kt{"pnlit", KPnlit{}}, Kt{"pview", KPview{}}]
 
 def fd.k.exs() -> List<&2, Kt>:
-  [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"negapp", KEnegapp{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}, Kt{"reccon", KEreccon{}}]
+  [Kt{"g", KEg{}}, Kt{"l", KEl{}}, Kt{"self", KEself{}}, Kt{"app", KEapp{}}, Kt{"tyapp", KEtyapp{}}, Kt{"evapp", KEevapp{}}, Kt{"cast", KEskip1{}}, Kt{"expanded", KEskip2{}}, Kt{"tylam", KEskip2{}}, Kt{"evlam", KEskip2{}}, Kt{"evlet", KEskip2{}}, Kt{"olit", KEolit{}}, Kt{"negapp", KEnegapp{}}, Kt{"char", KEchar{}}, Kt{"string", KEstring{}}, Kt{"lam", KElam{}}, Kt{"tuple", KEtuple{}}, Kt{"case", KEcase{}}, Kt{"casev", KEcaseV{}}, Kt{"if", KEif{}}, Kt{"multiif", KEmultiif{}}, Kt{"let", KElet{}}, Kt{"list", KElist{}}, Kt{"reccon", KEreccon{}}]
 
 def fd.k.bad(s: String, +h: List<&2, U32>) -> K:
   KBad{fd.cat(S.b(s), h)}
@@ -7016,6 +7068,9 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       fd.lam(fd.go(ms, KMatches{}, fd.withal(env, Nil{})), env)
     case X.SxCons{_, es} KEtuple{}:
       fd.etuple(fd.go(es, KEs{}, fd.notail(env)), env)
+    case X.SxCons{_, X.SxCons{+es, X.SxCons{ms, _}}} KEcaseV{}:
+      +xs = fd.ecv.xs(SP.sp.els(es))
+      fd.ecasev(xs, fd.go(ms, KMatches{}, fd.withal(env, fd.ecv.al(xs, env))), env)
     case X.SxCons{_, X.SxCons{+e, X.SxCons{ms, _}}} KEcase{}:
       +x = fd.vname(V.sv.str(e, 1n))
       fd.ecase(x, fd.go(ms, KMatches{}, fd.withal(env, fd.al.in(x, env))), env)
@@ -7627,10 +7682,86 @@ def fd.got.defs.of(todos: List<&2, List<&2, U32>>, +n: List<&2, U32>, its: List<
 def fd.got.defs(+n: List<&2, U32>, +its: List<&2, T.BItem>) -> List<&2, Got>:
   fd.got.defs.of(List.reverse(&2, List<&2, U32>, fd.todos.all(its, Nil{})), n, its)
 
+# A case on a tuple of locals, its clauses' patterns tuples of as many or
+# wildcards, is a match on the locals, as a def's clauses are one on its
+# parameters (before: lifted, as a case on a computed value is, a pair its
+# argument; a recursion under it was then the lifted def's and the def's
+# together, a mutual one, and fuelled).  The tree is rewritten before the
+# fold: (case (tuple x y) (matches (T) R S MS)), T the pair's type, is
+# (casev (x y) (matches (T1 T2) R S MS2)), a clause's one pattern (ptuple (p
+# q)) its two, p and q.
+def fd.tcv.set(m: X.Sx, +ps: X.Sx) -> X.Sx:
+  match m:
+    case X.SxCons{h, X.SxCons{_, r}}:
+      X.SxCons{h, X.SxCons{ps, r}}
+    case u:
+      u
+
+def fd.tcv.wilds(n: Nat) -> X.Sx:
+  match n:
+    case 1n+p:
+      X.SxCons{SP.sp.l([X.SxAtom{S.b("pwild")}]), fd.tcv.wilds(p)}
+    case 0n:
+      X.SxNil{}
+
+def fd.tcv.pat(+m: X.Sx) -> X.Sx:
+  V.sv.at(V.sv.at(m, 1n), 0n)
+
+def fd.tcv.istup(+p: X.Sx, +n: Nat) -> Bool:
+  Bool.and(V.sv.is(V.sv.hd(p), "ptuple"), Nat.is_eq(X.tsx.len(V.sv.at(p, 1n)), n))
+
+def fd.tcv.clauses(ms: List<&2, X.Sx>, +n: Nat) -> X.Sx:
+  match ms:
+    case +m <> t:
+      +p = fd.tcv.pat(m)
+      X.SxCons{fd.tcv.set(m, Bool.pick(X.Sx, fd.tcv.istup(p, n), V.sv.at(p, 1n), fd.tcv.wilds(n))), fd.tcv.clauses(t, n)}
+    case Nil{}:
+      X.SxNil{}
+
+def fd.tcv.cls.ok(ms: List<&2, X.Sx>, +n: Nat) -> Bool:
+  match ms:
+    case +m <> t:
+      +p = fd.tcv.pat(m)
+      Bool.and(Bool.and(Nat.is_eq(X.tsx.len(V.sv.at(m, 1n)), 1n), Bool.or(fd.tcv.istup(p, n), V.sv.is(V.sv.hd(p), "pwild"))), fd.tcv.cls.ok(t, n))
+    case Nil{}:
+      True{}
+
+def fd.tcv.locals(es: List<&2, X.Sx>, seen: List<&2, List<&2, U32>>) -> Bool:
+  match es:
+    case +e <> t:
+      +x = fd.vname(V.sv.str(e, 1n))
+      +s = seen
+      Bool.and(Bool.and(V.sv.is(V.sv.hd(e), "l"), Bool.not(S.mem(x, s))), fd.tcv.locals(t, x <> s))
+    case Nil{}:
+      True{}
+
+def fd.tcv.ok(+es: List<&2, X.Sx>, +ty: X.Sx, +cls: List<&2, X.Sx>, +n: Nat) -> Bool:
+  Bool.and(Bool.and(Bool.and(Nat.is_ge(n, 2n), fd.tcv.locals(es, Nil{})), Bool.and(S.eq(V.sv.str(ty, 2n), fd.cat(S.b("Tuple"), fd.nshow(n))), Nat.is_eq(X.tsx.len(ty), Nat.add(n, 3n)))), Bool.and(Bool.not(List.is_empty(&2, X.Sx, cls)), Bool.and(fd.tcv.cls.ok(cls, n), fd.tcv.istup(fd.tcv.pat(SP.sp.first(cls)), n))))
+
+def fd.tcv.case(+x: X.Sx) -> X.Sx:
+  +e = V.sv.at(x, 1n)
+  +ms = V.sv.at(x, 2n)
+  +es = List.drop(&2, X.Sx, SP.sp.els(e), 1n)
+  +ty = V.sv.at(V.sv.at(ms, 1n), 0n)
+  +cls = SP.sp.els(V.sv.at(ms, 4n))
+  +n = List.length(&2, X.Sx, es)
+  +ok = Bool.and(Bool.and(V.sv.is(V.sv.hd(e), "tuple"), Nat.is_eq(X.tsx.len(V.sv.at(ms, 1n)), 1n)), fd.tcv.ok(es, ty, cls, n))
+  Bool.pick(X.Sx, ok, SP.sp.l([X.SxAtom{S.b("casev")}, SP.sp.l(es), SP.sp.l([V.sv.at(ms, 0n), SP.sp.l(List.drop(&2, X.Sx, SP.sp.els(ty), 3n)), V.sv.at(ms, 2n), V.sv.at(ms, 3n), fd.tcv.clauses(cls, n)])]), x)
+
+def fd.tcv.at(+x: X.Sx) -> X.Sx:
+  Bool.pick(X.Sx, V.sv.is(V.sv.hd(x), "case"), fd.tcv.case(x), x)
+
+def fd.tcv(x: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{h, t}:
+      fd.tcv.at(X.SxCons{fd.tcv(h), fd.tcv(t)})
+    case u:
+      u
+
 def fd.got.of(ok: Bool, tb: Tb, +env: Env) -> List<&2, Got>:
   match ok tb:
     case True{} TbFun{+n, +tvs, f}:
-      fd.got.defs(n, fd.def(n, tvs, fd.go(V.sv.at(f, 4n), KMatches{}, fd.withself(env, fd.tvbts(tvs)))))
+      fd.got.defs(n, fd.def(n, tvs, fd.go(fd.tcv(V.sv.at(f, 4n)), KMatches{}, fd.withself(env, fd.tvbts(tvs)))))
     case True{} TbNo{n, why}:
       GotOut{n, why} <> Nil{}
     case False{} TbFun{n, tvs, f}:
