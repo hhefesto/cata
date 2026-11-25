@@ -3657,7 +3657,7 @@ def sp.fa.small(+e: X.Sx) -> Bool:
   +ms = sp.at(e, 2n)
   +cs = sp.els(sp.at(ms, 4n))
   +gr = sp.at(sp.first(cs), 2n)
-  Bool.and(Bool.and(sp.head.is(e, "lam"), Nat.is_eq(List.length(&2, X.Sx, cs), 1n)), Bool.and(sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")])), Nat.is_gt(sp.fa.count(e, 200n), 0n)))
+  Bool.or(Bool.or(sp.head.is(e, "l"), sp.head.is(e, "g")), Bool.and(Bool.and(sp.head.is(e, "lam"), Nat.is_eq(List.length(&2, X.Sx, cs), 1n)), Bool.and(sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")])), Nat.is_gt(sp.fa.count(e, 500n), 0n))))
 
 def sp.fa.smalls(fs: List<&2, Asb>, +need: List<&2, Asb>) -> List<&2, Asb>:
   match fs:
@@ -6374,6 +6374,78 @@ def sp.cl(+y: X.Sx) -> X.Sx:
   +m = sp.if(Maybe<&2, String>, Bool.and(Bool.and(sp.head.is(y, "app"), sp.head.is(g, "g")), sp.cl.mod(sp.sat(g, 1n))), _ => sp.io.find(sp.cl.tab(), sp.gkey(g)), _ => None{})
   sp.if(X.Sx, Maybe.is_some(&2, String, m), _ => sp.if(X.Sx, List.is_empty(&2, X.Sx, sp.fa.frees(sp.at(y, 2n), sp.fa.binds(sp.at(y, 2n), Nil{}), Nil{})), _ => y, _ => sp.if(X.Sx, sp.cl.iscmp(sp.pc.strip(sp.at(y, 2n))), _ => sp.cl.key(m, f, sp.pc.strip(sp.at(y, 2n)), y), _ => sp.cl.put(m, f, y))), _ => y)
 
+# let (g, nodeOf, vertexOf) = graphFromEdges es (EAL's components): the
+# tuple holds functions, which Bend runs once at most; the model's parts of
+# it, each a let: the numbered nodes, the graph, the nodes' map and nodeOf a
+# function of a vertex over it, the keys' map and vertexOf over it
+def sp.ge.var(+v: X.Sx, +n: String) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{S.b(n)}, sp.at(v, 2n)])
+
+def sp.ge.let(+v: X.Sx, +ty: X.Sx, +args: X.Sx, +res: X.Sx, +pats: X.Sx, +rhs: X.Sx) -> X.Sx:
+  sp.l([sp.a("nonrec"), sp.l([sp.a("fun"), v, ty, sp.a("nospan"), sp.l([sp.a("matches"), args, res, sp.a("source"), sp.l([sp.l([sp.a("match"), pats, sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, rhs])]), sp.l([sp.a("binds")])])])])]), X.SxNil{}])])
+
+def sp.ge.fn(+n: String, +k: X.Sx, +d: X.Sx) -> X.Sx:
+  sp.l([sp.a("tyapp"), sp.l([sp.a("tyapp"), sp.g(S.b("Cata.Graph"), S.b(n), "var"), k]), d])
+
+# a part of the tuple: its let when it is a variable
+def sp.ge.part(+p: X.Sx, +g: X.Sx) -> List<&2, X.Sx>:
+  Bool.pick(List<&2, X.Sx>, sp.head.is(p, "pvar"), [g], Nil{})
+
+def sp.ge.pv(+p: X.Sx) -> X.Sx:
+  sp.fa.unself(sp.at(sp.at(p, 1n), 1n))
+
+def sp.ge.groups(+ps: List<&2, X.Sx>, +rhs: X.Sx, +ok: Bool) -> List<&2, X.Sx>:
+  +p1 = sp.first(ps)
+  +p2 = Maybe.default(&2, X.Sx, sp.nth(ps, 1n), X.SxNil{})
+  +p3 = Maybe.default(&2, X.Sx, sp.nth(ps, 2n), X.SxNil{})
+  +f = sp.pc.strip(sp.at(rhs, 1n))
+  +tys = sp.spine.tys(f, Nil{})
+  +k = sp.first(tys)
+  +d = Maybe.default(&2, X.Sx, sp.nth(tys, 1n), X.SxNil{})
+  +ev = sp.at(f, 2n)
+  +u = sp.ge.pv(Bool.pick(X.Sx, sp.head.is(p1, "pvar"), p1, Bool.pick(X.Sx, sp.head.is(p2, "pvar"), p2, p3)))
+  +ls = sp.tc(S.b("GHC.Types"), S.b("List"), [k])
+  +node = sp.tc(S.b("GHC.Tuple"), S.b("Tuple3"), [d, k, ls])
+  +nsT = sp.tc(S.b("GHC.Types"), S.b("List"), [sp.tc(S.b("GHC.Tuple"), S.b("Tuple2"), [sp.hsint(), node])])
+  +ns = sp.ge.var(u, "ge_ns")
+  +ms = sp.ge.var(u, "ge_nodes")
+  +ks = sp.ge.var(u, "ge_keys")
+  +v = sp.ge.var(u, "ge_v")
+  +kv = sp.ge.var(u, "ge_k")
+  +mT = sp.tc(S.b("Data.Map.Internal"), S.b("Map"), [sp.hsint(), node])
+  +kT = sp.tc(S.b("Data.Map.Internal"), S.b("Map"), [sp.hsint(), k])
+  +gT = sp.tc(S.b("Data.Map.Internal"), S.b("Map"), [sp.hsint(), sp.tc(S.b("GHC.Types"), S.b("List"), [sp.hsint()])])
+  +may = sp.tc(S.b("GHC.Internal.Maybe"), S.b("Maybe"), [sp.hsint()])
+  +ap = sp.a("app")
+  +g0 = sp.ge.let(ns, nsT, X.SxNil{}, nsT, X.SxNil{}, sp.l([ap, sp.l([sp.a("evapp"), sp.ge.fn("numberedNodes", k, d), ev]), sp.at(rhs, 2n)]))
+  +g1 = sp.ge.let(sp.ge.pv(p1), gT, X.SxNil{}, gT, X.SxNil{}, sp.l([ap, sp.l([sp.a("evapp"), sp.ge.fn("graphOfNumbered", k, d), ev]), ns]))
+  +g2 = sp.ge.let(ms, mT, X.SxNil{}, mT, X.SxNil{}, sp.l([ap, sp.ge.fn("nodesOfNumbered", k, d), ns]))
+  +g3 = sp.ge.let(sp.ge.pv(p2), sp.l([sp.a("tfun"), sp.hsint(), node]), sp.l([sp.hsint()]), node, sp.l([sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, sp.hsint()])])]), sp.l([ap, sp.l([ap, sp.ge.fn("nodeAt", d, k), ms]), v]))
+  +g4 = sp.ge.let(ks, kT, X.SxNil{}, kT, X.SxNil{}, sp.l([ap, sp.ge.fn("keysOfNumbered", k, d), ns]))
+  +g5 = sp.ge.let(sp.ge.pv(p3), sp.l([sp.a("tfun"), k, may]), sp.l([k]), may, sp.l([sp.l([sp.a("pvar"), sp.l([sp.a("bv"), kv, k])])]), sp.l([ap, sp.l([ap, sp.l([sp.a("evapp"), sp.l([sp.a("tyapp"), sp.g(S.b("Cata.Graph"), S.b("vertexOf"), "var"), k]), ev]), ks]), kv]))
+  Bool.pick(List<&2, X.Sx>, ok, List.concat(&2, X.Sx, [[g0], sp.ge.part(p1, g1), sp.ge.part(p2, g2), sp.ge.part(p2, g3), sp.ge.part(p3, g4), sp.ge.part(p3, g5)]), Nil{})
+
+def sp.ge.group(+g: X.Sx) -> List<&2, X.Sx>:
+  +a = sp.at(g, 1n)
+  +evs = sp.lz.evl(sp.els(sp.at(a, 4n)))
+  +b = sp.first(sp.els(sp.at(a, 5n)))
+  +p = sp.at(b, 1n)
+  +gr = sp.at(b, 3n)
+  +r = sp.pc.strip(sp.at(sp.first(sp.els(sp.at(gr, 1n))), 2n))
+  +h = sp.vhead(sp.pc.strip(sp.at(r, 1n)))
+  +ok = Bool.and(Bool.and(sp.head.is(b, "patbind"), sp.head.is(p, "ptuple")), Bool.and(sp.head.is(r, "app"), sp.is(sp.gkey(h), "Cata.Graph.graphFromEdges")))
+  sp.if(List<&2, X.Sx>, Bool.and(sp.head.is(g, "nonrec"), sp.head.is(a, "abs")), _ => sp.if(List<&2, X.Sx>, ok, _ => sp.ge.groups(sp.els(sp.at(p, 1n)), sp.lz.evs(evs, sp.lz.evs(evs, r)), True{}), _ => [g]), _ => [g])
+
+def sp.ge.all(gs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case g <> t:
+      List.append(&2, X.Sx, sp.ge.group(g), sp.ge.all(t))
+
+def sp.ge(+y: X.Sx) -> X.Sx:
+  sp.if(X.Sx, sp.head.is(y, "binds"), _ => X.SxCons{sp.a("binds"), sp.l(sp.ge.all(sp.dropn(sp.els(y), 1n)))}, _ => y)
+
 # top: x is no spine's function (so a spine is judged whole)
 def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
   match x:
@@ -6382,7 +6454,7 @@ def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
       +inner = sp.isty(X.SxCons{h, X.SxCons{e, r}})
       +y = sp.cons(sp.p5(h, True{}), sp.cons(sp.p5(e, Bool.not(inner)), sp.p5(r, True{})))
       +c = Bool.pick(Maybe<&2, X.Sx>, Bool.and(top, sp.p5.isg(X.SxCons{h, X.SxCons{e, r}})), sp.p5.call(y), None{})
-      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.io.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y, sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y)), sp.cl(sp.sq(sp.cs(sp.zf(sp.p5.ident(y)))))))
+      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.io.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y, sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y)), sp.ge(sp.cl(sp.sq(sp.cs(sp.zf(sp.p5.ident(y))))))))
     case X.SxCons{+h, X.SxNil{}}:
       X.SxCons{sp.p5(h, True{}), X.SxNil{}}
     case y:
