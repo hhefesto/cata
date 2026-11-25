@@ -482,11 +482,21 @@ def sp.fnp.has(t: X.Sx, +sys: List<&2, Sy>) -> Bool:
     case _:
       False{}
 
+# whether a type takes a State's action (sp.cb.inl)
+def sp.fnp.act(t: X.Sx, +sys: List<&2, Sy>) -> Bool:
+  match t:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, X.SxCons{+r, X.SxNil{}}}}:
+      +rest = sp.fnp.act(r, sys)
+      +h = sp.pc.unsyn(4n, p, sys)
+      Bool.and(sp.is(a, "tfun"), Bool.or(rest, Bool.and(sp.head.is(h, "tc"), S.prefix(sp.sat(h, 1n), S.b("Control.Monad.Trans.State")))))
+    case _:
+      False{}
+
 # a global def that takes a function, or is polymorphic with no context: its
 # key and its top (known function arguments; a type argument that is a
 # function, sp.fnty)
 def sp.ix.fn.add(+e: X.Sx, +top: X.Sx, +fs: List<&2, Df>, +sys: List<&2, Sy>) -> List<&2, Df>:
-  Bool.pick(List<&2, Df>, Bool.and(sp.head.is(sp.at(e, 1n), "g"), Bool.or(sp.fnp.has(sp.at(e, 2n), sys), Bool.and(sp.has(sp.at(e, 2n), S.b("tforall")), Bool.not(sp.has(sp.at(e, 2n), S.b("tctx")))))), Df{sp.key(sp.sat(sp.at(e, 1n), 1n), sp.sat(sp.at(e, 1n), 2n)), top} <> fs, fs)
+  Bool.pick(List<&2, Df>, Bool.and(sp.head.is(sp.at(e, 1n), "g"), Bool.or(Bool.or(sp.fnp.has(sp.at(e, 2n), sys), sp.fnp.act(sp.at(e, 2n), sys)), Bool.and(sp.has(sp.at(e, 2n), S.b("tforall")), Bool.not(sp.has(sp.at(e, 2n), S.b("tctx")))))), Df{sp.key(sp.sat(sp.at(e, 1n), 1n), sp.sat(sp.at(e, 1n), 2n)), top} <> fs, fs)
 
 # A def copied at its types: one that takes dictionaries (a class context),
 # or one over type variables, with no context, that applies a dictionary
