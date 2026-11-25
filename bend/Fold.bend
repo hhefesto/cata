@@ -6764,6 +6764,7 @@ type K is Data:
   KEl{}
   KEself{}
   KEapp{}
+  KEcons{}
   KEtyapp{}
   KEevapp{}
   KEskip1{}
@@ -6844,8 +6845,16 @@ def fd.k.pat(k: K, +x: X.Sx) -> K:
     case k1:
       k1
 
+# (x :) at the element's type: (app (tyapp (g GHC.Types : con) T) x)
+def fd.k.cons(+x: X.Sx) -> Bool:
+  +f = V.sv.at(x, 1n)
+  +g = V.sv.at(f, 1n)
+  Bool.and(Bool.and(V.sv.is(V.sv.hd(f), "tyapp"), V.sv.is(V.sv.hd(g), "g")), Bool.and(S.eq(V.sv.str(g, 1n), S.b("GHC.Types")), Bool.and(S.eq(V.sv.str(g, 2n), S.b(":")), Nat.is_eq(X.tsx.len(x), 3n))))
+
 def fd.k.ex(k: K, +x: X.Sx) -> K:
   match k:
+    case KEapp{}:
+      Bool.pick(K, fd.k.cons(x), KEcons{}, KEapp{})
     case KEcase{}:
       Bool.pick(K, V.sv.is(V.sv.hd(V.sv.at(x, 1n)), "l"), KEcase{}, KEcaseC{})
     case KElam{}:
@@ -6982,6 +6991,9 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
       RE{fd.e0(HdL{fd.vname(V.sv.str(l, 1n))})}
     case X.SxCons{_, X.SxCons{+v, _}} KEself{}:
       RE{fd.e0(fd.self.hd(V.sv.is(V.sv.hd(v), "g"), v))}
+    case X.SxCons{_, X.SxCons{X.SxCons{_, X.SxCons{+g, X.SxCons{+t, _}}}, X.SxCons{+a, _}}} KEcons{}:
+      +ty = fd.rt(fd.go(t, fd.k(RoTy{}, t), env))
+      RE{fd.eapp(fd.etyapp(fd.re(fd.go(g, fd.k(RoEx{}, g), fd.notail(env))), ty), fd.re(fd.go(a, fd.k(RoEx{}, a), fd.typed(env, ty))))}
     case X.SxCons{_, X.SxCons{+f, X.SxCons{+a, _}}} KEapp{}:
       RE{fd.eapp(fd.re(fd.go(f, fd.k(RoEx{}, f), fd.notail(env))), fd.re(fd.go(a, fd.k(RoEx{}, a), fd.notail(env))))}
     case X.SxCons{_, X.SxCons{+e, X.SxCons{+t, _}}} KEtyapp{}:
@@ -7101,7 +7113,8 @@ def fd.go(x: X.Sx, k: K, +env: Env) -> R:
     # lazy but for a bang's (let !p = e); Spec's sp.pb made its binders
     # plain locals
     case X.SxCons{_, X.SxCons{+p, X.SxCons{_, X.SxCons{g, X.SxCons{+ty, _}}}}} KBpat{}:
-      RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.ft.off(fd.rt(fd.go(g, KGrhss{}, fd.notail(env)))), fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env)), Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
+      +tt = fd.rt(fd.go(ty, fd.k(RoTy{}, ty), env))
+      RPb{fd.rt(fd.go(p, fd.k(RoPat{}, p), env)), fd.ft.off(fd.rt(fd.go(g, KGrhss{}, fd.typed(env, tt)))), tt, Bool.not(V.sv.is(V.sv.hd(p), "pbang"))}
     case X.SxCons{_, X.SxCons{+v, X.SxCons{_, X.SxCons{_, X.SxCons{+ms, _}}}}} KBfun{}:
       fd.lbind(fd.bvname(X.SxCons{X.SxAtom{S.b("bv")}, X.SxCons{fd.unself(v), X.SxNil{}}}), fd.go(ms, KMatches{}, fd.withal(fd.notail(env), Nil{})), env, Bool.or(fd.occurs(ms, fd.unself(v)), V.sv.is(V.sv.hd(V.sv.at(ms, 2n)), "tc")), fd.occurs(ms, fd.unself(v)))
     # binders' types (see Lifting)
@@ -13862,10 +13875,26 @@ def fd.rx.flat(t: T.Bt, +as: List<&2, T.Bt>) -> List<&2, T.Bt>:
     case _:
       as
 
+# a lambda given a function's lambda, used once there (an inlined step of a
+# tower, at the next one's): in its place too, where no binder it goes under
+# names one of its variables
+def fd.rx.apart(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case x <> t:
+      Bool.and(Bool.not(S.mem(fd.unplus(x), ys)), fd.rx.apart(t, ys))
+
+def fd.rx.once(+x: List<&2, U32>, +b: T.Bt, +l: T.Bt) -> Bool:
+  Bool.and(Nat.is_lt(fd.uses(b, x), 2n), fd.rx.apart(fd.binds(b, Nil{}), T.tba.frees(l, Nil{})))
+
 def fd.rx.red(fuel: Nat, f: T.Bt, +as: List<&2, T.Bt>) -> T.Bt:
   match fuel f as:
     case 1n+p T.BtLam{m, +x, +b} T.BtVar{+v} <> +t:
       fd.rx.red(p, T.tba.subst(b, x, T.BtVar{v}), t)
+    case 1n+(+p) T.BtLam{+m, +x, +b} T.BtLam{+ml, +xl, +bl} <> +t:
+      +l = {T.BtLam{ml, xl, bl} : T.Bt}
+      fd.pt.if(T.Bt, fd.rx.once(x, b, l), _ => fd.rx.red(p, T.tba.subst(b, x, l), t), _ => T.BtApp{T.BtLam{m, x, b}, T.tba.args(l <> t)})
     case 1n+(+p) T.BtLam{+m, +x, +b} a <> +h <> +t:
       +r = {h <> t : List<&2, T.Bt>}
       +cl = S.mem(x, fd.sfrees(T.tba.args(r), Nil{}))
@@ -13997,8 +14026,8 @@ def fd.rx(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
 # a parameter the body uses twice now is marked +
 def fd.rx.ps(ps: List<&2, T.BParam>, +b: T.Bt) -> List<&2, T.BParam>:
   match ps:
-    case T.BParam{T.BmLive{}, +x, ty} <> t:
-      T.BParam{fd.mode(fd.uses(b, x)), x, ty} <> fd.rx.ps(t, b)
+    case T.BParam{T.BmLive{}, +x, +ty} <> t:
+      T.BParam{Bool.pick(T.BMode, fd.nd(ty), T.BmLive{}, fd.mode(fd.uses(b, x))), x, ty} <> fd.rx.ps(t, b)
     case h <> t:
       h <> fd.rx.ps(t, b)
     case Nil{}:
@@ -14152,11 +14181,22 @@ def fd.pc.go(t: T.Bt, +hds: List<&2, Hdf>) -> T.Bt:
     case u:
       u
 
-def fd.pc.def(m: Maybe<&2, Nat>, n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Een>, +hds: List<&2, Hdf>) -> T.BItem:
+# a function parameter's uses: all its arguments at once (an action's
+# answer, its state too)
+def fd.pc.pes(ps: List<&2, T.BParam>) -> List<&2, Een>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, +ty} <> t:
+      +k = fd.ee.arrows(ty)
+      +rest = fd.pc.pes(t)
+      Bool.pick(List<&2, Een>, Nat.is_gt(k, 1n), Een{x, k} <> rest, rest)
+
+def fd.pc.def(m: Maybe<&2, Nat>, n: List<&2, U32>, +ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +es: List<&2, Een>, +hds: List<&2, Hdf>) -> T.BItem:
   match m:
     case Some{k}:
-      +b2 = fd.stmt(fd.ee.rw(fd.pc.go(b, hds), False{}, es))
-      T.BiDef{n, fd.rx.ps(ps, b2), r, b2, d}
+      +b2 = fd.stmt(fd.ee.rw(fd.pc.go(b, hds), False{}, List.append(&2, Een, es, fd.pc.pes(ps))))
+      T.BiDef{n, ps, r, b2, d}
     case None{}:
       T.BiDef{n, ps, r, b, d}
 
@@ -14284,12 +14324,59 @@ def fd.dx.rounds(fuel: Nat, +its: List<&2, T.BItem>, +cps: List<&2, T.BItem>, +d
     case 1n+k:
       fd.dx.more(fd.dx.gs(fd.ph.scans(cps, hds, List.append(&2, Pt, fd.dx.pts(cps), ks), fd.ph.scans(its, hds, ks, Nil{})), done), its, cps, done, +gs => fd.dx.rounds(k, its, List.append(&2, T.BItem, cps, fd.dx.new(gs, hds)), List.append(&2, List<&2, U32>, gs, done), hds, ks))
 
+# and an earlier module's recursive template reached from a group's calls
+# with a function that calls the group back (Cata.Base's foldr under IC's
+# envUsage, by a derived Foldable's default): copied too, so that fd.ti
+# writes it at that function, in the group. A group here: the defs of one
+# name up to its first dot.
+def fd.dx.before(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      Nil{}
+    case h <> t:
+      h <> fd.dx.before(t)
+
+def fd.dx.mates(its: List<&2, T.BItem>, +b: List<&2, U32>) -> List<&2, Pt>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, ps, r, d, e} <> t:
+      +rest = fd.dx.mates(t, b)
+      Bool.pick(List<&2, Pt>, S.eq(fd.dx.before(n), b), Pt{n, Nil{}, T.BtType{}} <> rest, rest)
+    case h <> t:
+      fd.dx.mates(t, b)
+
+def fd.dx.group(its: List<&2, T.BItem>, +all: List<&2, T.BItem>, +hds: List<&2, Hdf>, +hs: List<&2, Hkf>) -> List<&2, Hkf>:
+  match its:
+    case Nil{}:
+      hs
+    case T.BiDef{+n, ps, r, +b, d} <> t:
+      fd.dx.group(t, all, hds, fd.ph.scan(b, hds, fd.dx.mates(all, fd.dx.before(n)), hs))
+    case h <> t:
+      fd.dx.group(t, all, hds, hs)
+
+def fd.dx.in(hs: List<&2, Hkf>, +hds: List<&2, Hdf>) -> List<&2, Hkf>:
+  match hs:
+    case Nil{}:
+      Nil{}
+    case Hkf{+g, iz} <> t:
+      +rest = fd.dx.in(t, hds)
+      Bool.pick(List<&2, Hkf>, Maybe.is_some(&2, Hdf, fd.ph.hd(hds, g)), Hkf{g, iz} <> rest, rest)
+
+def fd.dx.grouped(+its: List<&2, T.BItem>, +hds: List<&2, Hdf>) -> List<&2, List<&2, U32>>:
+  +all = List.append(&2, Hdf, hds, fd.ph.hds(its))
+  fd.dx.gs(fd.dx.in(fd.ph.fix(50n, False{}, all, Nil{}, fd.dx.group(its, its, all, Nil{})), hds), Nil{})
+
 def fd.dx.all1(hds: List<&2, Hdf>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   match hds:
     case Nil{}:
       its
     case +h <> +t:
-      fd.dx.rounds(6n, its, Nil{}, Nil{}, h <> t, fd.pt.ks(its, dt))
+      +hds = {h <> t : List<&2, Hdf>}
+      +gs = fd.dx.grouped(its, hds)
+      fd.dx.rounds(6n, its, fd.dx.new(gs, hds), gs, hds, fd.pt.ks(its, dt))
 
 def fd.dx.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.dx.all1(fd.dx.hds(fd.dx.keep(True{}, dt)), its, fd.dx.keep(False{}, dt))
@@ -17103,7 +17190,7 @@ def fd.dx.own(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
 
 def fd.dx.ok(+n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
   +rs = T.tba.refs(b, T.tba.refs(r, Nil{}))
-  fd.pt.if(Bool, Bool.or(S.mem(S.b(fd.pt.doc()), d), List.is_empty(&2, Nat, fd.ph.idx(ps, 0n))), _ => False{}, _ => fd.pt.if(Bool, S.mem(n, rs), _ => False{}, _ => Bool.and(fd.dx.refs(rs, own), fd.dx.apart(fd.binds(b, fd.dx.pnames(ps)), own))))
+  fd.pt.if(Bool, Bool.or(S.mem(S.b(fd.pt.doc()), d), List.is_empty(&2, Nat, fd.ph.idx(ps, 0n))), _ => False{}, _ => Bool.and(fd.dx.refs(rs, own), fd.dx.apart(fd.binds(b, fd.dx.pnames(ps)), own)))
 
 def fd.dx.export(its: List<&2, T.BItem>, +own: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> List<&2, T.BItem>:
   match its:
