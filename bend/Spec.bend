@@ -1753,7 +1753,7 @@ def sp.pc.gtab() -> List<&2, Pgk>:
   [PgkL{tr ++ "traverse", "listTraverse"}, PgkL{tr ++ "mapM", "listMapM"}, PgkL{tr ++ "for", "listFor"}, PgkL{tr ++ "forM", "listForM"}, PgkL{tr ++ "sequence", "listSequence"}, PgkL{tr ++ "sequenceA", "listSequenceA"}, PgkL{fo ++ "traverse_", "listTraverse_"}, PgkL{fo ++ "for_", "listFor_"}, PgkL{fo ++ "mapM_", "listMapM_"}, PgkL{fo ++ "forM_", "listForM_"}, PgkL{"GHC.Internal.Control.Monad.foldM", "listFoldM"}, PgkH{"Cata.Hm.traverse", "listTraverse"}, PgkH{"Cata.Hm.mapM", "listMapM"}, PgkH{"Cata.Hm.for", "listFor"}, PgkH{"Cata.Hm.forM", "listForM"}, PgkH{"Cata.Hm.traverse_", "listTraverse_"}, PgkH{"Cata.Hm.for_", "listFor_"}, PgkH{"Cata.Hm.mapM_", "listMapM_"}, PgkH{"Cata.Hm.forM_", "listForM_"}, PgkH{"Cata.Hm.foldM", "listFoldM"}, PgkM{tr ++ "traverse", "maybeTraverse"}, PgkM{tr ++ "mapM", "maybeTraverse"}, PgkM{tr ++ "sequenceA", "maybeSequenceA"}, PgkM{tr ++ "sequence", "maybeSequenceA"}, PgkM{fo ++ "foldMap", "maybeFoldMap"}, PgkM{fo ++ "null", "maybeNull"}, PgkM{fo ++ "any", "maybeAny"}, PgkM{fo ++ "all", "maybeAll"}, PgkM{fo ++ "elem", "maybeElem"}, PgkM{fo ++ "toList", "maybeToListF"}, PgkM{fo ++ "length", "maybeLength"}, PgkM{"HsPrelude.Z.length", "maybeLength"}, PgkM{fo ++ "foldr", "maybeFoldr"}, PgkM{fo ++ "concatMap", "maybeConcatMap"}, PgkM{fo ++ "traverse_", "maybeTraverse_"}, PgkM{fo ++ "mapM_", "maybeTraverse_"}, PgkM{fo ++ "for_", "maybeFor_"}, PgkM{fo ++ "forM_", "maybeFor_"}, PgkO{fo ++ "toList", "toListDefault"}, PgkO{fo ++ "sum", "sumDefault"}, PgkO{fo ++ "product", "productDefault"}, PgkO{fo ++ "length", "lengthDefault"}, PgkO{fo ++ "foldl'", "foldlDefault"}, PgkO{fo ++ "foldl", "foldlDefault"}, PgkS{"GHC.Internal.Show.shows", "showsDefault"}, PgkO{"GHC.Internal.Data.Functor.<$>", "fmapOp"}, PgkO{"GHC.Internal.Data.Functor.<&>", "fmapFlip"}, PgkO{"GHC.Internal.Base.=<<", "bindFlip"}, PgkO{"GHC.Internal.Data.Functor.void", "voidOp"}, PgkO{"GHC.Internal.Base.when", "whenOp"}, PgkO{"GHC.Internal.Control.Monad.unless", "unlessOp"}, PgkO{"GHC.Internal.Base.liftM2", "liftM2Op"}, PgkO{"GHC.Internal.Base.>>", "thenOp"}, PgkO{"GHC.Internal.Base.return", "returnOp"}, PgkO{tr ++ "mapM", "mapMOp"}, PgkO{tr ++ "sequence", "sequenceOp"}, PgkO{"GHC.Internal.Base.<$", "constMap"}, PgkO{fo ++ "any", "anyDefault"}, PgkO{fo ++ "all", "allDefault"}, PgkO{fo ++ "or", "orDefault"}, PgkO{fo ++ "and", "andDefault"}, PgkO{fo ++ "null", "nullDefault"}, PgkO{fo ++ "elem", "elemDefault"}, PgkO{fo ++ "concatMap", "concatMapDefault"}, PgkA{"Data.Map.Internal.mapKeys", "mapKeys"}, PgkA{"GHC.Internal.Data.OldList.partition", "partition"}, PgkA{"Data.Set.Internal.partition", "setPartition"}, PgkA{"Data.Map.Internal.partition", "mapPartition"}, PgkA{"Data.Map.Internal.mapMaybe", "mapMapMaybe"}, PgkA{"GHC.Internal.Data.Function.on", "onOp"}, PgkA{"Data.Map.Internal.unionWithKey", "unionWithKeyOp"}]
 
 def sp.pc.gkeys() -> List<&2, List<&2, U32>>:
-  [S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform"), S.b("Control.Comonad.Cofree.Class.unwrap"), S.b("GHC.Internal.Exception.throw")]
+  [S.b("GHC.Internal.Data.OldList.sortOn"), S.b("GHC.Internal.Data.Ord.comparing"), S.b("GHC.Internal.Base.<>"), S.b("GHC.Internal.Base.mappend"), S.b("GHC.Internal.Base.mempty"), S.b("Data.Functor.Foldable.ana"), S.b("Control.Lens.Plated.transform"), S.b("Control.Comonad.Cofree.Class.unwrap"), S.b("GHC.Internal.Exception.throw")]
 
 def sp.pc.gm.some(b: Bool, n: String, ts: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   match b:
@@ -1782,6 +1782,14 @@ def sp.pc.gm.tab(ks: List<&2, Pgk>, +k: List<&2, U32>, +ty: List<&2, X.Sx>) -> M
     case PgkA{+q, n} <> t:
       Maybe.or(&2, Pgm, sp.if(Maybe<&2, Pgm>, sp.is(k, q), _ => Some{Pgm{n, ty}}, _ => None{}), sp.pc.gm.tab(t, k, ty))
 
+# sortOn and comparing at a key that is a Down
+def sp.pc.gm.down(d: Bool, +k: List<&2, U32>, +ty: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
+  match d:
+    case True{}:
+      Maybe.or(&2, Pgm, sp.pc.gm.some(sp.is(k, "GHC.Internal.Data.OldList.sortOn"), "sortOnOp", ty), sp.pc.gm.some(sp.is(k, "GHC.Internal.Data.Ord.comparing"), "comparingOp", ty))
+    case False{}:
+      None{}
+
 def sp.pc.gm(+k: List<&2, U32>, +ty: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   +t0 = sp.first(ty)
   +h = sp.tckey(t0)
@@ -1794,7 +1802,7 @@ def sp.pc.gm(+k: List<&2, U32>, +ty: List<&2, X.Sx>) -> Maybe<&2, Pgm>:
   +t1 = Maybe.default(&2, X.Sx, sp.nth(ty, 1n), X.SxNil{})
   +th = Bool.and(sp.is(k, "GHC.Internal.Exception.throw"), sp.pc.own(Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})))
   +uw = Bool.and(sp.is(k, "Control.Comonad.Cofree.Class.unwrap"), sp.is(sp.tckey(t1), "Control.Comonad.Cofree.Cofree"))
-  Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, app), "maybeAppend", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, sp.is(k, "GHC.Internal.Base.mempty")), "maybeMempty", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Data.Functor.Foldable.ana")), "anaCofree", x <> y <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(fx, sp.is(k, "Data.Functor.Foldable.ana")), "anaFix", x <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Control.Lens.Plated.transform")), "transformCofree", [x, y]), Maybe.or(&2, Pgm, sp.pc.gm.some(th, "throwOp", sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(uw, "unwrapCofree", [sp.at(t1, 3n), Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})]), sp.pc.gm.tab(sp.pc.gtab(), k, ty))))))))
+  Maybe.or(&2, Pgm, sp.pc.gm.down(sp.is(h, "Cata.Base.Down"), k, ty), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, app), "maybeAppend", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(mb, sp.is(k, "GHC.Internal.Base.mempty")), "maybeMempty", [x]), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Data.Functor.Foldable.ana")), "anaCofree", x <> y <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(fx, sp.is(k, "Data.Functor.Foldable.ana")), "anaFix", x <> sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(Bool.and(co, sp.is(k, "Control.Lens.Plated.transform")), "transformCofree", [x, y]), Maybe.or(&2, Pgm, sp.pc.gm.some(th, "throwOp", sp.pc.drop(1n, ty)), Maybe.or(&2, Pgm, sp.pc.gm.some(uw, "unwrapCofree", [sp.at(t1, 3n), Maybe.default(&2, X.Sx, sp.nth(ty, 2n), X.SxNil{})]), sp.pc.gm.tab(sp.pc.gtab(), k, ty)))))))))
 
 def sp.strs0(xs: List<String>) -> List<&2, List<&2, U32>>:
   match xs:
@@ -1808,7 +1816,7 @@ def sp.pc.gn(+n: String) -> Nat:
   +b = S.b(n)
   +one = S.mem(b, sp.strs0(["maybeAppend", "maybeMempty", "showsDefault", "maybeNull", "maybeAny", "maybeAll", "maybeElem", "maybeToListF", "maybeLength", "partition", "setPartition", "whenOp", "unlessOp", "orDefault", "andDefault"]))
   +two = Bool.or(S.prefix(b, S.b("listSequence")), S.mem(b, sp.strs0(["transformCofree", "unwrapCofree", "anaFix", "toListDefault", "sumDefault", "productDefault", "lengthDefault", "maybeSequenceA", "voidOp", "anyDefault", "allDefault", "mapPartition", "unionWithKeyOp", "nullDefault", "elemDefault", "returnOp", "maybeFoldMap", "throwOp"])))
-  Bool.pick(Nat, one, 1n, Bool.pick(Nat, Bool.or(two, Bool.or(sp.is(b, "maybeFoldr"), sp.is(b, "maybeConcatMap"))), 2n, Bool.pick(Nat, Bool.or(sp.is(b, "liftM2Op"), sp.is(b, "mapMOp")), 4n, 3n)))
+  Bool.pick(Nat, one, 1n, Bool.pick(Nat, Bool.or(two, S.mem(b, sp.strs0(["maybeFoldr", "maybeConcatMap", "sortOnOp", "comparingOp"]))), 2n, Bool.pick(Nat, Bool.or(sp.is(b, "liftM2Op"), sp.is(b, "mapMOp")), 4n, 3n)))
 
 def sp.pc.gput(m: Maybe<&2, Pgm>) -> Maybe<&2, X.Sx>:
   match m:
@@ -6021,8 +6029,14 @@ def sp.io.mod(+m: List<&2, U32>) -> Bool:
 def sp.io.g(+y: X.Sx) -> X.Sx:
   sp.if(X.Sx, Bool.and(sp.head.is(y, "g"), sp.io.mod(sp.sat(y, 1n))), _ => sp.io.put(sp.io.find(sp.io.tab(), sp.gkey(y)), y), _ => y)
 
-def sp.io.tc(+k: List<&2, U32>, +x: X.Sx, y: X.Sx) -> X.Sx:
-  sp.if(X.Sx, sp.is(k, "GHC.Types.IO"), _ => sp.tc(S.b("Control.Monad.Trans.State.Lazy"), S.b("StateT"), sp.tc(S.b("Cata.Base"), S.b("World"), Nil{}) <> sp.tc(S.b("GHC.Internal.Data.Functor.Identity"), S.b("Identity"), Nil{}) <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.IO.Handle.Types.Handle"), _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => y))
+# base's Down as the model's
+def sp.io.down(+y: X.Sx) -> X.Sx:
+  +n = sp.sat(y, 2n)
+  +d = Bool.or(Bool.or(sp.is(n, "Down"), sp.is(n, "getDown")), Bool.or(sp.is(n, "$fOrdDown"), sp.is(n, "$fEqDown")))
+  sp.if(X.Sx, Bool.and(d, Bool.and(sp.head.is(y, "g"), sp.is(sp.sat(y, 1n), "GHC.Internal.Data.Ord"))), _ => sp.l([sp.a("g"), X.SxStr{S.b("Cata.Base")}, sp.at(y, 2n), sp.at(y, 3n)]), _ => y)
+
+def sp.io.tc(+k: List<&2, U32>, +x: X.Sx, +y: X.Sx) -> X.Sx:
+  sp.if(X.Sx, sp.is(k, "GHC.Types.IO"), _ => sp.tc(S.b("Control.Monad.Trans.State.Lazy"), S.b("StateT"), sp.tc(S.b("Cata.Base"), S.b("World"), Nil{}) <> sp.tc(S.b("GHC.Internal.Data.Functor.Identity"), S.b("Identity"), Nil{}) <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.IO.Handle.Types.Handle"), _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.Data.Ord.Down"), _ => sp.tc(S.b("Cata.Base"), S.b("Down"), sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => y)))
 
 def sp.p5.tc(+k: List<&2, U32>, +x: X.Sx) -> X.Sx:
   +integer = sp.is(k, "GHC.Num.Integer.Integer")
@@ -6044,7 +6058,7 @@ def sp.p5.gr(+y: X.Sx) -> X.Sx:
   +m = sp.sat(y, 1n)
   +g = Bool.and(sp.head.is(y, "g"), Bool.or(sp.is(m, "Data.Graph"), sp.is(m, "Data.Tree")))
   +ps = Bool.and(sp.head.is(y, "unsupported"), Bool.and(sp.is(m, "PatSynCon"), sp.is(sp.sat(y, 2n), "CyclicSCC")))
-  Bool.pick(X.Sx, g, sp.l([sp.a("g"), X.SxStr{S.b("Cata.Graph")}, sp.at(y, 2n), sp.at(y, 3n)]), Bool.pick(X.Sx, ps, sp.g(S.b("Cata.Graph"), S.b("CyclicSCC"), "con"), sp.bin.g(sp.io.g(y))))
+  Bool.pick(X.Sx, g, sp.l([sp.a("g"), X.SxStr{S.b("Cata.Graph")}, sp.at(y, 2n), sp.at(y, 3n)]), Bool.pick(X.Sx, ps, sp.g(S.b("Cata.Graph"), S.b("CyclicSCC"), "con"), sp.bin.g(sp.io.down(sp.io.g(y)))))
 
 # an IntMap or IntSet function's Map or Set name, and where its key goes
 def sp.p5.mod(+m: List<&2, U32>) -> List<&2, U32>:

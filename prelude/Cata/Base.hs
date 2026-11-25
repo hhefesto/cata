@@ -27,6 +27,7 @@ import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Functor.Foldable (cata)
 import qualified Data.IntMap as IntMap
+import qualified Data.List as L
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Word (Word8)
@@ -633,3 +634,23 @@ ioStdout = ()
 
 ioFlush :: () -> State World ()
 ioFlush _ = pure ()
+
+-- | base's Down: the order the other way round
+newtype Down a = Down a
+
+instance Eq a => Eq (Down a) where
+  Down x == Down y = x == y
+
+instance Ord a => Ord (Down a) where
+  compare (Down x) (Down y) = compare y x
+
+getDown :: Down a -> a
+getDown (Down x) = x
+
+-- | base's comparing and sortOn at a key that is a Down (their definitions;
+-- sortOn's keys are computed once each in base's)
+comparingOp :: forall a b. Ord a => (b -> a) -> b -> b -> Ordering
+comparingOp f x y = compare (f x) (f y)
+
+sortOnOp :: forall b a. Ord b => (a -> b) -> [a] -> [a]
+sortOnOp f xs = L.sortBy (\x y -> compare (f x) (f y)) xs
