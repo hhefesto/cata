@@ -24,7 +24,9 @@ import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Functor.Foldable (cata)
+import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import GHC.Show (showList__)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
@@ -58,8 +60,14 @@ concatMap f (x : xs) = f x ++ concatMap f xs
 iterateIndex :: (a -> a) -> a -> Int -> a
 iterateIndex f x n
   | n < 0 = error "Prelude.!!: negative index"
-  | n == 0 = x
-  | otherwise = iterateIndex f (f x) (n - 1)
+  | otherwise = iterateTimes f x n
+
+-- | f applied n times to x: x is f's argument at the bottom, so that at an
+-- action (a function) no argument grows
+iterateTimes :: (a -> a) -> a -> Int -> a
+iterateTimes f x n
+  | n <= 0 = x
+  | otherwise = f (iterateTimes f x (n - 1))
 
 -- | base's instances at pairs, (,) w: Functor, Applicative (at a Monoid
 -- w) and Traversable. Spec writes a method at (,) w as the def here, at w
@@ -160,6 +168,28 @@ fixShows x = showString (cata fixShowAlg x)
 
 fixShowList :: forall f. (Functor f, Show1 f) => [Fix f] -> ShowS
 fixShowList xs = showList__ showString (map (cata fixShowAlg) xs)
+
+-- | free's Show instance at Cofree f a, through f's Show1 and a's Show:
+-- showsPrec d (a :< as) is showParen (d > 5) (showsPrec 6 a . showString
+-- " :< " . liftShowsPrec showsPrec showList 5 as), as a fold to a node's
+-- unparenthesised text (as fixShow's).
+cofreeShowsAt :: Int -> String -> ShowS
+cofreeShowsAt q s = showParen (q >= 6) (showString s)
+
+cofreeShowAlg :: forall f a. (Show1 f, Show a) => CofreeF f a String -> String
+cofreeShowAlg (a :< as) = showsPrec 6 a (showString " :< " (liftShowsPrec cofreeShowsAt (showList__ showString) 5 as ""))
+
+cofreeShowsPrec :: forall f a. (Functor f, Show1 f, Show a) => Int -> C.Cofree f a -> ShowS
+cofreeShowsPrec d x = cofreeShowsAt d (cata cofreeShowAlg x)
+
+cofreeShow :: forall f a. (Functor f, Show1 f, Show a) => C.Cofree f a -> String
+cofreeShow x = cata cofreeShowAlg x
+
+cofreeShows :: forall f a. (Functor f, Show1 f, Show a) => C.Cofree f a -> ShowS
+cofreeShows x = showString (cata cofreeShowAlg x)
+
+cofreeShowList :: forall f a. (Functor f, Show1 f, Show a) => [C.Cofree f a] -> ShowS
+cofreeShowList xs = showList__ showString (map (cata cofreeShowAlg) xs)
 
 -- | base's until (GHC.Base's definition): f applied until p holds. Spec
 -- writes until as this def; Bend sees no argument shrink, so the fold
@@ -390,6 +420,98 @@ partition p xs = case xs of
   [] -> ([], [])
   y : ys -> case partition p ys of
     (ts, fs) -> if p y then (y : ts, fs) else (ts, y : fs)
+
+-- | containers' partition at Set and Map, Map's mapMaybe (its pairs, in
+-- order), Data.Function's on
+setPartition :: forall a. Ord a => (a -> Bool) -> Set.Set a -> (Set.Set a, Set.Set a)
+setPartition p s = case partition p (Set.toAscList s) of
+  (ts, fs) -> (Set.fromList ts, Set.fromList fs)
+
+mapPartition :: forall a k. (a -> Bool) -> Map.Map k a -> (Map.Map k a, Map.Map k a)
+mapPartition p m = case partitionPairs p (Map.toAscList m) of
+  (ts, fs) -> (Map.fromDistinctAscList ts, Map.fromDistinctAscList fs)
+
+partitionPairs :: forall a k. (a -> Bool) -> [(k, a)] -> ([(k, a)], [(k, a)])
+partitionPairs p xs = case xs of
+  [] -> ([], [])
+  (k, v) : t -> case partitionPairs p t of
+    (ts, fs) -> if p v then ((k, v) : ts, fs) else (ts, (k, v) : fs)
+
+mapMapMaybe :: forall a b k. (a -> Maybe b) -> Map.Map k a -> Map.Map k b
+mapMapMaybe f m = Map.fromDistinctAscList (mapMaybePairs f (Map.toAscList m))
+
+mapMaybePairs :: forall a b k. (a -> Maybe b) -> [(k, a)] -> [(k, b)]
+mapMaybePairs f xs = case xs of
+  [] -> []
+  (k, v) : t -> case f v of
+    Nothing -> mapMaybePairs f t
+    Just w -> (k, w) : mapMaybePairs f t
+
+onOp :: forall b c a. (b -> b -> c) -> (a -> b) -> a -> a -> c
+onOp f g x y = f (g x) (g y)
+
+-- | containers' unionWithKey: the first's pairs put in the second, at a key
+-- of both the function's (a known function is copied in, so it may be
+-- partial, as Resolve's DeferMap's is)
+unionWithKeyOp :: forall k a. Ord k => (k -> a -> a -> a) -> Map.Map k a -> Map.Map k a -> Map.Map k a
+unionWithKeyOp f a b = unionPairs f (Map.toAscList a) b
+
+unionPairs :: forall k a. Ord k => (k -> a -> a -> a) -> [(k, a)] -> Map.Map k a -> Map.Map k a
+unionPairs f xs b = case xs of
+  [] -> b
+  (k, v) : t -> insertPair f k v (unionPairs f t b)
+
+insertPair :: forall k a. Ord k => (k -> a -> a -> a) -> k -> a -> Map.Map k a -> Map.Map k a
+insertPair f k v m = case Map.lookup k m of
+  Nothing -> Map.insert k v m
+  Just w -> Map.insert k (f k v w) m
+
+-- | Foldable's functions at Maybe
+maybeNull :: forall a. Maybe a -> Bool
+maybeNull t = case t of
+  Nothing -> True
+  Just _ -> False
+
+maybeAny :: forall a. (a -> Bool) -> Maybe a -> Bool
+maybeAny p t = case t of
+  Nothing -> False
+  Just x -> p x
+
+maybeAll :: forall a. (a -> Bool) -> Maybe a -> Bool
+maybeAll p t = case t of
+  Nothing -> True
+  Just x -> p x
+
+maybeElem :: forall a. Eq a => a -> Maybe a -> Bool
+maybeElem x t = case t of
+  Nothing -> False
+  Just y -> x == y
+
+maybeToListF :: forall a. Maybe a -> [a]
+maybeToListF t = case t of
+  Nothing -> []
+  Just x -> [x]
+
+maybeLength :: forall a. Maybe a -> Int
+maybeLength t = case t of
+  Nothing -> 0
+  Just _ -> 1
+
+maybeFoldr :: forall a b. (a -> b -> b) -> b -> Maybe a -> b
+maybeFoldr f z t = case t of
+  Nothing -> z
+  Just x -> f x z
+
+maybeConcatMap :: forall a b. (a -> [b]) -> Maybe a -> [b]
+maybeConcatMap f t = case t of
+  Nothing -> []
+  Just x -> f x
+
+-- | containers' IntMap (!): its own error text, not Map's
+intMapAt :: forall a. IntMap.IntMap a -> Int -> a
+intMapAt m k = case IntMap.lookup k m of
+  Just v -> v
+  Nothing -> error ("IntMap.!: key " ++ show k ++ " is not an element of the map")
 
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
