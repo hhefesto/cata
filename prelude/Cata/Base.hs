@@ -347,10 +347,10 @@ liftM2Op :: forall m a b r. Monad m => (a -> b -> r) -> m a -> m b -> m r
 liftM2Op f m n = m >>= \x -> n >>= \y -> pure (f x y)
 
 anyDefault :: forall t a. Foldable t => (a -> Bool) -> t a -> Bool
-anyDefault p t = F.any p (toListDefault t)
+anyDefault p t = anyList p (toListDefault t)
 
 allDefault :: forall t a. Foldable t => (a -> Bool) -> t a -> Bool
-allDefault p t = F.all p (toListDefault t)
+allDefault p t = allList p (toListDefault t)
 
 orDefault :: forall t. Foldable t => t Bool -> Bool
 orDefault t = F.or (toListDefault t)
@@ -777,3 +777,85 @@ firstPair f p = case p of (a, c) -> (f a, c)
 
 secondPair :: forall b c a. (b -> c) -> (a, b) -> (a, c)
 secondPair f p = case p of (a, b) -> (a, f b)
+
+-- | base's Const: m, whatever the other type says (Spec writes base's as this
+-- one)
+newtype Const m a = Const { getConst :: m }
+
+instance Functor (Const m) where
+  fmap _ (Const v) = Const v
+
+instance Monoid m => Applicative (Const m) where
+  pure _ = Const mempty
+  liftA2 _ (Const x) (Const y) = Const (x <> y)
+  Const x <*> Const y = Const (x <> y)
+
+-- | containers' mergeWithKey: f at the keys in both, g and h the rest of each
+-- (what its documentation asks of g and h: each answers a part of its map)
+mergeWithKeyOp :: forall k a b c. Ord k => (k -> a -> b -> Maybe c) -> (Map.Map k a -> Map.Map k c) -> (Map.Map k b -> Map.Map k c) -> Map.Map k a -> Map.Map k b -> Map.Map k c
+mergeWithKeyOp f g h a b =
+  Map.union (Map.fromDistinctAscList (mergeKeyed f b (Map.toList a)))
+            (Map.union (g (Map.difference a b)) (h (Map.difference b a)))
+
+mergeKeyed :: forall k a b c. Ord k => (k -> a -> b -> Maybe c) -> Map.Map k b -> [(k, a)] -> [(k, c)]
+mergeKeyed f b [] = []
+mergeKeyed f b ((k, x) : r) = case Map.lookup k b of
+  Nothing -> mergeKeyed f b r
+  Just y  -> mergeKeep k (f k x y) (mergeKeyed f b r)
+
+mergeKeep :: forall k c. k -> Maybe c -> [(k, c)] -> [(k, c)]
+mergeKeep k Nothing r  = r
+mergeKeep k (Just z) r = (k, z) : r
+
+-- | containers' foldlWithKey and foldlWithKey' (Bend is strict)
+mapFoldlWithKey :: forall a k b. (a -> k -> b -> a) -> a -> Map.Map k b -> a
+mapFoldlWithKey f z m = foldlPairs f (Map.toList m) z
+
+foldlPairs :: forall a k b. (a -> k -> b -> a) -> [(k, b)] -> a -> a
+foldlPairs f [] z            = z
+foldlPairs f ((k, x) : xs) z = foldlPairs f xs (f z k x)
+
+setDisjoint :: forall a. Ord a => Set.Set a -> Set.Set a -> Bool
+setDisjoint a b = Set.null (Set.intersection a b)
+
+-- | containers' traverseWithKey, and Foldable's foldMap at a Map
+mapTraverseWithKey :: forall t k a b. Applicative t => (k -> a -> t b) -> Map.Map k a -> t (Map.Map k b)
+mapTraverseWithKey f m = fmap Map.fromDistinctAscList (traversePairs f (Map.toList m))
+
+traversePairs :: forall t k a b. Applicative t => (k -> a -> t b) -> [(k, a)] -> t [(k, b)]
+traversePairs f []            = pure []
+traversePairs f ((k, x) : xs) = A.liftA2 (\y ys -> (k, y) : ys) (f k x) (traversePairs f xs)
+
+mapFoldMap :: forall k m a. Monoid m => (a -> m) -> Map.Map k a -> m
+mapFoldMap f m = foldMapElems f (Map.elems m)
+
+foldMapElems :: forall m a. Monoid m => (a -> m) -> [a] -> m
+foldMapElems f []       = mempty
+foldMapElems f (x : xs) = f x <> foldMapElems f xs
+
+-- | (,) w's Monad
+pairBind :: forall w a b. Monoid w => (w, a) -> (a -> (w, b)) -> (w, b)
+pairBind p k = case p of
+  (u, x) -> case k x of
+    (v, y) -> (u <> v, y)
+
+-- | free's <$ at a Cofree: every annotation replaced
+cofreeConst :: forall f a b. Functor f => a -> C.Cofree f b -> C.Cofree f a
+cofreeConst x = cata (\(_ :< g) -> x C.:< g)
+
+-- | base's mconcat (at a Map)
+mconcatOp :: forall m. Monoid m => [m] -> m
+mconcatOp []       = mempty
+mconcatOp (x : xs) = x <> mconcatOp xs
+
+-- | base's any and all at a list, their recursion (a p that calls back the def
+-- it is in, EAL's closedTerm, is then a group's member)
+anyList :: forall a. (a -> Bool) -> [a] -> Bool
+anyList p xs = case xs of
+  [] -> False
+  x : t -> if p x then True else anyList p t
+
+allList :: forall a. (a -> Bool) -> [a] -> Bool
+allList p xs = case xs of
+  [] -> True
+  x : t -> if p x then allList p t else False

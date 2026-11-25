@@ -96,3 +96,22 @@ def HsList.elemIndex.go(~K: Data, ~eq: K -> K -> Bool, +x: K, xs: List<&2, K>, +
 
 def HsList.elemIndex(~K: Data, ~eq: K -> K -> Bool, x: K, xs: List<&2, K>) -> Maybe<&2, Nat>:
   HsList.elemIndex.go(~K, ~eq, x, xs, 0n)
+
+# lookup in a list whose values hold functions (no Data: each used once)
+def HsList.lookup1(~K: Data, ~V: Type, ~eq: K -> K -> Bool, +k: K, xs: List<&1, Sigma<&2, &1, K, _ => V>>) -> Maybe<&1, V>:
+  match xs:
+    case Nil{}:
+      None{}
+    case Tuple{+k2, v} <> t:
+      HsBool.if(Maybe<&1, V>, eq(k)(k2), _ => Some{v}, _ => HsList.lookup1(~K, ~V, ~eq, k, t))
+
+# fst and snd of a pair whose second half holds a function
+def HsList.fst1(~A: Data, ~B: Type, p: Sigma<&2, &1, A, _ => B>) -> A:
+  match p:
+    case Tuple{a, b}:
+      a
+
+def HsList.snd1(~A: Data, ~B: Type, p: Sigma<&2, &1, A, _ => B>) -> B:
+  match p:
+    case Tuple{a, b}:
+      b

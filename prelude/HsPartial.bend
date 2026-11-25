@@ -359,6 +359,54 @@ def HsPt.exs.map(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, 
   (r, s) = p
   HsPt.exs.map.go(E, S, A, B, f, r, s)
 
+# a function's action and its argument's (State's <*>)
+def HsPt.state.ap.fin(-S: Data, -A: Type, -B: Type, f: A -> B, q: Sigma<&1, &1, A, _ => S>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>:
+  (a, s) = q
+  Inr{(f(a), s)}
+
+def HsPt.state.ap(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, (A -> B), _ => S>, m: S -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, A, _ => S>>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>:
+  (f, s) = p
+  HsPt.bindq(&1, &1, Sigma<&1, &1, A, _ => S>, Sigma<&1, &1, B, _ => S>, m(s), q => HsPt.state.ap.fin(S, A, B, f, q))
+
+# StateT over Either (hs.ste.*): its step is an Either already
+def HsPt.ste.bind(-E: Data, -S: Data, -A: Data, -B: Data, r: Either<&2, &2, E, Sigma<&2, &2, A, _ => S>>, f: A -> S -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Sigma<&2, &2, B, _ => S>>>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Sigma<&2, &2, B, _ => S>>>:
+  match r:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{Tuple{a, s}}:
+      f(a)(s)
+
+def HsPt.ste.map.go(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, r: Either<&2, &2, E, Sigma<&2, &2, A, _ => S>>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Sigma<&2, &2, B, _ => S>>>:
+  match r:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{Tuple{a, s}}:
+      HsPt.bind(B, Either<&2, &2, E, Sigma<&2, &2, B, _ => S>>, f(a), b => Inr{Inr{Tuple{b, s}}})
+
+def HsPt.ste.map(-E: Data, -S: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, r: Either<&2, &2, E, Sigma<&2, &2, A, _ => S>>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Sigma<&2, &2, B, _ => S>>>:
+  HsPt.ste.map.go(E, S, A, B, f, r)
+
+def HsPt.ste.gets(-E: Data, -S: Data, -A: Data, f: S -> Either<&2, &2, List<&2, Char>, A>, +s: S) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Sigma<&2, &2, A, _ => S>>>:
+  HsPt.bind(A, Either<&2, &2, E, Sigma<&2, &2, A, _ => S>>, f(s), a => Inr{Inr{Tuple{a, s}}})
+
+def HsPt.state.gets(-S: Data, -A: Data, f: S -> Either<&2, &2, List<&2, Char>, A>, +s: S) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, A, _ => S>>:
+  HsPt.bindq(&2, &1, A, Sigma<&1, &1, A, _ => S>, f(s), a => Inr{(a, s)})
+
+# ReaderT over Either (hs.rde.*)
+def HsPt.rde.bind(-R: Data, -E: Data, -A: Data, -B: Data, x: Either<&2, &2, E, A>, f: A -> R -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>, r: R) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>:
+  match x:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{a}:
+      f(a)(r)
+
+def HsPt.rde.map(-R: Data, -E: Data, -A: Data, -B: Data, f: A -> Either<&2, &2, List<&2, Char>, B>, x: Either<&2, &2, E, A>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>:
+  match x:
+    case Inl{e}:
+      Inr{Inl{e}}
+    case Inr{a}:
+      HsPt.bind(B, Either<&2, &2, E, B>, f(a), b => Inr{Inr{b}})
+
 def HsPt.state.bind(-S: Data, -A: Type, -B: Type, p: Sigma<&1, &1, A, _ => S>, f: A -> S -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>) -> Either<&2, &1, List<&2, Char>, Sigma<&1, &1, B, _ => S>>:
   (a, s) = p
   f(a)(s)
