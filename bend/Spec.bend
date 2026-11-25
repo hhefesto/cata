@@ -6324,7 +6324,7 @@ def sp.sq(+y: X.Sx) -> X.Sx:
 # names a local (EAL's minimumBy (comparing (tbBasis tab IntMap.!))): the
 # model's, which the specialiser copies at it (the prelude's are templates)
 def sp.cl.tab() -> List<&2, Iok>:
-  [Iok{"GHC.Internal.Data.Foldable.minimumBy", "minimumByOp"}, Iok{"GHC.Internal.Data.Foldable.maximumBy", "maximumByOp"}, Iok{"GHC.Internal.Data.OldList.sortBy", "sortByOp"}, Iok{"GHC.Internal.Data.OldList.sortOn", "sortOnOp"}, Iok{"GHC.Internal.Data.OldList.groupBy", "groupByOp"}, Iok{"GHC.Internal.Data.OldList.nubBy", "nubByOp"}]
+  [Iok{"GHC.Internal.Data.Foldable.minimumBy", "minimumByOp"}, Iok{"GHC.Internal.Data.Foldable.maximumBy", "maximumByOp"}, Iok{"GHC.Internal.Data.OldList.sortBy", "sortByOp"}, Iok{"GHC.Internal.Data.OldList.sortOn", "sortOnOp"}, Iok{"GHC.Internal.Data.OldList.groupBy", "groupByOp"}, Iok{"GHC.Internal.Data.OldList.nubBy", "nubByOp"}, Iok{"Data.Set.Internal.filter", "setFilterOp"}, Iok{"Data.Set.Internal.map", "setMapOp"}]
 
 def sp.cl.tys(ts: List<&2, X.Sx>, h: X.Sx) -> X.Sx:
   match ts:
@@ -6339,7 +6339,7 @@ def sp.cl.put(m: Maybe<&2, String>, +f: X.Sx, +y: X.Sx) -> X.Sx:
     case Some{+n}:
       +tys = sp.spine.tys(f, Nil{})
       +fo = Bool.or(sp.is(S.b(n), "minimumByOp"), sp.is(S.b(n), "maximumByOp"))
-      +so = sp.is(S.b(n), "sortOnOp")
+      +so = Bool.or(sp.is(S.b(n), "sortOnOp"), sp.is(S.b(n), "setMapOp"))
       +ts = Bool.pick(List<&2, X.Sx>, fo, sp.pc.drop(1n, tys), tys)
       +ok = Bool.and(Nat.is_eq(List.length(&2, X.Sx, ts), Bool.pick(Nat, so, 2n, 1n)), Bool.and(Bool.or(Bool.not(fo), sp.is(sp.tckey(sp.first(tys)), "GHC.Types.List")), Bool.or(Bool.not(so), sp.head.is(f, "evapp"))))
       +h = sp.cl.tys(ts, sp.g(S.b("Cata.Base"), S.b(n), "var"))
@@ -6366,7 +6366,7 @@ def sp.cl.iscmp(+c: X.Sx) -> Bool:
   Bool.and(sp.head.is(c, "app"), sp.cs.h(sp.at(c, 1n), "GHC.Internal.Data.Ord.comparing"))
 
 def sp.cl.mod(+m: List<&2, U32>) -> Bool:
-  Bool.or(sp.is(m, "GHC.Internal.Data.Foldable"), sp.is(m, "GHC.Internal.Data.OldList"))
+  Bool.or(sp.is(m, "GHC.Internal.Data.Foldable"), Bool.or(sp.is(m, "GHC.Internal.Data.OldList"), sp.is(m, "Data.Set.Internal")))
 
 def sp.cl(+y: X.Sx) -> X.Sx:
   +f = sp.pc.strip(sp.at(y, 1n))

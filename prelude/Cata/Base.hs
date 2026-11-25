@@ -752,3 +752,15 @@ minimumOnOp f xs = minimumByOp (\x y -> compare (f x) (f y)) xs
 
 maximumOnOp :: forall b a. Ord b => (a -> b) -> [a] -> a
 maximumOnOp f xs = maximumByOp (\x y -> compare (f x) (f y)) xs
+
+-- | Set's filter and map at a function over run-time locals
+setFilterOp :: forall a. Ord a => (a -> Bool) -> Set.Set a -> Set.Set a
+setFilterOp p s = Set.fromList (filter p (Set.toAscList s))
+
+setMapOp :: forall b a. Ord b => (a -> b) -> Set.Set a -> Set.Set b
+setMapOp f s = Set.fromList (mapList f (Set.toAscList s))
+
+mapList :: forall a b. (a -> b) -> [a] -> [b]
+mapList f xs = case xs of
+  [] -> []
+  x : t -> f x : mapList f t

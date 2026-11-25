@@ -11639,6 +11639,175 @@ def fd.lc.all(+its: List<&2, T.BItem>, pn: List<&2, List<&2, U32>>, +fz: List<&2
   +rs = fd.mu.rchs(ns, cg, fd.mu.edges(cg))
   fd.lc.items(its, Mrch{S.b("%partial"), T.tba.set(pn, Map.new(&2, Bool))} <> rs, fz, List.append(&2, T.BItem, its, dt))
 
+def fd.dx.pnames0(ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, ty} <> t:
+      x <> fd.dx.pnames0(t)
+
+# The locals a def's patterns and annotated lets bind, with their types where
+# these are known: a closure cata's parameters too (superStepM's n, from the
+# superposition it matches)
+type Lcw is Data:
+  Lcw{p: T.Bt, ty: T.Bt}
+
+def fd.lcc.at(t: T.Bt, i: Nat) -> T.Bt:
+  match t i:
+    case T.BtArgs{h, r} 0n:
+      h
+    case T.BtArgs{h, r} 1n+j:
+      fd.lcc.at(r, j)
+    case _ _:
+      T.BtType{}
+
+def fd.lcc.ap(f: T.Bt, +x: T.Bt) -> T.Bt:
+  match f:
+    case T.BtLam{m, +y, b}:
+      T.tba.subst(b, y, x)
+    case u:
+      T.BtType{}
+
+def fd.lcc.ftys(fs: List<&2, T.BField>, +ps: List<&2, T.BParam>, +as: T.Bt) -> List<&2, T.Bt>:
+  match fs:
+    case Nil{}:
+      Nil{}
+    case T.BField{x, ty} <> t:
+      fd.dv.sub(ps, as, ty) <> fd.lcc.ftys(t, ps, as)
+
+def fd.lcc.ctor(cs: List<&2, T.BCtor>, +c: List<&2, U32>, +ps: List<&2, T.BParam>, +as: T.Bt) -> List<&2, T.Bt>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case T.BCtor{+k, +fs} <> t:
+      Bool.pick(List<&2, T.Bt>, S.eq(k, c), fd.lcc.ftys(fs, ps, as), fd.lcc.ctor(t, c, ps, as))
+
+def fd.lcc.own(m: Maybe<&2, T.BItem>, +c: List<&2, U32>, +as: T.Bt) -> List<&2, T.Bt>:
+  match m:
+    case Some{T.BiType{n, +ps, k, cs, d}}:
+      fd.lcc.ctor(cs, c, ps, as)
+    case _:
+      Nil{}
+
+# a constructor's fields' types, at a type
+def fd.lcc.flds(+c: List<&2, U32>, ty: T.Bt, +tys: List<&2, T.BItem>) -> List<&2, T.Bt>:
+  match ty:
+    case T.BtTyApp{+n, +as}:
+      +t = {T.BtTyApp{n, as} : T.Bt}
+      Bool.pick(List<&2, T.Bt>, fd.is(c, "Con"), [fd.lcc.at(as, 1n), t], Bool.pick(List<&2, T.Bt>, fd.is(c, "Some"), [fd.lcc.at(as, 1n)], Bool.pick(List<&2, T.Bt>, fd.is(c, "Tuple"), [fd.lcc.at(as, 2n), fd.lcc.ap(fd.lcc.at(as, 3n), T.BtType{})], Bool.pick(List<&2, T.Bt>, fd.is(c, "Inl"), [fd.lcc.at(as, 2n)], Bool.pick(List<&2, T.Bt>, fd.is(c, "Inr"), [fd.lcc.at(as, 3n)], Bool.pick(List<&2, T.Bt>, fd.is(c, "HsPrelude.Fix.Fix"), [fd.lcc.ap(fd.lcc.at(as, 0n), t)], Bool.pick(List<&2, T.Bt>, fd.is(c, "HsPrelude.Cofree.Cofree"), [fd.lcc.at(as, 1n), fd.lcc.ap(fd.lcc.at(as, 0n), t)], Bool.pick(List<&2, T.Bt>, fd.is(c, "HsPrelude.CofreeF.CofreeF"), [fd.lcc.at(as, 1n), fd.lcc.ap(fd.lcc.at(as, 0n), fd.lcc.at(as, 2n))], fd.lcc.own(fd.dv.find(tys, n), c, as)))))))))
+    case _:
+      Nil{}
+
+def fd.lcc.zip(as: List<&2, T.Bt>, ts: List<&2, T.Bt>, acc: List<&2, Lcw>) -> List<&2, Lcw>:
+  match as ts:
+    case a <> r t <> u:
+      Lcw{a, t} <> fd.lcc.zip(r, u, acc)
+    case _ _:
+      acc
+
+# the variables of patterns, with their types (fuel)
+def fd.lcc.pats(fuel: Nat, ws: List<&2, Lcw>, +tys: List<&2, T.BItem>) -> List<&2, T.BParam>:
+  match fuel ws:
+    case 1n+k Lcw{T.BtPv{m, x}, ty} <> t:
+      T.BParam{T.BmLive{}, x, ty} <> fd.lcc.pats(k, t, tys)
+    case 1n+k Lcw{T.BtVar{x}, ty} <> t:
+      T.BParam{T.BmLive{}, x, ty} <> fd.lcc.pats(k, t, tys)
+    case 1n+k Lcw{T.BtCon{+c, as}, ty} <> t:
+      fd.lcc.pats(k, fd.lcc.zip(fd.spine(as), fd.lcc.flds(c, ty, tys), t), tys)
+    case 1n+k w <> t:
+      fd.lcc.pats(k, t, tys)
+    case _ _:
+      Nil{}
+
+def fd.lcc.look(ps: List<&2, T.BParam>, +x: List<&2, U32>) -> T.Bt:
+  match ps:
+    case Nil{}:
+      T.BtType{}
+    case T.BParam{m, +y, +ty} <> t:
+      Bool.pick(T.Bt, S.eq(x, y), ty, fd.lcc.look(t, x))
+
+def fd.lcc.stys(xs: List<&2, T.Bt>, +env: List<&2, T.BParam>) -> List<&2, T.Bt>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case T.BtVar{x} <> t:
+      fd.lcc.look(env, x) <> fd.lcc.stys(t, env)
+    case h <> t:
+      T.BtType{} <> fd.lcc.stys(t, env)
+
+def fd.lcc.ann(+x: List<&2, U32>, v: T.Bt) -> List<&2, T.BParam>:
+  match v:
+    case T.BtAnn{a, ty}:
+      [T.BParam{T.BmLive{}, fd.unplus(x), ty}]
+    case _:
+      Nil{}
+
+def fd.lcc.walk(t: T.Bt, +ts: List<&2, T.Bt>, +env: List<&2, T.BParam>, +tys: List<&2, T.BItem>) -> List<&2, T.BParam>:
+  match t:
+    case T.BtMatch{xs, cs}:
+      fd.lcc.walk(cs, fd.lcc.stys(fd.spine(xs), env), env, tys)
+    case T.BtCase{p, b, rest}:
+      +vs = fd.lcc.pats(200n, fd.lcc.zip(fd.spine(p), ts, Nil{}), tys)
+      List.append(&2, T.BParam, vs, List.append(&2, T.BParam, fd.lcc.walk(b, Nil{}, List.append(&2, T.BParam, vs, env), tys), fd.lcc.walk(rest, ts, env, tys)))
+    case T.BtLet{+x, +v, b}:
+      +vs = fd.lcc.ann(x, v)
+      List.append(&2, T.BParam, vs, List.append(&2, T.BParam, fd.lcc.walk(v, Nil{}, env, tys), fd.lcc.walk(b, Nil{}, List.append(&2, T.BParam, vs, env), tys)))
+    case T.BtExpr{e}:
+      fd.lcc.walk(e, Nil{}, env, tys)
+    case T.BtRw{e, p, b}:
+      fd.lcc.walk(b, Nil{}, env, tys)
+    case T.BtLam{m, x, b}:
+      fd.lcc.walk(b, Nil{}, env, tys)
+    case T.BtApp{f, a}:
+      List.append(&2, T.BParam, fd.lcc.walk(f, Nil{}, env, tys), fd.lcc.walk(a, Nil{}, env, tys))
+    case T.BtArgs{a, r}:
+      List.append(&2, T.BParam, fd.lcc.walk(a, Nil{}, env, tys), fd.lcc.walk(r, Nil{}, env, tys))
+    case T.BtAnn{a, ty}:
+      fd.lcc.walk(a, Nil{}, env, tys)
+    case T.BtTplArg{a}:
+      fd.lcc.walk(a, Nil{}, env, tys)
+    case T.BtCon{c, a}:
+      fd.lcc.walk(a, Nil{}, env, tys)
+    case _:
+      Nil{}
+
+# a name bound at one known type (a BtType where it is not known), and not a
+# parameter's
+def fd.lcc.same(ps: List<&2, T.BParam>, +x: List<&2, U32>, +s: List<&2, U32>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case T.BParam{m, +y, +ty} <> t:
+      Bool.and(Bool.or(Bool.not(S.eq(x, y)), S.eq(P.tpr.t(ty, P.TpLoose{}, 0n, Nil{}), s)), fd.lcc.same(t, x, s))
+
+def fd.lcc.known(t: T.Bt) -> Bool:
+  match t:
+    case T.BtType{}:
+      False{}
+    case _:
+      True{}
+
+def fd.lcc.keep(vs: List<&2, T.BParam>, +all: List<&2, T.BParam>, +ps: List<&2, T.BParam>, +seen: List<&2, List<&2, U32>>) -> List<&2, T.BParam>:
+  match vs:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, +x, +ty} <> t:
+      +ok = Bool.and(Bool.and(fd.lcc.known(ty), Bool.not(S.mem(x, seen))), Bool.and(Bool.not(S.mem(x, fd.dx.pnames0(ps))), fd.lcc.same(all, x, P.tpr.t(ty, P.TpLoose{}, 0n, Nil{}))))
+      +rest = fd.lcc.keep(t, all, ps, x <> seen)
+      Bool.pick(List<&2, T.BParam>, ok, T.BParam{T.BmLive{}, x, ty} <> rest, rest)
+
+def fd.lcc.env(+b: T.Bt, +ps: List<&2, T.BParam>, +tys: List<&2, T.BItem>) -> List<&2, T.BParam>:
+  +vs = fd.lcc.walk(b, Nil{}, ps, tys)
+  fd.lcc.keep(vs, vs, ps, Nil{})
+
+def fd.lcc.drop(xs: List<&2, List<&2, U32>>, +ns: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      +rest = fd.lcc.drop(t, ns)
+      Bool.pick(List<&2, List<&2, U32>>, S.mem(x, ns), rest, x <> rest)
+
 def fd.lcc.if(b: Bool, gs: List<&2, Got>, next: Unit -> List<&2, Got>) -> List<&2, Got>:
   match b:
     case True{}:
@@ -11660,7 +11829,8 @@ def fd.lcc.got(g: Got, +fz: List<&2, Fz>, +tys: List<&2, T.BItem>) -> List<&2, G
   match g:
     case GotDef{+k, T.BiDef{+n, +ps, +r, +b, +d}}:
       +ok = Bool.and(Nat.is_eq(fd.fu.lead(ps), 0n), Bool.not(fd.mu.anytpl(ps)))
-      +cx = {Lcx{n, [Mrch{S.b("%clo"), Map.new(&2, Bool)}], fz, tys, ps, fd.binds(b, Nil{})} : Lcx}
+      +en = fd.lcc.env(b, ps, tys)
+      +cx = {Lcx{n, [Mrch{S.b("%clo"), Map.new(&2, Bool)}], fz, tys, List.append(&2, T.BParam, ps, en), fd.lcc.drop(fd.binds(b, Nil{}), fd.dx.pnames0(en))} : Lcx}
       +cs = fd.lc.calls(b, cx, Nil{})
       fd.lcc.if(Bool.or(Bool.not(ok), List.is_empty(&2, Lc, cs)), [GotDef{k, T.BiDef{n, ps, r, b, d}}], _ => GotDef{k, T.BiDef{n, ps, r, fd.lc.rw(b, cx), d}} <> fd.lcc.gots(fd.lc.gens(cs, cx, Nil{})))
     case u:
