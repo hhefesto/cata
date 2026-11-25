@@ -770,3 +770,10 @@ unitAppend a b = ()
 
 unitMempty :: ()
 unitMempty = ()
+
+-- | first and second at a pair that holds a function
+firstPair :: forall a b c. (a -> b) -> (a, c) -> (b, c)
+firstPair f p = case p of (a, c) -> (f a, c)
+
+secondPair :: forall b c a. (b -> c) -> (a, b) -> (a, c)
+secondPair f p = case p of (a, b) -> (a, f b)

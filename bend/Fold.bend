@@ -449,15 +449,10 @@ def fd.fn.lam(f: T.Bt) -> T.Bt:
 # (HsPrelude.CofreeF.fn) and the cata (G.cata.fn, G.cata.cofree.fn). A
 # twin's functions are used once, as Bend's Type is.
 
-# whether a type, as the fold wrote it, is a function or a twin
+# whether a type, as the fold wrote it, is a function, a twin, or a list,
+# Maybe, Either or pair that holds one
 def fd.isfn(t: T.Bt) -> Bool:
-  match t:
-    case T.BtPi{m, x, i, a, b}:
-      True{}
-    case T.BtTyApp{+n, a}:
-      S.suffix(n, S.b(".fn"))
-    case _:
-      False{}
+  fd.nd(t)
 
 def fd.isfn.m(m: Maybe<&2, T.Bt>) -> Bool:
   match m:
@@ -2804,7 +2799,7 @@ def fd.mconcat(t: T.Bt, xs: T.Bt) -> T.Bt:
 def fd.semi(t: T.Bt, +x: T.Bt, +y: T.Bt) -> T.Bt:
   match t:
     case T.BtTyApp{+n, T.BtArgs{+q, T.BtArgs{+a, T.BtANil{}}}}:
-      Bool.pick(T.Bt, fd.is(n, "List"), fd.callS("List.append", [fd.v("&2"), a, x, y]), Bool.pick(T.Bt, fd.is(n, "HsPrelude.HsMap"), fd.callS("HsPrelude.HsMap.union", [fd.tpl0(q), fd.tpl0(a), fd.tpl0(fd.cmpfn(q)), x, y]), fd.todo("fold:semigroup-at-type")))
+      Bool.pick(T.Bt, fd.is(n, "List"), fd.callS("List.append", [fd.q(a), a, x, y]), Bool.pick(T.Bt, fd.is(n, "HsPrelude.HsMap"), fd.callS("HsPrelude.HsMap.union", [fd.tpl0(q), fd.tpl0(a), fd.tpl0(fd.cmpfn(q)), x, y]), fd.todo("fold:semigroup-at-type")))
     case T.BtTyApp{+n, T.BtArgs{+k, T.BtANil{}}}:
       Bool.pick(T.Bt, fd.is(n, "HsPrelude.HsSet"), fd.callS("HsPrelude.HsSet.union", [fd.tpl0(k), fd.tpl0(fd.cmpfn(k)), x, y]), fd.todo("fold:semigroup-at-type"))
     case _:
@@ -3627,8 +3622,8 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
       fd.callS("Bool.not", [a])
     case BfTrue{} _ _:
       fd.con0("True")
-    case BfAppend{} t <> _ a <> b <> _:
-      fd.callS("List.append", [fd.v("&2"), t, a, b])
+    case BfAppend{} +t <> _ a <> b <> _:
+      fd.callS("List.append", [fd.q(t), t, a, b])
     case BfLength{} +c <> +t <> _ a <> _:
       fd.foldable(c, fd.callS("List.length", [fd.v("&2"), t, fd.fl(c, t, a)]))
     case BfNull{} +c <> +t <> _ a <> _:
