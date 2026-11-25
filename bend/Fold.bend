@@ -1837,7 +1837,7 @@ def fd.bftab0() -> List<&2, BfE>:
 
 # Num's and Enum's functions beyond the first table
 def fd.bftab1() -> List<&2, BfE>:
-  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"HsPrelude.N.subSafe", BfNum{"safe"}}, BfE{"GHC.Internal.Base.ord", BfOrd{}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfToI{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"GHC.Internal.Enum.enumFromThenTo", BfRange3{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Data.ByteArray.Methods.convert", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Crypto.Hash.digestFromByteString", BfOne{"HsPrelude.HsDigest.fromBytes"}}, BfE{"GHC.Internal.Real.numerator", BfOne{"HsPrelude.HsRational.numerator"}}, BfE{"GHC.Internal.Real.denominator", BfOne{"HsPrelude.HsRational.denominator"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
+  [BfE{"GHC.Internal.Num.-", BfNum{"sub"}}, BfE{"HsPrelude.N.subSafe", BfNum{"safe"}}, BfE{"GHC.Internal.Base.ord", BfOrd{}}, BfE{"GHC.Internal.Num.negate", BfNeg{"negate"}}, BfE{"GHC.Internal.Num.abs", BfNeg{"abs"}}, BfE{"GHC.Internal.Num.signum", BfNeg{"signum"}}, BfE{"GHC.Internal.Enum.pred", BfNeg{"pred"}}, BfE{"GHC.Internal.Real.fromIntegral", BfConv{}}, BfE{"GHC.Internal.Real.toInteger", BfToI{}}, BfE{"GHC.Internal.Enum.toEnum", BfIdAt{}}, BfE{"GHC.Internal.Enum.fromEnum", BfIdAt{}}, BfE{"GHC.Internal.Num.subtract", BfSubtract{}}, BfE{"GHC.Internal.Base.liftA2", BfLift2{}}, BfE{"HsPrelude.Z.length", BfZ{"length"}}, BfE{"HsPrelude.Z.take", BfZ{"take"}}, BfE{"HsPrelude.Z.drop", BfZ{"drop"}}, BfE{"HsPrelude.Z.replicate", BfZ{"replicate"}}, BfE{"HsPrelude.Z.splitAt", BfZ{"splitAt"}}, BfE{"HsPrelude.Z.ord", BfZ{"ord"}}, BfE{"HsPrelude.Z.chr", BfZ{"chr"}}, BfE{"GHC.Internal.Enum.enumFromTo", BfRange{}}, BfE{"GHC.Internal.Enum.enumFromThenTo", BfRange3{}}, BfE{"Crypto.Hash.hash", BfOne{"HsPrelude.HsDigest.hash"}}, BfE{"Data.ByteString.pack", BfOne{""}}, BfE{"Data.ByteString.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.pack", BfOne{""}}, BfE{"Data.ByteString.Lazy.unpack", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.toStrict", BfOne{""}}, BfE{"Data.ByteString.Lazy.Internal.fromStrict", BfOne{""}}, BfE{"Data.ByteArray.Methods.unpack", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Data.ByteArray.Methods.convert", BfOne{"HsPrelude.HsDigest.bytes"}}, BfE{"Crypto.Hash.digestFromByteString", BfOne{"HsPrelude.HsDigest.fromBytes"}}, BfE{"GHC.Internal.Real.numerator", BfOne{"HsPrelude.HsRational.numerator"}}, BfE{"GHC.Internal.Real.denominator", BfOne{"HsPrelude.HsRational.denominator"}}, BfE{"Codec.Binary.UTF8.String.encode", BfOne{"HsPrelude.HsUtf8.encode"}}]
 
 # Data.List's, Data.Maybe's, Data.Either's, Data.Tuple's and Data.Bifunctor's
 # functions (HsPrelude's HsList, see fd.dm), mempty, flip, trace, liftM2
@@ -3388,7 +3388,7 @@ def fd.z(+op: List<&2, U32>, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>) -> T.Bt:
     case +c <> +t <> _ +a <> _:
       Bool.pick(T.Bt, fd.is(op, "length"), fd.foldable(c, fd.hsint.of(fd.callS("List.length", [fd.v("&2"), t, fd.fl(c, t, a)]))), fd.todo("fold:z"))
     case +t <> _ +n <> +a <> _:
-      Bool.pick(T.Bt, fd.is(op, "take"), fd.callS("List.take", [fd.v("&2"), t, a, fd.hsint.nat(n)]), Bool.pick(T.Bt, fd.is(op, "drop"), fd.callS("List.drop", [fd.v("&2"), t, a, fd.hsint.nat(n)]), Bool.pick(T.Bt, fd.is(op, "replicate"), fd.callS("List.replicate", [t, fd.hsint.nat(n), a]), fd.todo("fold:z"))))
+      Bool.pick(T.Bt, fd.is(op, "take"), fd.callS("List.take", [fd.v("&2"), t, a, fd.hsint.nat(n)]), Bool.pick(T.Bt, fd.is(op, "drop"), fd.callS("List.drop", [fd.v("&2"), t, a, fd.hsint.nat(n)]), Bool.pick(T.Bt, fd.is(op, "replicate"), fd.callS("List.replicate", [t, fd.hsint.nat(n), a]), Bool.pick(T.Bt, fd.is(op, "splitAt"), fd.callS("HsPrelude.HsList.splitAt", [T.BtTplArg{t}, fd.hsint.nat(n), a]), fd.todo("fold:z")))))
     case Nil{} +x <> _:
       Bool.pick(T.Bt, fd.is(op, "ord"), fd.hsint.of(fd.callS("U32.to_nat", [fd.callS("Char.to_u32", [x])])), Bool.pick(T.Bt, fd.is(op, "chr"), fd.callS("Char.from_u32", [fd.callS("U32.from_nat", [fd.hsint.nat(x)])]), fd.todo("fold:z")))
     case _ _:
@@ -4192,6 +4192,22 @@ def fd.items(r: R) -> List<&2, R>:
     case _:
       Nil{}
 
+# a group's member that is a value of a function type (a step, M's R -> S ->
+# ..): a local function of no parameters, as its other members are functions
+def fd.grp.fn(r: R) -> R:
+  match r:
+    case RB{+x, T.BtAnn{+v, +res}}:
+      Bool.pick(R, fd.isfn(res), RLf{x, Nil{}, res, [RC{Nil{}, v, Nil{}, False{}}]}, RB{x, T.BtAnn{v, res}})
+    case u:
+      u
+
+def fd.grp.fns(xs: List<&2, R>) -> List<&2, R>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case h <> t:
+      fd.grp.fn(h) <> fd.grp.fns(t)
+
 # an abs's bindings: the one, or with the rest (an RL: a group of several,
 # one item of the let's bindings, fd.lets.go's %lgrp)
 def fd.abs1(h: R, t: R) -> R:
@@ -4199,7 +4215,7 @@ def fd.abs1(h: R, t: R) -> R:
     case RL{Nil{}}:
       h
     case t:
-      fd.cons(h, t)
+      RL{fd.grp.fn(h) <> fd.grp.fns(fd.items(t))}
 
 def fd.rt(r: R) -> T.Bt:
   match r:
@@ -15687,6 +15703,43 @@ def fd.pl.ks(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ex: List<&2, Pt>)
   +rs = fd.pt.prs(its)
   fd.pt.fix(List.length(&2, Pr, rs), False{}, rs, fd.pt.im(List.append(&2, Pt, ex, fd.pt.imported(dt))))
 
+def fd.pl.sufs(ns: List<&2, List<&2, U32>>, +suf: List<&2, U32>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case Nil{}:
+      Nil{}
+    case n <> t:
+      fd.cat(n, suf) <> fd.pl.sufs(t, suf)
+
+# the new defs that answer an action (a sequence of a layer's partial
+# actions): each takes its state too, as a partial def that answers an action
+# does (fd.pa), its uses anew
+def fd.pl.newns(qs: List<&2, Plq>) -> List<&2, List<&2, U32>>:
+  match qs:
+    case Plq{+c, ns} <> t:
+      List.append(&2, List<&2, U32>, fd.pl.sufs(ns, fd.pl.suf(c)), fd.pl.newns(t))
+    case Nil{}:
+      Nil{}
+
+def fd.pl.own(es: List<&2, Een>, +ns: List<&2, List<&2, U32>>) -> List<&2, Een>:
+  match es:
+    case Nil{}:
+      Nil{}
+    case Een{+n, k} <> t:
+      +rest = fd.pl.own(t, ns)
+      Bool.pick(List<&2, Een>, S.mem(n, ns), Een{n, k} <> rest, rest)
+
+def fd.pl.act2(own: List<&2, Een>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ks: List<&2, Pt>, +ex: List<&2, Pt>) -> List<&2, T.BItem>:
+  match own:
+    case Nil{}:
+      fd.ph.all(its, ks)
+    case +h <> +t:
+      +i3 = fd.pa.of(h <> t, Nil{}, its, ks)
+      fd.ph.all(i3, fd.pl.ks(i3, dt, ex))
+
+def fd.pl.act1(+q: List<&2, Plq>, +i2: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ex: List<&2, Pt>) -> List<&2, T.BItem>:
+  +ks = fd.pl.ks(i2, dt, ex)
+  fd.pl.act2(fd.pl.own(fd.pa.names(i2, ks), fd.pl.newns(q)), i2, dt, ks, ex)
+
 def fd.pl.run(qs: List<&2, Plq>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
   match qs:
     case Nil{}:
@@ -15695,7 +15748,7 @@ def fd.pl.run(qs: List<&2, Plq>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>
       +q = {h <> t : List<&2, Plq>}
       +tys = List.append(&2, T.BItem, its, dt)
       +i2 = fd.pl.items(its, q, its, tys, ks)
-      fd.ph.all(i2, fd.pl.ks(i2, dt, fd.pl.knows(q, its, tys)))
+      fd.pl.act1(q, i2, dt, fd.pl.knows(q, its, tys))
 
 def fd.pl.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
   fd.pl.run(fd.pl.merge(fd.pl.rqs(its, its, ks), Nil{}), its, dt, ks)
