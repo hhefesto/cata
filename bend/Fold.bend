@@ -13323,9 +13323,44 @@ def fd.pt.ho.att(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Ma
     case _:
       None{}
 
+# a State's cata at a partial algebra (fd.pl, below): its algebra a partial
+# function answering what the carrier's Either holds
+def fd.pl.is(+f: List<&2, U32>) -> Bool:
+  S.suffix(f, S.b("%pl"))
+
+def fd.pl.car(as: List<&2, T.Bt>) -> Maybe<&2, T.Bt>:
+  match as:
+    case T.BtTplArg{T.BtPi{m, x, e, s, T.BtTyApp{+n, +a}}} <> +t:
+      Bool.pick(Maybe<&2, T.Bt>, fd.is(n, "Either"), Some{fd.pt.nth(fd.pt.list(a), 3n)}, fd.pl.car(t))
+    case h <> t:
+      fd.pl.car(t)
+    case Nil{}:
+      None{}
+
+def fd.pl.ts(as: List<&2, T.Bt>, +r: T.Bt) -> List<&2, Maybe<&2, T.Bt>>:
+  match as:
+    case T.BtTplArg{T.BtLam{m, x, b}} <> t:
+      Some{r} <> fd.pl.ts(t, r)
+    case T.BtTplArg{T.BtVar{x}} <> t:
+      Some{r} <> fd.pl.ts(t, r)
+    case h <> t:
+      None{} <> fd.pl.ts(t, r)
+    case Nil{}:
+      Nil{}
+
+def fd.pl.ho.of(m: Maybe<&2, T.Bt>, +f: List<&2, U32>, as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
+  match m:
+    case Some{+r}:
+      Some{Hg{List.take(&2, U32, f, Nat.sub(List.length(&2, U32, f), 3n)), fd.pl.ts(as, r), r}}
+    case None{}:
+      None{}
+
+def fd.pl.ho(+f: List<&2, U32>, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
+  fd.pl.ho.of(fd.pl.car(as), f, as)
+
 def fd.pt.ho(+f: List<&2, U32>, +ks: List<&2, Pt>, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   +c = Bool.or(Bool.or(S.prefix(f, S.b("List.")), S.prefix(f, S.b("HsPrelude.HsList."))), Bool.or(fd.is(f, "hs.map"), S.prefix(f, S.b("HsPrelude.HsMap."))))
-  fd.pt.if(Maybe<&2, Ho>, fd.att.is(f), _ => fd.pt.ho.att(f, ks, as), _ => fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.unc(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as)))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => fd.ph.find(ks, ks, f, as))))
+  fd.pt.if(Maybe<&2, Ho>, fd.pl.is(f), _ => fd.pl.ho(f, as), _ => fd.pt.if(Maybe<&2, Ho>, fd.att.is(f), _ => fd.pt.ho.att(f, ks, as), _ => fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.unc(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as)))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => fd.ph.find(ks, ks, f, as)))))
 
 def fd.pt.ho.mode(m: Maybe<&2, Ho>, d: Ptm) -> Ptm:
   match m:
@@ -14569,6 +14604,20 @@ def fd.rx.islam(t: T.Bt) -> Bool:
     case _:
       False{}
 
+# error msg given arguments is the error, at what its function answers then
+def fd.rx.cod(t: T.Bt, as: List<&2, T.Bt>) -> T.Bt:
+  match t as:
+    case T.BtPi{m, x, False{}, a, b} h <> r:
+      fd.rx.cod(b, r)
+    case u _:
+      u
+
+def fd.rx.err(+ty: T.Bt, +m: T.Bt) -> T.Bt:
+  Bool.pick(T.Bt, Bool.and(fd.nd(ty), Bool.not(fd.ph.fun(ty))), fd.callS("HsPrelude.HsPt.errorq", [fd.q(ty), ty, m]), fd.callS("HsPrelude.HsList.error", [fd.tpl0(ty), m]))
+
+def fd.rx.erra(+g: List<&2, U32>, +ty: T.Bt, +m: T.Bt, +a: T.Bt) -> T.Bt:
+  fd.pt.if(T.Bt, Bool.and(fd.is(g, "HsPrelude.HsList.error"), fd.ph.fun(ty)), _ => fd.rx.err(fd.rx.cod(ty, fd.rx.flat(a, Nil{})), m), _ => T.BtApp{T.BtApp{T.BtVar{g}, T.tba.args([fd.tpl0(ty), m])}, a})
+
 # a spine's head and arguments: f(a)(b) as f(a, b) where its head is a lambda
 def fd.rx.app(f: T.Bt, +a: T.Bt) -> T.Bt:
   match f:
@@ -14576,6 +14625,8 @@ def fd.rx.app(f: T.Bt, +a: T.Bt) -> T.Bt:
       fd.rx.red(16n, T.BtLam{m, x, b}, fd.rx.flat(c, fd.rx.flat(a, Nil{})))
     case T.BtLam{m, x, b}:
       fd.rx.red(16n, T.BtLam{m, x, b}, fd.rx.flat(a, Nil{}))
+    case T.BtApp{T.BtVar{+g}, T.BtArgs{T.BtTplArg{+ty}, T.BtArgs{+m, T.BtANil{}}}}:
+      fd.rx.erra(g, ty, m, a)
     case g:
       T.BtApp{g, a}
 
@@ -15075,8 +15126,519 @@ def fd.dx.all1(hds: List<&2, Hdf>, +its: List<&2, T.BItem>, +dt: List<&2, T.BIte
 def fd.dx.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.dx.all1(fd.dx.hds(fd.dx.keep(True{}, dt)), its, fd.dx.keep(False{}, dt))
 
+# A State's cata at a partial algebra ---------------------------------------------
+#
+# A cata into an action (G.cata.fn at S -> Sigma<&1, &1, A, _ => S>) whose
+# algebra is partial is the cata into the action that fails at its state, S ->
+# Either<String, ..>: the layer the algebra takes then holds partial
+# functions. The algebra's defs that take a layer are written again for it
+# (D_plH, H a hash of the carrier's type): their layers at that carrier, the
+# fields of a layer's pattern partial functions (V_plH). The cata, given its
+# state, is marked G.cata.fn%pl (the partial pass walks its algebra as a
+# partial function and takes the mark off, fd.pl.ho).
+type Pl is Data:
+  Pl{txt: List<&2, U32>, s: T.Bt, r: T.Bt, suf: List<&2, U32>}
+
+# a carrier, and the defs written again for it
+type Plq is Data:
+  Plq{c: Pl, ns: List<&2, List<&2, U32>>}
+
+def fd.pl.txt(c: Pl) -> List<&2, U32>:
+  match c:
+    case Pl{t, s, r, f}:
+      t
+
+def fd.pl.suf(c: Pl) -> List<&2, U32>:
+  match c:
+    case Pl{t, s, r, f}:
+      f
+
+def fd.pl.sig(r: T.Bt) -> Bool:
+  match r:
+    case T.BtTyApp{+n, +a}:
+      Bool.and(fd.is(n, "Sigma"), fd.nd(T.BtTyApp{n, a}))
+    case _:
+      False{}
+
+def fd.pl.act(t: T.Bt) -> Maybe<&2, Pl>:
+  match t:
+    case T.BtPi{+m, +x, False{}, +s, +r}:
+      +txt = P.tpr.t(T.BtPi{m, x, False{}, s, r}, P.TpLoose{}, 0n, Nil{})
+      Bool.pick(Maybe<&2, Pl>, fd.pl.sig(r), Some{Pl{txt, s, r, fd.cat(S.b("_pl"), S.b(U32.show(fd.lc.hash(txt, 5381))))}}, None{})
+    case _:
+      None{}
+
+# t with the carrier failing at its state
+def fd.pl.all(t: T.Bt, +c: Pl) -> T.Bt:
+  match t:
+    case T.BtPi{+m, +x, +e, +a, +b}:
+      +same = S.eq(P.tpr.t(T.BtPi{m, x, e, a, b}, P.TpLoose{}, 0n, Nil{}), fd.pl.txt(c))
+      Bool.pick(T.Bt, same, T.BtPi{m, x, e, a, fd.pt.ety(b)}, T.BtPi{m, x, e, fd.pl.all(a, c), fd.pl.all(b, c)})
+    case T.BtTyApp{n, as}:
+      T.BtTyApp{n, fd.pl.all(as, c)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.pl.all(a, c), fd.pl.all(r, c)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.pl.all(b, c)}
+    case u:
+      u
+
+# a type with it so in its type arguments (its layers)
+def fd.pl.ty(t: T.Bt, +c: Pl) -> T.Bt:
+  match t:
+    case T.BtPi{m, x, e, a, b}:
+      T.BtPi{m, x, e, fd.pl.ty(a, c), fd.pl.ty(b, c)}
+    case T.BtTyApp{n, as}:
+      T.BtTyApp{n, fd.pl.all(as, c)}
+    case u:
+      u
+
+def fd.pl.ps(ps: List<&2, T.BParam>, +c: Pl) -> List<&2, T.BParam>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      T.BParam{m, x, fd.pl.ty(ty, c)} <> fd.pl.ps(t, c)
+    case Nil{}:
+      Nil{}
+
+def fd.pl.pstext(ps: List<&2, T.BParam>) -> List<&2, U32>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      P.tpr.t(ty, P.TpLoose{}, 0n, 59 <> fd.pl.pstext(t))
+    case Nil{}:
+      Nil{}
+
+# whether a def takes a layer
+def fd.pl.hit(+ps: List<&2, T.BParam>, +c: Pl) -> Bool:
+  Bool.not(S.eq(fd.pl.pstext(ps), fd.pl.pstext(fd.pl.ps(ps, c))))
+
+# the names to look at yet, and the defs found
+type Pln is Data:
+  Pln{todo: List<&2, List<&2, U32>>, done: List<&2, List<&2, U32>>}
+
+# the defs that take a layer, from the names todo on
+def fd.pl.next(m: Maybe<&2, T.BItem>, +n: List<&2, U32>, +t: List<&2, List<&2, U32>>, +done: List<&2, List<&2, U32>>, +c: Pl) -> Pln:
+  match m:
+    case Some{T.BiDef{k, +ps, r, +b, d}}:
+      +hit = Bool.and(Bool.not(S.mem(n, done)), fd.pl.hit(ps, c))
+      Pln{Bool.pick(List<&2, List<&2, U32>>, hit, List.append(&2, List<&2, U32>, T.tba.refs(b, Nil{}), t), t), Bool.pick(List<&2, List<&2, U32>>, hit, n <> done, done)}
+    case _:
+      Pln{t, done}
+
+def fd.pl.reach(fuel: Nat, st: Pln, +its: List<&2, T.BItem>, +c: Pl) -> List<&2, List<&2, U32>>:
+  match fuel st:
+    case 0n Pln{a, done}:
+      done
+    case 1n+p Pln{Nil{}, done}:
+      done
+    case 1n+p Pln{+n <> t, +done}:
+      fd.pl.reach(p, fd.pl.next(fd.mu.get(its, n), n, t, done, c), its, c)
+
+# a layer's constructor: which of its fields are the carrier's
+def fd.pl.isv(fs: List<&2, T.BField>, +v: List<&2, U32>) -> List<&2, Bool>:
+  match fs:
+    case T.BField{x, T.BtVar{y}} <> t:
+      S.eq(y, v) <> fd.pl.isv(t, v)
+    case h <> t:
+      False{} <> fd.pl.isv(t, v)
+    case Nil{}:
+      Nil{}
+
+def fd.pl.lastp(ps: List<&2, T.BParam>, +d: List<&2, U32>) -> List<&2, U32>:
+  match ps:
+    case T.BParam{m, +x, ty} <> t:
+      fd.pl.lastp(t, x)
+    case Nil{}:
+      d
+
+def fd.pl.ctor(cs: List<&2, T.BCtor>, +n: List<&2, U32>, +v: List<&2, U32>) -> Maybe<&2, List<&2, Bool>>:
+  match cs:
+    case T.BCtor{k, fs} <> t:
+      Bool.pick(Maybe<&2, List<&2, Bool>>, S.eq(k, n), Some{fd.pl.isv(fs, v)}, fd.pl.ctor(t, n, v))
+    case Nil{}:
+      None{}
+
+def fd.pl.look(tys: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, Bool>:
+  match tys:
+    case T.BiType{+tn, ps, k, cs, d} <> +t:
+      fd.pt.if(List<&2, Bool>, S.prefix(n, tn), _ => Maybe.default(&2, List<&2, Bool>, fd.pl.ctor(cs, n, fd.pl.lastp(ps, Nil{})), fd.pl.look(t, n)), _ => fd.pl.look(t, n))
+    case h <> t:
+      fd.pl.look(t, n)
+    case Nil{}:
+      Nil{}
+
+def fd.pl.pvz(as: List<&2, T.Bt>, bs: List<&2, Bool>) -> List<&2, List<&2, U32>>:
+  match as bs:
+    case T.BtPv{m, x} <> t True{} <> u:
+      x <> fd.pl.pvz(t, u)
+    case T.BtVar{x} <> t True{} <> u:
+      x <> fd.pl.pvz(t, u)
+    case a <> t b <> u:
+      fd.pl.pvz(t, u)
+    case _ _:
+      Nil{}
+
+# a pattern's variables that are a layer's actions
+def fd.pl.isfn(+c: List<&2, U32>) -> Bool:
+  S.infix(c, S.b(".fn."))
+
+def fd.pl.pvs(p: T.Bt, +tys: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match p:
+    case T.BtCon{+c, +a}:
+      List.append(&2, List<&2, U32>, fd.pt.if(List<&2, List<&2, U32>>, fd.pl.isfn(c), _ => fd.pl.pvz(fd.spine(a), fd.pl.look(tys, c)), _ => Nil{}), fd.pl.pvs(a, tys))
+    case T.BtArgs{a, r}:
+      List.append(&2, List<&2, U32>, fd.pl.pvs(a, tys), fd.pl.pvs(r, tys))
+    case _:
+      Nil{}
+
+def fd.pl.pat(p: T.Bt, +vs: List<&2, List<&2, U32>>, +suf: List<&2, U32>) -> T.Bt:
+  match p:
+    case T.BtPv{m, +x}:
+      T.BtPv{m, Bool.pick(List<&2, U32>, S.mem(x, vs), fd.cat(x, suf), x)}
+    case T.BtVar{+x}:
+      T.BtVar{Bool.pick(List<&2, U32>, S.mem(x, vs), fd.cat(x, suf), x)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.pl.pat(a, vs, suf)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.pl.pat(a, vs, suf), fd.pl.pat(r, vs, suf)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.pl.pat(a, vs, suf)}
+    case u:
+      u
+
+# the names xs in t with suf after them
+def fd.pl.names(xs: List<&2, List<&2, U32>>, +suf: List<&2, U32>, t: T.Bt) -> T.Bt:
+  match xs:
+    case +x <> r:
+      fd.pl.names(r, suf, T.tba.subst(t, x, T.BtVar{fd.cat(x, suf)}))
+    case Nil{}:
+      t
+
+def fd.pl.case(p: T.Bt, b: T.Bt, rest: T.Bt, +vs: List<&2, List<&2, U32>>, +suf: List<&2, U32>) -> T.Bt:
+  T.BtCase{fd.pl.pat(p, vs, suf), fd.pl.names(vs, suf, b), rest}
+
+# a def's body (or an algebra) for a carrier
+def fd.pl.tm(t: T.Bt, +c: Pl, +tys: List<&2, T.BItem>) -> T.Bt:
+  match t:
+    case T.BtCase{+p, b, rest}:
+      fd.pl.case(p, fd.pl.tm(b, c, tys), fd.pl.tm(rest, c, tys), fd.pl.pvs(p, tys), fd.pl.suf(c))
+    case T.BtApp{f, a}:
+      T.BtApp{fd.pl.tm(f, c, tys), fd.pl.tm(a, c, tys)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.pl.tm(a, c, tys), fd.pl.tm(r, c, tys)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.pl.tm(a, c, tys)}
+    case T.BtDead{a}:
+      T.BtDead{fd.pl.tm(a, c, tys)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.pl.tm(b, c, tys)}
+    case T.BtCon{k, a}:
+      T.BtCon{k, fd.pl.tm(a, c, tys)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.pl.tm(a, c, tys)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.pl.tm(a, c, tys), fd.pl.ty(ty, c)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.pl.tm(cs, c, tys)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.pl.tm(e, c, tys)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.pl.tm(e, c, tys), p, fd.pl.tm(b, c, tys)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.pl.tm(v, c, tys), fd.pl.tm(b, c, tys)}
+    case T.BtPi{m, x, e, a, b}:
+      fd.pl.ty(T.BtPi{m, x, e, a, b}, c)
+    case T.BtTyApp{n, as}:
+      fd.pl.ty(T.BtTyApp{n, as}, c)
+    case u:
+      u
+
+# the partial functions of a body written so
+def fd.pl.vars(t: T.Bt, +tys: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match t:
+    case T.BtCase{p, b, rest}:
+      List.append(&2, List<&2, U32>, fd.pl.pvs(p, tys), List.append(&2, List<&2, U32>, fd.pl.vars(b, tys), fd.pl.vars(rest, tys)))
+    case T.BtApp{f, a}:
+      List.append(&2, List<&2, U32>, fd.pl.vars(f, tys), fd.pl.vars(a, tys))
+    case T.BtArgs{a, r}:
+      List.append(&2, List<&2, U32>, fd.pl.vars(a, tys), fd.pl.vars(r, tys))
+    case T.BtTplArg{a}:
+      fd.pl.vars(a, tys)
+    case T.BtLam{m, x, b}:
+      fd.pl.vars(b, tys)
+    case T.BtMatch{xs, cs}:
+      fd.pl.vars(cs, tys)
+    case T.BtExpr{e}:
+      fd.pl.vars(e, tys)
+    case T.BtRw{e, p, b}:
+      fd.pl.vars(b, tys)
+    case T.BtLet{x, v, b}:
+      List.append(&2, List<&2, U32>, fd.pl.vars(v, tys), fd.pl.vars(b, tys))
+    case _:
+      Nil{}
+
+# the calls ------------------------------------------------------------------
+
+def fd.pl.cata(+c: List<&2, U32>) -> Bool:
+  Bool.or(S.suffix(c, S.b(".cata.fn")), S.suffix(c, S.b(".cata.cofree.fn")))
+
+def fd.pl.find(as: List<&2, T.Bt>) -> Maybe<&2, Pl>:
+  match as:
+    case T.BtTplArg{t} <> r:
+      Maybe.or(&2, Pl, fd.pl.act(t), fd.pl.find(r))
+    case h <> r:
+      fd.pl.find(r)
+    case Nil{}:
+      None{}
+
+def fd.pl.refs(as: List<&2, T.Bt>) -> List<&2, List<&2, U32>>:
+  match as:
+    case T.BtTplArg{t} <> r:
+      T.tba.refs(t, fd.pl.refs(r))
+    case h <> r:
+      fd.pl.refs(r)
+    case Nil{}:
+      Nil{}
+
+def fd.pl.dec(m: Maybe<&2, Pl>, +rs: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> Maybe<&2, Plq>:
+  match m:
+    case Some{+c}:
+      fd.pt.if(Maybe<&2, Plq>, fd.pt.any(ks, rs), _ => Some{Plq{c, fd.pl.reach(2000n, Pln{rs, Nil{}}, its, c)}}, _ => None{})
+    case None{}:
+      None{}
+
+def fd.pl.at(+c: List<&2, U32>, +as: List<&2, T.Bt>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> Maybe<&2, Plq>:
+  fd.pt.if(Maybe<&2, Plq>, fd.pl.cata(c), _ => fd.pl.dec(fd.pl.find(as), fd.pl.refs(as), its, ks), _ => None{})
+
+def fd.pl.arg(a: T.Bt, +c: Pl, +ns: List<&2, List<&2, U32>>, +tys: List<&2, T.BItem>) -> T.Bt:
+  match a:
+    case T.BtTplArg{T.BtPi{m, x, e, d, b}}:
+      T.BtTplArg{fd.pl.all(T.BtPi{m, x, e, d, b}, c)}
+    case T.BtTplArg{t}:
+      T.BtTplArg{fd.pl.names(ns, fd.pl.suf(c), fd.pl.tm(t, c, tys))}
+    case u:
+      u
+
+def fd.pl.args(as: List<&2, T.Bt>, +c: Pl, +ns: List<&2, List<&2, U32>>, +tys: List<&2, T.BItem>) -> List<&2, T.Bt>:
+  match as:
+    case a <> t:
+      fd.pl.arg(a, c, ns, tys) <> fd.pl.args(t, c, ns, tys)
+    case Nil{}:
+      Nil{}
+
+def fd.pl.put(m: Maybe<&2, Plq>, +f: List<&2, U32>, +as: T.Bt, +s: T.Bt, +tys: List<&2, T.BItem>) -> T.Bt:
+  match m:
+    case Some{Plq{c, ns}}:
+      T.BtApp{T.BtVar{fd.cat(f, S.b("%pl"))}, T.tba.args(List.append(&2, T.Bt, fd.pl.args(fd.pt.list(as), c, ns, tys), [s]))}
+    case None{}:
+      T.BtApp{T.BtApp{T.BtVar{f}, as}, T.tba.args([s])}
+
+def fd.pl.app(f: T.Bt, a: T.Bt, +its: List<&2, T.BItem>, +tys: List<&2, T.BItem>, +ks: List<&2, Pt>) -> T.Bt:
+  match f a:
+    case T.BtApp{T.BtVar{+c}, +as} T.BtArgs{s, T.BtANil{}}:
+      fd.pl.put(fd.pl.at(c, fd.pt.list(as), its, ks), c, as, s, tys)
+    case g x:
+      T.BtApp{g, x}
+
+def fd.pl.rw(t: T.Bt, +its: List<&2, T.BItem>, +tys: List<&2, T.BItem>, +ks: List<&2, Pt>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.pl.app(fd.pl.rw(f, its, tys, ks), fd.pl.rw(a, its, tys, ks), its, tys, ks)
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.pl.rw(a, its, tys, ks), fd.pl.rw(r, its, tys, ks)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.pl.rw(a, its, tys, ks)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.pl.rw(b, its, tys, ks)}
+    case T.BtCon{k, a}:
+      T.BtCon{k, fd.pl.rw(a, its, tys, ks)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.pl.rw(a, its, tys, ks)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.pl.rw(a, its, tys, ks), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.pl.rw(cs, its, tys, ks)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.pl.rw(b, its, tys, ks), fd.pl.rw(rest, its, tys, ks)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.pl.rw(e, its, tys, ks)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{e, p, fd.pl.rw(b, its, tys, ks)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.pl.rw(v, its, tys, ks), fd.pl.rw(b, its, tys, ks)}
+    case u:
+      u
+
+# what is asked for in a body
+def fd.pl.rqm(m: Maybe<&2, Plq>, rest: List<&2, Plq>) -> List<&2, Plq>:
+  match m:
+    case Some{q}:
+      q <> rest
+    case None{}:
+      rest
+
+def fd.pl.rqa(f: T.Bt, a: T.Bt, +its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> Maybe<&2, Plq>:
+  match f a:
+    case T.BtApp{T.BtVar{+c}, as} T.BtArgs{s, T.BtANil{}}:
+      fd.pl.at(c, fd.pt.list(as), its, ks)
+    case _ _:
+      None{}
+
+def fd.pl.rq(t: T.Bt, +its: List<&2, T.BItem>, +ks: List<&2, Pt>, +acc: List<&2, Plq>) -> List<&2, Plq>:
+  match t:
+    case T.BtApp{+f, +a}:
+      fd.pl.rqm(fd.pl.rqa(f, a, its, ks), fd.pl.rq(f, its, ks, fd.pl.rq(a, its, ks, acc)))
+    case T.BtArgs{a, r}:
+      fd.pl.rq(a, its, ks, fd.pl.rq(r, its, ks, acc))
+    case T.BtTplArg{a}:
+      fd.pl.rq(a, its, ks, acc)
+    case T.BtLam{m, x, b}:
+      fd.pl.rq(b, its, ks, acc)
+    case T.BtCon{k, a}:
+      fd.pl.rq(a, its, ks, acc)
+    case T.BtSucc{a}:
+      fd.pl.rq(a, its, ks, acc)
+    case T.BtAnn{a, ty}:
+      fd.pl.rq(a, its, ks, acc)
+    case T.BtMatch{xs, cs}:
+      fd.pl.rq(cs, its, ks, acc)
+    case T.BtCase{p, b, rest}:
+      fd.pl.rq(b, its, ks, fd.pl.rq(rest, its, ks, acc))
+    case T.BtExpr{e}:
+      fd.pl.rq(e, its, ks, acc)
+    case T.BtRw{e, p, b}:
+      fd.pl.rq(b, its, ks, acc)
+    case T.BtLet{x, v, b}:
+      fd.pl.rq(v, its, ks, fd.pl.rq(b, its, ks, acc))
+    case _:
+      acc
+
+# only a def that names a cata into an action is walked
+def fd.pl.anyc(xs: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case +x <> t:
+      Bool.or(fd.pl.cata(x), fd.pl.anyc(t))
+    case Nil{}:
+      False{}
+
+def fd.pl.hasc(+b: T.Bt) -> Bool:
+  fd.pl.anyc(T.tba.refs(b, Nil{}))
+
+def fd.pl.rqs(xs: List<&2, T.BItem>, +its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, Plq>:
+  match xs:
+    case T.BiDef{n, ps, r, +b, d} <> t:
+      +rest = fd.pl.rqs(t, its, ks)
+      fd.pt.if(List<&2, Plq>, fd.pl.hasc(b), _ => fd.pl.rq(b, its, ks, rest), _ => rest)
+    case h <> t:
+      fd.pl.rqs(t, its, ks)
+    case Nil{}:
+      Nil{}
+
+# the carriers asked for, each once, with all its defs
+def fd.pl.same(+a: Pl, +b: Pl) -> Bool:
+  S.eq(fd.pl.suf(a), fd.pl.suf(b))
+
+def fd.pl.nub(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case +x <> t:
+      fd.pl.nub(t, Bool.pick(List<&2, List<&2, U32>>, S.mem(x, ys), ys, x <> ys))
+    case Nil{}:
+      ys
+
+def fd.pl.ins(qs: List<&2, Plq>, +c: Pl, +ns: List<&2, List<&2, U32>>) -> List<&2, Plq>:
+  match qs:
+    case Plq{+k, +ms} <> +t:
+      Bool.pick(List<&2, Plq>, fd.pl.same(k, c), Plq{k, fd.pl.nub(ns, ms)} <> t, Plq{k, ms} <> fd.pl.ins(t, c, ns))
+    case Nil{}:
+      [Plq{c, fd.pl.nub(ns, Nil{})}]
+
+def fd.pl.merge(qs: List<&2, Plq>, +acc: List<&2, Plq>) -> List<&2, Plq>:
+  match qs:
+    case Plq{c, ns} <> t:
+      fd.pl.merge(t, fd.pl.ins(acc, c, ns))
+    case Nil{}:
+      acc
+
+# the items -------------------------------------------------------------------
+
+def fd.pl.item(it: T.BItem, +its: List<&2, T.BItem>, +tys: List<&2, T.BItem>, +ks: List<&2, Pt>) -> T.BItem:
+  match it:
+    case T.BiDef{n, ps, r, +b, d}:
+      T.BiDef{n, ps, r, fd.pt.if(T.Bt, fd.pl.hasc(b), _ => fd.pl.rw(b, its, tys, ks), _ => b), d}
+    case u:
+      u
+
+def fd.pl.var1(hit: Bool, it: T.BItem, +c: Pl, +ns: List<&2, List<&2, U32>>, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match hit it:
+    case True{} T.BiDef{+n, ps, r, b, d}:
+      [T.BiDef{fd.cat(n, fd.pl.suf(c)), fd.pl.ps(ps, c), r, fd.pl.names(ns, fd.pl.suf(c), fd.pl.tm(b, c, tys)), [fd.cat(S.b("generated: given a layer of partial actions: "), n)]}]
+    case _ _:
+      Nil{}
+
+def fd.pl.vars1(qs: List<&2, Plq>, +it: T.BItem, +tys: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match qs:
+    case Plq{c, +ns} <> t:
+      List.append(&2, T.BItem, fd.pl.var1(S.mem(fd.item.name(it), ns), it, c, ns, tys), fd.pl.vars1(t, it, tys))
+    case Nil{}:
+      Nil{}
+
+def fd.pl.items(xs: List<&2, T.BItem>, +qs: List<&2, Plq>, +its: List<&2, T.BItem>, +tys: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+  match xs:
+    case +h <> t:
+      fd.pl.item(h, its, tys, ks) <> List.append(&2, T.BItem, fd.pl.vars1(qs, h, tys), fd.pl.items(t, qs, its, tys, ks))
+    case Nil{}:
+      Nil{}
+
+# the layers' actions, as partial functions the walk is told of
+def fd.pl.pts(xs: List<&2, List<&2, U32>>, +c: Pl) -> List<&2, Pt>:
+  match xs:
+    case x <> t:
+      match c:
+        case Pl{txt, +s, +r, +suf}:
+          Pt{fd.cat(x, suf), [T.BParam{T.BmLive{}, S.b("s"), s}], r} <> fd.pl.pts(t, Pl{txt, s, r, suf})
+    case Nil{}:
+      Nil{}
+
+def fd.pl.varsof(m: Maybe<&2, T.BItem>, +tys: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match m:
+    case Some{T.BiDef{n, ps, r, b, d}}:
+      fd.pl.vars(b, tys)
+    case _:
+      Nil{}
+
+def fd.pl.allvars(ns: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +tys: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match ns:
+    case n <> t:
+      List.append(&2, List<&2, U32>, fd.pl.varsof(fd.mu.get(its, n), tys), fd.pl.allvars(t, its, tys))
+    case Nil{}:
+      Nil{}
+
+def fd.pl.knows(qs: List<&2, Plq>, +its: List<&2, T.BItem>, +tys: List<&2, T.BItem>) -> List<&2, Pt>:
+  match qs:
+    case Plq{c, ns} <> t:
+      List.append(&2, Pt, fd.pl.pts(fd.pl.nub(fd.pl.allvars(ns, its, tys), Nil{}), c), fd.pl.knows(t, its, tys))
+    case Nil{}:
+      Nil{}
+
+# what the partial pass knows, the layers' actions too
+def fd.pl.ks(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ex: List<&2, Pt>) -> List<&2, Pt>:
+  +rs = fd.pt.prs(its)
+  fd.pt.fix(List.length(&2, Pr, rs), False{}, rs, fd.pt.im(List.append(&2, Pt, ex, fd.pt.imported(dt))))
+
+def fd.pl.run(qs: List<&2, Plq>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+  match qs:
+    case Nil{}:
+      fd.ph.all(its, ks)
+    case +h <> +t:
+      +q = {h <> t : List<&2, Plq>}
+      +tys = List.append(&2, T.BItem, its, dt)
+      +i2 = fd.pl.items(its, q, its, tys, ks)
+      fd.ph.all(i2, fd.pl.ks(i2, dt, fd.pl.knows(q, its, tys)))
+
+def fd.pl.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+  fd.pl.run(fd.pl.merge(fd.pl.rqs(its, its, ks), Nil{}), its, dt, ks)
+
 def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
-  fd.ph.all(its, fd.pt.ks(its, dt))
+  fd.pl.all2(its, dt, fd.pt.ks(its, dt))
 
 def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all2(fd.pc.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
