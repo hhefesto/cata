@@ -13615,12 +13615,53 @@ def fd.pt.norm(t: T.Bt) -> T.Bt:
     case e:
       T.BtExpr{e}
 
+# a total def's attempts of partial calls
+def fd.att.term(w: Pw) -> T.Bt:
+  match w:
+    case Pw{t, bs, n, bad, e, a}:
+      Bool.pick(T.Bt, bad, fd.todo("fold:partial-in-lambda"), t)
+
+def fd.att.rw(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  match t:
+    case T.BtApp{T.BtVar{+x}, T.BtArgs{+a, T.BtArgs{+e, T.BtANil{}}}}:
+      +hit = Bool.and(fd.att.is(x), fd.pt.has(ks, e))
+      fd.exh.if(T.Bt, hit, _ => T.BtApp{T.BtVar{S.b("HsPrelude.HsPt.attempt")}, T.tba.args([a, fd.att.term(fd.pt.mk.lbody(fd.pt.go(ks, e, PtAm{}, a, 0n, False{}), a))])}, _ => T.BtApp{T.BtVar{x}, T.tba.args([fd.att.rw(a, ks), fd.att.rw(e, ks)])})
+    case T.BtApp{h, a}:
+      T.BtApp{fd.att.rw(h, ks), fd.att.rw(a, ks)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.att.rw(a, ks)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.att.rw(b, ks)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.att.rw(a, ks)}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.att.rw(a, ks)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.att.rw(a, ks), ty}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{fd.att.rw(xs, ks), fd.att.rw(cs, ks)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.att.rw(e, ks)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{fd.att.rw(e, ks), p, fd.att.rw(b, ks)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.att.rw(v, ks), fd.att.rw(b, ks)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.att.rw(b, ks), fd.att.rw(rest, ks)}
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.att.rw(a, ks), fd.att.rw(rest, ks)}
+    case u:
+      u
+
+def fd.att.body(+b: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  fd.exh.if(T.Bt, S.mem(S.b("Cata_Base.attempt"), T.tba.refs(b, Nil{})), _ => fd.att.rw(b, ks), _ => b)
+
 def fd.pt.item(p: Bool, +ks: List<&2, Pt>, n: List<&2, U32>, ps: List<&2, T.BParam>, +r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>) -> T.BItem:
   match p:
     case True{}:
       fd.pt.def(n, ps, r, fd.pt.go(ks, fd.pt.norm(b), PtBm{}, r, 0n, False{}), d)
     case False{}:
-      T.BiDef{n, ps, r, b, d}
+      T.BiDef{n, ps, r, fd.att.body(b, ks), d}
 
 def fd.pt.items(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
   match its:

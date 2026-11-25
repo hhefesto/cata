@@ -3306,6 +3306,36 @@ def sp.beta.plain(ps: List<&2, X.Sx>) -> Bool:
     case +p <> t:
       Bool.and(Bool.or(sp.head.is(p, "pvar"), sp.head.is(p, "pwild")), sp.beta.plain(t))
 
+# a tuple's or a constructor's pattern of a lambda is a case on a variable
+def sp.beta.okps(ps: List<&2, X.Sx>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case +p <> t:
+      Bool.and(Bool.or(Bool.or(sp.head.is(p, "pvar"), sp.head.is(p, "pwild")), Bool.or(sp.head.is(p, "ptuple"), sp.head.is(p, "pcon"))), sp.beta.okps(t))
+
+def sp.beta.pid(x: X.Sx) -> Maybe<&2, X.Sx>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      sp.if(Maybe<&2, X.Sx>, sp.head.is(n, "pvar"), _ => Some{sp.at(sp.at(sp.at(n, 1n), 1n), 2n)}, _ => sp.vd.or(sp.beta.pid(h), _ => sp.beta.pid(t)))
+    case _:
+      None{}
+
+def sp.beta.tup1(+p: X.Sx, +t: X.Sx, +res: X.Sx, w: Bl) -> Bl:
+  match w:
+    case Bl{+qs, +e}:
+      +v = sp.l([sp.a("l"), X.SxStr{S.b("bk")}, sp.or(sp.beta.pid(p), sp.a("0"))])
+      +ms = sp.l([sp.a("matches"), sp.l([t]), res, sp.a("source"), sp.l([sp.l([sp.a("match"), sp.l([p]), sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, e])]), sp.l([sp.a("binds")])])])])])
+      sp.if(Bl, sp.beta.plain([p]), _ => Bl{p <> qs, e}, _ => Bl{sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, t])]) <> qs, sp.l([sp.a("case"), v, ms])})
+
+def sp.beta.tup(ps: List<&2, X.Sx>, ts: List<&2, X.Sx>, +res: X.Sx, +e: X.Sx) -> Bl:
+  match ps ts:
+    case p <> pt t <> tt:
+      sp.beta.tup1(p, t, res, sp.beta.tup(pt, tt, res, e))
+    case ps0 _:
+      Bl{ps0, e}
+
 def sp.beta.lamk(+f: X.Sx) -> Maybe<&2, Bl>:
   +cls = sp.els(sp.at(sp.at(f, 2n), 4n))
   +m0 = sp.first(cls)
@@ -3316,8 +3346,8 @@ def sp.beta.lamk(+f: X.Sx) -> Maybe<&2, Bl>:
   +one = Bool.and(Nat.is_eq(List.length(&2, X.Sx, cls), 1n), Nat.is_eq(List.length(&2, X.Sx, gs), 1n))
   +lb = sp.at(gr, 2n)
   +nob = sp.eq(lb, sp.l([sp.a("binds")]))
-  +ok = Bool.and(Bool.and(sp.head.is(f, "lam"), sp.is(X.tsx.atom.of(sp.at(f, 1n)), "single")), Bool.and(Bool.and(one, sp.beta.plain(ps)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), Bool.or(nob, sp.head.is(lb, "binds")))))
-  Bool.pick(Maybe<&2, Bl>, ok, Some{Bl{ps, Bool.pick(X.Sx, nob, sp.at(g0, 2n), sp.l([sp.a("let"), lb, sp.at(g0, 2n)]))}}, None{})
+  +ok = Bool.and(Bool.and(sp.head.is(f, "lam"), sp.is(X.tsx.atom.of(sp.at(f, 1n)), "single")), Bool.and(Bool.and(one, Bool.or(sp.beta.plain(ps), Bool.and(sp.beta.okps(ps), Nat.is_eq(List.length(&2, X.Sx, ps), X.tsx.len(sp.at(sp.at(f, 2n), 1n)))))), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), Bool.or(nob, sp.head.is(lb, "binds")))))
+  Bool.pick(Maybe<&2, Bl>, ok, Some{sp.beta.tup(ps, sp.els(sp.at(sp.at(f, 2n), 1n)), sp.at(sp.at(f, 2n), 2n), Bool.pick(X.Sx, nob, sp.at(g0, 2n), sp.l([sp.a("let"), lb, sp.at(g0, 2n)])))}, None{})
 
 # an application's function part (under wrappers) and arguments
 def sp.beta.spine(x: X.Sx, +acc: List<&2, X.Sx>) -> Bs:
@@ -9573,12 +9603,31 @@ def sp.kn.funs(fs: List<&2, X.Sx>, +ab: X.Sx) -> List<&2, Kf>:
       +v = sp.fa.unself(sp.at(f, 1n))
       Kf{v, sp.kn.exty(sp.els(sp.at(ab, 3n)), v), ab, f} <> sp.kn.funs(t, ab)
 
-def sp.kn.mems(bs: List<&2, X.Sx>) -> List<&2, Kf>:
+def sp.kn.mems0(bs: List<&2, X.Sx>) -> List<&2, Kf>:
   match bs:
     case Nil{}:
       Nil{}
     case +ab <> +t:
-      List.append(&2, Kf, sp.kn.funs(sp.els(sp.at(ab, 5n)), ab), sp.kn.mems(t))
+      List.append(&2, Kf, sp.kn.funs(sp.els(sp.at(ab, 5n)), ab), sp.kn.mems0(t))
+
+# a member's calls of the others (self V) as V
+def sp.kn.unself(ks: List<&2, Kf>, +v: X.Sx, +x: X.Sx) -> X.Sx:
+  match ks:
+    case Nil{}:
+      x
+    case Kf{+w, ty, ab, fn} <> t:
+      sp.kn.unself(t, v, sp.if(X.Sx, sp.eq(v, w), _ => x, _ => sp.fa.unself.of(x, w)))
+
+def sp.kn.uns(xs: List<&2, Kf>, +ks: List<&2, Kf>) -> List<&2, Kf>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Kf{+v, ty, ab, fn} <> t:
+      Kf{v, ty, ab, sp.kn.unself(ks, v, fn)} <> sp.kn.uns(t, ks)
+
+def sp.kn.mems(+bs: List<&2, X.Sx>) -> List<&2, Kf>:
+  +ks = sp.kn.mems0(bs)
+  sp.kn.uns(ks, ks)
 
 # whether each bind of the group is an abs of funs
 def sp.kn.funs.ok(fs: List<&2, X.Sx>) -> Bool:
