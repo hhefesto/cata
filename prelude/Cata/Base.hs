@@ -809,8 +809,11 @@ instance Monoid m => Applicative (Const m) where
 -- (what its documentation asks of g and h: each answers a part of its map)
 mergeWithKeyOp :: forall k a b c. Ord k => (k -> a -> b -> Maybe c) -> (Map.Map k a -> Map.Map k c) -> (Map.Map k b -> Map.Map k c) -> Map.Map k a -> Map.Map k b -> Map.Map k c
 mergeWithKeyOp f g h a b =
-  Map.union (Map.fromDistinctAscList (mergeKeyed f b (Map.toList a)))
+  Map.union (Map.fromDistinctAscList (mergeKeyed f b (Map.toList (Map.intersectionWith keepLeft a b))))
             (Map.union (g (Map.difference a b)) (h (Map.difference b a)))
+
+keepLeft :: forall a b. a -> b -> a
+keepLeft x y = x
 
 mergeKeyed :: forall k a b c. Ord k => (k -> a -> b -> Maybe c) -> Map.Map k b -> [(k, a)] -> [(k, c)]
 mergeKeyed f b [] = []
