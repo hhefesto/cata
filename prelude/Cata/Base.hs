@@ -20,6 +20,8 @@ import qualified Control.Applicative as A
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
 import Control.Exception (Exception)
+import Control.Monad.State (State, get, gets, modify, put)
+import Data.Char (chr, ord)
 import qualified Data.Foldable as F
 import Data.Fix (Fix (..))
 import Data.Functor.Classes (Eq1 (..), Show1 (..))
@@ -27,6 +29,7 @@ import Data.Functor.Foldable (cata)
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Word (Word8)
 import GHC.Show (showList__)
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
@@ -536,3 +539,97 @@ transformCofree g (l C.:< fx) = g (l C.:< fmap (\y -> transformCofree g y) fx)
 -- | GHC.Show's default showsPrec (an instance that defines show)
 showsPrecDefault :: forall a. (a -> String) -> Int -> a -> ShowS
 showsPrecDefault sh _ x s = sh x ++ s
+
+-- | IO, read as the state of what a program sees of the world: its
+-- console's input not read yet, its output so far, its files (a file of
+-- bytes is their characters). Spec writes the type IO as State World and
+-- base's console and file actions as the ones here, so that IO's binds are
+-- State's; an action that throws (the end of the input, a file that is not
+-- there) is a partial one. What the model leaves out (other handles,
+-- exceptions caught, processes, time, randomness) stays IO, and out.
+data World = World String String (Map.Map String String)
+
+ioPutStr :: String -> State World ()
+ioPutStr s = modify (\w -> case w of World i o f -> World i (o ++ s) f)
+
+ioPutStrLn :: String -> State World ()
+ioPutStrLn s = ioPutStr (s ++ "\n")
+
+ioPutChar :: Char -> State World ()
+ioPutChar c = ioPutStr [c]
+
+ioPrint :: forall a. Show a => a -> State World ()
+ioPrint x = ioPutStr (show x ++ "\n")
+
+worldLine :: World -> Maybe (String, World)
+worldLine (World i o f) = case i of
+  [] -> Nothing
+  _ -> case break (== '\n') i of
+    (l, r) -> Just (l, World (drop 1 r) o f)
+
+ioGetLine :: State World String
+ioGetLine = do
+  w <- get
+  case worldLine w of
+    Nothing -> error "<stdin>: hGetLine: end of file"
+    Just (l, v) -> put v >> pure l
+
+worldChar :: World -> Maybe (Char, World)
+worldChar (World i o f) = case i of
+  [] -> Nothing
+  c : r -> Just (c, World r o f)
+
+ioGetChar :: State World Char
+ioGetChar = do
+  w <- get
+  case worldChar w of
+    Nothing -> error "<stdin>: hGetChar: end of file"
+    Just (c, v) -> put v >> pure c
+
+worldIn :: World -> (String, World)
+worldIn (World i o f) = (i, World [] o f)
+
+ioGetContents :: State World String
+ioGetContents = do
+  w <- get
+  case worldIn w of
+    (i, v) -> put v >> pure i
+
+ioInteract :: (String -> String) -> State World ()
+ioInteract f = ioGetContents >>= \s -> ioPutStr (f s)
+
+worldEOF :: World -> Bool
+worldEOF (World i o f) = null i
+
+ioIsEOF :: State World Bool
+ioIsEOF = gets worldEOF
+
+worldFile :: String -> World -> Maybe String
+worldFile p (World i o f) = Map.lookup p f
+
+ioReadFile :: String -> State World String
+ioReadFile p = do
+  w <- get
+  case worldFile p w of
+    Nothing -> error (p ++ ": openFile: does not exist (No such file or directory)")
+    Just s -> pure s
+
+ioWriteFile :: String -> String -> State World ()
+ioWriteFile p s = modify (\w -> case w of World i o f -> World i o (Map.insert p s f))
+
+ioAppendFile :: String -> String -> State World ()
+ioAppendFile p s = modify (\w -> case w of World i o f -> World i o (Map.insert p (Map.findWithDefault [] p f ++ s) f))
+
+-- | a file's bytes
+ioReadBytes :: String -> State World [Word8]
+ioReadBytes p = fmap (map (\c -> fromIntegral (ord c))) (ioReadFile p)
+
+ioWriteBytes :: String -> [Word8] -> State World ()
+ioWriteBytes p bs = ioWriteFile p (map (\b -> chr (fromIntegral b)) bs)
+
+-- | the handle of the output, and its flush
+ioStdout :: ()
+ioStdout = ()
+
+ioFlush :: () -> State World ()
+ioFlush _ = pure ()

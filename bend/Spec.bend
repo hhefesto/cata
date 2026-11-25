@@ -5991,6 +5991,39 @@ def sp.bin.g(+y: X.Sx) -> X.Sx:
   +fs = Bool.and(g, sp.is(k, "Data.ByteString.UTF8.fromString"))
   Bool.pick(X.Sx, fs, sp.g(S.b("Codec.Binary.UTF8.String"), S.b("encode"), "var"), sp.bin.model(Bool.pick(Maybe<&2, Pcr>, g, sp.pc.find(sp.bin.tab(), k), None{}), y))
 
+# IO as the model's State World (Cata.Base): its type, and base's console
+# and file actions
+type Iok is Data:
+  Iok{k: String, n: String}
+
+def sp.io.tab() -> List<&2, Iok>:
+  +io = {"GHC.Internal.System.IO." : String}
+  +bl = {"Data.ByteString.Lazy." : String}
+  [Iok{io ++ "putStr", "ioPutStr"}, Iok{io ++ "putStrLn", "ioPutStrLn"}, Iok{io ++ "putChar", "ioPutChar"}, Iok{io ++ "print", "ioPrint"}, Iok{io ++ "getLine", "ioGetLine"}, Iok{io ++ "getChar", "ioGetChar"}, Iok{io ++ "getContents", "ioGetContents"}, Iok{io ++ "interact", "ioInteract"}, Iok{io ++ "readFile", "ioReadFile"}, Iok{io ++ "writeFile", "ioWriteFile"}, Iok{io ++ "appendFile", "ioAppendFile"}, Iok{bl ++ "readFile", "ioReadBytes"}, Iok{bl ++ "writeFile", "ioWriteBytes"}, Iok{"GHC.Internal.IO.Handle.isEOF", "ioIsEOF"}, Iok{"GHC.Internal.IO.Handle.hFlush", "ioFlush"}, Iok{"GHC.Internal.IO.StdHandles.stdout", "ioStdout"}]
+
+def sp.io.find(ts: List<&2, Iok>, +k: List<&2, U32>) -> Maybe<&2, String>:
+  match ts:
+    case Nil{}:
+      None{}
+    case Iok{+q, n} <> t:
+      Bool.pick(Maybe<&2, String>, sp.is(k, q), Some{n}, sp.io.find(t, k))
+
+def sp.io.put(m: Maybe<&2, String>, y: X.Sx) -> X.Sx:
+  match m:
+    case Some{n}:
+      sp.g(S.b("Cata.Base"), S.b(n), "var")
+    case None{}:
+      y
+
+def sp.io.mod(+m: List<&2, U32>) -> Bool:
+  Bool.or(sp.is(m, "GHC.Internal.System.IO"), Bool.or(sp.is(m, "Data.ByteString.Lazy"), S.prefix(m, S.b("GHC.Internal.IO."))))
+
+def sp.io.g(+y: X.Sx) -> X.Sx:
+  sp.if(X.Sx, Bool.and(sp.head.is(y, "g"), sp.io.mod(sp.sat(y, 1n))), _ => sp.io.put(sp.io.find(sp.io.tab(), sp.gkey(y)), y), _ => y)
+
+def sp.io.tc(+k: List<&2, U32>, +x: X.Sx, y: X.Sx) -> X.Sx:
+  sp.if(X.Sx, sp.is(k, "GHC.Types.IO"), _ => sp.tc(S.b("Control.Monad.Trans.State.Lazy"), S.b("StateT"), sp.tc(S.b("Cata.Base"), S.b("World"), Nil{}) <> sp.tc(S.b("GHC.Internal.Data.Functor.Identity"), S.b("Identity"), Nil{}) <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.IO.Handle.Types.Handle"), _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => y))
+
 def sp.p5.tc(+k: List<&2, U32>, +x: X.Sx) -> X.Sx:
   +integer = sp.is(k, "GHC.Num.Integer.Integer")
   +int = Bool.or(sp.is(k, "GHC.Types.Int"), Bool.or(Bool.or(sp.is(k, "GHC.Internal.Int.Int64"), sp.is(k, "Data.Binary.Get.ByteOffset")), Bool.or(sp.is(k, "Data.IntSet.Internal.Key"), sp.is(k, "Data.IntMap.Internal.Key"))))
@@ -6011,7 +6044,7 @@ def sp.p5.gr(+y: X.Sx) -> X.Sx:
   +m = sp.sat(y, 1n)
   +g = Bool.and(sp.head.is(y, "g"), Bool.or(sp.is(m, "Data.Graph"), sp.is(m, "Data.Tree")))
   +ps = Bool.and(sp.head.is(y, "unsupported"), Bool.and(sp.is(m, "PatSynCon"), sp.is(sp.sat(y, 2n), "CyclicSCC")))
-  Bool.pick(X.Sx, g, sp.l([sp.a("g"), X.SxStr{S.b("Cata.Graph")}, sp.at(y, 2n), sp.at(y, 3n)]), Bool.pick(X.Sx, ps, sp.g(S.b("Cata.Graph"), S.b("CyclicSCC"), "con"), sp.bin.g(y)))
+  Bool.pick(X.Sx, g, sp.l([sp.a("g"), X.SxStr{S.b("Cata.Graph")}, sp.at(y, 2n), sp.at(y, 3n)]), Bool.pick(X.Sx, ps, sp.g(S.b("Cata.Graph"), S.b("CyclicSCC"), "con"), sp.bin.g(sp.io.g(y))))
 
 # an IntMap or IntSet function's Map or Set name, and where its key goes
 def sp.p5.mod(+m: List<&2, U32>) -> List<&2, U32>:
@@ -6160,7 +6193,7 @@ def sp.p5(x: X.Sx, top: Bool) -> X.Sx:
       +inner = sp.isty(X.SxCons{h, X.SxCons{e, r}})
       +y = sp.cons(sp.p5(h, True{}), sp.cons(sp.p5(e, Bool.not(inner)), sp.p5(r, True{})))
       +c = Bool.pick(Maybe<&2, X.Sx>, Bool.and(top, sp.p5.isg(X.SxCons{h, X.SxCons{e, r}})), sp.p5.call(y), None{})
-      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y), sp.zf(sp.p5.ident(y))))
+      Bool.pick(X.Sx, Maybe.is_some(&2, X.Sx, c), sp.or(c, X.SxNil{}), Bool.pick(X.Sx, sp.is(a, "tc"), sp.io.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y, sp.p5.tc(sp.key(sp.sat(y, 1n), sp.sat(y, 2n)), y)), sp.zf(sp.p5.ident(y))))
     case X.SxCons{+h, X.SxNil{}}:
       X.SxCons{sp.p5(h, True{}), X.SxNil{}}
     case y:
