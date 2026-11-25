@@ -108,6 +108,21 @@ undirected g = buildG (IntMap.size g) (edges g ++ reverseE (edges g))
 graphFromEdges :: forall key node. Ord key => [(node, key, [key])] -> (IntMap [Int], Int -> (node, key, [key]), key -> Maybe Int)
 graphFromEdges edges0 = graphFromNumbered (number (sortNodes edges0) 0)
 
+-- | graphFromEdges' parts, its tuple's functions as functions (Spec writes a
+-- let of its tuple as lets of these): the numbered nodes, the graph, each
+-- vertex's node, a key's vertex
+numberedNodes :: forall key node. Ord key => [(node, key, [key])] -> [(Int, (node, key, [key]))]
+numberedNodes edges0 = number (sortNodes edges0) 0
+
+graphOfNumbered :: forall key node. Ord key => [(Int, (node, key, [key]))] -> IntMap [Int]
+graphOfNumbered ns = graphOf (keysOf ns) ns
+
+nodesOfNumbered :: forall key node. [(Int, (node, key, [key]))] -> IntMap (node, key, [key])
+nodesOfNumbered ns = IntMap.fromList ns
+
+keysOfNumbered :: forall key node. [(Int, (node, key, [key]))] -> IntMap key
+keysOfNumbered ns = keysOf ns
+
 graphFromNumbered :: forall node key. Ord key => [(Int, (node, key, [key]))] -> (IntMap [Int], Int -> (node, key, [key]), key -> Maybe Int)
 graphFromNumbered ns = (graphOf (keysOf ns) ns, nodeAt (IntMap.fromList ns), vertexOf (keysOf ns))
 
