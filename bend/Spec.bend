@@ -5182,7 +5182,9 @@ def sp.lg(x: X.Sx) -> X.Sx:
     case y:
       y
 
-# A local function of one plain clause that takes a function (EAL's
+# A local function of one plain clause that takes a class's dictionary
+# (Meter's unhandled, Show's) is its lambda where it is used, at the types
+# there, and so is one that takes a function (EAL's
 # instantiateTemplate: shKV f (k, v) = (sh k, f v), polymorphic) is its
 # lambda where it is used: a local function's function parameter is a
 # template, which a function over run-time locals (shKV shTau) is not.
@@ -5197,22 +5199,23 @@ def sp.lh.hasfn(ts: List<&2, X.Sx>) -> Bool:
       Bool.or(sp.head.is(t, "tfun"), sp.lh.hasfn(r))
 
 # a fun as one of them
-def sp.lh.fun(+v: X.Sx, +tvs: List<&2, List<&2, U32>>, +f: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
+def sp.lh.fun(dict: Bool, +v: X.Sx, +tvs: List<&2, List<&2, U32>>, +f: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
   +ms = sp.at(f, 4n)
   +cs = sp.els(sp.at(ms, 4n))
   +m0 = sp.first(cs)
   +gr = sp.at(m0, 2n)
   +g0 = sp.first(sp.els(sp.at(gr, 1n)))
   +one = Bool.and(Bool.and(Nat.is_eq(List.length(&2, X.Sx, cs), 1n), Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")]))))
-  +ok = Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(v, "l")), Bool.and(one, sp.lh.hasfn(sp.els(sp.at(ms, 1n)))))
+  +ok = Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(v, "l")), Bool.and(one, Bool.or(Bool.and(dict, Nat.is_gt(X.tsx.len(sp.at(ms, 1n)), 0n)), sp.lh.hasfn(sp.els(sp.at(ms, 1n))))))
   Bool.pick(List<&2, Lh>, Bool.and(ok, Bool.not(sp.lg.mentions(ms, v))), Lh{v, tvs, ms} <> acc, acc)
 
 def sp.lh.grp(+g: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
   +a = sp.at(g, 1n)
   +fs = sp.els(sp.at(a, 5n))
   +es = sp.els(sp.at(a, 3n))
-  +ev = Bool.and(sp.eq(sp.at(a, 2n), X.SxNil{}), Bool.and(Nat.is_eq(List.length(&2, X.Sx, fs), 1n), Nat.is_eq(List.length(&2, X.Sx, es), 1n)))
-  sp.if(List<&2, Lh>, Bool.not(Nat.is_eq(X.tsx.len(g), 2n)), _ => acc, _ => sp.if(List<&2, Lh>, sp.head.is(a, "fun"), _ => sp.lh.fun(sp.fa.unself(sp.at(a, 1n)), Nil{}, a, acc), _ => sp.if(List<&2, Lh>, Bool.and(sp.head.is(a, "abs"), ev), _ => sp.lh.fun(sp.at(sp.first(es), 1n), sp.strs(sp.at(a, 1n)), sp.first(fs), acc), _ => acc)))
+  +dict = Bool.not(sp.eq(sp.at(a, 2n), X.SxNil{}))
+  +ev = Bool.and(Nat.is_eq(List.length(&2, X.Sx, fs), 1n), Nat.is_eq(List.length(&2, X.Sx, es), 1n))
+  sp.if(List<&2, Lh>, Bool.not(Nat.is_eq(X.tsx.len(g), 2n)), _ => acc, _ => sp.if(List<&2, Lh>, sp.head.is(a, "fun"), _ => sp.lh.fun(False{}, sp.fa.unself(sp.at(a, 1n)), Nil{}, a, acc), _ => sp.if(List<&2, Lh>, Bool.and(sp.head.is(a, "abs"), ev), _ => sp.lh.fun(dict, sp.at(sp.first(es), 1n), sp.strs(sp.at(a, 1n)), sp.first(fs), acc), _ => acc)))
 
 def sp.lh.of(x: X.Sx, +acc: List<&2, Lh>) -> List<&2, Lh>:
   match x:
@@ -5261,7 +5264,7 @@ def sp.lh.sub(x: X.Sx, +hs: List<&2, Lh>) -> X.Sx:
   match x:
     case X.SxCons{X.SxAtom{+a}, X.SxCons{+p, +t}}:
       +n = {X.SxCons{X.SxAtom{a}, X.SxCons{p, t}} : X.Sx}
-      +isl = Bool.or(sp.is(a, "l"), sp.is(a, "tyapp"))
+      +isl = Bool.or(sp.is(a, "l"), Bool.or(sp.is(a, "tyapp"), sp.is(a, "evapp")))
       +hd = sp.if(X.Sx, isl, _ => sp.vhead(n), _ => X.SxNil{})
       +m = sp.if(Maybe<&2, Lh>, sp.head.is(hd, "l"), _ => sp.lh.find(hs, hd), _ => None{})
       +bind = Bool.or(sp.is(a, "fun"), Bool.or(sp.is(a, "export"), sp.is(a, "self")))
@@ -5279,10 +5282,42 @@ def sp.lh.go(n: Nat, +x: X.Sx, +hs: List<&2, Lh>) -> X.Sx:
     case 1n+p:
       sp.lh.go(p, sp.lh.sub(x, hs), hs)
 
+# a function all of whose uses are its lambda now goes
+def sp.lh.isv(+g: X.Sx, +v: X.Sx) -> Bool:
+  +a = sp.at(g, 1n)
+  +w = sp.if(X.Sx, sp.head.is(a, "fun"), _ => sp.fa.unself(sp.at(a, 1n)), _ => sp.at(sp.first(sp.els(sp.at(a, 3n))), 1n))
+  Bool.and(sp.head.is(g, "nonrec"), sp.eq(w, v))
+
+def sp.lh.less(gs: List<&2, X.Sx>, +v: X.Sx) -> List<&2, X.Sx>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case +g <> t:
+      +rest = sp.lh.less(t, v)
+      Bool.pick(List<&2, X.Sx>, sp.lh.isv(g, v), rest, g <> rest)
+
+def sp.lh.drop(x: X.Sx, +v: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, t}:
+      +t2 = sp.lh.drop(t, v)
+      sp.if(X.Sx, sp.is(a, "binds"), _ => X.SxCons{X.SxAtom{a}, sp.l(sp.lh.less(sp.els(t2), v))}, _ => X.SxCons{X.SxAtom{a}, t2})
+    case X.SxCons{h, t}:
+      X.SxCons{sp.lh.drop(h, v), sp.lh.drop(t, v)}
+    case y:
+      y
+
+def sp.lh.drops(hs: List<&2, Lh>, +x: X.Sx) -> X.Sx:
+  match hs:
+    case Nil{}:
+      x
+    case Lh{+v, tvs, ms} <> t:
+      +y = sp.lh.drop(x, v)
+      sp.lh.drops(t, sp.if(X.Sx, sp.lg.mentions(y, v), _ => x, _ => y))
+
 # twice: one's body may use another
 def sp.lh(+x: X.Sx) -> X.Sx:
   +hs = sp.lh.of(x, Nil{})
-  sp.if(X.Sx, List.is_empty(&2, Lh, hs), _ => x, _ => sp.lh.go(2n, x, hs))
+  sp.if(X.Sx, List.is_empty(&2, Lh, hs), _ => x, _ => sp.lh.drops(hs, sp.lh.go(2n, x, hs)))
 
 # show at a known showsPrec, applied (the prelude's showVia sp v): sp 0 v "",
 # and showList (showListVia sp vs): the model's showListWith sp 0 vs.  The

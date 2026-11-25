@@ -56,3 +56,15 @@ exSplice b n = go 2 b where
   go :: Int -> Int -> ([(Int, [(Int, T)])], [Eqn], Int)
   go k c = case splice c [(1, Map.fromList [(n, V n)]), (3, Map.fromList [(1, P (V 2) D)])] [Eqn [B n, B 3] (B c)] [(n, 1), (4, n)] of
     (m, es, t) -> if k > 0 && t > 3 then go (k - 1) (c + n) else (map (\(a, x) -> (a, Map.toList x)) (Map.toList m), es, t)
+
+-- a polymorphic local function with a class (Eval.Meter's unhandled)
+check :: Int -> T -> Either String Int
+check n t = case t of
+  V i -> if i > n then bad "variable" i else Right (i + n)
+  P a _ -> bad "pair" a
+  D -> if n == 2 then bad "both" (n, t) else Right 0
+  where
+    bad why what = Left (why <> ": " <> show what <> " at " <> show n)
+
+exCheck :: Int -> Int -> [Either String Int]
+exCheck n i = [check n (V i), check i (P (V n) D), check n D]
