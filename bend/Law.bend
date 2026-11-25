@@ -131,6 +131,17 @@ type Hy is Data:
   HyT2{a: Hy, b: Hy}
   HyT3{a: Hy, b: Hy, c: Hy}
   HyUser{n: List<&2, U32>, args: Hy}
+  HyMap{k: Hy, v: Hy}
+  HySet{k: Hy}
+  HyFix{f: Hy}
+  HyCof{f: Hy, a: Hy}
+  HyState{lazy: Bool, s: Hy}
+  HyExs{e: Hy, lazy: Bool, s: Hy, a: Hy}
+  HyPc{a: Hy}
+  HyPin{}
+  HyW8{}
+  HyDig{}
+  HyRat{}
   HyFun{a: Hy, b: Hy}
   HyNo{why: List<&2, U32>}
   HyArgs{a: Hy, rest: Hy}
@@ -153,13 +164,26 @@ type Bk is Data:
   BkEither{}
   BkT2{}
   BkT3{}
+  BkMap{}
+  BkSet{}
+  BkFix{}
+  BkCof{}
+  BkShowS{}
+  BkExc{}
+  BkStS{}
+  BkStL{}
+  BkPc{}
+  BkPct{}
+  BkW8{}
+  BkDig{}
+  BkRat{}
   BkNone{}
 
 type BkE is Data:
   BkE{k: String, v: Bk}
 
 def lw.bktab() -> List<&2, BkE>:
-  [BkE{"GHC.Types.Int", BkInt{}}, BkE{"GHC.Num.Integer.Integer", BkInteger{}}, BkE{"GHC.Num.Natural.Natural", BkNatural{}}, BkE{"GHC.Types.Bool", BkBool{}}, BkE{"GHC.Types.Char", BkChar{}}, BkE{"GHC.Types.List", BkList{}}, BkE{"GHC.Internal.Base.String", BkStr{}}, BkE{"GHC.Internal.IO.FilePath", BkStr{}}, BkE{"GHC.Internal.Maybe.Maybe", BkMaybe{}}, BkE{"GHC.Internal.Data.Either.Either", BkEither{}}, BkE{"GHC.Tuple.Tuple2", BkT2{}}, BkE{"GHC.Tuple.Tuple3", BkT3{}}, BkE{"GHC.Tuple.Unit", BkUnit{}}, BkE{"GHC.Types.Ordering", BkCmp{}}, BkE{"HsPrelude.HsInt", BkHsInt{}}, BkE{"HsPrelude.HsInteger", BkHsInteger{}}]
+  [BkE{"GHC.Types.Int", BkInt{}}, BkE{"GHC.Num.Integer.Integer", BkInteger{}}, BkE{"GHC.Num.Natural.Natural", BkNatural{}}, BkE{"GHC.Types.Bool", BkBool{}}, BkE{"GHC.Types.Char", BkChar{}}, BkE{"GHC.Types.List", BkList{}}, BkE{"GHC.Internal.Base.String", BkStr{}}, BkE{"GHC.Internal.IO.FilePath", BkStr{}}, BkE{"GHC.Internal.Maybe.Maybe", BkMaybe{}}, BkE{"GHC.Internal.Data.Either.Either", BkEither{}}, BkE{"GHC.Tuple.Tuple2", BkT2{}}, BkE{"GHC.Tuple.Tuple3", BkT3{}}, BkE{"GHC.Tuple.Unit", BkUnit{}}, BkE{"GHC.Types.Ordering", BkCmp{}}, BkE{"HsPrelude.HsInt", BkHsInt{}}, BkE{"HsPrelude.HsInteger", BkHsInteger{}}, BkE{"Data.Map.Internal.Map", BkMap{}}, BkE{"Data.Set.Internal.Set", BkSet{}}, BkE{"Data.Fix.Fix", BkFix{}}, BkE{"Control.Comonad.Cofree.Cofree", BkCof{}}, BkE{"GHC.Internal.Show.ShowS", BkShowS{}}, BkE{"Control.Monad.Trans.Except.ExceptT", BkExc{}}, BkE{"Control.Monad.Trans.State.Strict.State", BkStS{}}, BkE{"Control.Monad.Trans.State.Lazy.State", BkStL{}}, BkE{"Text.Megaparsec.Parsec", BkPc{}}, BkE{"Text.Megaparsec.Internal.ParsecT", BkPct{}}, BkE{"GHC.Internal.Word.Word8", BkW8{}}, BkE{"HsPrelude.HsDigest", BkDig{}}, BkE{"HsPrelude.HsRational", BkRat{}}]
 
 def lw.bk.find(xs: List<&2, BkE>, +k: List<&2, U32>) -> Bk:
   match xs:
@@ -200,6 +224,32 @@ def lw.base(k: Bk, key: List<&2, U32>, args: Hy) -> Hy:
       HyT2{a, b}
     case BkT3{} HyArgs{a, HyArgs{b, HyArgs{c, _}}}:
       HyT3{a, b, c}
+    case BkMap{} HyArgs{a, HyArgs{b, _}}:
+      HyMap{a, b}
+    case BkSet{} HyArgs{a, _}:
+      HySet{a}
+    case BkFix{} HyArgs{a, _}:
+      HyFix{a}
+    case BkCof{} HyArgs{a, HyArgs{b, _}}:
+      HyCof{a, b}
+    case BkShowS{} _:
+      HyFun{HyList{HyChar{}}, HyList{HyChar{}}}
+    case BkStS{} HyArgs{s, _}:
+      HyState{False{}, s}
+    case BkStL{} HyArgs{s, _}:
+      HyState{True{}, s}
+    case BkExc{} HyArgs{e, HyArgs{HyState{l, s}, HyArgs{a, _}}}:
+      HyExs{e, l, s, a}
+    case BkW8{} _:
+      HyW8{}
+    case BkDig{} _:
+      HyDig{}
+    case BkRat{} _:
+      HyRat{}
+    case BkPc{} HyArgs{e, HyArgs{s, HyArgs{a, _}}}:
+      HyPc{a}
+    case BkPct{} HyArgs{e, HyArgs{s, HyArgs{m, HyArgs{a, _}}}}:
+      HyPc{a}
     case _ _:
       HyNo{lw.cat(S.b("type:"), key)}
 
@@ -210,29 +260,35 @@ type Sy is Data:
 type Sb is Data:
   Sb{v: List<&2, U32>, h: Hy}
 
-# where a type is read: the module, its synonyms, the type variables bound
+# where a type is read: the module, its synonyms, the type variables bound,
+# and the keys (M.T) of the data types of the package's modules before it
 type Le is Data:
-  Le{m: List<&2, U32>, syns: List<&2, Sy>, sub: List<&2, Sb>}
+  Le{m: List<&2, U32>, syns: List<&2, Sy>, sub: List<&2, Sb>, pk: List<&2, List<&2, U32>>}
 
 def lw.le.m(+le: Le) -> List<&2, U32>:
   match le:
-    case Le{m, s, b}:
+    case Le{m, s, b, k}:
       m
 
 def lw.le.syns(+le: Le) -> List<&2, Sy>:
   match le:
-    case Le{m, s, b}:
+    case Le{m, s, b, k}:
       s
 
 def lw.le.sub(+le: Le) -> List<&2, Sb>:
   match le:
-    case Le{m, s, b}:
+    case Le{m, s, b, k}:
       b
+
+def lw.le.pk(+le: Le) -> List<&2, List<&2, U32>>:
+  match le:
+    case Le{m, s, b, k}:
+      k
 
 def lw.le.with(le: Le, sub: List<&2, Sb>) -> Le:
   match le:
-    case Le{m, s, b}:
-      Le{m, s, sub}
+    case Le{m, s, b, k}:
+      Le{m, s, sub, k}
 
 # a type variable: its instance, Int when nothing binds it
 def lw.sub.find(xs: List<&2, Sb>, +v: List<&2, U32>) -> Hy:
@@ -287,6 +343,7 @@ type Hm is Data:
   HmTv{n: List<&2, U32>}
   HmTc{own: Bool, key: List<&2, U32>, name: List<&2, U32>, args: X.Sx}
   HmSyn{tvs: List<&2, List<&2, U32>>, body: X.Sx, args: X.Sx}
+  HmExt{m: Hm, ext: Hy}
   HmFun{a: X.Sx, b: X.Sx}
   HmIn{t: X.Sx}
   HmChain{x: X.Sx}
@@ -332,12 +389,38 @@ def lw.hm.of(k: Hh, +le: Le, +x: X.Sx) -> Hm:
 def lw.hm(+le: Le, +x: X.Sx) -> Hm:
   lw.hm.of(lw.hh(V.sv.hd(x)), le, x)
 
-def lw.tc(own: Bool, +key: List<&2, U32>, name: List<&2, U32>, args: Hy) -> Hy:
+# a type of another module: one of the package's data types is a user type
+# by its key M.T, else one of Base's
+def lw.tc.pk(imp: Bool, +key: List<&2, U32>, args: Hy) -> Hy:
+  match imp:
+    case True{}:
+      HyUser{key, args}
+    case False{}:
+      lw.base(lw.bk.find(lw.bktab(), key), key, args)
+
+def lw.tc(own: Bool, imp: Bool, +key: List<&2, U32>, name: List<&2, U32>, args: Hy) -> Hy:
   match own:
     case True{}:
       HyUser{name, args}
     case False{}:
-      lw.base(lw.bk.find(lw.bktab(), key), key, args)
+      lw.tc.pk(imp, key, args)
+
+# a spine's elements past the first n (a synonym's arguments past its
+# parameters)
+def lw.sx.drop(n: Nat, +x: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      x
+    case 1n+p:
+      lw.sx.drop(p, X.tsx.args(x))
+
+# two spines, one after the other
+def lw.hy.cat(h: Hy, x: Hy) -> Hy:
+  match h:
+    case HyArgs{a, r}:
+      HyArgs{a, lw.hy.cat(r, x)}
+    case _:
+      x
 
 # a type tree as an Hy: synonyms of the module expanded, every type
 # variable its instance (fuel: synonyms may name synonyms)
@@ -347,11 +430,18 @@ def lw.hy(fuel: Nat, +le: Le, m: Hm) -> Hy:
       HyNo{S.b("type-depth")}
     case 1n+p HmTv{n}:
       lw.sub.find(lw.le.sub(le), n)
-    case 1n+p HmTc{own, key, name, args}:
-      lw.tc(own, key, name, lw.hy(p, le, HmChain{args}))
-    case 1n+(+p) HmSyn{tvs, body, args}:
+    case 1n+p HmTc{own, +key, name, args}:
+      lw.tc(own, S.mem(key, lw.le.pk(le)), key, name, lw.hy(p, le, HmChain{args}))
+    case 1n+(+p) HmSyn{+tvs, body, +args}:
       +le2 = lw.le.with(le, lw.zip.sub(tvs, lw.hy(p, le, HmChain{args})))
-      lw.hy(p, le2, lw.hm(le2, body))
+      +ext = lw.hy(p, le, HmChain{lw.sx.drop(List.length(&2, List<&2, U32>, tvs), args)})
+      lw.hy(p, le2, HmExt{lw.hm(le2, body), ext})
+    case 1n+p HmExt{HmTc{own, +key, name, args}, ext}:
+      lw.tc(own, S.mem(key, lw.le.pk(le)), key, name, lw.hy.cat(lw.hy(p, le, HmChain{args}), ext))
+    case 1n+p HmExt{m2, HyANil{}}:
+      lw.hy(p, le, m2)
+    case 1n+p HmExt{m2, ext}:
+      HyNo{S.b("type:synonym-applied")}
     case 1n+(+p) HmFun{a, b}:
       HyFun{lw.hy(p, le, lw.hm(le, a)), lw.hy(p, le, lw.hm(le, b))}
     case 1n+p HmIn{t}:
@@ -394,7 +484,7 @@ def lw.notype(h: Hy) -> List<&2, U32>:
     case HyNo{w}:
       w
     case HyFun{a, b}:
-      S.b("function")
+      lw.first(lw.notype(a), lw.notype(b))
     case HyList{a}:
       lw.notype(a)
     case HyMaybe{a}:
@@ -407,10 +497,81 @@ def lw.notype(h: Hy) -> List<&2, U32>:
       lw.first(lw.notype(a), lw.first(lw.notype(b), lw.notype(c)))
     case HyUser{n, args}:
       lw.notype(args)
+    case HyMap{a, b}:
+      lw.first(lw.notype(a), lw.notype(b))
+    case HySet{a}:
+      lw.notype(a)
+    case HyFix{HyUser{n, args}}:
+      lw.notype(args)
+    case HyFix{f}:
+      lw.first(lw.notype(f), S.b("functor"))
+    case HyCof{HyUser{n, args}, a}:
+      lw.first(lw.notype(args), lw.notype(a))
+    case HyCof{f, a}:
+      lw.first(lw.notype(f), S.b("functor"))
     case HyArgs{a, r}:
       lw.first(lw.notype(a), lw.notype(r))
+    case HyState{l, s}:
+      S.b("type:Control.Monad.Trans.State.State")
+    case HyExs{e, l, s, a}:
+      S.b("type:Control.Monad.Trans.Except.ExceptT")
+    case HyPc{a}:
+      S.b("type:Text.Megaparsec.Parsec")
     case _:
       Nil{}
+
+# A def's type with its answer an ExceptT e (State s) a as what running it
+# answers: a function of the state, to Either e a and the state after (the
+# prelude's hs.exs, as cata's Bend has it), so the laws' inputs take a state;
+# a parser's as what running it on an input answers (HsPc.answer): the
+# error's text, or the answer and the offset after it
+def lw.flat(h: Hy) -> Hy:
+  match h:
+    case HyFun{a, b}:
+      HyFun{a, lw.flat(b)}
+    case HyExs{e, l, +s, a}:
+      HyFun{s, HyT2{HyEither{e, a}, s}}
+    case HyPc{a}:
+      HyFun{HyPin{}, HyEither{HyList{HyChar{}}, HyT2{a, HyInt{S.b("LawP.Int")}}}}
+    case r:
+      r
+
+# what runs a def's answer: nothing, State (its laziness) under ExceptT, a
+# parser (its answer's type)
+type Rn is Data:
+  RnNo{}
+  RnExs{lazy: Bool}
+  RnPc{a: Hy}
+
+def lw.run.of(h: Hy) -> Rn:
+  match h:
+    case HyExs{e, l, s, a}:
+      RnExs{l}
+    case HyPc{a}:
+      RnPc{a}
+    case _:
+      RnNo{}
+
+# GHCi's names x1 .. xn
+def lw.xs(n: Nat, +k: Nat) -> List<&2, U32>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      32 <> 120 <> lw.cat(lw.nshow(k), lw.xs(p, 1n+k))
+
+# the def run, in GHCi: (\\lawG x1 .. xn lawS -> runState (runExceptT
+# (lawG x1 .. xn)) lawS) applied to it, State's Strict or Lazy
+def lw.exs.run(lazy: Bool, +n: Nat) -> List<&2, U32>:
+  +xs = lw.xs(n, 1n)
+  +rs = F.fd.bpick(lazy, S.b("Control.Monad.Trans.State.Lazy.runState"), S.b("Control.Monad.Trans.State.Strict.runState"))
+  40 <> 92 <> lw.cat3(S.b("lawG"), xs, lw.cat3(S.b(" lawS -> "), rs, lw.cat3(S.b(" (Control.Monad.Trans.Except.runExceptT (lawG"), xs, S.b(")) lawS) ("))))
+
+# a parser run in GHCi on an input: the error's text, or the answer and the
+# offset after it
+def lw.pc.run(+n: Nat) -> List<&2, U32>:
+  +xs = lw.xs(n, 1n)
+  40 <> 92 <> lw.cat3(S.b("lawG"), xs, lw.cat3(S.b(" lawS -> LawP.either (\\lawE -> LawP.Left (Text.Megaparsec.errorBundlePretty lawE)) LawP.Right (Text.Megaparsec.runParser ((\\lawX lawO -> (lawX, lawO)) LawP.<$> lawG"), xs, S.b(" LawP.<*> Text.Megaparsec.getOffset) \"\" lawS)) (")))
 
 def lw.nargs(h: Hy) -> Nat:
   match h:
@@ -418,6 +579,97 @@ def lw.nargs(h: Hy) -> Nat:
       1n+lw.nargs(r)
     case _:
       0n
+
+# Where a data type is: GHCi's module for its names, its name, and the
+# prefix of its constructors' Bend names (an import's alias M_N and a dot,
+# none for the module's own). A type of the module is found by its name, one
+# of the package's modules before it by its key M.T.
+type Dw is Data:
+  Dw{hm: List<&2, U32>, ty: List<&2, U32>, pre: List<&2, U32>}
+
+def lw.dw.hm(+w: Dw) -> List<&2, U32>:
+  match w:
+    case Dw{hm, ty, pre}:
+      hm
+
+def lw.dw.ty(+w: Dw) -> List<&2, U32>:
+  match w:
+    case Dw{hm, ty, pre}:
+      ty
+
+def lw.dw.pre(+w: Dw) -> List<&2, U32>:
+  match w:
+    case Dw{hm, ty, pre}:
+      pre
+
+# a key's last part (r: the key reversed)
+def lw.key.nm(r: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  match r:
+    case Nil{}:
+      acc
+    case 46 <> t:
+      acc
+    case c <> t:
+      lw.key.nm(t, c <> acc)
+
+# what is before a key's last dot, reversed (none without a dot)
+def lw.key.md(r: List<&2, U32>) -> List<&2, U32>:
+  match r:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      t
+    case c <> t:
+      lw.key.md(t)
+
+# a module's alias in Bend: its dots underscores (Telomare.IR.Loc is
+# Telomare_IR_Loc)
+def lw.alias(cs: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      95 <> lw.alias(t)
+    case c <> t:
+      c <> lw.alias(t)
+
+def lw.dw.of(md: List<&2, U32>, m: List<&2, U32>, +r: List<&2, U32>) -> Dw:
+  match md:
+    case Nil{}:
+      Dw{m, lw.key.nm(r, Nil{}), Nil{}}
+    case h <> t:
+      +x = List.reverse(&2, U32, h <> t)
+      Dw{x, lw.key.nm(r, Nil{}), lw.cat(lw.alias(x), [46])}
+
+def lw.dw(m: List<&2, U32>, n: List<&2, U32>) -> Dw:
+  +r = List.reverse(&2, U32, n)
+  lw.dw.of(lw.key.md(r), m, r)
+
+# whether a key is GHC's Int (h's Map Int may be an IntMap, which Spec reads
+# as a Map: its type is a wildcard in h's script; tests/back/lawg.sed writes
+# G's, a Map)
+def lw.isint(k: Hy) -> Bool:
+  match k:
+    case HyInt{s}:
+      S.eq(s, S.b("LawP.Int"))
+    case HyNat{s}:
+      S.eq(s, S.b("LawP.Int"))
+    case _:
+      False{}
+
+def lw.map.ty(i: Bool, k: List<&2, U32>, +v: List<&2, U32>) -> List<&2, U32>:
+  match i:
+    case True{}:
+      lw.cat3(S.b("(_ "), v, [41])
+    case False{}:
+      lw.cat3(S.b("(LawM.Map "), k, 32 <> lw.cat(v, [41]))
+
+def lw.set.ty(i: Bool, k: List<&2, U32>) -> List<&2, U32>:
+  match i:
+    case True{}:
+      S.b("(_)")
+    case False{}:
+      lw.cat3(S.b("(LawS.Set "), k, [41])
 
 # The type as GHCi reads it in the module's scope (M.T for the module's)
 def lw.hs.ty(h: Hy, +m: List<&2, U32>) -> List<&2, U32>:
@@ -445,13 +697,45 @@ def lw.hs.ty(h: Hy, +m: List<&2, U32>) -> List<&2, U32>:
     case HyT3{a, b, c}:
       40 <> lw.cat3(lw.hs.ty(a, m), S.b(", "), lw.cat3(lw.hs.ty(b, m), S.b(", "), lw.cat(lw.hs.ty(c, m), [41])))
     case HyUser{n, args}:
-      40 <> lw.cat3(m, 46 <> n, lw.cat(lw.hs.ty(args, m), [41]))
+      +w = lw.dw(m, n)
+      40 <> lw.cat3(lw.dw.hm(w), 46 <> lw.dw.ty(w), lw.cat(lw.hs.ty(args, m), [41]))
+    case HyMap{+a, b}:
+      lw.map.ty(lw.isint(a), lw.hs.ty(a, m), lw.hs.ty(b, m))
+    case HySet{+a}:
+      lw.set.ty(lw.isint(a), lw.hs.ty(a, m))
+    case HyFix{f}:
+      lw.cat3(S.b("(Data.Fix.Fix "), lw.hs.ty(f, m), [41])
+    case HyCof{f, a}:
+      lw.cat3(S.b("(Control.Comonad.Cofree.Cofree "), lw.hs.ty(f, m), 32 <> lw.cat(lw.hs.ty(a, m), [41]))
+    case HyState{l, s}:
+      lw.cat3(F.fd.bpick(l, S.b("(Control.Monad.Trans.State.Lazy.State "), S.b("(Control.Monad.Trans.State.Strict.State ")), lw.hs.ty(s, m), [41])
+    case HyExs{e, l, s, a}:
+      +st = lw.cat3(F.fd.bpick(l, S.b("(Control.Monad.Trans.State.Lazy.State "), S.b("(Control.Monad.Trans.State.Strict.State ")), lw.hs.ty(s, m), [41])
+      lw.cat3(S.b("(Control.Monad.Trans.Except.ExceptT "), lw.hs.ty(e, m), 32 <> lw.cat3(st, [32], lw.cat(lw.hs.ty(a, m), [41])))
+    case HyPc{a}:
+      lw.cat3(S.b("(Text.Megaparsec.Parsec Data.Void.Void LawP.String "), lw.hs.ty(a, m), [41])
+    case HyPin{}:
+      S.b("LawP.String")
+    case HyW8{}:
+      S.b("LawW.Word8")
+    case HyDig{}:
+      S.b("(Crypto.Hash.Digest Crypto.Hash.SHA256)")
+    case HyRat{}:
+      S.b("LawP.Rational")
     case HyFun{a, b}:
       40 <> lw.cat3(lw.hs.ty(a, m), S.b(" -> "), lw.cat(lw.hs.ty(b, m), [41]))
     case HyArgs{a, r}:
       32 <> lw.cat(lw.hs.ty(a, m), lw.hs.ty(r, m))
     case _:
       Nil{}
+
+# a spine with x at its end (a functor's parameters and the recursion's)
+def lw.bt.snoc(s: T.Bt, x: T.Bt) -> T.Bt:
+  match s:
+    case T.BtArgs{a, r}:
+      T.BtArgs{a, lw.bt.snoc(r, x)}
+    case _:
+      T.BtArgs{x, T.BtANil{}}
 
 # The type in Bend, as the fold writes it (Fold.bend's fd.tc.of)
 def lw.bty(h: Hy) -> T.Bt:
@@ -479,7 +763,24 @@ def lw.bty(h: Hy) -> T.Bt:
     case HyT3{a, b, c}:
       F.fd.pair(lw.bty(a), F.fd.pair(lw.bty(b), lw.bty(c)))
     case HyUser{n, args}:
-      T.BtTyApp{F.fd.tyname(n), lw.bty(args)}
+      +w = lw.dw(Nil{}, n)
+      T.BtTyApp{lw.cat(lw.dw.pre(w), F.fd.tyname(lw.dw.ty(w))), lw.bty(args)}
+    case HyMap{a, b}:
+      T.BtTyApp{S.b("HsPrelude.HsMap"), T.BtArgs{lw.bty(a), T.BtArgs{lw.bty(b), T.BtANil{}}}}
+    case HySet{a}:
+      T.BtTyApp{S.b("HsPrelude.HsSet"), T.BtArgs{lw.bty(a), T.BtANil{}}}
+    case HyFix{HyUser{n, args}}:
+      +w = lw.dw(Nil{}, n)
+      T.BtTyApp{S.b("HsPrelude.Fix"), T.BtArgs{T.BtLam{T.BmLive{}, S.b("r_"), T.BtTyApp{lw.cat(lw.dw.pre(w), F.fd.tyname(lw.dw.ty(w))), lw.bt.snoc(lw.bty(args), T.BtVar{S.b("r_")})}}, T.BtANil{}}}
+    case HyCof{HyUser{n, args}, a}:
+      +w = lw.dw(Nil{}, n)
+      T.BtTyApp{S.b("HsPrelude.Cofree"), T.BtArgs{T.BtLam{T.BmLive{}, S.b("r_"), T.BtTyApp{lw.cat(lw.dw.pre(w), F.fd.tyname(lw.dw.ty(w))), lw.bt.snoc(lw.bty(args), T.BtVar{S.b("r_")})}}, T.BtArgs{lw.bty(a), T.BtANil{}}}}
+    case HyW8{}:
+      F.fd.ty0("U32")
+    case HyDig{}:
+      F.fd.ty0("HsPrelude.HsDigest")
+    case HyRat{}:
+      F.fd.ty0("HsPrelude.HsRational")
     case HyArgs{a, r}:
       T.BtArgs{lw.bty(a), lw.bty(r)}
     case HyANil{}:
@@ -514,6 +815,83 @@ def lw.dd.find(ds: List<&2, Dd>, +n: List<&2, U32>) -> Maybe<&2, Dd>:
     case Dd{+k, tvs, cs} <> t:
       Bool.pick(Maybe<&2, Dd>, S.eq(k, n), Some{Dd{k, tvs, cs}}, lw.dd.find(t, n))
 
+def lw.dds.q(+m: List<&2, U32>, ds: List<&2, Dd>) -> List<&2, Dd>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Dd{n, tvs, cs} <> t:
+      Dd{lw.cat3(m, [46], n), tvs, cs} <> lw.dds.q(m, t)
+
+def lw.dd.keys(ds: List<&2, Dd>) -> List<&2, List<&2, U32>>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Dd{n, tvs, cs} <> t:
+      n <> lw.dd.keys(t)
+
+
+def lw.mods.add(c: Bool, s: List<&2, U32>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match c:
+    case True{}:
+      s <> acc
+    case False{}:
+      acc
+# The modules whose types a tree names, (tc MOD NAME ..)
+def lw.mods.go(x: X.Sx, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, X.SxCons{X.SxStr{+s}, t}}:
+      lw.mods.go(t, lw.mods.add(Bool.and(S.eq(a, S.b("tc")), Bool.not(S.mem(s, acc))), s, acc))
+    case X.SxCons{h, t}:
+      lw.mods.go(t, lw.mods.go(h, acc))
+    case _:
+      acc
+
+def lw.mods.xs(xs: List<&2, X.Sx>, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match xs:
+    case Nil{}:
+      acc
+    case x <> t:
+      lw.mods.xs(t, lw.mods.go(x, acc))
+
+def lw.mods.dds(ds: List<&2, Dd>, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match ds:
+    case Nil{}:
+      acc
+    case Dd{n, tvs, cs} <> t:
+      lw.mods.dds(t, lw.mods.go(cs, acc))
+
+def lw.pd.if(u: Bool, d: Dd, acc: List<&2, Dd>) -> List<&2, Dd>:
+  match u:
+    case True{}:
+      d <> acc
+    case False{}:
+      acc
+
+# the package's types of the modules ms
+def lw.pd.sel(pd: List<&2, Dd>, +ms: List<&2, List<&2, U32>>) -> List<&2, Dd>:
+  match pd:
+    case Nil{}:
+      Nil{}
+    case Dd{+n, tvs, cs} <> t:
+      lw.pd.if(S.mem(List.reverse(&2, U32, lw.key.md(List.reverse(&2, U32, n))), ms), Dd{n, tvs, cs}, lw.pd.sel(t, ms))
+
+# the package's types a module can name: of the modules its own types name,
+# and theirs' fields (fuel rounds)
+def lw.pd.use(fuel: Nat, +pd: List<&2, Dd>, +ms: List<&2, List<&2, U32>>) -> List<&2, Dd>:
+  match fuel:
+    case 0n:
+      lw.pd.sel(pd, ms)
+    case 1n+p:
+      lw.pd.use(p, pd, lw.mods.dds(lw.pd.sel(pd, ms), ms))
+
+# a package's next module sees this one's data types (a module alone: none)
+def lw.pd.next(pkg: Bool, +m: List<&2, U32>, +xs: List<&2, X.Sx>, pd: List<&2, Dd>) -> List<&2, Dd>:
+  match pkg:
+    case True{}:
+      List.append(&2, Dd, lw.dds.q(m, lw.dds(xs)), pd)
+    case False{}:
+      pd
+
 # a name as GHCi reads it in the module's scope: M.f, or (M.<+>) for an
 # operator
 def lw.hsname(+m: List<&2, U32>, +n: List<&2, U32>) -> List<&2, U32>:
@@ -533,23 +911,23 @@ def lw.ck.fs(ex: Bool, +le: Le, tys: X.Sx) -> Hy:
     case True{}:
       HyArgs{HyNo{S.b("existential")}, HyANil{}}
 
-def lw.ck(+m: List<&2, U32>, +ty: List<&2, U32>, +le: Le, +c: X.Sx) -> Ck:
+def lw.ck(+w: Dw, +le: Le, +c: X.Sx) -> Ck:
   +n = V.sv.str(c, 1n)
   +ex = V.sv.at(c, 4n)
-  Ck{lw.hsname(m, n), F.fd.cname(ty, n), lw.ck.fs(Bool.not(Nat.is_eq(Nat.add(X.tsx.nat(V.sv.at(ex, 1n)), X.tsx.nat(V.sv.at(ex, 2n))), 0n)), le, V.sv.at(c, 3n))}
+  Ck{lw.hsname(lw.dw.hm(w), n), lw.cat(lw.dw.pre(w), F.fd.cname(lw.dw.ty(w), n)), lw.ck.fs(Bool.not(Nat.is_eq(Nat.add(X.tsx.nat(V.sv.at(ex, 1n)), X.tsx.nat(V.sv.at(ex, 2n))), 0n)), le, V.sv.at(c, 3n))}
 
-def lw.cks(+m: List<&2, U32>, +ty: List<&2, U32>, +le: Le, cs: X.Sx) -> List<&2, Ck>:
+def lw.cks(+w: Dw, +le: Le, cs: X.Sx) -> List<&2, Ck>:
   match cs:
     case X.SxCons{+c, t}:
-      lw.ck(m, ty, le, c) <> lw.cks(m, ty, le, t)
+      lw.ck(w, le, c) <> lw.cks(w, le, t)
     case _:
       Nil{}
 
 # a type's constructors at the arguments args
 def lw.cks.of(found: Maybe<&2, Dd>, +le: Le, args: Hy) -> List<&2, Ck>:
   match found:
-    case Some{Dd{+n, tvs, cs}}:
-      lw.cks(lw.le.m(le), n, lw.le.with(le, lw.zip.sub(tvs, args)), cs)
+    case Some{Dd{n, tvs, cs}}:
+      lw.cks(lw.dw(lw.le.m(le), n), lw.le.with(le, lw.zip.sub(tvs, args)), cs)
     case None{}:
       Nil{}
 
@@ -588,6 +966,10 @@ type Va is Data:
   VaCon{hs: List<&2, U32>, bend: List<&2, U32>, args: Va}
   VaList{xs: Va}
   VaTup{xs: Va}
+  VaMap{st: Bool, xs: Va}
+  VaFn{n: Nat, v: Va}
+  VaPin{s: List<&2, U32>}
+  VaW8{n: Nat}
   VaArgs{a: Va, rest: Va}
   VaANil{}
 
@@ -621,6 +1003,41 @@ def lw.cmps() -> List<&2, Va>:
 
 def lw.units() -> List<&2, Va>:
   [lw.c0("()", "Unit")]
+
+# a byte; a digest (its 32 bytes, all of them b); a rational n % d
+def lw.w8s() -> List<&2, Va>:
+  [VaW8{0n}, VaW8{1n}, VaW8{97n}, VaW8{255n}]
+
+def lw.dig(+b: Nat) -> Va:
+  VaCon{S.b("lawDig"), S.b("HsPrelude.HsDigest.D"), VaArgs{VaList{lw.spine(List.replicate(Va, 32n, VaW8{b}))}, VaANil{}}}
+
+def lw.digs() -> List<&2, Va>:
+  [lw.dig(0n), lw.dig(1n), lw.dig(255n)]
+
+def lw.rat(neg: Bool, n: Nat, d: Nat) -> Va:
+  VaCon{S.b("lawRat"), S.b("HsPrelude.HsRational"), VaArgs{VaInt{neg, n}, VaArgs{VaNat{d}, VaANil{}}}}
+
+def lw.rats() -> List<&2, Va>:
+  [lw.rat(False{}, 0n, 1n), lw.rat(False{}, 1n, 1n), lw.rat(False{}, 1n, 2n), lw.rat(True{}, 2n, 3n), lw.rat(False{}, 3n, 1n)]
+
+# a parser's inputs: a program's shapes, small
+def lw.pins.of(xs: List<String>) -> List<&2, Va>:
+  match xs:
+    case h <> t:
+      VaPin{S.b(h)} <> lw.pins.of(t)
+    case Nil{}:
+      Nil{}
+
+# each value as a spine of one
+def lw.tup1(xs: List<&2, Va>) -> List<&2, Va>:
+  match xs:
+    case x <> t:
+      VaTup{VaArgs{x, VaANil{}}} <> lw.tup1(t)
+    case Nil{}:
+      Nil{}
+
+def lw.pins() -> List<&2, Va>:
+  lw.pins.of(["", "a1 ", "12", "(a, 1)", "[a, 1]", "\"a b\"", "\\a -> a", "if a then b else c", "let a = 1\n    b = 2\nin a b", "case a of\n  b -> c\n  _ -> 1", "a = 1\nb = a\n", "{a, b, c}", "$2", "# a", "import A", "a b (c d)"])
 
 def lw.wrap1(+hs: List<&2, U32>, +b: List<&2, U32>, xs: List<&2, Va>) -> List<&2, Va>:
   match xs:
@@ -692,6 +1109,136 @@ def lw.mk(hs: List<&2, U32>, b: List<&2, U32>, m: Maybe<&2, Va>) -> List<&2, Va>
     case _:
       Nil{}
 
+# Haskell's order of two values where it is known here (numbers, characters,
+# and lists and tuples of them; sp: two spines, in order)
+type Cm is Data:
+  CmLt{}
+  CmEq{}
+  CmGt{}
+  CmNo{}
+
+def lw.cm.nat(a: Nat, b: Nat) -> Cm:
+  match a b:
+    case 0n 0n:
+      CmEq{}
+    case 0n 1n+q:
+      CmLt{}
+    case 1n+p 0n:
+      CmGt{}
+    case 1n+p 1n+q:
+      lw.cm.nat(p, q)
+
+def lw.cm.int(na: Bool, a: Nat, nb: Bool, b: Nat) -> Cm:
+  match na nb:
+    case False{} False{}:
+      lw.cm.nat(a, b)
+    case True{} True{}:
+      lw.cm.nat(b, a)
+    case True{} False{}:
+      CmLt{}
+    case False{} True{}:
+      CmGt{}
+
+def lw.cm.lex(h: Cm, t: Cm) -> Cm:
+  match h:
+    case CmEq{}:
+      t
+    case d:
+      d
+
+def lw.cm(a: Va, b: Va, sp: Bool) -> Cm:
+  match a b sp:
+    case VaNat{x} VaNat{y} False{}:
+      lw.cm.nat(x, y)
+    case VaInt{na, x} VaInt{nb, y} False{}:
+      lw.cm.int(na, x, nb, y)
+    case VaChar{x} VaChar{y} False{}:
+      lw.cm.nat(x, y)
+    case VaList{x} VaList{y} False{}:
+      lw.cm(x, y, True{})
+    case VaTup{x} VaTup{y} False{}:
+      lw.cm(x, y, True{})
+    case VaANil{} VaANil{} True{}:
+      CmEq{}
+    case VaANil{} VaArgs{y, s} True{}:
+      CmLt{}
+    case VaArgs{x, r} VaANil{} True{}:
+      CmGt{}
+    case VaArgs{x, r} VaArgs{y, s} True{}:
+      lw.cm.lex(lw.cm(x, y, False{}), lw.cm(r, s, True{}))
+    case _ _ _:
+      CmNo{}
+
+def lw.kv(k: Va, v: Va) -> Va:
+  VaTup{VaArgs{k, VaArgs{v, VaANil{}}}}
+
+def lw.mp(st: Bool, xs: List<&2, Va>) -> Va:
+  VaMap{st, lw.spine(xs)}
+
+# a map (a set: st) of two entries, in their keys' order (none where it is
+# not known)
+def lw.mp2(c: Cm, st: Bool, a: Va, b: Va) -> List<&2, Va>:
+  match c:
+    case CmLt{}:
+      [lw.mp(st, [a, b])]
+    case CmGt{}:
+      [lw.mp(st, [b, a])]
+    case _:
+      Nil{}
+
+# Data.Map's maps of the keys ks and the values vs, smallest first (Bend's
+# HsMap: the entries in ascending order of the key)
+def lw.maps(ks: List<&2, Va>, vs: List<&2, Va>) -> List<&2, Va>:
+  match ks vs:
+    case +k0 <> +k1 <> r +v0 <> +v1 <> s:
+      List.append(&2, Va, [lw.mp(False{}, Nil{}), lw.mp(False{}, [lw.kv(k0, v0)]), lw.mp(False{}, [lw.kv(k1, v1)]), lw.mp(False{}, [lw.kv(k0, v1)])], lw.mp2(lw.cm(k0, k1, False{}), False{}, lw.kv(k0, v0), lw.kv(k1, v1)))
+    case +k0 <> r +v0 <> s:
+      [lw.mp(False{}, Nil{}), lw.mp(False{}, [lw.kv(k0, v0)])]
+    case _ _:
+      [lw.mp(False{}, Nil{})]
+
+def lw.sets(ks: List<&2, Va>) -> List<&2, Va>:
+  match ks:
+    case +k0 <> +k1 <> r:
+      List.append(&2, Va, [lw.mp(True{}, Nil{}), lw.mp(True{}, [k0]), lw.mp(True{}, [k1])], lw.mp2(lw.cm(k0, k1, False{}), True{}, k0, k1))
+    case +k0 <> r:
+      [lw.mp(True{}, Nil{}), lw.mp(True{}, [k0])]
+    case Nil{}:
+      [lw.mp(True{}, Nil{})]
+
+# a constructor at each tuple of its fields
+def lw.mks(+hs: List<&2, U32>, +b: List<&2, U32>, xs: List<&2, Va>) -> List<&2, Va>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      List.append(&2, Va, lw.mk(hs, b, Some{x}), lw.mks(hs, b, t))
+
+# A function input: the function of n arguments that answers v whatever
+# they are (GHCi's \_ _ -> v, Bend's _ => _ => v), at two of its answer
+# type's values
+def lw.fn.n(h: Hy) -> Nat:
+  match h:
+    case HyFun{a, b}:
+      1n+lw.fn.n(b)
+    case _:
+      0n
+
+def lw.fns(+n: Nat, vs: List<&2, Va>) -> List<&2, Va>:
+  match vs:
+    case Nil{}:
+      Nil{}
+    case v <> t:
+      VaFn{n, v} <> lw.fns(n, t)
+
+# a functor's type arguments and the recursion's (Fix f is f (Fix f))
+def lw.hy.snoc(h: Hy, x: Hy) -> Hy:
+  match h:
+    case HyArgs{a, r}:
+      HyArgs{a, lw.hy.snoc(r, x)}
+    case _:
+      HyArgs{x, HyANil{}}
+
 # what to list: a type's values, the tuples of a spine of field types, or
 # the k-th tuple of each constructor's fields
 type Q is Data:
@@ -717,6 +1264,14 @@ def lw.vals(fuel: Nat, +d: Nat, +le: Le, +dds: List<&2, Dd>, q: Q) -> List<&2, V
       lw.units()
     case 1n+p QTy{HyCmp{}}:
       lw.cmps()
+    case 1n+p QTy{HyPin{}}:
+      lw.pins()
+    case 1n+p QTy{HyW8{}}:
+      lw.w8s()
+    case 1n+p QTy{HyDig{}}:
+      lw.digs()
+    case 1n+p QTy{HyRat{}}:
+      lw.rats()
     case 1n+p QTy{HyList{a}}:
       lw.lists(lw.vals(p, d, le, dds, QTy{a}))
     case 1n+p QTy{HyMaybe{a}}:
@@ -727,11 +1282,23 @@ def lw.vals(fuel: Nat, +d: Nat, +le: Le, +dds: List<&2, Dd>, q: Q) -> List<&2, V
       lw.vals(p, d, le, dds, QFields{HyArgs{a, HyArgs{b, HyANil{}}}})
     case 1n+p QTy{HyT3{a, b, c}}:
       lw.vals(p, d, le, dds, QFields{HyArgs{a, HyArgs{b, HyArgs{c, HyANil{}}}}})
+    case 1n+(+p) QTy{HyMap{a, b}}:
+      lw.maps(lw.vals(p, d, le, dds, QTy{a}), lw.vals(p, d, le, dds, QTy{b}))
+    case 1n+p QTy{HySet{a}}:
+      lw.sets(lw.vals(p, d, le, dds, QTy{a}))
+    case 1n+p QTy{HyFun{a, +b}}:
+      lw.fns(1n+lw.fn.n(b), List.take(&2, Va, lw.vals(p, d, le, dds, QTy{lw.res(b)}), 2n))
+    case 1n+p QTy{HyFix{HyUser{+n, +args}}}:
+      lw.wrap1(S.b("lawFix"), S.b("HsPrelude.Fix.Fix"), lw.vals(p, d, le, dds, QTy{HyUser{n, lw.hy.snoc(args, HyFix{HyUser{n, args}})}}))
+    case 1n+p QTy{HyCof{HyUser{+n, +args}, +a}}:
+      lw.mks(S.b("lawCof"), S.b("HsPrelude.Cofree.Cofree"), lw.vals(p, d, le, dds, QFields{HyArgs{a, HyArgs{HyUser{n, lw.hy.snoc(args, HyCof{HyUser{n, args}, a})}, HyANil{}}}}))
     case 1n+(+p) QTy{HyUser{+n, args}}:
       +cs = lw.atd(d, lw.cks.of(lw.dd.find(dds, n), le, args))
       List.take(&2, Va, List.append(&2, Va, lw.vals(p, lw.dec(d), le, dds, QCons{0n, cs}), lw.vals(p, lw.dec(d), le, dds, QCons{1n, cs})), 6n)
     case 1n+p QTy{_}:
       Nil{}
+    case 1n+p QFields{HyArgs{HyPin{}, HyANil{}}}:
+      lw.tup1(lw.pins())
     case 1n+(+p) QFields{HyArgs{h, r}}:
       lw.diag(lw.vals(p, d, le, dds, QTy{h}), lw.vals(p, d, le, dds, QFields{r}))
     case 1n+p QFields{_}:
@@ -748,6 +1315,22 @@ type Vm is Data:
   VmComma{}
   VmList{}
   VmTup{}
+  VmMap{}
+  VmSet{}
+
+def lw.fn.us(n: Nat) -> List<&2, U32>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      95 <> 32 <> lw.fn.us(p)
+
+def lw.fn.lam(n: Nat, b: T.Bt) -> T.Bt:
+  match n:
+    case 0n:
+      b
+    case 1n+p:
+      T.BtLam{T.BmLive{}, S.b("_"), lw.fn.lam(p, b)}
 
 # a value as GHCi reads it
 # an integer input as GHCi reads it: -n in parentheses
@@ -758,8 +1341,34 @@ def lw.va.int(neg: Bool, n: Nat) -> List<&2, U32>:
     case False{}:
       lw.nshow(n)
 
+# a string as Haskell's literal
+def lw.hs.lit(s: List<&2, U32>) -> List<&2, U32>:
+  match s:
+    case 10 <> t:
+      92 <> 110 <> lw.hs.lit(t)
+    case 34 <> t:
+      92 <> 34 <> lw.hs.lit(t)
+    case 92 <> t:
+      92 <> 92 <> lw.hs.lit(t)
+    case c <> t:
+      c <> lw.hs.lit(t)
+    case Nil{}:
+      [34]
+
+# a string as Bend's list of characters
+def lw.bt.lit(s: List<&2, U32>) -> T.Bt:
+  match s:
+    case c <> t:
+      T.BtCon{S.b("Con"), T.BtArgs{F.fd.char(U32.to_nat(c)), T.BtArgs{lw.bt.lit(t), T.BtANil{}}}}
+    case Nil{}:
+      F.fd.con0("Nil")
+
 def lw.va.hs(v: Va, mode: Vm) -> List<&2, U32>:
   match v mode:
+    case VaPin{s} _:
+      34 <> lw.hs.lit(s)
+    case VaW8{n} _:
+      lw.nshow(n)
     case VaNat{n} _:
       lw.nshow(n)
     case VaInt{neg, n} _:
@@ -774,6 +1383,10 @@ def lw.va.hs(v: Va, mode: Vm) -> List<&2, U32>:
       91 <> lw.cat(lw.tail1(lw.va.hs(xs, VmComma{})), [93])
     case VaTup{xs} _:
       40 <> lw.cat(lw.tail1(lw.va.hs(xs, VmComma{})), [41])
+    case VaFn{+n, v} _:
+      lw.cat3(S.b("(\\"), lw.fn.us(n), lw.cat3(S.b("-> "), lw.va.hs(v, VmVal{}), [41]))
+    case VaMap{st, xs} _:
+      40 <> lw.cat3(F.fd.bpick(st, S.b("lawSet "), S.b("lawMap ")), 91 <> lw.cat(lw.tail1(lw.va.hs(xs, VmComma{})), [93]), [41])
     case VaArgs{a, r} VmSp{}:
       32 <> lw.cat(lw.va.hs(a, VmVal{}), lw.va.hs(r, VmSp{}))
     case VaArgs{a, r} _:
@@ -785,6 +1398,10 @@ def lw.va.hs(v: Va, mode: Vm) -> List<&2, U32>:
 # right), unit Unit
 def lw.va.bt(v: Va, mode: Vm) -> T.Bt:
   match v mode:
+    case VaPin{s} _:
+      F.fd.callS("HsPrelude.HsPc.st0", [F.fd.con0("Nil"), lw.bt.lit(s)])
+    case VaW8{n} _:
+      T.BtVar{lw.nshow(n)}
     case VaNat{n} _:
       T.BtNat{lw.nshow(n)}
     case VaInt{+neg, n} _:
@@ -797,6 +1414,20 @@ def lw.va.bt(v: Va, mode: Vm) -> T.Bt:
       lw.va.bt(xs, VmList{})
     case VaTup{xs} _:
       lw.va.bt(xs, VmTup{})
+    case VaFn{n, v} _:
+      lw.fn.lam(n, lw.va.bt(v, VmVal{}))
+    case VaMap{True{}, xs} _:
+      lw.va.bt(xs, VmSet{})
+    case VaMap{False{}, xs} _:
+      lw.va.bt(xs, VmMap{})
+    case VaArgs{VaTup{VaArgs{k, VaArgs{v, VaANil{}}}}, r} VmMap{}:
+      T.BtCon{S.b("HsPrelude.HsMap.Bin"), T.BtArgs{lw.va.bt(k, VmVal{}), T.BtArgs{lw.va.bt(v, VmVal{}), T.BtArgs{lw.va.bt(r, VmMap{}), T.BtANil{}}}}}
+    case VaANil{} VmMap{}:
+      F.fd.con0("HsPrelude.HsMap.Tip")
+    case VaArgs{k, r} VmSet{}:
+      T.BtCon{S.b("HsPrelude.HsSet.Bin"), T.BtArgs{lw.va.bt(k, VmVal{}), T.BtArgs{lw.va.bt(r, VmSet{}), T.BtANil{}}}}
+    case VaANil{} VmSet{}:
+      F.fd.con0("HsPrelude.HsSet.Tip")
     case VaArgs{a, r} VmSp{}:
       T.BtArgs{lw.va.bt(a, VmVal{}), lw.va.bt(r, VmSp{})}
     case VaArgs{a, r} VmList{}:
@@ -890,6 +1521,18 @@ def lw.ot.con(h: Hy, +c: List<&2, U32>, +le: Le, +dds: List<&2, Dd>) -> Hy:
       HyArgs{Bool.pick(Hy, S.eq(c, S.b("Inl")), a, b), HyANil{}}
     case HyUser{+n, args}:
       lw.ot.ck(lw.cks.of(lw.dd.find(dds, n), le, args), c)
+    case HyMap{+a, +b}:
+      Bool.pick(Hy, S.eq(c, S.b("HsPrelude.HsMap.Bin")), HyArgs{a, HyArgs{b, HyArgs{HyMap{a, b}, HyANil{}}}}, HyANil{})
+    case HySet{+a}:
+      Bool.pick(Hy, S.eq(c, S.b("HsPrelude.HsSet.Bin")), HyArgs{a, HyArgs{HySet{a}, HyANil{}}}, HyANil{})
+    case HyFix{HyUser{+n, +args}}:
+      HyArgs{HyUser{n, lw.hy.snoc(args, HyFix{HyUser{n, args}})}, HyANil{}}
+    case HyCof{HyUser{+n, +args}, +a}:
+      HyArgs{a, HyArgs{HyUser{n, lw.hy.snoc(args, HyCof{HyUser{n, args}, a})}, HyANil{}}}
+    case HyDig{}:
+      HyArgs{HyList{HyW8{}}, HyANil{}}
+    case HyRat{}:
+      HyArgs{HyInt{S.b("LawP.Integer")}, HyArgs{HyNat{S.b("LawP.Integer")}, HyANil{}}}
     case _:
       lw.ot.no()
 
@@ -903,6 +1546,14 @@ def lw.ot.sg(h: Hy, sg: Bool) -> Bool:
       True{}
     case _:
       sg
+
+# a number answer: a byte's is a U32
+def lw.out.nat(h: Hy, sg: Bool, +n: List<&2, U32>) -> T.Bt:
+  match h:
+    case HyW8{}:
+      T.BtVar{n}
+    case +r:
+      lw.out.num(lw.ot.sg(r, sg), False{}, n)
 
 # an answer in Bend, ty its type; a negative number has none where the
 # fold's Int is Nat.  It recurses on the tree's own parts (a string's answer
@@ -924,7 +1575,7 @@ def lw.out(x: X.Sx, k: Ok, mode: Vm, +ty: Hy, +sg: Bool, +le: Le, +dds: List<&2,
     case _ _ VmTup{}:
       F.fd.con0("Unit")
     case +y OkNat{} _:
-      lw.out.num(lw.ot.sg(ty, sg), False{}, X.tsx.atom.of(X.tsx.at(1n, y)))
+      lw.out.nat(ty, sg, X.tsx.atom.of(X.tsx.at(1n, y)))
     case +y OkNeg{} _:
       lw.out.num(lw.ot.sg(ty, sg), True{}, X.tsx.atom.of(X.tsx.at(1n, y)))
     case +y OkChar{} _:
@@ -979,7 +1630,7 @@ type Pl is Data:
 # Nat, a dictionary (Fold's fd.dc: eq_A, cmp_A) Nat's == or compare; and
 # whether it is a template
 type La is Data:
-  La{t: Bool, d: T.Bt}
+  La{t: Bool, d: T.Bt, i: Nat}
 
 def lw.dterm(k: Nat) -> T.Bt:
   match k:
@@ -1001,12 +1652,122 @@ def lw.kinds(ps: List<&2, T.BParam>) -> List<&2, Bool>:
     case Nil{}:
       Nil{}
 
-def lw.tpls(ps: List<&2, T.BParam>) -> List<&2, La>:
+def lw.hd.nat(xs: List<&2, Nat>) -> Nat:
+  match xs:
+    case x <> t:
+      x
+    case Nil{}:
+      0n
+
+# each parameter: whether a template, its default, and (a value's) which
+# input it takes, by its place in h's order (hp)
+def lw.tpls(ps: List<&2, T.BParam>, +hp: List<&2, Nat>) -> List<&2, La>:
   match ps:
     case T.BParam{T.BmTpl{}, +x, +ty} <> t:
-      La{True{}, lw.dterm(K.bk.dc.isdict(T.BParam{T.BmTpl{}, x, ty}))} <> lw.tpls(t)
+      +i = lw.hd.nat(hp)
+      La{True{}, lw.dterm(K.bk.dc.isdict(T.BParam{T.BmTpl{}, x, ty})), i} <> lw.tpls(t, List.drop(&2, Nat, hp, 1n))
     case _ <> t:
-      La{False{}, F.fd.ty0("Nat")} <> lw.tpls(t)
+      +i = lw.hd.nat(hp)
+      La{False{}, F.fd.ty0("Nat"), i} <> lw.tpls(t, List.drop(&2, Nat, hp, 1n))
+    case Nil{}:
+      Nil{}
+
+# Where Fold put the template parameters first (fd.tpl.order), its doc
+# gives each parameter's place before: a value parameter takes the input
+# at its place among the values' in h's order
+def lw.iota(n: Nat, +i: Nat) -> List<&2, Nat>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      i <> lw.iota(p, 1n+i)
+
+def lw.vo(o: List<&2, Nat>, ks: List<&2, Bool>) -> List<&2, Nat>:
+  match o ks:
+    case x <> t False{} <> k:
+      x <> lw.vo(t, k)
+    case x <> t True{} <> k:
+      lw.vo(t, k)
+    case _ _:
+      Nil{}
+
+def lw.rank(+x: Nat, vo: List<&2, Nat>) -> Nat:
+  match vo:
+    case y <> t:
+      Nat.add(Bool.pick(Nat, Nat.is_lt(y, x), 1n, 0n), lw.rank(x, t))
+    case Nil{}:
+      0n
+
+def lw.ranks(o: List<&2, Nat>, +vo: List<&2, Nat>) -> List<&2, Nat>:
+  match o:
+    case x <> t:
+      lw.rank(x, vo) <> lw.ranks(t, vo)
+    case Nil{}:
+      Nil{}
+
+def lw.hp.of(+o: List<&2, Nat>, +ks: List<&2, Bool>) -> List<&2, Nat>:
+  lw.ranks(o, lw.vo(o, ks))
+
+def lw.hp(o: List<&2, Nat>, +ks: List<&2, Bool>) -> List<&2, Nat>:
+  match o:
+    case Nil{}:
+      lw.hp.of(lw.iota(List.length(&2, Bool, ks), 0n), ks)
+    case +x <> t:
+      lw.hp.of(x <> t, ks)
+
+# the doc's places: the numbers after its head
+def lw.after.pre(p: List<&2, U32>, s: List<&2, U32>) -> Maybe<&2, List<&2, U32>>:
+  match p s:
+    case Nil{} _:
+      Some{s}
+    case a <> pt b <> st:
+      Bool.pick(Maybe<&2, List<&2, U32>>, U32.is_eq(a, b), lw.after.pre(pt, st), None{})
+    case _ _:
+      None{}
+
+# a digit more of the number read so far, or none
+def lw.pnats.cur(dg: Bool, cur: Nat, c: U32) -> Nat:
+  match dg:
+    case True{}:
+      Nat.add(Nat.mul(cur, 10n), U32.to_nat(U32.sub(c, 48)))
+    case False{}:
+      0n
+
+def lw.pnats(s: List<&2, U32>, +cur: Nat, +in: Bool) -> List<&2, Nat>:
+  match s:
+    case +c <> t:
+      +dg = Bool.and(U32.is_ge(c, 48), U32.is_le(c, 57))
+      F.fd.bpick.nats(Bool.and(in, Bool.not(dg)), cur, lw.pnats(t, lw.pnats.cur(dg, cur, c), dg))
+    case Nil{}:
+      F.fd.bpick.nats(in, cur, Nil{})
+
+def lw.ord.pre(m: Maybe<&2, List<&2, U32>>) -> List<&2, Nat>:
+  match m:
+    case Some{s}:
+      lw.pnats(s, 0n, False{})
+    case None{}:
+      Nil{}
+
+def lw.ord.or(a: List<&2, Nat>, b: List<&2, Nat>) -> List<&2, Nat>:
+  match a:
+    case Nil{}:
+      b
+    case +x <> t:
+      x <> t
+
+def lw.ord.docs(d: List<&2, List<&2, U32>>) -> List<&2, Nat>:
+  match d:
+    case s <> t:
+      lw.ord.or(lw.ord.pre(lw.after.pre(S.b(F.fd.tpl.doc.head()), s)), lw.ord.docs(t))
+    case Nil{}:
+      Nil{}
+
+def lw.kept.ord(its: List<&2, T.BItem>, +n: List<&2, U32>) -> List<&2, Nat>:
+  match its:
+    case T.BiDef{k, ps, r, b, d} <> t:
+      lw.ord.or(Bool.pick(List<&2, Nat>, S.eq(k, n), lw.ord.docs(d), Nil{}), lw.kept.ord(t, n))
+    case _ <> t:
+      lw.kept.ord(t, n)
     case Nil{}:
       Nil{}
 
@@ -1026,15 +1787,25 @@ def lw.wrap(t: Bool, b: T.Bt) -> T.Bt:
     case False{}:
       b
 
-# the def's arguments: Nat at each type parameter, the inputs in order at
-# the others (a template parameter is passed as one)
-def lw.bargs(ks: List<&2, Bool>, ts: List<&2, La>, vs: Va) -> List<&2, T.Bt>:
-  match ks ts vs:
-    case True{} <> k2 La{t, d} <> t2 _:
+def lw.va.nth(vs: Va, i: Nat) -> Va:
+  match vs i:
+    case VaArgs{v, r} 0n:
+      v
+    case VaArgs{v, r} 1n+p:
+      lw.va.nth(r, p)
+    case _ _:
+      VaANil{}
+
+# the def's arguments: Nat at each type parameter, at the others the input
+# at the parameter's place in h's order (a template parameter is passed as
+# one)
+def lw.bargs(ks: List<&2, Bool>, ts: List<&2, La>, +vs: Va) -> List<&2, T.Bt>:
+  match ks ts:
+    case True{} <> k2 La{t, d, i} <> t2:
       lw.wrap(t, d) <> lw.bargs(k2, t2, vs)
-    case False{} <> k2 La{t, d} <> t2 VaArgs{v, r}:
-      lw.wrap(t, lw.va.bt(v, VmVal{})) <> lw.bargs(k2, t2, r)
-    case _ _ _:
+    case False{} <> k2 La{t, d, i} <> t2:
+      lw.wrap(t, lw.va.bt(lw.va.nth(vs, i), VmVal{})) <> lw.bargs(k2, t2, vs)
+    case _ _:
       Nil{}
 
 def lw.vdrop(n: Nat, vs: Va) -> Va:
@@ -1058,21 +1829,40 @@ def lw.apply(vs: Va, c: T.Bt) -> T.Bt:
 def lw.bcall(+b: List<&2, U32>, +ks: List<&2, Bool>, ts: List<&2, La>, +vs: Va) -> T.Bt:
   lw.apply(lw.vdrop(lw.nvals(ks), vs), T.tba.call(T.BtVar{b}, lw.bargs(ks, ts, vs)))
 
-def lw.lcs(ins: List<&2, Va>, +k: Nat, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>) -> List<&2, Lc>:
+# the input a spine ends with, a parser's, as Bend's list of characters
+def lw.pin.last(vs: Va) -> T.Bt:
+  match vs:
+    case VaArgs{VaPin{s}, VaANil{}}:
+      lw.bt.lit(s)
+    case VaArgs{v, r}:
+      lw.pin.last(r)
+    case _:
+      F.fd.con0("Nil")
+
+# the call's answer as the law states it: a parser's reply as HsPc.answer
+# writes it (A: its answer's type)
+def lw.call.of(w: Maybe<&2, T.Bt>, c: T.Bt, vs: Va) -> T.Bt:
+  match w:
+    case Some{a}:
+      F.fd.callS("HsPrelude.HsPc.answer", [a, c, lw.pin.last(vs)])
+    case None{}:
+      c
+
+def lw.lcs(ins: List<&2, Va>, +k: Nat, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>, +w: Maybe<&2, T.Bt>) -> List<&2, Lc>:
   match ins:
     case VaTup{+s} <> t:
-      Lc{k, lw.cat(f, lw.va.hs(s, VmSp{})), lw.bcall(b, ks, ts, s)} <> lw.lcs(t, 1n+k, b, f, ks, ts)
+      Lc{k, lw.cat(f, lw.va.hs(s, VmSp{})), lw.call.of(w, lw.bcall(b, ks, ts, s), s)} <> lw.lcs(t, 1n+k, b, f, ks, ts, w)
     case _ <> t:
-      lw.lcs(t, k, b, f, ks, ts)
+      lw.lcs(t, k, b, f, ks, ts, w)
     case Nil{}:
       Nil{}
 
-def lw.plan.ins(ins: List<&2, Va>, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>, ret: T.Bt, hy: Hy) -> Pl:
+def lw.plan.ins(ins: List<&2, Va>, +b: List<&2, U32>, +f: List<&2, U32>, +ks: List<&2, Bool>, +ts: List<&2, La>, ret: T.Bt, hy: Hy, +w: Maybe<&2, T.Bt>) -> Pl:
   match ins:
     case Nil{}:
       PlNo{b, S.b("nolaw:no-input")}
     case +h <> t:
-      Pl{b, ret, hy, lw.lcs(h <> t, 1n, b, f, ks, ts)}
+      Pl{b, ret, hy, lw.lcs(h <> t, 1n, b, f, ks, ts, w)}
 
 # why the def has no laws, before any input: empty when it may have them
 def lw.plan.why(+h: Hy, +ks: List<&2, Bool>) -> List<&2, U32>:
@@ -1102,11 +1892,47 @@ def lw.kept.pt(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Bool:
     case Nil{}:
       False{}
 
-def lw.plan.of(why: List<&2, U32>, +b: List<&2, U32>, +h: Hy, +m: List<&2, U32>, +hsn: List<&2, U32>, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>, +pt: Bool) -> Pl:
+# the law's type: the def's answer's, as Fold writes it; an ExceptT run
+# from a state answers Fold's state pair, Sigma<&1, &1, Either<E, A>, _ =>
+# S> (fd.ty.st)
+def lw.ret.of(h: Hy, hf: Hy) -> T.Bt:
+  match h:
+    case HyExs{e, l, s, a}:
+      F.fd.spair(F.fd.either(lw.bty(e), lw.bty(a)), lw.bty(s))
+    case _:
+      lw.bty(hf)
+
+# how many inputs: a parser's are the shapes of lw.pins
+def lw.plan.many(w: Maybe<&2, T.Bt>) -> Nat:
+  match w:
+    case Some{a}:
+      16n
+    case None{}:
+      8n
+
+def lw.plan.go(+f: List<&2, U32>, +pt: Bool, +b: List<&2, U32>, +hf: Hy, +rt: T.Bt, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>, +ord: List<&2, Nat>, +w: Maybe<&2, T.Bt>) -> Pl:
+  lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(hf)}), lw.plan.many(w)), b, f, lw.kinds(ps), lw.tpls(ps, lw.hp(ord, lw.kinds(ps))), lw.pt.ret(pt, rt), lw.pt.hy(pt, lw.res(hf)), w)
+
+# the GHCi call's head (h's type named, an ExceptT's or a parser's run
+# applied to it: a partial one's not yet) and the plan at the type as run
+# (lw.flat)
+def lw.plan.of2(x: Rn, +pt: Bool, +b: List<&2, U32>, +h: Hy, +hf: Hy, +m: List<&2, U32>, +hsn: List<&2, U32>, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>, +ord: List<&2, Nat>) -> Pl:
+  match x pt:
+    case RnNo{} _:
+      lw.plan.go(lw.cat3(lw.pt.open(pt), lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41])), pt, b, hf, lw.ret.of(lw.res(h), lw.res(hf)), le, dds, ps, ord, None{})
+    case RnExs{l} False{}:
+      lw.plan.go(lw.cat3(lw.pt.open(pt), lw.exs.run(l, lw.nargs(lw.args(h))), lw.cat3(lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41]), [41])), pt, b, hf, lw.ret.of(lw.res(h), lw.res(hf)), le, dds, ps, ord, None{})
+    case RnExs{l} True{}:
+      PlNo{b, S.b("nolaw:partial-ExceptT")}
+    case RnPc{a} False{}:
+      lw.plan.go(lw.cat3(lw.pt.open(pt), lw.pc.run(lw.nargs(lw.args(h))), lw.cat3(lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41]), [41])), pt, b, hf, lw.ret.of(lw.res(h), lw.res(hf)), le, dds, ps, ord, Some{lw.bty(a)})
+    case RnPc{a} True{}:
+      PlNo{b, S.b("nolaw:partial-Parsec")}
+
+def lw.plan.of(why: List<&2, U32>, +b: List<&2, U32>, +h: Hy, +m: List<&2, U32>, +hsn: List<&2, U32>, +le: Le, +dds: List<&2, Dd>, +ps: List<&2, T.BParam>, +pt: Bool, +ord: List<&2, Nat>) -> Pl:
   match why:
     case Nil{}:
-      +f = lw.cat3(lw.pt.open(pt), lw.hsname(m, hsn), lw.cat3(S.b(" :: "), lw.hs.ty(h, m), [41]))
-      lw.plan.ins(List.take(&2, Va, lw.vals(40n, 2n, le, dds, QFields{lw.args(h)}), 8n), b, f, lw.kinds(ps), lw.tpls(ps), lw.pt.ret(pt, lw.bty(lw.res(h))), lw.pt.hy(pt, lw.res(h)))
+      lw.plan.of2(lw.run.of(lw.res(h)), pt, b, h, lw.flat(h), m, hsn, le, dds, ps, ord)
     case w:
       PlNo{b, w}
 
@@ -1121,18 +1947,18 @@ def lw.kept(its: List<&2, T.BItem>, +n: List<&2, U32>) -> Maybe<&2, List<&2, T.B
       None{}
 
 # (fun VAR TYPE SPAN MATCHES): the def's plan, if the gate kept it
-def lw.plan.tb(found: Maybe<&2, List<&2, T.BParam>>, +n: List<&2, U32>, +f: X.Sx, +le: Le, +dds: List<&2, Dd>, +m: List<&2, U32>, pt: Bool) -> List<&2, Pl>:
+def lw.plan.tb(found: Maybe<&2, List<&2, T.BParam>>, +n: List<&2, U32>, +f: X.Sx, +le: Le, +dds: List<&2, Dd>, +m: List<&2, U32>, pt: Bool, +ord: List<&2, Nat>) -> List<&2, Pl>:
   match found:
     case Some{+ps}:
       +h = lw.ty(le, V.sv.at(f, 2n))
-      [lw.plan.of(lw.plan.why(h, lw.kinds(ps)), F.fd.vname(n), h, m, n, le, dds, ps, pt)]
+      [lw.plan.of(lw.plan.why(lw.flat(h), lw.kinds(ps)), F.fd.vname(n), h, m, n, le, dds, ps, pt, ord)]
     case None{}:
       Nil{}
 
 def lw.plans(tbs: List<&2, F.Tb>, +its: List<&2, T.BItem>, +le: Le, +dds: List<&2, Dd>, +m: List<&2, U32>) -> List<&2, Pl>:
   match tbs:
     case F.TbFun{+n, tvs, +f} <> t:
-      List.append(&2, Pl, lw.plan.tb(lw.kept(its, F.fd.vname(n)), n, f, le, dds, m, lw.kept.pt(its, F.fd.vname(n))), lw.plans(t, its, le, dds, m))
+      List.append(&2, Pl, lw.plan.tb(lw.kept(its, F.fd.vname(n)), n, f, le, dds, m, lw.kept.pt(its, F.fd.vname(n)), lw.kept.ord(its, F.fd.vname(n))), lw.plans(t, its, le, dds, m))
     case _ <> t:
       lw.plans(t, its, le, dds, m)
     case Nil{}:
@@ -1152,9 +1978,33 @@ def lw.any.pl(ps: List<&2, Pl>) -> Bool:
 # Everything the script names is qualified (LawP is the Prelude), so a
 # module that defines its own Maybe, or hides the Prelude's, changes
 # nothing here.  Each answer is printed with lawSx; lawRun gives each call
-# 2 s and turns an exception (error, a failed pattern) into `err`.
+# 2 s and 500 MB of allocation (a loop that keeps all it makes would fill
+# GHC's 2 GB heap before the clock stops it) and turns an exception (error,
+# a failed pattern) into `err`.
+# Data.Map's, Data.Set's, Fix's and Cofree's values: an input is written
+# with lawMap, lawSet, lawFix and lawCof, its type with a wildcard (_ k v),
+# so the one script runs against h (containers', data-fix's, free's types)
+# and against G(F(h)) (BendRt's B'HsPrelude'HsMap ..); an answer prints as
+# Bend's HsPrelude.HsMap.Bin .. on either. A block whose names are not in
+# scope (BendRt's for h, data-fix's for a module without it) fails alone.
+def lw.ghci.pre.k() -> String:
+  ":{\ninstance (LawSx k, LawSx v) => LawSx (LawM.Map k v) where\n  lawSx m = LawP.foldr (\\(k, v) r -> lawC \"HsPrelude.HsMap.Bin\" [lawSx k, lawSx v, r]) (lawC \"HsPrelude.HsMap.Tip\" []) (LawM.toAscList m)\n:}\n:{\ninstance LawSx k => LawSx (LawS.Set k) where\n  lawSx s = LawP.foldr (\\k r -> lawC \"HsPrelude.HsSet.Bin\" [lawSx k, r]) (lawC \"HsPrelude.HsSet.Tip\" []) (LawS.toAscList s)\n:}\n:{\ninstance LawSx (f (Data.Fix.Fix f)) => LawSx (Data.Fix.Fix f) where\n  lawSx (Data.Fix.Fix x) = lawC \"HsPrelude.Fix.Fix\" [lawSx x]\n:}\n:{\ninstance (LawSx a, LawSx (f (Control.Comonad.Cofree.Cofree f a))) => LawSx (Control.Comonad.Cofree.Cofree f a) where\n  lawSx (a Control.Comonad.Cofree.:< x) = lawC \"HsPrelude.Cofree.Cofree\" [lawSx a, lawSx x]\n:}\n"
+
+def lw.ghci.pre.g() -> String:
+  ":{\ninstance (LawSx k, LawSx v) => LawSx (B'HsPrelude'HsMap k v) where\n  lawSx m = case m of { B'HsPrelude'HsMap'Tip -> lawC \"HsPrelude.HsMap.Tip\" []; B'HsPrelude'HsMap'Bin k v r -> lawC \"HsPrelude.HsMap.Bin\" [lawSx k, lawSx v, lawSx r] }\n:}\n:{\ninstance LawSx k => LawSx (B'HsPrelude'HsSet k) where\n  lawSx s = case s of { B'HsPrelude'HsSet'Tip -> lawC \"HsPrelude.HsSet.Tip\" []; B'HsPrelude'HsSet'Bin k r -> lawC \"HsPrelude.HsSet.Bin\" [lawSx k, lawSx r] }\n:}\n:{\ninstance LawSx (f (B'HsPrelude'Fix f)) => LawSx (B'HsPrelude'Fix f) where\n  lawSx (B'HsPrelude'Fix'Fix x) = lawC \"HsPrelude.Fix.Fix\" [lawSx x]\n:}\n:{\ninstance (LawSx a, LawSx (f (B'HsPrelude'Cofree f a))) => LawSx (B'HsPrelude'Cofree f a) where\n  lawSx (B'HsPrelude'Cofree'Cofree a x) = lawC \"HsPrelude.Cofree.Cofree\" [lawSx a, lawSx x]\n:}\n"
+
+def lw.ghci.pre.c() -> String:
+  ":{\nclass LawMapC t k v | t -> k v where\n  lawMap :: [(k, v)] -> t\n:}\n:{\nclass LawSetC s k | s -> k where\n  lawSet :: [k] -> s\n:}\n:{\nclass LawFixC t where\n  lawFix :: f (t f) -> t f\n:}\n:{\nclass LawCofC t where\n  lawCof :: a -> f (t f a) -> t f a\n:}\n:{\ninstance LawMapC (LawM.Map k v) k v where\n  lawMap = LawM.fromDistinctAscList\n:}\n:{\ninstance LawMapC (Data.IntMap.IntMap v) LawP.Int v where\n  lawMap = Data.IntMap.fromDistinctAscList\n:}\n:{\ninstance LawSetC (LawS.Set k) k where\n  lawSet = LawS.fromDistinctAscList\n:}\n:{\ninstance LawSetC Data.IntSet.IntSet LawP.Int where\n  lawSet = Data.IntSet.fromDistinctAscList\n:}\n:{\ninstance LawFixC Data.Fix.Fix where\n  lawFix = Data.Fix.Fix\n:}\n:{\ninstance LawCofC Control.Comonad.Cofree.Cofree where\n  lawCof = (Control.Comonad.Cofree.:<)\n:}\n:{\ninstance LawMapC (B'HsPrelude'HsMap k v) k v where\n  lawMap = LawP.foldr (\\(k, v) r -> B'HsPrelude'HsMap'Bin k v r) B'HsPrelude'HsMap'Tip\n:}\n:{\ninstance LawSetC (B'HsPrelude'HsSet k) k where\n  lawSet = LawP.foldr B'HsPrelude'HsSet'Bin B'HsPrelude'HsSet'Tip\n:}\n:{\ninstance LawFixC B'HsPrelude'Fix where\n  lawFix = B'HsPrelude'Fix'Fix\n:}\n:{\ninstance LawCofC B'HsPrelude'Cofree where\n  lawCof = B'HsPrelude'Cofree'Cofree\n:}\n"
+
+# a byte, a digest (crypton's, its hex shown) and a rational
+def lw.ghci.pre.d() -> String:
+  ":{\ninstance LawSx v => LawSx (Data.IntMap.IntMap v) where\n  lawSx m = LawP.foldr (\\(k, v) r -> lawC \"HsPrelude.HsMap.Bin\" [lawSx k, lawSx v, r]) (lawC \"HsPrelude.HsMap.Tip\" []) (Data.IntMap.toAscList m)\n:}\n:{\ninstance LawSx Data.IntSet.IntSet where\n  lawSx s = LawP.foldr (\\k r -> lawC \"HsPrelude.HsSet.Bin\" [lawSx k, r]) (lawC \"HsPrelude.HsSet.Tip\" []) (Data.IntSet.toAscList s)\n:}\n:{\ninstance LawSx LawW.Word8 where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx a => LawSx (LawR.Ratio a) where\n  lawSx r = lawC \"HsPrelude.HsRational\" [lawSx (LawR.numerator r), lawSx (LawR.denominator r)]\n:}\n:{\nlawRat :: LawP.Integer -> LawP.Integer -> LawP.Rational\nlawRat n d = n LawR.% d\n:}\n:{\nlawHex :: LawP.String -> [LawP.Int]\nlawHex s = case s of { a : b : r -> (16 LawP.* Data.Char.digitToInt a LawP.+ Data.Char.digitToInt b) : lawHex r; _ -> [] }\n:}\n:{\ninstance LawSx (Crypto.Hash.Digest a) where\n  lawSx d = lawC \"HsPrelude.HsDigest.D\" [lawSx (lawHex (LawP.show d))]\n:}\n:{\nclass LawDigC d where\n  lawDig :: [LawW.Word8] -> d\n:}\n:{\ninstance Crypto.Hash.HashAlgorithm a => LawDigC (Crypto.Hash.Digest a) where\n  lawDig bs = case Crypto.Hash.digestFromByteString (Data.ByteString.pack bs) of { LawP.Just d -> d; LawP.Nothing -> LawP.error \"lawDig\" }\n:}\n:{\ninstance LawSx B'HsPrelude'HsDigest where\n  lawSx (B'HsPrelude'HsDigest'D bs) = lawC \"HsPrelude.HsDigest.D\" [lawSx bs]\n:}\n:{\ninstance LawDigC B'HsPrelude'HsDigest where\n  lawDig bs = B'HsPrelude'HsDigest'D (LawP.map LawP.fromIntegral bs)\n:}\n"
+
+def lw.ghci.pre0() -> String:
+  ":set -XScopedTypeVariables -XFlexibleInstances -XFlexibleContexts -XUndecidableInstances -XPartialTypeSignatures -XFunctionalDependencies -Wno-partial-type-signatures\nimport qualified Prelude as LawP\nimport qualified System.Timeout as LawT\nimport qualified Control.Exception as LawE\nimport qualified System.IO as LawIO\nimport qualified System.Mem as LawSM\nimport qualified Data.Word as LawW\nimport qualified Data.Ratio as LawR\nimport qualified Numeric.Natural as LawN\nimport qualified System.IO.Unsafe as LawU\nimport qualified Data.Map as LawM\nimport qualified Data.Set as LawS\n:{\nclass LawSx a where\n  lawSx :: a -> LawP.String\n:}\n:{\nlawI :: LawP.Integer -> LawP.String\nlawI n = if n LawP.< 0 then \"(neg \" LawP.++ LawP.show (LawP.negate n) LawP.++ \")\" else \"(nat \" LawP.++ LawP.show n LawP.++ \")\"\n:}\n:{\nlawC :: LawP.String -> [LawP.String] -> LawP.String\nlawC c xs = \"(con \\\"\" LawP.++ c LawP.++ \"\\\"\" LawP.++ LawP.concatMap (\\x -> ' ' : x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx LawP.Int where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Integer where\n  lawSx n = lawI n\n:}\n:{\ninstance LawSx LawN.Natural where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Bool where\n  lawSx b = if b then lawC \"True\" [] else lawC \"False\" []\n:}\n:{\ninstance LawSx LawP.Char where\n  lawSx c = \"(char \" LawP.++ LawP.show (LawP.fromEnum c) LawP.++ \")\"\n:}\n:{\ninstance LawSx () where\n  lawSx _ = lawC \"Unit\" []\n:}\n:{\ninstance LawSx LawP.Ordering where\n  lawSx o = case o of { LawP.LT -> lawC \"LT\" []; LawP.EQ -> lawC \"EQ\" []; LawP.GT -> lawC \"GT\" [] }\n:}\n:{\ninstance LawSx a => LawSx [a] where\n  lawSx xs = \"(list\" LawP.++ LawP.concatMap (\\x -> ' ' : lawSx x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx a => LawSx (LawP.Maybe a) where\n  lawSx m = case m of { LawP.Nothing -> lawC \"None\" []; LawP.Just x -> lawC \"Some\" [lawSx x] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (LawP.Either a b) where\n  lawSx e = case e of { LawP.Left x -> lawC \"Inl\" [lawSx x]; LawP.Right y -> lawC \"Inr\" [lawSx y] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (a, b) where\n  lawSx (a, b) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \")\"\n:}\n:{\ninstance (LawSx a, LawSx b, LawSx c) => LawSx (a, b, c) where\n  lawSx (a, b, c) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \" \" LawP.++ lawSx c LawP.++ \")\"\n:}\n:{\nlawRun :: LawSx b => LawP.String -> LawP.Int -> b -> LawP.IO ()\nlawRun n k v = do\n  LawSM.setAllocationCounter 500000000\n  r <- LawE.try (LawT.timeout 2000000 (LawE.bracket_ LawSM.enableAllocationLimit LawSM.disableAllocationLimit (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s)))\n  case r of\n    LawP.Left (e :: LawE.SomeException) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ (case LawE.fromException e of { LawP.Just LawE.AllocationLimitExceeded -> \" timeout\"; LawP.Nothing -> \" err\" }))\n    LawP.Right LawP.Nothing -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" timeout\")\n    LawP.Right (LawP.Just s) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" ok \" LawP.++ s)\n  LawIO.hFlush LawIO.stdout\n:}\n:{\nnewtype LawEw a = LawEw a\n:}\n:{\ninstance LawSx a => LawSx (LawEw a) where\n  lawSx (LawEw v) = LawU.unsafePerformIO (LawE.try (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s) LawP.>>= \\r -> case r of { LawP.Left (e :: LawE.SomeException) -> case LawE.fromException e of { LawP.Just (LawE.ErrorCall m) -> LawP.return (lawC \"Inl\" [lawSx m]); LawP.Nothing -> case LawE.fromException e of { LawP.Just (a :: LawE.ArithException) -> LawP.return (lawC \"Inl\" [lawSx (LawP.show a)]); LawP.Nothing -> case LawE.fromException e of { LawP.Just (LawE.PatternMatchFail p) -> LawP.return (lawC \"Inl\" [lawSx (let { lawPm t = if LawP.take 14 t LawP.== \"Non-exhaustive\" then LawP.filter (LawP./= (LawP.toEnum 10)) t else case t of { [] -> []; _ : u -> lawPm u } } in lawPm p)]); LawP.Nothing -> LawE.throwIO e } } }; LawP.Right s -> LawP.return (lawC \"Inr\" [s]) })\n:}\n"
+
 def lw.ghci.pre() -> String:
-  ":set -XScopedTypeVariables -XFlexibleInstances -XFlexibleContexts\nimport qualified Prelude as LawP\nimport qualified System.Timeout as LawT\nimport qualified Control.Exception as LawE\nimport qualified System.IO as LawIO\nimport qualified Numeric.Natural as LawN\nimport qualified System.IO.Unsafe as LawU\n:{\nclass LawSx a where\n  lawSx :: a -> LawP.String\n:}\n:{\nlawI :: LawP.Integer -> LawP.String\nlawI n = if n LawP.< 0 then \"(neg \" LawP.++ LawP.show (LawP.negate n) LawP.++ \")\" else \"(nat \" LawP.++ LawP.show n LawP.++ \")\"\n:}\n:{\nlawC :: LawP.String -> [LawP.String] -> LawP.String\nlawC c xs = \"(con \\\"\" LawP.++ c LawP.++ \"\\\"\" LawP.++ LawP.concatMap (\\x -> ' ' : x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx LawP.Int where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Integer where\n  lawSx n = lawI n\n:}\n:{\ninstance LawSx LawN.Natural where\n  lawSx n = lawI (LawP.toInteger n)\n:}\n:{\ninstance LawSx LawP.Bool where\n  lawSx b = if b then lawC \"True\" [] else lawC \"False\" []\n:}\n:{\ninstance LawSx LawP.Char where\n  lawSx c = \"(char \" LawP.++ LawP.show (LawP.fromEnum c) LawP.++ \")\"\n:}\n:{\ninstance LawSx () where\n  lawSx _ = lawC \"Unit\" []\n:}\n:{\ninstance LawSx LawP.Ordering where\n  lawSx o = case o of { LawP.LT -> lawC \"LT\" []; LawP.EQ -> lawC \"EQ\" []; LawP.GT -> lawC \"GT\" [] }\n:}\n:{\ninstance LawSx a => LawSx [a] where\n  lawSx xs = \"(list\" LawP.++ LawP.concatMap (\\x -> ' ' : lawSx x) xs LawP.++ \")\"\n:}\n:{\ninstance LawSx a => LawSx (LawP.Maybe a) where\n  lawSx m = case m of { LawP.Nothing -> lawC \"None\" []; LawP.Just x -> lawC \"Some\" [lawSx x] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (LawP.Either a b) where\n  lawSx e = case e of { LawP.Left x -> lawC \"Inl\" [lawSx x]; LawP.Right y -> lawC \"Inr\" [lawSx y] }\n:}\n:{\ninstance (LawSx a, LawSx b) => LawSx (a, b) where\n  lawSx (a, b) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \")\"\n:}\n:{\ninstance (LawSx a, LawSx b, LawSx c) => LawSx (a, b, c) where\n  lawSx (a, b, c) = \"(tuple \" LawP.++ lawSx a LawP.++ \" \" LawP.++ lawSx b LawP.++ \" \" LawP.++ lawSx c LawP.++ \")\"\n:}\n:{\nlawRun :: LawSx b => LawP.String -> LawP.Int -> b -> LawP.IO ()\nlawRun n k v = do\n  r <- LawE.try (LawT.timeout 2000000 (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s))\n  case r of\n    LawP.Left (e :: LawE.SomeException) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" err\")\n    LawP.Right LawP.Nothing -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" timeout\")\n    LawP.Right (LawP.Just s) -> LawP.putStrLn (\"@law \" LawP.++ n LawP.++ \" \" LawP.++ LawP.show k LawP.++ \" ok \" LawP.++ s)\n  LawIO.hFlush LawIO.stdout\n:}\n:{\nnewtype LawEw a = LawEw a\n:}\n:{\ninstance LawSx a => LawSx (LawEw a) where\n  lawSx (LawEw v) = LawU.unsafePerformIO (LawE.try (let s = lawSx v in LawE.evaluate (LawP.length s) LawP.>> LawP.return s) LawP.>>= \\r -> case r of { LawP.Left (e :: LawE.SomeException) -> case LawE.fromException e of { LawP.Just (LawE.ErrorCall m) -> LawP.return (lawC \"Inl\" [lawSx m]); LawP.Nothing -> case LawE.fromException e of { LawP.Just (a :: LawE.ArithException) -> LawP.return (lawC \"Inl\" [lawSx (LawP.show a)]); LawP.Nothing -> case LawE.fromException e of { LawP.Just (LawE.PatternMatchFail p) -> LawP.return (lawC \"Inl\" [lawSx (let { lawPm t = if LawP.take 14 t LawP.== \"Non-exhaustive\" then LawP.filter (LawP./= (LawP.toEnum 10)) t else case t of { [] -> []; _ : u -> lawPm u } } in lawPm p)]); LawP.Nothing -> LawE.throwIO e } } }; LawP.Right s -> LawP.return (lawC \"Inr\" [s]) })\n:}\n"
+  lw.ghci.pre0() ++ lw.ghci.pre.k() ++ lw.ghci.pre.g() ++ lw.ghci.pre.c() ++ lw.ghci.pre.d()
 
 # x0 x1 ..: a constructor's fields in a pattern
 def lw.vars(n: Nat, +i: Nat) -> List<&2, List<&2, U32>>:
@@ -1179,15 +2029,15 @@ def lw.ctxs(xs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
       Nil{}
 
 # one case of lawSx: M.C x0 x1 -> lawC "T.C" [lawSx x0, lawSx x1]
-def lw.alt(+m: List<&2, U32>, +ty: List<&2, U32>, +c: X.Sx) -> List<&2, U32>:
+def lw.alt(+w: Dw, +c: X.Sx) -> List<&2, U32>:
   +n = V.sv.str(c, 1n)
   +vs = lw.vars(X.tsx.len(V.sv.at(c, 3n)), 0n)
-  lw.cat3(S.b("    "), lw.hsname(m, n), lw.cat3(S.join(S.b("") <> vs, 32), S.b(" -> lawC \""), lw.cat3(F.fd.cname(ty, n), S.b("\" ["), lw.cat(S.join(lw.sxs(vs), 44), S.b("]\n")))))
+  lw.cat3(S.b("    "), lw.hsname(lw.dw.hm(w), n), lw.cat3(S.join(S.b("") <> vs, 32), S.b(" -> lawC \""), lw.cat3(lw.cat(lw.dw.pre(w), F.fd.cname(lw.dw.ty(w), n)), S.b("\" ["), lw.cat(S.join(lw.sxs(vs), 44), S.b("]\n")))))
 
-def lw.alts(+m: List<&2, U32>, +ty: List<&2, U32>, cs: X.Sx) -> List<&2, U32>:
+def lw.alts(+w: Dw, cs: X.Sx) -> List<&2, U32>:
   match cs:
     case X.SxCons{+c, t}:
-      lw.cat(lw.alt(m, ty, c), lw.alts(m, ty, t))
+      lw.cat(lw.alt(w, c), lw.alts(w, t))
     case _:
       Nil{}
 
@@ -1201,8 +2051,9 @@ def lw.ctx(tvs: List<&2, List<&2, U32>>) -> List<&2, U32>:
 # lawSx for one of the module's data types
 def lw.inst(+m: List<&2, U32>, d: Dd) -> List<&2, U32>:
   match d:
-    case Dd{+n, +tvs, cs}:
-      lw.cat3(S.b("instance "), lw.ctx(tvs), lw.cat3(S.b("LawSx ("), lw.cat3(m, 46 <> n, S.join(S.b("") <> tvs, 32)), lw.cat(S.b(") where\n  lawSx v = case v of\n"), lw.alts(m, n, cs))))
+    case Dd{n, +tvs, cs}:
+      +w = lw.dw(m, n)
+      lw.cat3(S.b("instance "), lw.ctx(tvs), lw.cat3(S.b("LawSx ("), lw.cat3(lw.dw.hm(w), 46 <> lw.dw.ty(w), S.join(S.b("") <> tvs, 32)), lw.cat(S.b(") where\n  lawSx v = case v of\n"), lw.alts(w, cs))))
 
 # the instances in one block (types that use each other, in any order),
 # then each in its own block twice (so one GHCi refuses, a type with a
@@ -1247,6 +2098,18 @@ def lw.lines(ps: List<&2, Pl>) -> List<&2, U32>:
 # for it, hs1003's 00632)
 def lw.script(+m: List<&2, U32>, ds: List<&2, Dd>, ps: List<&2, Pl>) -> List<&2, U32>:
   lw.cat3(S.b(lw.ghci.pre()), lw.insts(m, ds), lw.cat(lw.lines(ps), S.b(":!kill -9 $PPID\n")))
+
+# the package's types' instances first (a module's types' fields name
+# them), then the module's own, as before
+def lw.insts.pk(+m: List<&2, U32>, ds: List<&2, Dd>) -> List<&2, U32>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case d <> t:
+      lw.insts(m, d <> t)
+
+def lw.script.pk(+m: List<&2, U32>, pu: List<&2, Dd>, ds: List<&2, Dd>, ps: List<&2, Pl>) -> List<&2, U32>:
+  lw.cat3(S.b(lw.ghci.pre()), lw.cat(lw.insts.pk(m, pu), lw.insts(m, ds)), lw.cat(lw.lines(ps), S.b(":!kill -9 $PPID\n")))
 
 # The laws ---------------------------------------------------------------------------
 
@@ -2309,13 +3172,14 @@ def lw.laws2(+rounds: Nat, +ck: Kc, +bend: String, +out: String, +file: List<&2,
     lw.after(lw.lost(Bool.not(List.is_empty(&2, T.BItem, good)), g0, g2), good, ck, bend, out, file, m, ims, pkg, path, try, g0, g2, ps, dt, nm)
 
 # GHC's answers for the fold's defs (g0, before any check), then the gate
-def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +xs: List<&2, X.Sx>, +tbs: List<&2, F.Tb>, +path: String, +try: String, +g0: F.Gs, +dt: List<&2, T.BItem>) -> IO(Lk):
-  +le = {Le{m, lw.syns(xs), Nil{}} : Le}
-  +dds = lw.dds(xs)
+def lw.laws(+rounds: Nat, +ck: Kc, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +pkg: Bool, +xs: List<&2, X.Sx>, +tbs: List<&2, F.Tb>, +path: String, +try: String, +g0: F.Gs, +dt: List<&2, T.BItem>, +pd: List<&2, Dd>) -> IO(Lk):
+  +pu = lw.pd.use(3n, pd, lw.mods.xs(xs, Nil{}))
+  +le = {Le{m, lw.syns(xs), Nil{}, lw.dd.keys(pu)} : Le}
+  +dds = List.append(&2, Dd, lw.dds(xs), pu)
   +ps = lw.plans(tbs, lw.gs.its(g0), le, dds, m)
   do IO<Lk>:
-    txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script(m, dds, ps))
-    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt")), le, dds), dt, lw.back.nm(lw.kc.back(ck), m, ims, tbs, dds, lw.gs.its(g0), xs))
+    txt : List<&2, U32> <- lw.ghc.run(lw.any.pl(ps), ck, ghc, S.str(lw.src(xs)), out ++ "/" ++ S.str(base) ++ ".ghci", out ++ "/" ++ S.str(base) ++ ".ghc", lw.script.pk(m, pu, lw.dds(xs), ps))
+    lw.laws2(rounds, ck, bend, out, file, m, ims, pkg, path, try, g0, ps, lw.items(ps, lw.ols(S.split(txt, 10)), lw.has.str(xs, S.b("HsInt")), le, dds), dt, lw.back.nm(lw.kc.back(ck), m, ims, tbs, lw.dds(xs), lw.gs.its(g0), xs))
 
 # the items before the gate, and the ones it drops before its first check
 # (dep: what they use that is out), as OUT/NAME_all.bend and
@@ -2367,23 +3231,29 @@ def lw.kc.module(+ck: Kc, +pkg: Bool, +out: String, +src: List<&2, U32>) -> IO(K
 
 # a module's answer: its package after it, and the cache's state
 type Lm is Data:
-  Lm{px: F.Px, ck: Kc, dm: Map<&2, List<&2, Bool>>}
+  Lm{px: F.Px, ck: Kc, dm: Map<&2, List<&2, Bool>>, pd: List<&2, Dd>}
 
 def lw.lm.px(+r: Lm) -> F.Px:
   match r:
-    case Lm{px, ck, dm}:
+    case Lm{px, ck, dm, pd}:
       px
 
 def lw.lm.ck(+r: Lm) -> Kc:
   match r:
-    case Lm{px, ck, dm}:
+    case Lm{px, ck, dm, pd}:
       ck
 
 # the bindings read at Integer so far (Survey's sv.dfl)
 def lw.lm.dm(+r: Lm) -> Map<&2, List<&2, Bool>>:
   match r:
-    case Lm{px, ck, dm}:
+    case Lm{px, ck, dm, pd}:
       dm
+
+# the data types of the package's modules so far, each by its key M.T
+def lw.lm.pd(+r: Lm) -> List<&2, Dd>:
+  match r:
+    case Lm{px, ck, dm, pd}:
+      pd
 
 # the module BendRt (prelude/Back/BendRt.hs, in F(G(b))'s package: tests/
 # back/round.zsh): its kept items and its wrappers' rewrites as laws
@@ -2398,7 +3268,7 @@ def lw.rt.write(isrt: Bool, +out: String, +file: List<&2, U32>, +m: List<&2, U32
 # a module: fold it as Fold.bend does, ask GHC for its defs' laws, and gate
 # the defs and laws together (px: what its package's modules before it
 # gave, F.fd.px0() for a module alone); the package after it
-def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>) -> IO(Lm):
+def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: List<&2, U32>, +base: List<&2, U32>, bytes: List<&2, U32>, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>, +pd: List<&2, Dd>) -> IO(Lm):
   +d = V.sv.dfl.module(V.sv.read(bytes), dm)
   +xs = V.sv.dfl.dm.xs(d)
   +m = V.sv.modname(xs)
@@ -2418,19 +3288,19 @@ def lw.module(+rounds: Nat, +bend: String, +ghc: String, +out: String, +file: Li
     S.write(out ++ "/" ++ S.str(base) ++ "_all.bend", F.fd.render(file, m, ims, its))
     +g0 : F.Gs <- IO.pure(F.Gs, F.fd.predrop(its, F.fd.got.outs(gs)))
     S.write(out ++ "/" ++ S.str(base) ++ "_drops.tsv", lw.drs.text(lw.gs.drs(g0)))
-    +kept : Lk <- lw.laws(rounds, ck1, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, g0, F.fd.px.dt(px))
+    +kept : Lk <- lw.laws(rounds, ck1, bend, ghc, out, file, base, m, ims, pkg, xs, tbs, path, try, g0, F.fd.px.dt(px), pd)
     lw.rt.write(F.fd.is(m, "BendRt"), out, file, m, ims, lw.lk.its(kept))
-    return Lm{F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, lw.lk.its(kept)), lw.kc.with.mk(ck1, lw.lk.mk(kept)), V.sv.dfl.next(pkg, V.sv.dfl.dm.m(d))}
+    return Lm{F.fd.px.next(pkg, px, m, base, xs, gs, F.fd.tfs(g2), cs, ds, lw.lk.its(kept)), lw.kc.with.mk(ck1, lw.lk.mk(kept)), V.sv.dfl.next(pkg, V.sv.dfl.dm.m(d)), lw.pd.next(pkg, m, xs, pd)}
 
-def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>) -> IO(Unit):
+def lw.run(xs: List<String>, +rounds: Nat, +bend: String, +ghc: String, +out: String, +pkg: Bool, +px: F.Px, +ck: Kc, dm: Map<&2, List<&2, Bool>>, pd: List<&2, Dd>) -> IO(Unit):
   match xs:
     case Nil{}:
       IO.pure(Unit, Unit{})
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +r : Lm <- lw.module(rounds, bend, ghc, out, S.b(f), F.fd.base(S.b(f)), bytes, pkg, px, ck, dm)
-        lw.run(t, rounds, bend, ghc, out, pkg, lw.lm.px(r), lw.lm.ck(r), lw.lm.dm(r))
+        +r : Lm <- lw.module(rounds, bend, ghc, out, S.b(f), F.fd.base(S.b(f)), bytes, pkg, px, ck, dm, pd)
+        lw.run(t, rounds, bend, ghc, out, pkg, lw.lm.px(r), lw.lm.ck(r), lw.lm.dm(r), lw.lm.pd(r))
 
 # the cache's settings (CATA_CACHE: its directory, made if missing), with
 # bend's and GHC's identities: each resolved (PATH, then links)
@@ -2463,7 +3333,7 @@ def lw.kc.start(+dir: String, +bend: String, +ghc: String) -> IO(Kc):
 def lw.main.go(pkg: Bool, args: List<String>, +rounds: Nat, +bend: String, +ghc: String, +ck: Kc) -> IO(Unit):
   match args:
     case out <> files:
-      lw.run(files, rounds, bend, ghc, out, pkg, F.fd.px0(), ck, V.sv.dfl0())
+      lw.run(files, rounds, bend, ghc, out, pkg, F.fd.px0(), ck, V.sv.dfl0(), Nil{})
     case Nil{}:
       IO.print("usage: law [--package] OUT FILE.sexp...  (BEND: the bend to check with, GHC: the ghc and any flags for it, CATA_CACHE: a directory to keep their answers in)")
 

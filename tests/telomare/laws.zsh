@@ -6,6 +6,7 @@
 set -u
 zmodload zsh/parameter
 work=${1:A}
+lawg=${0:A:h:h}/back/lawg.sed
 rt=${RT:-${0:A:h:h:h}/prelude/Back} pfx=${PFX:-tsp60}
 ghc=${GHCI:-$(readlink -f ~/src/cata/run/gcroot-ghc-telomare)/bin/ghc}
 ${0:A:h}/tree.zsh $work/hs $work/tree
@@ -16,7 +17,7 @@ for g in $work/*.ghci(N); do
 done
 for n in $names; do
   while (( ${#jobstates} >= 6 )); do sleep 0.2; done
-  nice -n 10 $ghc --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/tree "*$work/hs/$n.hs" +RTS -M2g -RTS < $work/$n.ghci > $work/hs/$n.ghc 2>&1 &
+  nice -n 10 $ghc --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/tree "*$work/hs/$n.hs" +RTS -M2g -RTS < <(sed -f $lawg $work/$n.ghci) > $work/hs/$n.ghc 2>&1 &
 done
 wait
 T=0 S=0 R=0 D=0 M=0 X=0 L=0 N=0 O=0

@@ -24,6 +24,7 @@ zmodload zsh/parameter
 law=${1:A} work=${2:A}
 shift 2
 here=${0:A:h}
+lawg=${0:A:h}/lawg.sed
 rt=${here:h:h}/prelude/Back
 ghc=${GHC:-ghc}
 hsx=${HSX:-hs-export}
@@ -52,7 +53,7 @@ for g in $work/l/*.ghci(N); do
 done
 for n in $names; do
   while (( ${#jobstates} >= jobs )); do sleep 0.2; done
-  nice -n 10 ${=ghc} --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/l/hs "*$work/l/hs/$n.hs" +RTS -M2g -RTS < $work/l/$n.ghci > $work/l/hs/$n.ghc 2>&1 &
+  nice -n 10 ${=ghc} --interactive -v0 -w -ignore-dot-ghci -i$rt -i$work/l/hs "*$work/l/hs/$n.hs" +RTS -M2g -RTS < <(sed -f $lawg $work/l/$n.ghci) > $work/l/hs/$n.ghc 2>&1 &
 done
 wait
 T=0 S=0 R=0 D=0 M=0 X=0 L=0 N=0

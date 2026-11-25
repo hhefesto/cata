@@ -943,3 +943,13 @@ def HsPc.errorBundlePretty(b: HsPcBundle) -> List<&2, Char>:
     case HsPcBundle{+e, inp, +name}:
       HsPc.pp.at(name, HsPc.pp.walk(HsPc.err.off(e), inp, 1n, 1n, Nil{}), e)
 
+
+# a parser's reply as the laws state it: the error's text
+# (errorBundlePretty), or the answer and the offset after it (inp: the input
+# it ran on, from st0)
+def HsPc.answer(-A: Data, r: HsPcRep<A>, +inp: List<&2, Char>) -> Either<&2, &2, List<&2, Char>, Sigma<&2, &2, A, _ => HsInt>>:
+  match r:
+    case HsPcRep{c, HsPcRes.Ok{x, s, hs}}:
+      Inr{Tuple{x, HsInt.Pos{HsPc.st.off(s)}}}
+    case HsPcRep{c, HsPcRes.Bad{e, s}}:
+      Inl{HsPc.errorBundlePretty(HsPcBundle{e, inp, Nil{}})}

@@ -8,7 +8,7 @@
 -- cata writes Int as Nat only where nothing goes below zero; Nat.sub is
 -- Base's, which stops at 0).  A name G needs and this lacks is GHC's
 -- "not in scope", which tests/back/run.zsh reports by module.
-{-# LANGUAGE NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE CPP, NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
 module BendRt
   ( module BendRt
   , module BendPc
@@ -26,6 +26,32 @@ import Data.Maybe (mapMaybe, catMaybes, isJust, isNothing, listToMaybe, maybeToL
 import Data.Either (lefts, rights, partitionEithers, isLeft, isRight, fromLeft, fromRight)
 import Data.Bits ((.&.), (.|.), xor, complement, shiftR, shiftL, rotateR)
 import Data.Word (Word32, Word64)
+import qualified Data.Word as B'W
+import qualified Data.Map as B'DM
+import qualified Data.Set as B'DS
+import qualified Control.Monad.Trans.Except as B'Ex
+import qualified Control.Monad.Trans.State.Strict as B'StS
+import qualified Control.Monad.Trans.State.Lazy as B'StL
+import qualified Data.Functor.Identity as B'Id
+-- Fix's and Cofree's packages, where the ghc has them (the law's oracle
+-- for a package does; the plain one tests/hs runs with does not)
+#if defined(MIN_VERSION_data_fix)
+import qualified Data.Fix as B'DF
+#endif
+#if defined(MIN_VERSION_free)
+import qualified Control.Comonad.Cofree as B'CF
+#endif
+#if defined(MIN_VERSION_megaparsec)
+import qualified Text.Megaparsec as B'MP
+import qualified Text.Megaparsec.Internal as B'MPI
+import qualified Data.Void as B'Vd
+import qualified Data.List.NonEmpty as B'NE
+#endif
+#if defined(MIN_VERSION_cryptonite) || defined(MIN_VERSION_crypton)
+import qualified Crypto.Hash as B'CH
+import qualified Data.ByteString as B'BS
+import qualified Data.Char as B'C
+#endif
 
 -- Bend's types (G writes B' and the name)
 type B'Nat = Int
@@ -549,6 +575,29 @@ type family B'G h where
   B'G (a, b, c, d) = (B'G a, (B'G b, (B'G c, B'G d)))
   B'G (a, b, c, d, e) = (B'G a, (B'G b, (B'G c, (B'G d, B'G e))))
   B'G (a -> b) = B'G a -> B'G b
+  -- Data.Map's and Data.Set's: G's are HsPrelude's, a list kept sorted;
+  -- Fix's and Cofree's: G's HsPrelude Fix and Cofree at the functor itself
+  -- (G declares a module's functor under h's name)
+  B'G (B'DM.Map k v) = B'HsPrelude'HsMap (B'G k) (B'G v)
+  B'G (B'DS.Set k) = B'HsPrelude'HsSet (B'G k)
+  -- ExceptT e (State s) a: G's is the prelude's hs.exs, s -> (Either e a, s)
+  B'G (B'Ex.ExceptT e (B'StS.StateT s B'Id.Identity) a) = B'G s -> (Either (B'G e) (B'G a), B'G s)
+  B'G (B'Ex.ExceptT e (B'StL.StateT s B'Id.Identity) a) = B'G s -> (Either (B'G e) (B'G a), B'G s)
+#if defined(MIN_VERSION_data_fix)
+  B'G (B'DF.Fix f) = B'HsPrelude'Fix f
+#endif
+#if defined(MIN_VERSION_free)
+  B'G (B'CF.Cofree f a) = B'HsPrelude'Cofree f (B'G a)
+#endif
+#if defined(MIN_VERSION_megaparsec)
+  -- a parser: the model's, a function of its state to its reply
+  B'G (B'MPI.ParsecT e s m a) = B'HsPrelude'HsPcSt -> B'HsPrelude'HsPcRep (B'G a)
+#endif
+  -- a byte is a U32, a digest its 32 bytes
+  B'G B'W.Word8 = B'U32
+#if defined(MIN_VERSION_cryptonite) || defined(MIN_VERSION_crypton)
+  B'G (B'CH.Digest a) = B'HsPrelude'HsDigest
+#endif
   -- a type applied to 1 to 4 types (a module's own D a .., as G declares
   -- it): D at its arguments' images.  G writes D's B'Up (b'map'D at b'up
   -- and b'down, Back.bend's bk.mp) where it can follow D's fields; where it
@@ -588,6 +637,100 @@ instance (B'Up a, B'Up b, B'Up c, B'Up d, B'Up e) => B'Up (a, b, c, d, e) where
 instance (B'Up a, B'Up b) => B'Up (a -> b) where
   b'up f = b'up . f . b'down
   b'down f = b'down . f . b'up
+-- a map's and a set's: G's list in G's key order, h's built from it as it
+-- is (in h's order when G's compare is h's, which the laws then show)
+instance (B'Up k, B'Up v) => B'Up (B'DM.Map k v) where
+  b'up m = B'DM.fromDistinctAscList (b'mapl m)
+    where
+      b'mapl B'HsPrelude'HsMap'Tip = []
+      b'mapl (B'HsPrelude'HsMap'Bin k v r) = (b'up k, b'up v) : b'mapl r
+  b'down m = foldr (\(k, v) r -> B'HsPrelude'HsMap'Bin (b'down k) (b'down v) r) B'HsPrelude'HsMap'Tip (B'DM.toAscList m)
+instance B'Up k => B'Up (B'DS.Set k) where
+  b'up s = B'DS.fromDistinctAscList (b'setl s)
+    where
+      b'setl B'HsPrelude'HsSet'Tip = []
+      b'setl (B'HsPrelude'HsSet'Bin k r) = b'up k : b'setl r
+  b'down s = foldr (\k r -> B'HsPrelude'HsSet'Bin (b'down k) r) B'HsPrelude'HsSet'Tip (B'DS.toAscList s)
+-- ExceptT e (State s) a's, Control.Monad.Trans.State's Strict and Lazy:
+-- G's s -> (Either e a, s) run from h's state, and back
+instance (B'Up e, B'Up s, B'Up a) => B'Up (B'Ex.ExceptT e (B'StS.StateT s B'Id.Identity) a) where
+  b'up g = B'Ex.ExceptT (B'StS.state (\s -> case g (b'down s) of { (r, s') -> (b'up r, b'up s') }))
+  b'down m = \s -> case B'StS.runState (B'Ex.runExceptT m) (b'up s) of { (r, s') -> (b'down r, b'down s') }
+instance (B'Up e, B'Up s, B'Up a) => B'Up (B'Ex.ExceptT e (B'StL.StateT s B'Id.Identity) a) where
+  b'up g = B'Ex.ExceptT (B'StL.state (\s -> case g (b'down s) of { (r, s') -> (b'up r, b'up s') }))
+  b'down m = \s -> case B'StL.runState (B'Ex.runExceptT m) (b'up s) of { (r, s') -> (b'down r, b'down s') }
+#if defined(MIN_VERSION_data_fix)
+-- Fix's: one layer at a time, the functor's own B'Up (G's b'map'D) below
+instance (B'Up (f (B'DF.Fix f)), B'G (f (B'DF.Fix f)) ~ f (B'HsPrelude'Fix f)) => B'Up (B'DF.Fix f) where
+  b'up (B'HsPrelude'Fix'Fix y) = B'DF.Fix (b'up y)
+  b'down (B'DF.Fix x) = B'HsPrelude'Fix'Fix (b'down x)
+#endif
+#if defined(MIN_VERSION_free)
+instance (B'Up a, B'Up (f (B'CF.Cofree f a)), B'G (f (B'CF.Cofree f a)) ~ f (B'HsPrelude'Cofree f (B'G a))) => B'Up (B'CF.Cofree f a) where
+  b'up (B'HsPrelude'Cofree'Cofree a y) = b'up a B'CF.:< b'up y
+  b'down (a B'CF.:< x) = B'HsPrelude'Cofree'Cofree (b'down a) (b'down x)
+#endif
+#if defined(MIN_VERSION_megaparsec)
+-- megaparsec's parser of a String, at Void's errors: run on the model's
+-- state as megaparsec's (its line and column found by megaparsec), and back
+instance (B'Up a, e ~ B'Vd.Void, s ~ [Char], m ~ B'Id.Identity) => B'Up (B'MPI.ParsecT e s m a) where
+  b'up g = B'MP.mkParsec (\st -> case g (b'pcst st) of
+    B'HsPrelude'HsPcRep c r -> case r of
+      B'HsPrelude'HsPcRes'Ok x s hs -> B'MPI.Reply (b'pcto st s) (b'pcc c) (B'MPI.OK (B'MPI.Hints (B'DS.fromList (map b'pcitem hs))) (b'up x))
+      B'HsPrelude'HsPcRes'Bad e s -> B'MPI.Reply (b'pcto st s) (b'pcc c) (B'MPI.Error (b'pcerr e)))
+  b'down p = \s -> case B'Id.runIdentity (B'MPI.runParsecT p (b'pcfrom s)) of
+    B'MPI.Reply st c r -> B'HsPrelude'HsPcRep (case c of { B'MPI.Consumed -> True; B'MPI.NotConsumed -> False }) (case r of
+      B'MPI.OK (B'MPI.Hints hs) x -> B'HsPrelude'HsPcRes'Ok (b'down x) (b'pcst st) (map b'pcitem' (B'DS.toAscList hs))
+      B'MPI.Error e -> B'HsPrelude'HsPcRes'Bad (b'pcerr' e) (b'pcst st))
+b'pcc :: Bool -> B'MPI.Consumption
+b'pcc c = if c then B'MPI.Consumed else B'MPI.NotConsumed
+b'pcst :: B'MP.State [Char] B'Vd.Void -> B'HsPrelude'HsPcSt
+b'pcst st = case B'MP.pstateSourcePos (B'MP.reachOffsetNoLine (B'MP.stateOffset st) (B'MP.statePosState st)) of
+  B'MP.SourcePos n l c -> B'HsPrelude'HsPcSt (B'MP.stateInput st) (B'MP.stateOffset st) (B'MP.unPos l) (B'MP.unPos c) n
+b'pcto :: B'MP.State [Char] B'Vd.Void -> B'HsPrelude'HsPcSt -> B'MP.State [Char] B'Vd.Void
+b'pcto st (B'HsPrelude'HsPcSt i o _ _ _) = st { B'MP.stateInput = i, B'MP.stateOffset = o }
+b'pcfrom :: B'HsPrelude'HsPcSt -> B'MP.State [Char] B'Vd.Void
+b'pcfrom (B'HsPrelude'HsPcSt i o l c n) = B'MP.State i o (B'MP.PosState i o (B'MP.SourcePos n (B'MP.mkPos l) (B'MP.mkPos c)) B'MP.defaultTabWidth "") []
+b'pcitem :: B'HsPrelude'HsPcItem -> B'MP.ErrorItem Char
+b'pcitem x = case x of
+  B'HsPrelude'HsPcItem'Tokens ts -> B'MP.Tokens (B'NE.fromList ts)
+  B'HsPrelude'HsPcItem'Label l -> B'MP.Label (B'NE.fromList l)
+  B'HsPrelude'HsPcItem'Eoi -> B'MP.EndOfInput
+b'pcitem' :: B'MP.ErrorItem Char -> B'HsPrelude'HsPcItem
+b'pcitem' x = case x of
+  B'MP.Tokens ts -> B'HsPrelude'HsPcItem'Tokens (B'NE.toList ts)
+  B'MP.Label l -> B'HsPrelude'HsPcItem'Label (B'NE.toList l)
+  B'MP.EndOfInput -> B'HsPrelude'HsPcItem'Eoi
+b'pcerr :: B'HsPrelude'HsPcError -> B'MP.ParseError [Char] B'Vd.Void
+b'pcerr e = case e of
+  B'HsPrelude'HsPcError'Trivial o u xs -> B'MP.TrivialError o (fmap b'pcitem u) (B'DS.fromList (map b'pcitem xs))
+  B'HsPrelude'HsPcError'Fancy o xs -> B'MP.FancyError o (B'DS.fromList (map f xs))
+  where
+    f (B'HsPrelude'HsPcFancy'Fail m) = B'MP.ErrorFail m
+    f (B'HsPrelude'HsPcFancy'Indent c a b) = B'MP.ErrorIndentation c (B'MP.mkPos a) (B'MP.mkPos b)
+b'pcerr' :: B'MP.ParseError [Char] B'Vd.Void -> B'HsPrelude'HsPcError
+b'pcerr' e = case e of
+  B'MP.TrivialError o u xs -> B'HsPrelude'HsPcError'Trivial o (fmap b'pcitem' u) (map b'pcitem' (B'DS.toAscList xs))
+  B'MP.FancyError o xs -> B'HsPrelude'HsPcError'Fancy o (map f (B'DS.toAscList xs))
+  where
+    f (B'MP.ErrorFail m) = B'HsPrelude'HsPcFancy'Fail m
+    f (B'MP.ErrorIndentation c a b) = B'HsPrelude'HsPcFancy'Indent c (B'MP.unPos a) (B'MP.unPos b)
+    f (B'MP.ErrorCustom v) = B'Vd.absurd v
+#endif
+instance B'Up B'W.Word8 where
+  b'up = fromIntegral
+  b'down = fromIntegral
+#if defined(MIN_VERSION_cryptonite) || defined(MIN_VERSION_crypton)
+-- crypton's digest: the model's, its 32 bytes
+instance B'CH.HashAlgorithm a => B'Up (B'CH.Digest a) where
+  b'up (B'HsPrelude'HsDigest'D bs) = case B'CH.digestFromByteString (B'BS.pack (map fromIntegral bs)) of
+    Just d -> d
+    Nothing -> error "b'up: a digest's bytes"
+  b'down d = B'HsPrelude'HsDigest'D (b'hexs (show d))
+    where
+      b'hexs (a : b : r) = (16 * B'C.digitToInt a + B'C.digitToInt b) : b'hexs r
+      b'hexs _ = []
+#endif
 instance {-# OVERLAPPABLE #-} (B'G a ~ a) => B'Up a where
   b'up = id
   b'down = id

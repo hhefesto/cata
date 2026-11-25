@@ -15954,10 +15954,63 @@ def fd.tperm(t: T.Bt, +tfs: List<&2, Tf>) -> T.Bt:
     case u:
       u
 
+def fd.bpick.nats(c: Bool, +i: Nat, xs: List<&2, Nat>) -> List<&2, Nat>:
+  match c:
+    case True{}:
+      i <> xs
+    case False{}:
+      xs
+
+# the parameters' places before the templates went first: each one's, in
+# the new order (the template parameters' first, then the others')
+def fd.ix.tpl(ps: List<&2, T.BParam>, +i: Nat) -> List<&2, Nat>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      fd.bpick.nats(fd.istpl(m), i, fd.ix.tpl(t, 1n+i))
+    case Nil{}:
+      Nil{}
+
+def fd.ix.rest(ps: List<&2, T.BParam>, +i: Nat) -> List<&2, Nat>:
+  match ps:
+    case T.BParam{m, x, ty} <> t:
+      fd.bpick.nats(Bool.not(fd.istpl(m)), i, fd.ix.rest(t, 1n+i))
+    case Nil{}:
+      Nil{}
+
+# whether the places are 0, 1, ..: nothing moved
+def fd.ix.same(xs: List<&2, Nat>, +i: Nat) -> Bool:
+  match xs:
+    case x <> t:
+      Bool.and(Nat.is_eq(x, i), fd.ix.same(t, 1n+i))
+    case Nil{}:
+      True{}
+
+def fd.ix.text(xs: List<&2, Nat>) -> List<&2, U32>:
+  match xs:
+    case x <> t:
+      32 <> List.append(&2, U32, S.b(Nat.show(x)), fd.ix.text(t))
+    case Nil{}:
+      Nil{}
+
+# The doc of a def whose template parameters went first (Law.bend's
+# lw.kept.ord reads it: its inputs are in h's order)
+def fd.tpl.doc.head() -> String:
+  "parameters, templates first; their places in h's order:"
+
+def fd.tpl.doc.if(same: Bool, +xs: List<&2, Nat>, d: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match same:
+    case True{}:
+      d
+    case False{}:
+      List.append(&2, List<&2, U32>, d, [List.append(&2, U32, S.b(fd.tpl.doc.head()), fd.ix.text(xs))])
+
+def fd.tpl.doc(+xs: List<&2, Nat>, d: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  fd.tpl.doc.if(fd.ix.same(xs, 0n), xs, d)
+
 def fd.tpl.order(it: T.BItem, +tfs: List<&2, Tf>) -> T.BItem:
   match it:
     case T.BiDef{n, +ps, r, b, d}:
-      T.BiDef{n, List.append(&2, T.BParam, fd.ps.tpl(ps), fd.ps.rest(ps)), r, fd.tperm(b, tfs), d}
+      T.BiDef{n, List.append(&2, T.BParam, fd.ps.tpl(ps), fd.ps.rest(ps)), r, fd.tperm(b, tfs), fd.tpl.doc(List.append(&2, Nat, fd.ix.tpl(ps, 0n), fd.ix.rest(ps, 0n)), d)}
     case u:
       u
 
