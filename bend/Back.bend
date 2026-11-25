@@ -201,6 +201,8 @@ type BkP is Data:
   BkP{b: List<&2, U32>, n: Nat}
   # a def that takes dictionaries (Fold's fd.dc): their terms, how many
   BkQ{b: List<&2, U32>, t: List<&2, U32>, n: Nat}
+  # a def whose value parameters are in another order than h's: each one's place
+  BkO{b: List<&2, U32>, o: List<&2, Nat>}
 
 def bk.nm.m(+nm: BkN) -> List<&2, U32>:
   match nm:
@@ -1410,17 +1412,29 @@ def bk.mp.has(t: T.Bt, +vs: List<&2, List<&2, U32>>) -> Bool:
     case _:
       True{}
 
-def bk.mp.known(+n: List<&2, U32>, +self: List<&2, U32>) -> Bool:
+def bk.mp.known.b(+n: List<&2, U32>, +self: List<&2, U32>) -> Bool:
   Bool.or(S.eq(n, self), Bool.or(S.eq(n, S.b("List")), Bool.or(S.eq(n, S.b("Maybe")), Bool.or(S.eq(n, S.b("Either")), S.eq(n, S.b("Sigma"))))))
+
+# other types whose own B'Up the field may use (up): the module's, another
+# module's of the package, the prelude's map and set
+def bk.up.pkg(+n: List<&2, U32>) -> Bool:
+  Bool.or(Bool.or(S.eq(n, S.b("HsPrelude.HsMap")), S.eq(n, S.b("HsPrelude.HsSet"))), Bool.and(S.infix(n, [46]), Bool.not(S.infix(n, S.b("HsPrelude.")))))
+
+def bk.mp.known(up: Bool, +n: List<&2, U32>, +self: List<&2, U32>, +e: Bk) -> Bool:
+  match up:
+    case True{}:
+      Bool.or(bk.mp.known.b(n, self), Bool.or(S.mem(n, bk.tys(e)), bk.up.pkg(n)))
+    case False{}:
+      bk.mp.known.b(n, self)
 
 # whether the map follows t (k: a type's arguments still to skip, its
 # kind arguments); a type without D's parameters it follows as id
-def bk.mp.ok(t: T.Bt, k: Nat, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+def bk.mp.ok(t: T.Bt, k: Nat, +up: Bool, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
   match t k:
     case T.BtArgs{x, r} 1n+p:
-      bk.mp.ok(r, p, self, e, vs)
+      bk.mp.ok(r, p, up, self, e, vs)
     case T.BtArgs{x, r} 0n:
-      Bool.and(bk.mp.ok(x, 0n, self, e, vs), bk.mp.ok(r, 0n, self, e, vs))
+      Bool.and(bk.mp.ok(x, 0n, up, self, e, vs), bk.mp.ok(r, 0n, up, self, e, vs))
     case T.BtANil{} _:
       True{}
     case T.BtType{} _:
@@ -1428,34 +1442,34 @@ def bk.mp.ok(t: T.Bt, k: Nat, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&
     case T.BtVar{x} _:
       True{}
     case T.BtTyApp{+n, +a} _:
-      Bool.or(Bool.not(bk.mp.has(a, vs)), Bool.and(bk.mp.known(n, self), bk.mp.ok(a, bk.kd.find(bk.kd(e), n), self, e, vs)))
+      Bool.or(Bool.not(bk.mp.has(a, vs)), Bool.and(bk.mp.known(up, n, self, e), bk.mp.ok(a, bk.kd.find(bk.kd(e), n), up, self, e, vs)))
     case T.BtPi{m, x, d, +a, +b} _:
-      Bool.or(Bool.not(Bool.or(bk.mp.has(a, vs), bk.mp.has(b, vs))), Bool.and(Bool.not(d), Bool.and(bk.mp.ok(a, 0n, self, e, vs), bk.mp.ok(b, 0n, self, e, vs))))
+      Bool.or(Bool.not(Bool.or(bk.mp.has(a, vs), bk.mp.has(b, vs))), Bool.and(Bool.not(d), Bool.and(bk.mp.ok(a, 0n, up, self, e, vs), bk.mp.ok(b, 0n, up, self, e, vs))))
     case T.BtLam{m, +x, +b} _:
-      Bool.or(Bool.not(bk.mp.has(b, vs)), Bool.and(S.eq(x, S.b("_")), bk.mp.ok(b, 0n, self, e, vs)))
+      Bool.or(Bool.not(bk.mp.has(b, vs)), Bool.and(S.eq(x, S.b("_")), bk.mp.ok(b, 0n, up, self, e, vs)))
     case _ _:
       False{}
 
-def bk.mp.field.ok(cv: Bool, +ty: T.Bt, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+def bk.mp.field.ok(cv: Bool, +up: Bool, +ty: T.Bt, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
   match cv:
     case True{}:
       Bool.not(bk.mp.has(ty, vs))
     case False{}:
-      bk.mp.ok(ty, 0n, self, e, vs)
+      bk.mp.ok(ty, 0n, up, self, e, vs)
 
-def bk.mp.fields.ok(fs: List<&2, T.BField>, +ns: List<&2, BkT>, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+def bk.mp.fields.ok(fs: List<&2, T.BField>, +up: Bool, +ns: List<&2, BkT>, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
   match fs:
     case Nil{}:
       True{}
     case T.BField{x, ty} <> t:
-      Bool.and(bk.mp.field.ok(bk.hk.cv(bk.hk.hd(ns)), ty, self, e, vs), bk.mp.fields.ok(t, List.drop(&2, BkT, ns, 1n), self, e, vs))
+      Bool.and(bk.mp.field.ok(bk.hk.cv(bk.hk.hd(ns)), up, ty, self, e, vs), bk.mp.fields.ok(t, up, List.drop(&2, BkT, ns, 1n), self, e, vs))
 
-def bk.mp.ctors.ok(cs: List<&2, T.BCtor>, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
+def bk.mp.ctors.ok(cs: List<&2, T.BCtor>, +up: Bool, +self: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>) -> Bool:
   match cs:
     case Nil{}:
       True{}
     case T.BCtor{c, fs} <> t:
-      Bool.and(bk.mp.fields.ok(fs, bk.nf.find(bk.nf(e), c), self, e, vs), bk.mp.ctors.ok(t, self, e, vs))
+      Bool.and(bk.mp.fields.ok(fs, up, bk.nf.find(bk.nf(e), c), self, e, vs), bk.mp.ctors.ok(t, up, self, e, vs))
 
 # bf' (the way to) or bg' (the way back)
 def bk.mp.f(dir: Bool, acc: List<&2, U32>) -> List<&2, U32>:
@@ -1605,11 +1619,76 @@ def bk.mp.when(yes: Bool, +tn: List<&2, U32>, +n: List<&2, U32>, +vs: List<&2, L
       +mn = bk.s("b'map'", bk.mp.mname(tn))
       bk.b(mn, bk.s(" :: ", bk.mp.sig(vs, bk.b(tn, bk.mp.tvs(vs, False{}, bk.s(" -> ", bk.b(tn, bk.mp.tvs(vs, True{}, 10 <> bk.b(mn, bk.mp.fps(vs, bk.s(" x0 = case x0 of {", bk.mp.alts(cs, n, mn, e, vs, bk.s(" }", 10 <> 10 <> bk.s("instance (", bk.mp.ctx(vs, True{}, bk.s(") => B'Up (", bk.b(tn, bk.mp.tvs(vs, False{}, bk.s(") where { b'up = ", bk.b(mn, bk.mp.ups(vs, True{}, bk.s("; b'down = ", bk.b(mn, bk.mp.ups(vs, False{}, bk.s(" }", 10 <> 10 <> acc)))))))))))))))))))))))))
 
+# D's B'Up by its fields' own (a field's type has D's parameter under a type
+# the map does not know: another data type of the package's, a map, a set):
+# each is asked for in the context, met where D's B'Up is used
+def bk.up.put(no: Bool, x: List<&2, U32>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match no:
+    case True{}:
+      acc
+    case False{}:
+      x <> acc
+
+def bk.up.fields(fs: List<&2, T.BField>, +e: Bk, +vs: List<&2, List<&2, U32>>, +acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match fs:
+    case Nil{}:
+      acc
+    case T.BField{x, +ty} <> t:
+      +s = bk.ty(ty, BkYTop{}, e, vs, Nil{})
+      bk.up.fields(t, e, vs, bk.up.put(Bool.or(Bool.not(bk.mp.has(ty, vs)), S.mem(s, acc)), s, acc))
+
+def bk.up.ctors(cs: List<&2, T.BCtor>, +e: Bk, +vs: List<&2, List<&2, U32>>, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match cs:
+    case Nil{}:
+      acc
+    case T.BCtor{c, fs} <> t:
+      bk.up.ctors(t, e, vs, bk.up.fields(fs, e, vs, acc))
+
+def bk.up.ctx(xs: List<&2, List<&2, U32>>, first: Bool, acc: List<&2, U32>) -> List<&2, U32>:
+  match xs:
+    case Nil{}:
+      acc
+    case x <> t:
+      bk.mp.comma(first, bk.s("B'Up (", bk.b(x, 41 <> bk.up.ctx(t, False{}, acc))))
+
+def bk.up.one(has: Bool, f: List<&2, U32>, +y: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  match has:
+    case True{}:
+      32 <> 40 <> bk.b(f, 32 <> bk.b(y, 41 <> acc))
+    case False{}:
+      32 <> bk.b(y, acc)
+
+def bk.up.app(fs: List<&2, T.BField>, +i: Nat, +f: List<&2, U32>, +vs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match fs:
+    case Nil{}:
+      acc
+    case T.BField{x, +ty} <> t:
+      bk.up.one(bk.mp.has(ty, vs), f, 121 <> S.b(Nat.show(i)), bk.up.app(t, 1n+i, f, vs, acc))
+
+def bk.up.alts(cs: List<&2, T.BCtor>, +f: List<&2, U32>, +e: Bk, +vs: List<&2, List<&2, U32>>, acc: List<&2, U32>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      acc
+    case T.BCtor{+c, +fs} <> t:
+      +hc = bk.con.pv(False{}, False{}, e, c, bk.init(c))
+      32 <> bk.b(hc, bk.mp.ys(List.length(&2, T.BField, fs), 1n, bk.s(" -> ", bk.b(hc, bk.up.app(fs, 1n, f, vs, 59 <> bk.up.alts(t, f, e, vs, acc))))))
+
+def bk.up.when(yes: Bool, +tn: List<&2, U32>, +vs: List<&2, List<&2, U32>>, +cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
+  match yes:
+    case False{}:
+      acc
+    case True{}:
+      bk.s("instance (", bk.up.ctx(bk.up.ctors(cs, e, vs, Nil{}), True{}, bk.s(") => B'Up (", bk.b(tn, bk.mp.tvs(vs, False{}, bk.s(") where { b'up x0 = case x0 of {", bk.up.alts(cs, S.b("b'up"), e, vs, bk.s(" }; b'down x0 = case x0 of {", bk.up.alts(cs, S.b("b'down"), e, vs, bk.s(" } }", 10 <> 10 <> acc))))))))))
+
 def bk.mp.decl(+n: List<&2, U32>, ps: List<&2, T.BParam>, +cs: List<&2, T.BCtor>, +e: Bk, acc: List<&2, U32>) -> List<&2, U32>:
   +qs = List.drop(&2, T.BParam, ps, bk.kd.find(bk.kd(e), n))
   +vs = bk.tvs(qs)
   +k = List.length(&2, List<&2, U32>, vs)
-  bk.mp.when(Bool.and(Bool.and(bk.mp.le(1n, k), bk.mp.le(k, 4n)), Bool.and(bk.mp.stars(qs), bk.mp.ctors.ok(cs, n, e, vs))), bk.tname.at(True{}, True{}, e, n), n, vs, cs, e, acc)
+  +base = Bool.and(Bool.and(bk.mp.le(1n, k), bk.mp.le(k, 4n)), bk.mp.stars(qs))
+  +m = Bool.and(base, bk.mp.ctors.ok(cs, False{}, n, e, vs))
+  +u = Bool.and(base, Bool.and(Bool.not(m), bk.mp.ctors.ok(cs, True{}, n, e, vs)))
+  +tn = bk.tname.at(True{}, True{}, e, n)
+  bk.mp.when(m, tn, n, vs, cs, e, bk.up.when(u, tn, vs, cs, e, acc))
 
 def bk.isnat(+t: T.Bt) -> Bool:
   match t:
@@ -1989,6 +2068,187 @@ def bk.dc.isdict(p: T.BParam) -> Nat:
     case _:
       0n
 
+# The order of a def's parameters.  Fold puts template parameters first
+# (fd.tpl.order) and says so in the def's doc: each parameter's place
+# before, in the new order.  The laws' inputs (Law.bend) and G's defs
+# (bk.alias) are in h's order.
+def bk.o.head() -> String:
+  "parameters, templates first; their places in h's order:"
+
+def bk.o.after(p: List<&2, U32>, s: List<&2, U32>) -> Maybe<&2, List<&2, U32>>:
+  match p s:
+    case Nil{} _:
+      Some{s}
+    case a <> pt b <> st:
+      Bool.pick(Maybe<&2, List<&2, U32>>, U32.is_eq(a, b), bk.o.after(pt, st), None{})
+    case _ _:
+      None{}
+
+# a digit more of the number read so far, or none
+def bk.o.cur(dg: Bool, cur: Nat, c: U32) -> Nat:
+  match dg:
+    case True{}:
+      Nat.add(Nat.mul(cur, 10n), U32.to_nat(U32.sub(c, 48)))
+    case False{}:
+      0n
+
+def bk.o.put(c: Bool, i: Nat, xs: List<&2, Nat>) -> List<&2, Nat>:
+  match c:
+    case True{}:
+      i <> xs
+    case False{}:
+      xs
+
+# the numbers in a text
+def bk.o.nats(s: List<&2, U32>, +cur: Nat, +in: Bool) -> List<&2, Nat>:
+  match s:
+    case +c <> t:
+      +dg = Bool.and(U32.is_ge(c, 48), U32.is_le(c, 57))
+      bk.o.put(Bool.and(in, Bool.not(dg)), cur, bk.o.nats(t, bk.o.cur(dg, cur, c), dg))
+    case Nil{}:
+      bk.o.put(in, cur, Nil{})
+
+def bk.o.pre(m: Maybe<&2, List<&2, U32>>) -> List<&2, Nat>:
+  match m:
+    case Some{s}:
+      bk.o.nats(s, 0n, False{})
+    case None{}:
+      Nil{}
+
+def bk.o.or(a: List<&2, Nat>, b: List<&2, Nat>) -> List<&2, Nat>:
+  match a:
+    case Nil{}:
+      b
+    case +x <> t:
+      x <> t
+
+# the doc's places (none: the parameters are in h's order)
+def bk.o.docs(d: List<&2, List<&2, U32>>) -> List<&2, Nat>:
+  match d:
+    case s <> t:
+      bk.o.or(bk.o.pre(bk.o.after(S.b(bk.o.head()), s)), bk.o.docs(t))
+    case Nil{}:
+      Nil{}
+
+# a parameter of the def: a type (Data) or a dictionary; else a value
+def bk.o.kinds(ps: List<&2, T.BParam>) -> List<&2, Bool>:
+  match ps:
+    case T.BParam{m, x, T.BtVar{k}} <> t:
+      S.eq(k, S.b("Data")) <> bk.o.kinds(t)
+    case p <> t:
+      Nat.is_gt(bk.dc.isdict(p), 0n) <> bk.o.kinds(t)
+    case Nil{}:
+      Nil{}
+
+# the doc's places, for the parameters as they are now: a dictionary Fold
+# added after (fd.dc) has none (it is no value: any place does)
+def bk.o.fit.go(ps: List<&2, T.BParam>, o: List<&2, Nat>) -> List<&2, Nat>:
+  match ps o:
+    case +p <> t +x <> +r:
+      x <> bk.o.fit.go(t, Bool.pick(List<&2, Nat>, Nat.is_gt(bk.dc.isdict(p), 0n), x <> r, r))
+    case p <> t Nil{}:
+      0n <> bk.o.fit.go(t, Nil{})
+    case Nil{} _:
+      Nil{}
+
+def bk.o.fit.if(whole: Bool, +o: List<&2, Nat>, ps: List<&2, T.BParam>) -> List<&2, Nat>:
+  match whole:
+    case True{}:
+      o
+    case False{}:
+      bk.o.fit.go(ps, o)
+
+def bk.o.fit(+o: List<&2, Nat>, +ps: List<&2, T.BParam>) -> List<&2, Nat>:
+  bk.o.fit.if(Bool.or(List.is_empty(&2, Nat, o), Nat.is_eq(List.length(&2, Nat, o), List.length(&2, T.BParam, ps))), o, ps)
+
+def bk.o.iota(n: Nat, +i: Nat) -> List<&2, Nat>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      i <> bk.o.iota(p, 1n+i)
+
+# the value parameters' places
+def bk.o.vals(o: List<&2, Nat>, ks: List<&2, Bool>) -> List<&2, Nat>:
+  match o ks:
+    case x <> t False{} <> k:
+      x <> bk.o.vals(t, k)
+    case x <> t True{} <> k:
+      bk.o.vals(t, k)
+    case _ _:
+      Nil{}
+
+def bk.o.rank(+x: Nat, vo: List<&2, Nat>) -> Nat:
+  match vo:
+    case y <> t:
+      Nat.add(Bool.pick(Nat, Nat.is_lt(y, x), 1n, 0n), bk.o.rank(x, t))
+    case Nil{}:
+      0n
+
+def bk.o.ranks(o: List<&2, Nat>, +vo: List<&2, Nat>) -> List<&2, Nat>:
+  match o:
+    case x <> t:
+      bk.o.rank(x, vo) <> bk.o.ranks(t, vo)
+    case Nil{}:
+      Nil{}
+
+def bk.o.hp.of(+o: List<&2, Nat>, +ks: List<&2, Bool>) -> List<&2, Nat>:
+  bk.o.ranks(o, bk.o.vals(o, ks))
+
+# each parameter's place among the values in h's order (a value's)
+def bk.o.hp(o: List<&2, Nat>, +ks: List<&2, Bool>) -> List<&2, Nat>:
+  match o:
+    case Nil{}:
+      bk.o.hp.of(bk.o.iota(List.length(&2, Bool, ks), 0n), ks)
+    case +x <> t:
+      bk.o.hp.of(x <> t, ks)
+
+def bk.o.same(xs: List<&2, Nat>, +i: Nat) -> Bool:
+  match xs:
+    case x <> t:
+      Bool.and(Nat.is_eq(x, i), bk.o.same(t, 1n+i))
+    case Nil{}:
+      True{}
+
+# a def's value parameters, each its place in h's order (none: no doc, or
+# the same order; a def that takes dictionaries: none, G applies them first)
+def bk.o.of(dc: Nat, +ps: List<&2, T.BParam>, d: List<&2, List<&2, U32>>) -> List<&2, Nat>:
+  match dc:
+    case 0n:
+      +ks = bk.o.kinds(ps)
+      +o = bk.o.vals(bk.o.hp(bk.o.fit(bk.o.docs(d), ps), ks), ks)
+      Bool.pick(List<&2, Nat>, bk.o.same(o, 0n), Nil{}, o)
+    case 1n+p:
+      Nil{}
+
+def bk.o.add(o: List<&2, Nat>, b: List<&2, U32>, pt: List<&2, BkP>) -> List<&2, BkP>:
+  match o:
+    case Nil{}:
+      pt
+    case x <> t:
+      BkO{b, x <> t} <> pt
+
+def bk.o.find(ps: List<&2, BkP>, +b: List<&2, U32>) -> List<&2, Nat>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case BkO{+b2, o} <> t:
+      Bool.pick(List<&2, Nat>, S.eq(b2, b), o, bk.o.find(t, b))
+    case _ <> t:
+      bk.o.find(t, b)
+
+# the arguments a1 a2 .. in the def's order
+def bk.o.names(o: List<&2, Nat>, acc: List<&2, U32>) -> List<&2, U32>:
+  match o:
+    case x <> t:
+      32 <> 97 <> bk.b(S.b(Nat.show(1n+x)), bk.o.names(t, acc))
+    case Nil{}:
+      acc
+
+# the def with its arguments in h's order
+def bk.o.hd(+o: List<&2, Nat>, +hd: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, List.is_empty(&2, Nat, o), hd, bk.s("(\\", bk.anames(List.length(&2, Nat, o), 1n, bk.s(" -> ", bk.b(hd, bk.o.names(o, [41]))))))
+
 def bk.dc.put(k: Nat, t: List<&2, U32>) -> List<&2, U32>:
   match k:
     case 0n:
@@ -2056,7 +2316,7 @@ def bk.env.go(its: List<&2, T.BItem>, ds: List<&2, List<&2, U32>>, ts: List<&2, 
         case BkN{m, as, tn, cn, pd, nf, kd, im, nt}:
           Bk{m, ds, ts, tn, cn, pt, nf, kd, bk.cv(nf), im, nt}
     case T.BiDef{+n, +ps, r, b, d} <> t:
-      bk.env.go(t, n <> ds, ts, bk.dc.add(bk.dc.n(ps), n, ps, bk.pt.add(S.mem(n, bk.nm.pd(nm)), n, ps, pt)), nm)
+      bk.env.go(t, n <> ds, ts, bk.o.add(bk.o.of(bk.dc.n(ps), ps, d), n, bk.dc.add(bk.dc.n(ps), n, ps, bk.pt.add(S.mem(n, bk.nm.pd(nm)), n, ps, pt))), nm)
     case T.BiType{n, ps, k, cs, d} <> t:
       bk.env.go(t, ds, n <> ts, pt, nm)
     case _ <> t:
@@ -2089,7 +2349,7 @@ def bk.dc.less(m: Maybe<&2, Nat>, n: Nat) -> Maybe<&2, Nat>:
 def bk.alias(has: Bool, +e: Bk, +h: List<&2, U32>, +b: List<&2, U32>, rest: List<&2, U32>) -> List<&2, U32>:
   match has:
     case True{}:
-      bk.b(bk.alias.name(h), bk.s(" = b'up ", bk.alias.body(bk.dc.less(bk.pt.find(bk.pt(e), b), bk.dc.findn(bk.pt(e), b)), bk.dc.head(b, bk.dc.find(bk.pt(e), b)), 10 <> rest)))
+      bk.b(bk.alias.name(h), bk.s(" = b'up ", bk.alias.body(bk.dc.less(bk.pt.find(bk.pt(e), b), bk.dc.findn(bk.pt(e), b)), bk.o.hd(bk.o.find(bk.pt(e), b), bk.dc.head(b, bk.dc.find(bk.pt(e), b))), 10 <> rest)))
     case False{}:
       rest
 
@@ -2160,4 +2420,4 @@ def bk.module(+file: List<&2, U32>, its0: List<&2, T.BItem>, +nm: BkN) -> List<&
   +m = bk.nm.m(nm)
   +as = bk.nm.as(nm)
   +body = bk.items(its, e, bk.aliases(as, e, bk.main(Bool.and(S.eq(m, S.b("Main")), Bool.not(bk.aliased(as, e, S.b("main")))), Nil{})))
-  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleContexts #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\n", bk.hiding(bk.hides(bk.tn(e), bk.hides(bk.cn(e), Nil{})), bk.imps(bk.nm.ims(nm), body, 10 <> body)))))))
+  bk.s("{-# LANGUAGE ViewPatterns, PatternSynonyms, NoMonomorphismRestriction, TypeOperators, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}\n-- bend2hs (cata's bend/Back.bend) of the Bend cata wrote from ", bk.b(file, bk.s("\nmodule ", bk.b(m, bk.s(" where\nimport Prelude ()\n", bk.hiding(bk.hides(bk.tn(e), bk.hides(bk.cn(e), Nil{})), bk.imps(bk.nm.ims(nm), body, 10 <> body)))))))

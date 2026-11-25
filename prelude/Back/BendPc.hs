@@ -496,12 +496,12 @@ b'HsPrelude'HsPc'incorrectIndent o r a = \s ->
   B'HsPrelude'HsPcRep False (B'HsPrelude'HsPcRes'Bad (B'HsPrelude'HsPcError'Fancy (b'HsPrelude'HsPc'st'off s) [B'HsPrelude'HsPcFancy'Indent o r a]) s)
 
 -- decimal = mkNum <$> takeWhile1P (Just "digit") isDigit <?> "integer"
-b'HsPrelude'HsPc'digits :: [Char] -> Int -> Int
+b'HsPrelude'HsPc'digits :: Num n => [Char] -> n -> n
 b'HsPrelude'HsPc'digits xs acc = case xs of
   [] -> acc
-  h : t -> b'HsPrelude'HsPc'digits t (acc * 10 + (DC.ord h - 48))
+  h : t -> b'HsPrelude'HsPc'digits t (acc * 10 + fromIntegral (DC.ord h - 48))
 
-b'HsPrelude'HsPc'decimal :: B'HsPrelude'HsPc'P Int
+b'HsPrelude'HsPc'decimal :: Num n => B'HsPrelude'HsPc'P n
 b'HsPrelude'HsPc'decimal =
   b'HsPrelude'HsPc'label "integer" (b'HsPrelude'HsPc'map (\ds -> b'HsPrelude'HsPc'digits ds 0) (b'HsPrelude'HsPc'takeWhile1P DC.isDigit (Just "digit")))
 

@@ -8,7 +8,7 @@
 -- cata writes Int as Nat only where nothing goes below zero; Nat.sub is
 -- Base's, which stops at 0).  A name G needs and this lacks is GHC's
 -- "not in scope", which tests/back/run.zsh reports by module.
-{-# LANGUAGE CPP, NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE CPP, KindSignatures, NoMonomorphismRestriction, PatternSynonyms, ViewPatterns, TypeFamilies, FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
 module BendRt
   ( module BendRt
   , module BendPc
@@ -27,6 +27,7 @@ import Data.Either (lefts, rights, partitionEithers, isLeft, isRight, fromLeft, 
 import Data.Bits ((.&.), (.|.), xor, complement, shiftR, shiftL, rotateR)
 import Data.Word (Word32, Word64)
 import qualified Data.Word as B'W
+import qualified Data.Kind as B'K
 import qualified Data.Map as B'DM
 import qualified Data.Set as B'DS
 import qualified Control.Monad.Trans.Except as B'Ex
@@ -566,6 +567,13 @@ b'HsPrelude'Cofree'embed (B'HsPrelude'CofreeF'CofreeF h t) = B'HsPrelude'Cofree'
 -- argument); any other type, a module's own or a base one, is its own
 -- image.  G writes each def GHC knows as h's name = b'up (G's def), and
 -- the laws' script, whose every call names h's type, picks the iso.
+-- the functor under a Fix or a Cofree: its own parameters' images
+type family B'GF (f :: B'K.Type -> B'K.Type) :: B'K.Type -> B'K.Type where
+  B'GF (t a b c) = t (B'G a) (B'G b) (B'G c)
+  B'GF (t a b) = t (B'G a) (B'G b)
+  B'GF (t a) = t (B'G a)
+  B'GF f = f
+
 type family B'G h where
   B'G [a] = [B'G a]
   B'G (Maybe a) = Maybe (B'G a)
@@ -583,11 +591,13 @@ type family B'G h where
   -- ExceptT e (State s) a: G's is the prelude's hs.exs, s -> (Either e a, s)
   B'G (B'Ex.ExceptT e (B'StS.StateT s B'Id.Identity) a) = B'G s -> (Either (B'G e) (B'G a), B'G s)
   B'G (B'Ex.ExceptT e (B'StL.StateT s B'Id.Identity) a) = B'G s -> (Either (B'G e) (B'G a), B'G s)
+  B'G (B'StS.StateT s B'Id.Identity a) = B'G s -> (B'G a, B'G s)
+  B'G (B'StL.StateT s B'Id.Identity a) = B'G s -> (B'G a, B'G s)
 #if defined(MIN_VERSION_data_fix)
-  B'G (B'DF.Fix f) = B'HsPrelude'Fix f
+  B'G (B'DF.Fix f) = B'HsPrelude'Fix (B'GF f)
 #endif
 #if defined(MIN_VERSION_free)
-  B'G (B'CF.Cofree f a) = B'HsPrelude'Cofree f (B'G a)
+  B'G (B'CF.Cofree f a) = B'HsPrelude'Cofree (B'GF f) (B'G a)
 #endif
 #if defined(MIN_VERSION_megaparsec)
   -- a parser: the model's, a function of its state to its reply
@@ -661,12 +671,12 @@ instance (B'Up e, B'Up s, B'Up a) => B'Up (B'Ex.ExceptT e (B'StL.StateT s B'Id.I
   b'down m = \s -> case B'StL.runState (B'Ex.runExceptT m) (b'up s) of { (r, s') -> (b'down r, b'down s') }
 #if defined(MIN_VERSION_data_fix)
 -- Fix's: one layer at a time, the functor's own B'Up (G's b'map'D) below
-instance (B'Up (f (B'DF.Fix f)), B'G (f (B'DF.Fix f)) ~ f (B'HsPrelude'Fix f)) => B'Up (B'DF.Fix f) where
+instance (B'Up (f (B'DF.Fix f)), B'G (f (B'DF.Fix f)) ~ B'GF f (B'HsPrelude'Fix (B'GF f))) => B'Up (B'DF.Fix f) where
   b'up (B'HsPrelude'Fix'Fix y) = B'DF.Fix (b'up y)
   b'down (B'DF.Fix x) = B'HsPrelude'Fix'Fix (b'down x)
 #endif
 #if defined(MIN_VERSION_free)
-instance (B'Up a, B'Up (f (B'CF.Cofree f a)), B'G (f (B'CF.Cofree f a)) ~ f (B'HsPrelude'Cofree f (B'G a))) => B'Up (B'CF.Cofree f a) where
+instance (B'Up a, B'Up (f (B'CF.Cofree f a)), B'G (f (B'CF.Cofree f a)) ~ B'GF f (B'HsPrelude'Cofree (B'GF f) (B'G a))) => B'Up (B'CF.Cofree f a) where
   b'up (B'HsPrelude'Cofree'Cofree a y) = b'up a B'CF.:< b'up y
   b'down (a B'CF.:< x) = B'HsPrelude'Cofree'Cofree (b'down a) (b'down x)
 #endif
@@ -717,6 +727,13 @@ b'pcerr' e = case e of
     f (B'MP.ErrorIndentation c a b) = B'HsPrelude'HsPcFancy'Indent c (B'MP.unPos a) (B'MP.unPos b)
     f (B'MP.ErrorCustom v) = B'Vd.absurd v
 #endif
+-- State s a's: G's s -> (a, s)
+instance (B'Up s, B'Up a) => B'Up (B'StS.StateT s B'Id.Identity a) where
+  b'up g = B'StS.state (\s -> case g (b'down s) of { (r, s') -> (b'up r, b'up s') })
+  b'down m = \s -> case B'StS.runState m (b'up s) of { (r, s') -> (b'down r, b'down s') }
+instance (B'Up s, B'Up a) => B'Up (B'StL.StateT s B'Id.Identity a) where
+  b'up g = B'StL.state (\s -> case g (b'down s) of { (r, s') -> (b'up r, b'up s') })
+  b'down m = \s -> case B'StL.runState m (b'up s) of { (r, s') -> (b'down r, b'down s') }
 instance B'Up B'W.Word8 where
   b'up = fromIntegral
   b'down = fromIntegral

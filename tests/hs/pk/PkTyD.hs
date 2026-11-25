@@ -55,3 +55,9 @@ reachesBelow s n = f s where
     | null s' = True
     | elem n s' = False
     | otherwise = f (map (\x -> x - 1) (filter (>= n) s'))
+
+-- partial, under ExceptT over State
+orDie :: Int -> M Int
+orDie n = if n > 1 then error "too big" else do
+  s <- tick n
+  pure (s + n)

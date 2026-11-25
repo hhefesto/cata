@@ -10,7 +10,7 @@
 # another Either is a sum.  What it does not read it says (OUT, why).
 #
 # The reading is trusted as Gen.bend's printing is (it says what Haskell
-# program an Ex is); gsq.zsh proves that its Ex means what cata's Bend def,
+# program an Ex is); cert.zsh with EX (its rows) proves that its Ex means what cata's Bend def,
 # whose G it is, answers, at every input, and tries it against GHC's G.
 #   rd FILE.hs N...   a line N, a tab, and the Ex (or OUT and why) for each
 #
