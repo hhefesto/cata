@@ -5319,6 +5319,108 @@ def sp.lh(+x: X.Sx) -> X.Sx:
   +hs = sp.lh.of(x, Nil{})
   sp.if(X.Sx, List.is_empty(&2, Lh, hs), _ => x, _ => sp.lh.drops(hs, sp.lh.go(2n, x, hs)))
 
+# A local value that may fail (maximum .., head ..) used only inside local
+# functions and lambdas (Certificate's width, used by what maps over the
+# rows) is forced there, if at all: it is read at its uses, so that the
+# fold's bind of it is there too.
+type Lz is Data:
+  Lz{v: X.Sx, e: X.Sx}
+
+def sp.lz.part(x: X.Sx, +ns: List<&2, List<&2, U32>>) -> Bool:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, +t}:
+      sp.if(Bool, sp.is(a, "g"), _ => S.mem(sp.sat(X.SxCons{X.SxAtom{a}, t}, 2n), ns), _ => sp.lz.part(t, ns))
+    case X.SxCons{h, t}:
+      Bool.or(sp.lz.part(h, ns), sp.lz.part(t, ns))
+    case y:
+      False{}
+
+def sp.lz.names() -> List<&2, List<&2, U32>>:
+  sp.strs0(["maximum", "minimum", "maximumBy", "minimumBy", "head", "last", "tail", "init", "foldr1", "foldl1", "fromJust", "!!", "!", "intMapAt", "error", "undefined"])
+
+def sp.lz.evl(gs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case g <> t:
+      List.append(&2, X.Sx, sp.dropn(sp.els(g), 1n), sp.lz.evl(t))
+
+# a value's dictionaries' terms in their places (twice: one may use another)
+def sp.lz.evs(es: List<&2, X.Sx>, +e: X.Sx) -> X.Sx:
+  match es:
+    case Nil{}:
+      e
+    case +b <> t:
+      sp.lz.evs(t, sp.beta.sub(e, sp.at(sp.at(b, 1n), 1n), sp.at(b, 2n)))
+
+def sp.lz.fun(+v: X.Sx, +f: X.Sx, +evs: List<&2, X.Sx>, +acc: List<&2, Lz>) -> List<&2, Lz>:
+  +ms = sp.at(f, 4n)
+  +cs = sp.els(sp.at(ms, 4n))
+  +m0 = sp.first(cs)
+  +gr = sp.at(m0, 2n)
+  +g0 = sp.first(sp.els(sp.at(gr, 1n)))
+  +e0 = sp.at(g0, 2n)
+  +one = Bool.and(Bool.and(Nat.is_eq(List.length(&2, X.Sx, cs), 1n), Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")]))))
+  +ok = Bool.and(Bool.and(sp.head.is(v, "l"), one), Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), sp.lz.part(e0, sp.lz.names())))
+  sp.if(List<&2, Lz>, Bool.and(ok, Bool.not(sp.lg.mentions(e0, v))), _ => Lz{v, sp.lz.evs(evs, sp.lz.evs(evs, e0))} <> acc, _ => acc)
+
+# (abs () () (exports) (evbinds..) (fun)): a value alone in its group
+def sp.lz.grp(+a: X.Sx, +acc: List<&2, Lz>) -> List<&2, Lz>:
+  +fs = sp.els(sp.at(a, 5n))
+  +es = sp.els(sp.at(a, 3n))
+  +evs = sp.lz.evl(sp.els(sp.at(a, 4n)))
+  +mono = Bool.and(sp.eq(sp.at(a, 1n), X.SxNil{}), sp.eq(sp.at(a, 2n), X.SxNil{}))
+  +one = Bool.and(Nat.is_eq(List.length(&2, X.Sx, fs), 1n), Nat.is_eq(List.length(&2, X.Sx, es), 1n))
+  sp.if(List<&2, Lz>, sp.head.is(a, "fun"), _ => sp.lz.fun(sp.fa.unself(sp.at(a, 1n)), a, Nil{}, acc), _ => sp.if(List<&2, Lz>, Bool.and(sp.head.is(a, "abs"), Bool.and(mono, one)), _ => sp.lz.fun(sp.at(sp.first(es), 1n), sp.first(fs), evs, acc), _ => acc))
+
+def sp.lz.of(x: X.Sx, +acc: List<&2, Lz>) -> List<&2, Lz>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +acc2 = sp.if(List<&2, Lz>, sp.is(X.tsx.atom.of(h), "nonrec"), _ => sp.lz.grp(sp.at(n, 1n), acc), _ => acc)
+      sp.lz.of(t, sp.lz.of(h, acc2))
+    case _:
+      acc
+
+# a use of v outside every lambda and local function
+def sp.lz.out(x: X.Sx, +v: X.Sx) -> Bool:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, +t}:
+      +n = {X.SxCons{X.SxAtom{a}, t} : X.Sx}
+      +self = sp.at(n, 1n)
+      +fn = Bool.and(sp.is(a, "fun"), Bool.and(sp.head.is(sp.fa.unself(self), "l"), Bool.or(sp.eq(sp.fa.unself(self), v), Nat.is_gt(X.tsx.len(sp.at(sp.at(n, 4n), 1n)), 0n))))
+      +skip = Bool.or(sp.is(a, "lam"), Bool.or(fn, Bool.or(sp.is(a, "export"), sp.is(a, "self"))))
+      sp.if(Bool, sp.eq(n, v), _ => True{}, _ => sp.if(Bool, skip, _ => False{}, _ => sp.lz.out(t, v)))
+    case X.SxCons{h, t}:
+      Bool.or(sp.lz.out(h, v), sp.lz.out(t, v))
+    case y:
+      False{}
+
+def sp.lz.first(ls: List<&2, Lz>, +x: X.Sx) -> Maybe<&2, Lz>:
+  match ls:
+    case Nil{}:
+      None{}
+    case Lz{+v, e} <> t:
+      sp.if(Maybe<&2, Lz>, sp.lz.out(x, v), _ => sp.lz.first(t, x), _ => Some{Lz{v, e}})
+
+def sp.lz.one(m: Maybe<&2, Lz>, +x: X.Sx, k: X.Sx -> X.Sx) -> X.Sx:
+  match m:
+    case Some{Lz{+v, e}}:
+      k(sp.beta.sub(sp.lh.drop(x, v), v, e))
+    case None{}:
+      x
+
+# one at a time (another's value may use it; fuel)
+def sp.lz.go(n: Nat, +x: X.Sx) -> X.Sx:
+  match n:
+    case 0n:
+      x
+    case 1n+p:
+      sp.lz.one(sp.lz.first(sp.lz.of(x, Nil{}), x), x, y => sp.lz.go(p, y))
+
+def sp.lz(+x: X.Sx) -> X.Sx:
+  sp.lz.go(8n, x)
+
 # show at a known showsPrec, applied (the prelude's showVia sp v): sp 0 v "",
 # and showList (showListVia sp vs): the model's showListWith sp 0 vs.  The
 # showsPrec is then called, not a template of the prelude's: a type that
@@ -5354,7 +5456,7 @@ def sp.rw.sv(r: Rw, +hb: Bool) -> Rw:
       Rw{sp.sv(x, hb), q}
 
 def sp.passes0(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +rl0: List<&2, X.Sx>, +ol0: List<&2, Og>, +kn: List<&2, Rq>, +rg: List<&2, X.Sx>) -> Rw:
-  +xr = sp.lr(sp.lh(sp.lec(x)), cur)
+  +xr = sp.lr(sp.lh(sp.lz(sp.lec(x))), cur)
   +xl = sp.lc(xr, sp.fa.binds(xr, Nil{}), sp.ix.cts(ix))
   +xm = sp.if(X.Sx, sp.ix.hasgen(ix), _ => sp.hm(xl, sp.hf.env(xl, sp.ix.sys(ix)), sp.ix.sys(ix)), _ => xl)
   +xq = sp.pl(sp.pc(xm, sp.ix.hasbase(ix), ix), sp.pl.toptvs(x), ix)

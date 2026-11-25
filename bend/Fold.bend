@@ -1242,12 +1242,36 @@ def fd.px.tfs(p: Px) -> List<&2, Tf>:
     case Px{h, f, i, s, t, z, w, rw}:
       t
 
+# a def with a function parameter, whole, for a later module that gives it a
+# partial function (fd.dx): told from the partial defs' signatures by its
+# doc line
+def fd.dx.doc() -> String:
+  "a def given functions, whole (fd.dx)"
+
+def fd.dx.is(it: T.BItem) -> Bool:
+  match it:
+    case T.BiDef{n, ps, r, b, d}:
+      S.mem(S.b(fd.dx.doc()), d)
+    case _:
+      False{}
+
+def fd.dx.keep(+whole: Bool, its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case +h <> t:
+      +rest = fd.dx.keep(whole, t)
+      Bool.pick(List<&2, T.BItem>, Bool.xor(whole, fd.dx.is(h)), rest, h <> rest)
+
 # the data types of the modules before, written as this module names them
 # (Alias.T, Alias.T.C): the fuel's defaults take theirs
-def fd.px.dt(p: Px) -> List<&2, T.BItem>:
+def fd.px.dtall(p: Px) -> List<&2, T.BItem>:
   match p:
     case Px{h, f, i, s, t, z, w, rw}:
       z
+
+def fd.px.dt(p: Px) -> List<&2, T.BItem>:
+  fd.dx.keep(False{}, fd.px.dtall(p))
 
 def fd.ix.key(i: Ix) -> List<&2, U32>:
   match i:
@@ -13870,32 +13894,103 @@ def fd.rx.app(f: T.Bt, +a: T.Bt) -> T.Bt:
     case g:
       T.BtApp{g, a}
 
-def fd.rx(t: T.Bt) -> T.Bt:
+# What a lazy Haskell leaves unforced and a bind made early would force: the
+# right side of && and || where it is partial (an if), the tail of zip xs
+# (tail xs) (zip forces xs first, so that it is drop 1 xs), a partial let
+# only an if's branches use (it is theirs).
+def fd.sc.if(+c: T.Bt, a: T.Bt, b: T.Bt) -> T.Bt:
+  fd.callS("Bool.if", [fd.ty0("Bool"), c, T.BtLam{T.BmLive{}, S.b("_"), a}, T.BtLam{T.BmLive{}, S.b("_"), b}])
+
+def fd.sc.op(and: Bool, or: Bool, a: T.Bt, b: T.Bt) -> T.Bt:
+  match and or:
+    case True{} _:
+      fd.sc.if(a, b, T.BtCon{S.b("False"), T.BtANil{}})
+    case _ True{}:
+      fd.sc.if(a, T.BtCon{S.b("True"), T.BtANil{}}, b)
+    case _ _:
+      T.BtApp{T.BtVar{S.b("Bool.and")}, T.tba.args([a, b])}
+
+def fd.sc.tail(same: Bool, t: T.Bt, x: List<&2, U32>, d: T.Bt) -> T.Bt:
+  match same:
+    case True{}:
+      fd.callS("List.drop", [fd.v("&2"), t, T.BtVar{x}, T.BtNat{S.b("1")}])
+    case False{}:
+      d
+
+# xs's tail as zip's or zipWith's second list
+def fd.sc.zip(a: T.Bt) -> T.Bt:
+  match a:
+    case T.BtArgs{T.BtVar{+x}, T.BtArgs{T.BtApp{T.BtVar{+f}, T.BtArgs{T.BtTplArg{+t}, T.BtArgs{T.BtVar{+y}, T.BtANil{}}}}, T.BtANil{}}}:
+      T.BtArgs{T.BtVar{x}, T.BtArgs{fd.sc.tail(Bool.and(fd.is(f, "HsPrelude.HsList.tail"), S.eq(x, y)), t, y, T.BtApp{T.BtVar{f}, T.tba.args([T.BtTplArg{t}, T.BtVar{y}])}), T.BtANil{}}}
+    case T.BtArgs{h, r}:
+      T.BtArgs{h, fd.sc.zip(r)}
+    case u:
+      u
+
+def fd.sc.app(f: T.Bt, a: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  match f a:
+    case T.BtVar{+x} T.BtArgs{+p, T.BtArgs{+q, T.BtANil{}}}:
+      Bool.pick(T.Bt, Bool.and(Bool.or(fd.is(x, "Bool.and"), fd.is(x, "Bool.or")), fd.pt.has(ks, q)), fd.sc.op(fd.is(x, "Bool.and"), fd.is(x, "Bool.or"), p, q), T.BtApp{T.BtVar{x}, T.tba.args([p, q])})
+    case T.BtVar{+x} +u:
+      T.BtApp{T.BtVar{x}, Bool.pick(T.Bt, Bool.or(fd.is(x, "HsPrelude.HsList.zip"), fd.is(x, "HsPrelude.HsList.zipWith")), fd.sc.zip(u), u)}
+    case g u:
+      T.BtApp{g, u}
+
+# x = v over b, v partial: over an if's branches that use x (their ifs' too;
+# fuel), nothing where x is not used
+def fd.sc.ok(+x: List<&2, U32>, +f: List<&2, U32>, +r: T.Bt, +c: T.Bt) -> Bool:
+  Bool.and(fd.is(f, "Bool.if"), Bool.and(Nat.is_eq(fd.uses(c, x), 0n), Nat.is_eq(fd.uses(r, x), 0n)))
+
+def fd.sc.sink(+n: Nat, +x: List<&2, U32>, +v: T.Bt, t: T.Bt) -> T.Bt:
+  match n t:
+    case 1n++p T.BtApp{T.BtVar{+f}, T.BtArgs{+r, T.BtArgs{+c, T.BtArgs{T.BtLam{+m, +y, +a}, T.BtArgs{T.BtLam{+m2, +z, +b}, T.BtANil{}}}}}}:
+      fd.pt.if(T.Bt, fd.sc.ok(fd.unplus(x), f, r, c), _ => T.BtApp{T.BtVar{f}, T.tba.args([r, c, T.BtLam{m, y, fd.sc.sink(p, x, v, a)}, T.BtLam{m2, z, fd.sc.sink(p, x, v, b)}])}, _ => T.BtLet{x, v, T.BtApp{T.BtVar{f}, T.tba.args([r, c, T.BtLam{m, y, a}, T.BtLam{m2, z, b}])}})
+    case _ +u:
+      fd.pt.if(T.Bt, Nat.is_gt(fd.uses(u, fd.unplus(x)), 0n), _ => T.BtLet{x, v, u}, _ => u)
+
+def fd.sc.let(has: Bool, x: List<&2, U32>, v: T.Bt, b: T.Bt) -> T.Bt:
+  match has b:
+    case True{} T.BtExpr{e}:
+      T.BtExpr{fd.sc.sink(8n, x, v, e)}
+    case True{} T.BtApp{f, a}:
+      fd.sc.sink(8n, x, v, T.BtApp{f, a})
+    case _ u:
+      T.BtLet{x, v, u}
+
+def fd.sc.re(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
   match t:
     case T.BtApp{f, a}:
-      fd.rx.app(fd.rx(f), fd.rx(a))
+      fd.sc.app(f, a, ks)
+    case u:
+      u
+
+def fd.rx(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.sc.re(fd.rx.app(fd.rx(f, ks), fd.rx(a, ks)), ks)
     case T.BtArgs{a, r}:
-      T.BtArgs{fd.rx(a), fd.rx(r)}
+      T.BtArgs{fd.rx(a, ks), fd.rx(r, ks)}
     case T.BtTplArg{a}:
-      T.BtTplArg{fd.rx(a)}
+      T.BtTplArg{fd.rx(a, ks)}
     case T.BtLam{m, x, b}:
-      T.BtLam{m, x, fd.rx(b)}
+      T.BtLam{m, x, fd.rx(b, ks)}
     case T.BtCon{c, a}:
-      T.BtCon{c, fd.rx(a)}
+      T.BtCon{c, fd.rx(a, ks)}
     case T.BtMatch{xs, cs}:
-      T.BtMatch{xs, fd.rx(cs)}
+      T.BtMatch{xs, fd.rx(cs, ks)}
     case T.BtCase{p, b, r}:
-      T.BtCase{p, fd.rx(b), fd.rx(r)}
+      T.BtCase{p, fd.rx(b, ks), fd.rx(r, ks)}
     case T.BtLet{x, v, b}:
-      T.BtLet{x, fd.rx(v), fd.rx(b)}
+      +v2 = fd.rx(v, ks)
+      fd.sc.let(fd.pt.has(ks, v2), x, v2, fd.rx(b, ks))
     case T.BtRw{e, p, b}:
-      T.BtRw{e, p, fd.rx(b)}
+      T.BtRw{e, p, fd.rx(b, ks)}
     case T.BtExpr{e}:
-      T.BtExpr{fd.rx(e)}
+      T.BtExpr{fd.rx(e, ks)}
     case T.BtAnn{a, ty}:
-      T.BtAnn{fd.rx(a), ty}
+      T.BtAnn{fd.rx(a, ks), ty}
     case T.BtSucc{a}:
-      T.BtSucc{fd.rx(a)}
+      T.BtSucc{fd.rx(a, ks)}
     case u:
       u
 
@@ -13917,7 +14012,7 @@ def fd.rx.items(its: List<&2, T.BItem>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
     case Nil{}:
       Nil{}
     case T.BiDef{+n, +ps, +r, +b, +d} <> t:
-      Bool.pick(T.BItem, fd.pt.isown(ks, n), fd.rx.item(n, ps, r, fd.mark(fd.rx(b)), d), T.BiDef{n, ps, r, b, d}) <> fd.rx.items(t, ks)
+      Bool.pick(T.BItem, fd.pt.isown(ks, n), fd.rx.item(n, ps, r, fd.mark(fd.rx(b, ks)), d), T.BiDef{n, ps, r, b, d}) <> fd.rx.items(t, ks)
     case h <> t:
       h <> fd.rx.items(t, ks)
 
@@ -14094,14 +14189,122 @@ def fd.pc.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
   +ks = fd.pt.ks(its, dt)
   fd.pc.all1(fd.pc.names(its, ks), fd.pa.names(its, ks), fd.pa.imported(dt), its, ks, dt)
 
+# the copies
+def fd.dx.hds(its: List<&2, T.BItem>) -> List<&2, Hdf>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      Hdf{n, ps, r, b, fd.ph.idx(ps, 0n)} <> fd.dx.hds(t)
+    case h <> t:
+      fd.dx.hds(t)
+
+def fd.dx.after(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      t
+    case h <> t:
+      fd.dx.after(t)
+
+# (the dots as _: Law's gate takes a dotted item for part of the def before
+# its first dot)
+def fd.dx.flat(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      95 <> fd.dx.flat(t)
+    case h <> t:
+      h <> fd.dx.flat(t)
+
+def fd.dx.im(+x: List<&2, U32>) -> List<&2, U32>:
+  fd.cat(fd.dx.flat(fd.dx.after(x)), S.b("_im"))
+
+def fd.dx.gs(hs: List<&2, Hkf>, +done: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match hs:
+    case Nil{}:
+      Nil{}
+    case Hkf{+g, iz} <> t:
+      +rest = fd.dx.gs(t, done)
+      Bool.pick(List<&2, List<&2, U32>>, Bool.or(S.mem(g, done), S.mem(g, rest)), rest, g <> rest)
+
+def fd.dx.ren(gs: List<&2, List<&2, U32>>, +b: T.Bt) -> T.Bt:
+  match gs:
+    case Nil{}:
+      b
+    case +g <> t:
+      fd.dx.ren(t, fd.ti.sub(b, g, T.BtVar{fd.dx.im(g)}))
+
+def fd.dx.rens(its: List<&2, T.BItem>, +gs: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, ps, r, fd.dx.ren(gs, b), d} <> fd.dx.rens(t, gs)
+    case h <> t:
+      h <> fd.dx.rens(t, gs)
+
+def fd.dx.one(m: Maybe<&2, Hdf>) -> List<&2, T.BItem>:
+  match m:
+    case Some{Hdf{+n, ps, r, b, js}}:
+      [T.BiDef{fd.dx.im(n), ps, r, b, [fd.cat(S.b("generated: a copy, given a partial function: "), n)]}]
+    case None{}:
+      Nil{}
+
+def fd.dx.new(gs: List<&2, List<&2, U32>>, +hds: List<&2, Hdf>) -> List<&2, T.BItem>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case g <> t:
+      List.append(&2, T.BItem, fd.dx.one(fd.ph.hd(hds, g)), fd.dx.new(t, hds))
+
+# the copies' function parameters, as partial ones
+def fd.dx.pts(its: List<&2, T.BItem>) -> List<&2, Pt>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{n, +ps, r, b, d} <> t:
+      List.append(&2, Pt, fd.ph.pts(ps, 0n, fd.ph.idx(ps, 0n)), fd.dx.pts(t))
+    case h <> t:
+      fd.dx.pts(t)
+
+def fd.dx.more(gs: List<&2, List<&2, U32>>, +its: List<&2, T.BItem>, +cps: List<&2, T.BItem>, +done: List<&2, List<&2, U32>>, k: List<&2, List<&2, U32>> -> List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match gs:
+    case Nil{}:
+      List.append(&2, T.BItem, fd.dx.rens(cps, done), fd.dx.rens(its, done))
+    case +g <> +t:
+      k(g <> t)
+
+def fd.dx.rounds(fuel: Nat, +its: List<&2, T.BItem>, +cps: List<&2, T.BItem>, +done: List<&2, List<&2, U32>>, +hds: List<&2, Hdf>, +ks: List<&2, Pt>) -> List<&2, T.BItem>:
+  match fuel:
+    case 0n:
+      List.append(&2, T.BItem, fd.dx.rens(cps, done), fd.dx.rens(its, done))
+    case 1n+k:
+      fd.dx.more(fd.dx.gs(fd.ph.scans(cps, hds, List.append(&2, Pt, fd.dx.pts(cps), ks), fd.ph.scans(its, hds, ks, Nil{})), done), its, cps, done, +gs => fd.dx.rounds(k, its, List.append(&2, T.BItem, cps, fd.dx.new(gs, hds)), List.append(&2, List<&2, U32>, gs, done), hds, ks))
+
+def fd.dx.all1(hds: List<&2, Hdf>, +its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match hds:
+    case Nil{}:
+      its
+    case +h <> +t:
+      fd.dx.rounds(6n, its, Nil{}, Nil{}, h <> t, fd.pt.ks(its, dt))
+
+def fd.dx.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.dx.all1(fd.dx.hds(fd.dx.keep(True{}, dt)), its, fd.dx.keep(False{}, dt))
+
 def fd.pt.all2(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.ph.all(its, fd.pt.ks(its, dt))
 
 def fd.pt.all1(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all2(fd.pc.all(fd.el.rounds(4n, fd.ey.all(fd.el.rounds(4n, its, dt), dt), dt), dt), dt)
 
-def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+def fd.pt.all0(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.pt.all1(fd.rx.items(its, fd.pt.ks(its, dt)), dt)
+
+def fd.pt.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  fd.pt.all0(fd.dx.all(its, dt), fd.dx.keep(False{}, dt))
 
 # Recursion through a lifted def ------------------------------------------------
 
@@ -15944,7 +16147,7 @@ def fd.kd.all(+its: List<&2, T.BItem>, +dt: List<&2, T.BItem>) -> List<&2, T.BIt
 # arguments) holds a function where one is a local action (IC's eraRegion's
 # dropLeaf), and is a Type then
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dt(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))
+  fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dtall(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
@@ -16642,12 +16845,134 @@ def fd.dt.export(its: List<&2, T.BItem>, +a: List<&2, U32>, +tn: List<&2, List<&
     case h <> t:
       fd.dt.export(t, a, tn)
 
+# A package's def with a function parameter, given a partial function by a
+# later module (PrettyPrint.Indent's indentWithTwoChildren' at Resolve's
+# showP): no variant of it can be written in its own module, so the later
+# one takes a copy of it (NAME_im), a def of its own from there on, if what
+# it names is its own module's or the prelude's. Copies are made in rounds:
+# a copy may give its function to another such def (fuel).
+def fd.dx.dot(x: List<&2, U32>) -> Bool:
+  match x:
+    case Nil{}:
+      False{}
+    case 46 <> t:
+      True{}
+    case h <> t:
+      fd.dx.dot(t)
+
+def fd.dx.pre(ps: List<String>, +x: List<&2, U32>) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case p <> t:
+      Bool.or(S.prefix(x, S.b(p)), fd.dx.pre(t, x))
+
+def fd.dx.base(+x: List<&2, U32>) -> Bool:
+  Bool.or(Bool.not(fd.dx.dot(x)), fd.dx.pre(["HsPrelude.", "hs.", "List.", "Bool.", "Nat.", "String.", "Char.", "Maybe.", "Either.", "U32.", "F32.", "HsCmp.", "Sigma."], x))
+
+def fd.dx.refs(rs: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+  match rs:
+    case Nil{}:
+      True{}
+    case +r <> t:
+      Bool.and(Bool.or(S.mem(r, own), fd.dx.base(r)), fd.dx.refs(t, own))
+
+def fd.dx.apart(xs: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case x <> t:
+      Bool.and(Bool.not(S.mem(x, own)), fd.dx.apart(t, own))
+
+# a module's own names as a later module's (Alias.x)
+def fd.dx.q(t: T.Bt, +own: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> T.Bt:
+  match t:
+    case T.BtVar{+n}:
+      T.BtVar{fd.bpick(S.mem(n, own), fd.akey(a, n), n)}
+    case T.BtTyApp{+n, b}:
+      T.BtTyApp{fd.bpick(S.mem(n, own), fd.akey(a, n), n), fd.dx.q(b, own, a)}
+    case T.BtCon{+n, b}:
+      T.BtCon{fd.bpick(S.mem(n, own), fd.akey(a, n), n), fd.dx.q(b, own, a)}
+    case T.BtApp{f, b}:
+      T.BtApp{fd.dx.q(f, own, a), fd.dx.q(b, own, a)}
+    case T.BtArgs{h, r}:
+      T.BtArgs{fd.dx.q(h, own, a), fd.dx.q(r, own, a)}
+    case T.BtTplArg{b}:
+      T.BtTplArg{fd.dx.q(b, own, a)}
+    case T.BtLam{m, x, b}:
+      T.BtLam{m, x, fd.dx.q(b, own, a)}
+    case T.BtPi{m, x, d, b, c}:
+      T.BtPi{m, x, d, fd.dx.q(b, own, a), fd.dx.q(c, own, a)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.dx.q(cs, own, a)}
+    case T.BtCase{p, b, r}:
+      T.BtCase{fd.dx.q(p, own, a), fd.dx.q(b, own, a), fd.dx.q(r, own, a)}
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, fd.dx.q(v, own, a), fd.dx.q(b, own, a)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.dx.q(e, own, a)}
+    case T.BtAnn{e, ty}:
+      T.BtAnn{fd.dx.q(e, own, a), fd.dx.q(ty, own, a)}
+    case T.BtSucc{e}:
+      T.BtSucc{fd.dx.q(e, own, a)}
+    case T.BtDead{e}:
+      T.BtDead{fd.dx.q(e, own, a)}
+    case u:
+      u
+
+def fd.dx.ps(ps: List<&2, T.BParam>, +own: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> List<&2, T.BParam>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, ty} <> t:
+      T.BParam{m, x, fd.dx.q(ty, own, a)} <> fd.dx.ps(t, own, a)
+
+def fd.dx.pnames(ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case T.BParam{m, x, ty} <> t:
+      x <> fd.dx.pnames(t)
+
+def fd.dx.cnames(cs: List<&2, T.BCtor>) -> List<&2, List<&2, U32>>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case T.BCtor{c, fs} <> t:
+      c <> fd.dx.cnames(t)
+
+# the names a module's items define, its constructors with them
+def fd.dx.own(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiType{n, ps, k, cs, d} <> t:
+      n <> List.append(&2, List<&2, U32>, fd.dx.cnames(cs), fd.dx.own(t))
+    case T.BiDef{n, ps, r, b, d} <> t:
+      n <> fd.dx.own(t)
+    case h <> t:
+      fd.dx.own(t)
+
+def fd.dx.ok(+n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+  +rs = T.tba.refs(b, T.tba.refs(r, Nil{}))
+  fd.pt.if(Bool, Bool.or(S.mem(S.b(fd.pt.doc()), d), List.is_empty(&2, Nat, fd.ph.idx(ps, 0n))), _ => False{}, _ => fd.pt.if(Bool, S.mem(n, rs), _ => False{}, _ => Bool.and(fd.dx.refs(rs, own), fd.dx.apart(fd.binds(b, fd.dx.pnames(ps)), own))))
+
+def fd.dx.export(its: List<&2, T.BItem>, +own: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> List<&2, T.BItem>:
+  match its:
+    case Nil{}:
+      Nil{}
+    case T.BiDef{+n, +ps, +r, +b, d} <> t:
+      +rest = fd.dx.export(t, own, a)
+      fd.pt.if(List<&2, T.BItem>, fd.dx.ok(n, ps, r, b, d, own), _ => T.BiDef{fd.akey(a, n), fd.dx.ps(ps, own, a), fd.dx.q(r, own, a), fd.dx.q(b, own, a), [S.b(fd.dx.doc())]} <> rest, _ => rest)
+    case h <> t:
+      fd.dx.export(t, own, a)
+
 # in package mode, the package after the module; a module alone gives nothing
 def fd.px.next(pkg: Bool, +p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, +xs: List<&2, X.Sx>, +gs: List<&2, Got>, +tfs: List<&2, Tf>, +cs: List<&2, Ctr>, +ds: List<&2, Df>, +kept: List<&2, T.BItem>) -> Px:
   match pkg:
     case True{}:
       +names = fd.its.names(kept)
-      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), fd.dt.export(kept, alias, fd.dt.tnames(kept)), fd.rt.wrappers(fd.is(m, "BendRt"), alias, kept))
+      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), List.append(&2, T.BItem, fd.dt.export(kept, alias, fd.dt.tnames(kept)), fd.dx.export(kept, fd.dx.own(kept), alias)), fd.rt.wrappers(fd.is(m, "BendRt"), alias, kept))
     case False{}:
       p
 
