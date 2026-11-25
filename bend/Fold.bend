@@ -17747,15 +17747,25 @@ def fd.dx.pre(ps: List<String>, +x: List<&2, U32>) -> Bool:
     case p <> t:
       Bool.or(S.prefix(x, S.b(p)), fd.dx.pre(t, x))
 
-def fd.dx.base(+x: List<&2, U32>) -> Bool:
-  Bool.or(Bool.not(fd.dx.dot(x)), fd.dx.pre(["HsPrelude.", "hs.", "List.", "Bool.", "Nat.", "String.", "Char.", "Maybe.", "Either.", "U32.", "F32.", "HsCmp.", "Sigma."], x))
+# (al: the package's earlier modules, imported by the alias in every one of it)
+def fd.dx.alias(x: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case Nil{}:
+      Nil{}
+    case 46 <> t:
+      Nil{}
+    case h <> t:
+      h <> fd.dx.alias(t)
 
-def fd.dx.refs(rs: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+def fd.dx.base(+x: List<&2, U32>, +al: List<&2, List<&2, U32>>) -> Bool:
+  Bool.or(Bool.or(Bool.not(fd.dx.dot(x)), S.mem(fd.dx.alias(x), al)), fd.dx.pre(["HsPrelude.", "hs.", "List.", "Bool.", "Nat.", "String.", "Char.", "Maybe.", "Either.", "U32.", "F32.", "HsCmp.", "Sigma."], x))
+
+def fd.dx.refs(rs: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>, +al: List<&2, List<&2, U32>>) -> Bool:
   match rs:
     case Nil{}:
       True{}
     case +r <> t:
-      Bool.and(Bool.or(S.mem(r, own), fd.dx.base(r)), fd.dx.refs(t, own))
+      Bool.and(Bool.or(S.mem(r, own), fd.dx.base(r, al)), fd.dx.refs(t, own, al))
 
 def fd.dx.apart(xs: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
   match xs:
@@ -17833,26 +17843,26 @@ def fd.dx.own(its: List<&2, T.BItem>) -> List<&2, List<&2, U32>>:
     case h <> t:
       fd.dx.own(t)
 
-def fd.dx.ok(+n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>) -> Bool:
+def fd.dx.ok(+n: List<&2, U32>, +ps: List<&2, T.BParam>, +r: T.Bt, +b: T.Bt, d: List<&2, List<&2, U32>>, +own: List<&2, List<&2, U32>>, +al: List<&2, List<&2, U32>>) -> Bool:
   +rs = T.tba.refs(b, T.tba.refs(r, Nil{}))
-  fd.pt.if(Bool, Bool.or(S.mem(S.b(fd.pt.doc()), d), List.is_empty(&2, Nat, fd.ph.idx(ps, 0n))), _ => False{}, _ => Bool.and(fd.dx.refs(rs, own), fd.dx.apart(fd.binds(b, fd.dx.pnames(ps)), own)))
+  fd.pt.if(Bool, Bool.or(S.mem(S.b(fd.pt.doc()), d), List.is_empty(&2, Nat, fd.ph.idx(ps, 0n))), _ => False{}, _ => Bool.and(fd.dx.refs(rs, own, al), fd.dx.apart(fd.binds(b, fd.dx.pnames(ps)), own)))
 
-def fd.dx.export(its: List<&2, T.BItem>, +own: List<&2, List<&2, U32>>, +a: List<&2, U32>) -> List<&2, T.BItem>:
+def fd.dx.export(its: List<&2, T.BItem>, +own: List<&2, List<&2, U32>>, +a: List<&2, U32>, +al: List<&2, List<&2, U32>>) -> List<&2, T.BItem>:
   match its:
     case Nil{}:
       Nil{}
     case T.BiDef{+n, +ps, +r, +b, d} <> t:
-      +rest = fd.dx.export(t, own, a)
-      fd.pt.if(List<&2, T.BItem>, fd.dx.ok(n, ps, r, b, d, own), _ => T.BiDef{fd.akey(a, n), fd.dx.ps(ps, own, a), fd.dx.q(r, own, a), fd.dx.q(b, own, a), [S.b(fd.dx.doc())]} <> rest, _ => rest)
+      +rest = fd.dx.export(t, own, a, al)
+      fd.pt.if(List<&2, T.BItem>, fd.dx.ok(n, ps, r, b, d, own, al), _ => T.BiDef{fd.akey(a, n), fd.dx.ps(ps, own, a), fd.dx.q(r, own, a), fd.dx.q(b, own, a), [S.b(fd.dx.doc())]} <> rest, _ => rest)
     case h <> t:
-      fd.dx.export(t, own, a)
+      fd.dx.export(t, own, a, al)
 
 # in package mode, the package after the module; a module alone gives nothing
 def fd.px.next(pkg: Bool, +p: Px, +m: List<&2, U32>, +alias: List<&2, U32>, +xs: List<&2, X.Sx>, +gs: List<&2, Got>, +tfs: List<&2, Tf>, +cs: List<&2, Ctr>, +ds: List<&2, Df>, +kept: List<&2, T.BItem>) -> Px:
   match pkg:
     case True{}:
       +names = fd.its.names(kept)
-      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), List.append(&2, T.BItem, fd.dt.export(kept, alias, fd.dt.tnames(kept)), fd.dx.export(kept, fd.dx.own(kept), alias)), fd.rt.wrappers(fd.is(m, "BendRt"), alias, kept))
+      fd.px.add(p, m, alias, fd.wrote(True{}, kept), List.append(&2, Ix, fd.iface.fzs(fd.fzs(xs, m), alias, names), fd.iface(gs, m, alias, names, cs, ds)), fd.iface.syns(xs, m), fd.iface.tfs(tfs, alias, names), List.append(&2, T.BItem, fd.dt.export(kept, alias, fd.dt.tnames(kept)), fd.dx.export(kept, fd.dx.own(kept), alias, fd.px.files(p))), fd.rt.wrappers(fd.is(m, "BendRt"), alias, kept))
     case False{}:
       p
 

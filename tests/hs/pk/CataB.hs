@@ -1,10 +1,10 @@
-module CataB where
+module CataB (module CataB, module CataA0) where
+
+import CataA0
 
 import qualified Control.Monad.State as State
 import Control.Monad.State (State)
 
-data O = OVar Int | OApp O O | OClo Int O | OPair O O | ONil | OIte O O O | OL O
-  deriving (Show, Eq)
 
 type B a = State (Int, Int) a
 
@@ -18,7 +18,7 @@ pairS :: Monad m => m O -> m O -> m O
 pairS a b = do
   a' <- a
   b' <- b
-  pure (OPair a' b')
+  pure (mkPair a' b')
 
 clamS :: B O -> B O
 clamS x = pairS (x >>= deferS) $ pure ONil
