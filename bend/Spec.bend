@@ -4406,7 +4406,7 @@ def sp.fa.at.go(fas0: List<&2, Fa>, +h: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur
     case +f0 <> +ft:
       +fas0 = {f0 <> ft : List<&2, Fa>}
       +fr0 = sp.fa.frees.all(fas0, Nil{})
-      +sl = sp.fa.both(fr0, rl)
+      +sl = sp.fa.both(rl, fr0)
       +loc = Bool.not(List.is_empty(&2, X.Sx, sl))
       +outs = Bool.pick(List<&2, X.Sx>, loc, sp.og.vars(sp.og.find(ol, sp.or(sp.nth(sl, 0n), X.SxNil{}))), Nil{})
       +frees = sp.fa.minus(sp.fa.minus(fr0, sl), outs)
@@ -6288,11 +6288,64 @@ def sp.fl.apart(+c: X.Sx, +sc: List<&2, Asb>) -> X.Sx:
   +s = sp.fl.apart.s(sp.fl.apart.fun(sp.fun.of(c)), sp.fl.names(sc))
   sp.if(X.Sx, List.is_empty(&2, Asb, s), _ => c, _ => sp.as.sub(c, None{}, s))
 
+# A copy's own locals (the functions its wheres and lets bind), each with
+# the copy's hash after its unique, so that two copies of one def in one top
+# are apart: transformNoDeferM's c' is a group in each of its copies in
+# analyzeChecks, and a copy made for one goes in that one's group.
+def sp.fl.own.v(+v: X.Sx, +acc: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  Bool.pick(List<&2, X.Sx>, sp.head.is(v, "l"), v <> acc, acc)
+
+def sp.fl.locals(x: X.Sx, +acc: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +a = X.tsx.atom.of(h)
+      +b = Bool.or(sp.is(a, "fun"), sp.is(a, "export"))
+      +acc2 = sp.if(List<&2, X.Sx>, b, _ => sp.fl.own.v(sp.lg.unself(sp.at(n, 1n)), acc), _ => acc)
+      sp.fl.locals(t, sp.fl.locals(h, acc2))
+    case _:
+      acc
+
+def sp.fl.uniq.s(vs: List<&2, X.Sx>, +hs: List<&2, U32>) -> List<&2, Asb>:
+  match vs:
+    case Nil{}:
+      Nil{}
+    case +v <> t:
+      Asb{v, sp.l([sp.a("l"), X.SxStr{sp.sat(v, 1n)}, X.SxAtom{sp.cat(sp.lr.id(sp.at(v, 2n)), hs)}])} <> sp.fl.uniq.s(t, hs)
+
+def sp.fl.uniq(+c: X.Sx, +n: List<&2, U32>) -> X.Sx:
+  +s = sp.fl.uniq.s(sp.fl.locals(c, Nil{}), sp.fl.hash(n, Nil{}))
+  sp.if(X.Sx, List.is_empty(&2, Asb, s), _ => c, _ => sp.as.sub(c, None{}, s))
+
+# a copy of no parameters whose type is a function takes its argument, its
+# where around it: transM's copy at a step, f = c where .., is f eta = c eta
+# where .. (the fold lifts a local function, not a local value that is one)
+def sp.fl.eta.fun(+f: X.Sx, +n: List<&2, U32>) -> X.Sx:
+  +ms = sp.at(f, 4n)
+  +ty = sp.at(ms, 2n)
+  +m0 = sp.first(sp.els(sp.at(ms, 4n)))
+  +gr = sp.at(m0, 2n)
+  +g0 = sp.first(sp.els(sp.at(gr, 1n)))
+  +one = Bool.and(Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), Nat.is_eq(X.tsx.len(sp.at(ms, 4n)), 1n)), Bool.and(Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n), sp.eq(sp.at(g0, 1n), X.SxNil{})))
+  +ok = Bool.and(Bool.and(sp.head.is(f, "fun"), sp.head.is(ty, "tfun")), one)
+  +v = sp.l([sp.a("l"), X.SxStr{sp.cat(S.b("eta_"), sp.fl.hash(n, Nil{}))}, sp.a("0")])
+  +body = sp.lg.dot(8n, sp.l([sp.a("app"), sp.at(g0, 2n), v]))
+  +gr2 = sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, body])]), sp.at(gr, 2n)])
+  +ms2 = sp.l([sp.a("matches"), sp.l([sp.at(ty, 1n)]), sp.at(ty, 2n), sp.at(ms, 3n), sp.l([sp.l([sp.a("match"), sp.l([sp.l([sp.a("pvar"), sp.l([sp.a("bv"), v, sp.at(ty, 1n)])])]), gr2])])])
+  Bool.pick(X.Sx, ok, sp.l([sp.at(f, 0n), sp.at(f, 1n), sp.at(f, 2n), sp.at(f, 3n), ms2, sp.at(f, 5n)]), f)
+
+# the copy's top, (top (abs () () EXPORTS EVBINDS (FUN)) ..)
+def sp.fl.eta(+c: X.Sx, +n: List<&2, U32>) -> X.Sx:
+  +ab = sp.at(c, 1n)
+  +fs = sp.els(sp.at(ab, 5n))
+  +ok = Bool.and(sp.head.is(c, "top"), Nat.is_eq(List.length(&2, X.Sx, fs), 1n))
+  sp.if(X.Sx, ok, _ => sp.l(sp.at(c, 0n) <> sp.l(sp.le.at5(sp.els(ab), sp.l([sp.fl.eta.fun(sp.first(fs), n)]))) <> sp.dropn(sp.els(c), 2n)), _ => c)
+
 # the copy's top through the passes, its var (g CUR N var) the local
 def sp.fl.run(m: Maybe<&2, X.Sx>, +n: List<&2, U32>, +cur: List<&2, U32>, +ix: Ix, +rl: List<&2, X.Sx>, +ol: List<&2, Og>, +kn: List<&2, Rq>, +rg: List<&2, X.Sx>) -> Rw:
   match m:
     case Some{+c}:
-      +r = sp.passes0(sp.fl.apart(c, sp.og.base(ol)), cur, ix, rl, ol, kn, rg)
+      +r = sp.passes0(sp.fl.apart(sp.fl.uniq(sp.fl.eta(c, n), n), sp.og.base(ol)), cur, ix, rl, ol, kn, rg)
       +s = {[Asb{sp.g(cur, n, "var"), sp.fl.var(n)}] : List<&2, Asb>}
       +y = sp.fl.x(r)
       Rw{sp.as.sub(y, sp.as.look(y, s), s), sp.fl.q(r)}
