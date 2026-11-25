@@ -13774,10 +13774,18 @@ def fd.pt.fix(fuel: Nat, done: Bool, +rs: List<&2, Pr>, +ks: List<&2, Pt>) -> Li
       +ks2 = fd.pt.round(rs, ks)
       fd.pt.fix(k, Nat.is_eq(List.length(&2, Pt, ks2), List.length(&2, Pt, ks)), rs, fd.pt.im(ks2))
 
-def fd.pt.def(n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, w: Pw, d: List<&2, List<&2, U32>>) -> T.BItem:
+# what a def left out for it would have been, as a comment
+def fd.pt.was(bad: Bool, +n: List<&2, U32>, +r: T.Bt, +b: T.Bt) -> List<&2, List<&2, U32>>:
+  match bad:
+    case True{}:
+      S.split(P.tpr.item(T.BiDef{n, Nil{}, r, b, Nil{}}, Nil{}), 10)
+    case False{}:
+      Nil{}
+
+def fd.pt.def(+n: List<&2, U32>, ps: List<&2, T.BParam>, +r: T.Bt, w: Pw, d: List<&2, List<&2, U32>>) -> T.BItem:
   match w:
-    case Pw{b, bs, k, bad, e, at}:
-      T.BiDef{n, ps, fd.pt.ety(r), Bool.pick(T.Bt, bad, T.BtExpr{fd.todo("fold:partial-in-lambda")}, b), List.append(&2, List<&2, U32>, d, [S.b(fd.pt.doc())])}
+    case Pw{+b, bs, k, +bad, e, at}:
+      T.BiDef{n, ps, fd.pt.ety(r), Bool.pick(T.Bt, bad, T.BtExpr{fd.todo("fold:partial-in-lambda")}, b), List.append(&2, List<&2, U32>, d, S.b(fd.pt.doc()) <> fd.pt.was(bad, n, r, b))}
 
 # a body whose answers are all expressions (BtExpr), a let's body too
 def fd.pt.norm(t: T.Bt) -> T.Bt:
@@ -17672,11 +17680,75 @@ def fd.hk.of(hds: List<&2, Hdf>, its: List<&2, T.BItem>) -> List<&2, T.BItem>:
 def fd.hk.all(+its: List<&2, T.BItem>) -> List<&2, T.BItem>:
   fd.hk.of(fd.hk.defs(its), its)
 
+# A case whose body is a match of one irrefutable case (a tuple's) on a
+# variable of the case's pattern: the tuple's pattern in its place. Bend takes
+# a pattern's variables apart in their order: y of (y <> []) cannot be matched
+# after [] has been.
+def fd.nm.has(p: T.Bt, +y: List<&2, U32>) -> Bool:
+  match p:
+    case T.BtPv{m, x}:
+      S.eq(x, y)
+    case T.BtCon{c, a}:
+      fd.nm.has(a, y)
+    case T.BtArgs{a, r}:
+      Bool.or(fd.nm.has(a, y), fd.nm.has(r, y))
+    case _:
+      False{}
+
+def fd.nm.put(p: T.Bt, +y: List<&2, U32>, +q: T.Bt) -> T.Bt:
+  match p:
+    case T.BtPv{m, +x}:
+      Bool.pick(T.Bt, S.eq(x, y), q, T.BtPv{m, x})
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.nm.put(a, y, q)}
+    case T.BtArgs{a, r}:
+      T.BtArgs{fd.nm.put(a, y, q), fd.nm.put(r, y, q)}
+    case u:
+      u
+
+def fd.nm.tup(q: T.Bt) -> Bool:
+  match q:
+    case T.BtCon{+c, a}:
+      Bool.and(fd.is(c, "Tuple"), fd.pg.irr(a))
+    case _:
+      False{}
+
+def fd.nm.case(+p: T.Bt, b: T.Bt, +rest: T.Bt) -> T.Bt:
+  match b:
+    case T.BtMatch{T.BtArgs{T.BtVar{+y}, T.BtANil{}}, T.BtCase{T.BtArgs{+q, T.BtANil{}}, +e, T.BtCEnd{}}}:
+      +free = fd.rx.apart(T.tba.pvars(q, Nil{}), T.tba.pvars(p, Nil{}))
+      +ok = Bool.and(Bool.and(fd.nm.has(p, y), fd.nm.tup(q)), Bool.and(free, Bool.not(S.mem(y, T.tba.frees(e, Nil{})))))
+      Bool.pick(T.Bt, ok, T.BtCase{fd.nm.put(p, y, q), e, rest}, T.BtCase{p, T.BtMatch{T.tba.args([T.BtVar{y}]), T.BtCase{T.tba.args([q]), e, T.BtCEnd{}}}, rest})
+    case u:
+      T.BtCase{p, u, rest}
+
+def fd.nm(t: T.Bt) -> T.Bt:
+  match t:
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.nm(cs)}
+    case T.BtCase{p, b, rest}:
+      fd.nm.case(p, fd.nm(b), fd.nm(rest))
+    case T.BtLet{x, v, b}:
+      T.BtLet{x, v, fd.nm(b)}
+    case T.BtRw{e, p, b}:
+      T.BtRw{e, p, fd.nm(b)}
+    case u:
+      u
+
+def fd.nm.all(its: List<&2, T.BItem>) -> List<&2, T.BItem>:
+  match its:
+    case T.BiDef{n, ps, r, b, d} <> t:
+      T.BiDef{n, ps, r, fd.nm(b), d} <> fd.nm.all(t)
+    case h <> t:
+      h <> fd.nm.all(t)
+    case Nil{}:
+      Nil{}
+
 # fd.kd.all again after fd.mu.all: a fuelled group's In (its members'
 # arguments) holds a function where one is a local action (IC's eraRegion's
 # dropLeaf), and is a Type then
 def fd.mod.its(+gs: List<&2, Got>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +env: Env, +px: Px) -> List<&2, T.BItem>:
-  fd.hk.all(fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dtall(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px))))
+  fd.nm.all(fd.hk.all(fd.tm.all(fd.kd.all(fd.mu.all(fd.cy.all(200n, fd.cy.nub(fd.ti.all(fd.pt.all(fd.nzg.all(fd.fi.all(fd.lc.allp(fd.ee.all(fd.eta.all(fd.rt.all(fd.dc.all(fd.kd.all(fd.got.items(gs), fd.px.dt(px))), fd.px.rt(px)))), List.append(&2, Fz, fd.fzs(xs, m), fd.ix.fzs(fd.env.ix(env))), fd.px.dt(px)))), fd.px.dtall(px))), Nil{})), fd.px.dt(px)), fd.px.dt(px)))))
 
 # one round's verdict: done when Bend accepts the file
 def fd.gate.step(g: Gs, +file: List<&2, U32>, +m: List<&2, U32>, +ims: List<&2, List<&2, U32>>, +out: List<&2, U32>, +dt: List<&2, T.BItem>) -> Gs:
