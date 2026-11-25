@@ -1475,6 +1475,56 @@ b'hs'ste'throw :: e -> s -> (B'Either e (B'Sigma a s))
 b'hs'ste'throw e = \_ -> Left e
 b'hs'ste'map :: (a -> b) -> (s -> (B'Either e (B'Sigma a s))) -> s -> (B'Either e (B'Sigma b s))
 b'hs'ste'map f m = \s -> case m s of { Left e -> Left e; Right (a, s') -> Right (f a, s') }
+b'hs'state'ap'go :: (B'Sigma (a -> b) s) -> (s -> (B'Sigma a s)) -> (B'Sigma b s)
+b'hs'state'ap'go p m = let (f, s) = p in b'hs'state'map'go f (m s)
+b'hs'state'gets'go :: (s -> a) -> s -> (B'Sigma a s)
+b'hs'state'gets'go f s = (f s, s)
+b'hs'rde'map'r :: (a -> b) -> (B'Either e a) -> (B'Either e b)
+b'hs'rde'map'r f x = b'hs'rde'map'e f x
+b'hs'ste'bind'go :: (B'Either e (B'Sigma a s)) -> (a -> s -> (B'Either e (B'Sigma b s))) -> (B'Either e (B'Sigma b s))
+b'hs'ste'bind'go r f = case r of { Left e -> Left e; Right (a, s) -> f a s }
+b'hs'ste'map'go :: (a -> b) -> (B'Either e (B'Sigma a s)) -> (B'Either e (B'Sigma b s))
+b'hs'ste'map'go f r = case r of { Left e -> Left e; Right (a, s) -> Right (f a, s) }
+b'hs'ste'gets'go :: (s -> a) -> s -> (B'Either e (B'Sigma a s))
+b'hs'ste'gets'go f s = Right (f s, s)
+b'hs'ste're :: (B'Either e (B'Sigma a s)) -> (B'Either e (B'Sigma a s))
+b'hs'ste're r = r
+b'hs'res'bind'go :: (B'Either e a) -> (a -> r -> s -> (B'Sigma (B'Either e b) s)) -> r -> s -> (B'Sigma (B'Either e b) s)
+b'hs'res'bind'go x f r s = case x of { Left e -> (Left e, s); Right a -> f a r s }
+b'hs'res'bind'p :: (B'Sigma (B'Either e a) s) -> (a -> r -> s -> (B'Sigma (B'Either e b) s)) -> r -> (B'Sigma (B'Either e b) s)
+b'hs'res'bind'p p f r = let (x, s) = p in b'hs'res'bind'go x f r s
+b'hs'res'bind'r :: (r -> s -> (B'Sigma (B'Either e a) s)) -> (a -> r -> s -> (B'Sigma (B'Either e b) s)) -> r -> s -> (B'Sigma (B'Either e b) s)
+b'hs'res'bind'r m f r s = b'hs'res'bind'p (m r s) f r
+b'hs'res'bind :: (r -> s -> (B'Sigma (B'Either e a) s)) -> (a -> r -> s -> (B'Sigma (B'Either e b) s)) -> r -> s -> (B'Sigma (B'Either e b) s)
+b'hs'res'bind m f = \r s -> b'hs'res'bind'r m f r s
+b'hs'res'pure :: a -> r -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'pure a = \_ s -> (Right a, s)
+b'hs'res'throw :: e -> r -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'throw e = \_ s -> (Left e, s)
+b'hs'res'map'r :: (a -> b) -> (B'Either e a) -> (B'Either e b)
+b'hs'res'map'r f x = case x of { Left e -> Left e; Right a -> Right (f a) }
+b'hs'res'map'go :: (a -> b) -> (B'Sigma (B'Either e a) s) -> (B'Sigma (B'Either e b) s)
+b'hs'res'map'go f p = let (x, s) = p in (b'hs'res'map'r f x, s)
+b'hs'res'map :: (a -> b) -> (r -> s -> (B'Sigma (B'Either e a) s)) -> r -> s -> (B'Sigma (B'Either e b) s)
+b'hs'res'map f m = \r s -> b'hs'res'map'go f (m r s)
+b'hs'res'ask :: r -> s -> (B'Sigma (B'Either e r) s)
+b'hs'res'ask = \r s -> (Right r, s)
+b'hs'res'local :: (r -> r) -> (r -> s -> (B'Sigma (B'Either e a) s)) -> r -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'local f m = \r -> m (f r)
+b'hs'res'asks :: (r -> a) -> r -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'asks f = \r s -> (Right (f r), s)
+b'hs'res'get :: r -> s -> (B'Sigma (B'Either e s) s)
+b'hs'res'get = \_ s -> (Right s, s)
+b'hs'res'put :: s -> r -> s -> (B'Sigma (B'Either e B'Unit) s)
+b'hs'res'put s = \_ _ -> (Right (), s)
+b'hs'res'modify :: (s -> s) -> r -> s -> (B'Sigma (B'Either e B'Unit) s)
+b'hs'res'modify f = \_ s -> (Right (), f s)
+b'hs'res'gets'go :: (s -> a) -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'gets'go f s = (Right (f s), s)
+b'hs'res'gets :: (s -> a) -> r -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'gets f = \_ s -> b'hs'res'gets'go f s
+b'hs'res'lift :: (s -> (B'Sigma (B'Either e a) s)) -> r -> s -> (B'Sigma (B'Either e a) s)
+b'hs'res'lift m = \_ -> m
 b'hs'ste'get :: s -> (B'Either e (B'Sigma s s))
 b'hs'ste'get = \s -> Right (s, s)
 b'hs'ste'put :: s -> s -> (B'Either e (B'Sigma B'Unit s))
