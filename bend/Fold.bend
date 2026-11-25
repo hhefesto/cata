@@ -13509,6 +13509,22 @@ def fd.pt.redex(at: Maybe<&2, T.Bt>, m: Ptm, +hb: Bool, lm: T.BMode, x: List<&2,
     case Pw{a, bs, k, bad, e, at2}:
       fd.pt.app.go(at, m, T.BtLam{lm, x, fd.pt.redex.body(hb, wb)}, a, bs, k, Bool.or(bad, fd.pt.redex.bad(hb, wb)), lam)
 
+def fd.pt.isam(m: Ptm) -> Bool:
+  match m:
+    case PtAm{}:
+      True{}
+    case _:
+      False{}
+
+# where the lambda's answer is the answer itself, its type is known (ty):
+# its body is one, whatever it is
+def fd.pt.redexa(am: Bool, at: Maybe<&2, T.Bt>, m: Ptm, +hb: Bool, lm: T.BMode, x: List<&2, U32>, +wb: Pw, wa: Pw, lam: Bool, +ty: T.Bt) -> Pw:
+  match am wa:
+    case True{} Pw{a, bs, k, bad, e, at2}:
+      Pw{T.BtApp{T.BtLam{lm, x, fd.pt.fin(wb, ty)}, a}, bs, k, Bool.or(bad, fd.pt.bad(wb)), True{}, ty}
+    case False{} w:
+      fd.pt.redex(at, m, hb, lm, x, wb, w, lam)
+
 # an if's thunk: its body an answer, the arguments after it
 def fd.pt.mk.thunk(lm: T.BMode, x: List<&2, U32>, +w: Pw, +ty: T.Bt, v: Pw) -> Pw:
   match v:
@@ -13658,10 +13674,11 @@ def fd.pt.go(+ks: List<&2, Pt>, t: T.Bt, m: Ptm, +ty: T.Bt, +n: Nat, +lam: Bool)
       +brh = fd.pt.brh(fd.pt.br(f), ks, a)
       +ho = fd.pt.ho(f, ks, fd.pt.list(a))
       fd.pt.app2(ho, ks, mw, f, fd.pt.go(ks, a, fd.pt.ho.mode(ho, fd.pt.amode(brh)), fd.pt.ho.ty(ho, ty), n, lam), lam, brh)
-    case T.BtApp{T.BtLam{lm, x, +b}, a} mw:
+    case T.BtApp{T.BtLam{lm, x, +b}, a} +mw:
       +hb = fd.pt.has(ks, b)
-      +wb = fd.pt.go(ks, b, fd.pt.rmode(hb), T.BtType{}, n, Bool.not(hb))
-      fd.pt.redex(fd.pt.redex.at(hb, wb), mw, hb, lm, x, wb, fd.pt.go(ks, a, PtWm{}, ty, fd.pt.n(wb), lam), lam)
+      +am = Bool.and(hb, Bool.and(fd.pt.isam(mw), Bool.not(fd.pt.notype(ty))))
+      +wb = fd.pt.go(ks, b, fd.pt.rmode(hb), Bool.pick(T.Bt, am, ty, T.BtType{}), n, Bool.not(hb))
+      fd.pt.redexa(am, fd.pt.redex.at(hb, wb), mw, hb, lm, x, wb, fd.pt.go(ks, a, PtWm{}, ty, fd.pt.n(wb), lam), lam, ty)
     case T.BtApp{f, a} _:
       +wf = fd.pt.go(ks, f, PtWm{}, ty, n, lam)
       fd.pt.mk.app(wf, fd.pt.go(ks, a, PtWm{}, ty, fd.pt.n(wf), lam))
@@ -17497,6 +17514,91 @@ def fd.firstin(xs: List<&2, List<&2, U32>>, +ys: List<&2, List<&2, U32>>) -> Lis
     case Nil{}:
       Nil{}
 
+# An if's function local threaded through its branches (fd.if.at: Bend's Type
+# is not copied) that came to be a template, which Bend does copy and which
+# no lambda may bind: the branches name the template itself, and the if is
+# not applied to it.
+type Ut is Data:
+  Ut{ty: T.Bt, a: T.Bt, b: T.Bt, as: List<&2, T.Bt>}
+
+def fd.ut.keep(drop: Bool, m: T.BMode, y: List<&2, U32>, e: Bool, d: T.Bt, m1: T.BMode, x1: List<&2, U32>, m2: T.BMode, x2: List<&2, U32>, v: List<&2, U32>, u: Ut) -> Ut:
+  match drop u:
+    case True{} w:
+      w
+    case False{} Ut{ty, a, b, as}:
+      Ut{T.BtPi{m, y, e, d, ty}, T.BtLam{m1, x1, a}, T.BtLam{m2, x2, b}, T.BtVar{v} <> as}
+
+def fd.ut.go(as: List<&2, T.Bt>, ty: T.Bt, a: T.Bt, b: T.Bt, +tp: List<&2, List<&2, U32>>) -> Ut:
+  match as ty a b:
+    case T.BtVar{+v} <> t T.BtPi{m, y, e, d, r} T.BtLam{m1, +x1, a1} T.BtLam{m2, +x2, b1}:
+      fd.ut.keep(Bool.and(S.mem(v, tp), Bool.and(S.eq(v, x1), S.eq(v, x2))), m, y, e, d, m1, x1, m2, x2, v, fd.ut.go(t, r, a1, b1, tp))
+    case xs ty2 a2 b2:
+      Ut{ty2, a2, b2, xs}
+
+def fd.ut.re(g: List<&2, U32>, c: T.Bt, m1: T.BMode, y1: List<&2, U32>, m2: T.BMode, y2: List<&2, U32>, u: Ut) -> T.Bt:
+  match u:
+    case Ut{ty, a, b, Nil{}}:
+      T.BtApp{T.BtVar{g}, T.tba.args([ty, c, T.BtLam{m1, y1, a}, T.BtLam{m2, y2, b}])}
+    case Ut{ty, a, b, h <> t}:
+      T.BtApp{T.BtApp{T.BtVar{g}, T.tba.args([ty, c, T.BtLam{m1, y1, a}, T.BtLam{m2, y2, b}])}, T.tba.args(h <> t)}
+
+def fd.ut.app(f: T.Bt, a: T.Bt, +tp: List<&2, List<&2, U32>>) -> T.Bt:
+  match f:
+    case T.BtApp{T.BtVar{+g}, T.BtArgs{ty, T.BtArgs{c, T.BtArgs{T.BtLam{m1, y1, x}, T.BtArgs{T.BtLam{m2, y2, z}, T.BtANil{}}}}}}:
+      fd.ut.re(g, c, m1, y1, m2, y2, fd.ut.go(fd.spine(a), ty, x, z, Bool.pick(List<&2, List<&2, U32>>, fd.is(g, "Bool.if"), tp, Nil{})))
+    case u:
+      T.BtApp{u, a}
+
+def fd.ut(t: T.Bt, +tp: List<&2, List<&2, U32>>) -> T.Bt:
+  match t:
+    case T.BtApp{f, a}:
+      fd.ut.app(fd.ut(f, tp), fd.ut(a, tp), tp)
+    case T.BtArgs{a, rest}:
+      T.BtArgs{fd.ut(a, tp), fd.ut(rest, tp)}
+    case T.BtTplArg{a}:
+      T.BtTplArg{fd.ut(a, tp)}
+    case T.BtLam{m, y, b}:
+      T.BtLam{m, y, fd.ut(b, tp)}
+    case T.BtCon{c, a}:
+      T.BtCon{c, fd.ut(a, tp)}
+    case T.BtMatch{xs, cs}:
+      T.BtMatch{xs, fd.ut(cs, tp)}
+    case T.BtCase{p, b, rest}:
+      T.BtCase{p, fd.ut(b, tp), fd.ut(rest, tp)}
+    case T.BtLet{y, v, b}:
+      T.BtLet{y, fd.ut(v, tp), fd.ut(b, tp)}
+    case T.BtExpr{e}:
+      T.BtExpr{fd.ut(e, tp)}
+    case T.BtAnn{a, ty}:
+      T.BtAnn{fd.ut(a, tp), ty}
+    case T.BtSucc{a}:
+      T.BtSucc{fd.ut(a, tp)}
+    case u:
+      u
+
+def fd.ut.names(ps: List<&2, T.BParam>) -> List<&2, List<&2, U32>>:
+  match ps:
+    case T.BParam{+m, x, ty} <> t:
+      +rest = fd.ut.names(t)
+      Bool.pick(List<&2, List<&2, U32>>, fd.istpl(m), x <> rest, rest)
+    case Nil{}:
+      Nil{}
+
+def fd.ut.if(any: Bool, n: List<&2, U32>, ps: List<&2, T.BParam>, r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>, +tp: List<&2, List<&2, U32>>) -> T.BItem:
+  match any:
+    case True{}:
+      T.BiDef{n, ps, r, fd.ut(b, tp), d}
+    case False{}:
+      T.BiDef{n, ps, r, b, d}
+
+def fd.ut.item(it: T.BItem) -> T.BItem:
+  match it:
+    case T.BiDef{n, +ps, r, b, d}:
+      +tp = fd.ut.names(ps)
+      fd.ut.if(Bool.not(List.is_empty(&2, List<&2, U32>, tp)), n, ps, r, b, d, tp)
+    case u:
+      u
+
 # a def whose template argument is a closure is out
 def fd.tpl.check.of(clo: Bool, +b: T.Bt) -> T.Bt:
   match clo:
@@ -17655,7 +17757,7 @@ def fd.tpl.order(it: T.BItem, +tfs: List<&2, Tf>) -> T.BItem:
 def fd.tpl.fin(gs: List<&2, Got>, +tfs: List<&2, Tf>) -> List<&2, Got>:
   match gs:
     case GotDef{+n, it} <> t:
-      fd.got.def(n, fd.tpl.check(fd.tpl.order(it, tfs))) <> fd.tpl.fin(t, tfs)
+      fd.got.def(n, fd.tpl.check(fd.ut.item(fd.tpl.order(it, tfs)))) <> fd.tpl.fin(t, tfs)
     case g <> t:
       g <> fd.tpl.fin(t, tfs)
     case Nil{}:

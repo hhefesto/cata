@@ -7487,6 +7487,33 @@ def sp.ftw.x(w: Wn) -> X.Sx:
 def sp.ftw.at(+y: X.Sx) -> X.Sx:
   sp.if(X.Sx, Bool.and(Nat.is_eq(X.tsx.len(y), 3n), sp.ftw.falls(sp.at(y, 2n))), _ => sp.l([sp.a("match"), sp.ftw.x(sp.ftw.name(sp.at(y, 1n), 0n)), sp.at(y, 2n)]), _ => y)
 
+# a guard's let of one variable, (letstmt (binds (nonrec (fun V T ..)))), its
+# right-hand side E with no guard and no where: the variable's pattern guard
+# the (fun ..) a let binds alone, inside its abs (no type variable, no
+# dictionary of its own) or not, and what the abs' evidence is
+def sp.gl.isabs(+n: X.Sx) -> Bool:
+  +a = sp.at(n, 1n)
+  Bool.and(sp.head.is(a, "abs"), Bool.and(Bool.and(Nat.is_eq(X.tsx.len(sp.at(a, 1n)), 0n), Nat.is_eq(X.tsx.len(sp.at(a, 2n)), 0n)), Bool.and(Nat.is_eq(X.tsx.len(sp.at(a, 3n)), 1n), Nat.is_eq(X.tsx.len(sp.at(a, 5n)), 1n))))
+
+def sp.gl.fun(+n: X.Sx) -> X.Sx:
+  sp.if(X.Sx, sp.gl.isabs(n), _ => sp.at(sp.at(sp.at(n, 1n), 5n), 0n), _ => sp.at(n, 1n))
+
+def sp.gl.evs(+n: X.Sx, +e: X.Sx) -> X.Sx:
+  +evs = sp.lz.evl(sp.els(sp.at(sp.at(n, 1n), 4n)))
+  sp.if(X.Sx, sp.gl.isabs(n), _ => sp.lz.evs(evs, sp.lz.evs(evs, e)), _ => e)
+
+def sp.gl.e(+g: X.Sx) -> Maybe<&2, X.Sx>:
+  +bs = sp.at(g, 1n)
+  +n = sp.at(bs, 1n)
+  +f = sp.gl.fun(n)
+  +ms = sp.at(f, 4n)
+  +mm = sp.els(sp.at(ms, 4n))
+  +gr = sp.at(sp.first(mm), 2n)
+  +gg = sp.els(sp.at(gr, 1n))
+  +one = Bool.and(Nat.is_eq(X.tsx.len(bs), 2n), Bool.and(sp.head.is(n, "nonrec"), Bool.and(sp.head.is(f, "fun"), Bool.and(List.is_empty(&2, X.Sx, sp.els(sp.at(ms, 1n))), Nat.is_eq(List.length(&2, X.Sx, mm), 1n)))))
+  +plain = Bool.and(Nat.is_eq(X.tsx.len(sp.at(gr, 2n)), 1n), Bool.and(Nat.is_eq(List.length(&2, X.Sx, gg), 1n), List.is_empty(&2, X.Sx, sp.els(sp.at(sp.first(gg), 1n)))))
+  sp.if(Maybe<&2, X.Sx>, Bool.and(sp.head.is(g, "letstmt"), Bool.and(one, plain)), _ => Some{sp.l([sp.a("bind"), sp.l([sp.a("pvar"), sp.l([sp.a("bv"), sp.fa.unself(sp.at(f, 1n)), sp.at(f, 2n)])]), sp.gl.evs(n, sp.at(sp.first(gg), 2n)), sp.at(f, 2n)])}, _ => None{})
+
 # a pattern guard, (bind PAT E), with its pattern's type after it (the fold
 # folds it as a case on E, Fold.bend's fd.pg)
 def sp.ftw.bind(+g: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
@@ -7496,15 +7523,15 @@ def sp.ftw.binds(gs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
   match gs:
     case Nil{}:
       Nil{}
-    case h <> t:
-      sp.ftw.bind(h, cts) <> sp.ftw.binds(t, cts)
+    case +h <> t:
+      sp.or(sp.gl.e(h), sp.ftw.bind(h, cts)) <> sp.ftw.binds(t, cts)
 
 def sp.ftw.anybind(gs: List<&2, X.Sx>) -> Bool:
   match gs:
     case Nil{}:
       False{}
     case +h <> t:
-      Bool.or(sp.head.is(h, "bind"), sp.ftw.anybind(t))
+      Bool.or(Bool.or(sp.head.is(h, "bind"), Maybe.is_some(&2, X.Sx, sp.gl.e(h))), sp.ftw.anybind(t))
 
 # (grhs (GUARD..) E)
 def sp.ftw.grhs(+y: X.Sx, +cts: List<&2, Ct>) -> X.Sx:
@@ -8920,6 +8947,73 @@ def sp.deq.go(ys: List<&2, X.Sx>, +xs: List<&2, X.Sx>, +m: List<&2, U32>, +ix: I
 
 def sp.deq(+xs: List<&2, X.Sx>, +ix: Ix) -> List<&2, X.Sx>:
   sp.deq.go(xs, xs, sp.modname(xs), sp.ix.module(xs, ix))
+
+# GHC's coerce from T a to T b, a T's last type variable that no field has (the
+# derived fmap and traverse of such a T): the function that takes T apart and
+# puts it together again, from T's declaration
+def sp.phan.co(+x: X.Sx) -> Bool:
+  sp.if(Bool, sp.head.is(x, "evapp"), _ => Bool.and(sp.head.is(sp.at(x, 1n), "tyapp"), sp.is(sp.gkey(sp.vhead(sp.at(x, 1n))), "GHC.Prim.coerce")), _ => False{})
+
+def sp.phan.is(+a: X.Sx, +b: X.Sx, +d: X.Sx, +m: List<&2, U32>) -> Bool:
+  +as = sp.dropn(sp.els(a), 3n)
+  +bs = sp.dropn(sp.els(b), 3n)
+  +tvs = sp.strs(sp.at(d, 2n))
+  +v = sp.l([sp.a("tv"), X.SxStr{Maybe.default(&2, List<&2, U32>, List.last(&2, List<&2, U32>, tvs), Nil{})}])
+  +tc = Bool.and(sp.head.is(a, "tc"), Bool.and(S.eq(sp.sat(a, 1n), m), Bool.and(S.eq(sp.tckey(a), sp.tckey(b)), sp.head.is(d, "data"))))
+  sp.if(Bool, tc, _ => Bool.and(Bool.not(sp.eq(a, b)), Bool.and(sp.eq(sp.l(sp.g1.init(as)), sp.l(sp.g1.init(bs))), Bool.not(sp.g1.has(sp.l(sp.deq.tys(sp.els(sp.at(d, 3n)))), v)))), _ => False{})
+
+def sp.phan.con(bs: List<&2, X.Sx>, k: X.Sx) -> X.Sx:
+  match bs:
+    case Nil{}:
+      k
+    case b <> t:
+      sp.phan.con(t, sp.l([sp.a("tyapp"), k, b]))
+
+def sp.phan.apps(tys: List<&2, X.Sx>, f: X.Sx, +i: Nat) -> X.Sx:
+  match tys:
+    case Nil{}:
+      f
+    case ty <> t:
+      sp.phan.apps(t, sp.g1.app(f, sp.g1.v("phx", i)), 1n+i)
+
+def sp.phan.clauses(cs: List<&2, X.Sx>, +m: List<&2, U32>, +as: List<&2, X.Sx>, +bs: List<&2, X.Sx>, +sa: List<&2, Sb>) -> List<&2, X.Sx>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case +c <> t:
+      +k = sp.g(m, sp.sat(c, 1n), "con")
+      +tys = sp.els(sp.at(c, 3n))
+      +p = {sp.l([sp.a("pcon"), k, sp.l(as), X.SxCons{sp.a("args"), sp.l(sp.g1.vars(tys, "phx", 0n, sa))}]) : X.Sx}
+      sp.g1.match([p], sp.phan.apps(tys, sp.phan.con(bs, k), 0n)) <> sp.phan.clauses(t, m, as, bs, sa)
+
+def sp.phan.lam(+a: X.Sx, +b: X.Sx, +d: X.Sx, +m: List<&2, U32>) -> X.Sx:
+  +as = sp.dropn(sp.els(a), 3n)
+  +cls = sp.phan.clauses(sp.els(sp.at(d, 3n)), m, as, sp.dropn(sp.els(b), 3n), sp.zip(sp.strs(sp.at(d, 2n)), as))
+  sp.l([sp.a("lam"), sp.a("case"), sp.l([sp.a("matches"), sp.l([a]), b, sp.a("source"), sp.l(cls)])])
+
+def sp.phan.at(+x: X.Sx, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> Maybe<&2, X.Sx>:
+  +b = sp.at(sp.at(x, 1n), 2n)
+  +a = sp.at(sp.at(sp.at(x, 1n), 1n), 2n)
+  +d = sp.g1.data(xs, sp.sat(a, 2n))
+  sp.if(Maybe<&2, X.Sx>, sp.phan.co(x), _ => sp.if(Maybe<&2, X.Sx>, sp.phan.is(a, b, d, m), _ => Some{sp.phan.lam(a, b, d, m)}, _ => None{}), _ => None{})
+
+def sp.phan.go(x: X.Sx, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> X.Sx:
+  match x:
+    case X.SxCons{+h, +t}:
+      +y = sp.if(Maybe<&2, X.Sx>, sp.is(X.tsx.atom.of(h), "evapp"), _ => sp.phan.at(X.SxCons{h, t}, xs, m), _ => None{})
+      sp.if(X.Sx, Maybe.is_some(&2, X.Sx, y), _ => sp.or(y, X.SxNil{}), _ => X.SxCons{sp.phan.go(h, xs, m), sp.phan.go(t, xs, m)})
+    case y:
+      y
+
+def sp.phan.all(ys: List<&2, X.Sx>, +xs: List<&2, X.Sx>, +m: List<&2, U32>) -> List<&2, X.Sx>:
+  match ys:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      sp.if(X.Sx, sp.g1.atom(x, S.b("coerce")), _ => sp.phan.go(x, xs, m), _ => x) <> sp.phan.all(t, xs, m)
+
+def sp.phan(+xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  sp.phan.all(xs, xs, sp.modname(xs))
 
 # Catas whose answer is an action ------------------------------------------------
 #
@@ -10662,7 +10756,7 @@ def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: Lis
     case +f <> t:
       do IO<Unit>:
         bytes : List<&2, U32> <- S.read(f)
-        +xsr : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(sp.deq(sp.g1(X.tsx.read(bytes)), ix), sp.ix.cts(ix)))
+        +xsr : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.p5s(sp.phan(sp.deq(sp.g1(X.tsx.read(bytes)), ix)), sp.ix.cts(ix)))
         +dg2 : List<&2, List<&2, U32>> <- IO.pure(List<&2, List<&2, U32>>, List.append(&2, List<&2, U32>, sp.dg.snds(xsr, sp.dg.offs(xsr)), dg))
         +xs0 : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.dg(xsr, dg2))
         +xs : List<&2, X.Sx> <- IO.pure(List<&2, X.Sx>, sp.cxs(sp.hg(sp.kn(xs0), ix), sp.ix.module(xs0, ix)))

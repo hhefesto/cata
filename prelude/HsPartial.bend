@@ -470,14 +470,14 @@ def HsPt.mmap(~K: Data, ~V: Data, ~W: Data, ~f: V -> Either<&2, &2, List<&2, Cha
   match m:
     case HsMap.Tip{}:
       Inr{HsMap.Tip{}}
-    case HsMap.Bin{k, v, t}:
+    case HsMap.Bin{k, +v, t}:
       HsPt.bind(W, HsMap<K, W>, f(v), w => HsPt.bind(HsMap<K, W>, HsMap<K, W>, HsPt.mmap(~K, ~V, ~W, ~f, t), r => Inr{HsMap.Bin{k, w, r}}))
 
 def HsPt.mmapk(~K: Data, ~V: Data, ~W: Data, ~f: K -> V -> Either<&2, &2, List<&2, Char>, W>, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, HsMap<K, W>>:
   match m:
     case HsMap.Tip{}:
       Inr{HsMap.Tip{}}
-    case HsMap.Bin{+k, v, t}:
+    case HsMap.Bin{+k, +v, t}:
       HsPt.bind(W, HsMap<K, W>, f(k)(v), w => HsPt.bind(HsMap<K, W>, HsMap<K, W>, HsPt.mmapk(~K, ~V, ~W, ~f, t), r => Inr{HsMap.Bin{k, w, r}}))
 
 def HsPt.mkeep(-K: Data, -V: Data, k: K, v: V, b: Bool, r: HsMap<K, V>) -> HsMap<K, V>:
@@ -498,8 +498,8 @@ def HsPt.mfoldr(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> Either<&2, &2, List<
   match m:
     case HsMap.Tip{}:
       Inr{z}
-    case HsMap.Bin{k, v, t}:
-      HsPt.bind(B, B, HsPt.mfoldr(~K, ~V, ~B, ~f, z, t), r => f(v)(r))
+    case HsMap.Bin{k, +v, t}:
+      HsPt.bind(B, B, HsPt.mfoldr(~K, ~V, ~B, ~f, z, t), +r => f(v)(r))
 
 # uncurry given a partial function (fd.pt.unc)
 def HsPt.uncurry(~q: Quant, ~A: Data, ~B: Data, ~C: Kind(q), f: A -> B -> Either<&2, q, List<&2, Char>, C>, p: Sigma<&2, &2, A, _ => B>) -> Either<&2, q, List<&2, Char>, C>:

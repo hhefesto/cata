@@ -1069,7 +1069,7 @@ def HsPt.mmap.go(~K: Data, ~V: Data, ~W: Data, ~f: K -> V -> Either<&2, &2, List
   match xs:
     case Nil{}:
       Inr{Nil{}}
-    case (+k, v) <> t:
+    case (+k, +v) <> t:
       HsPt.bind(W, List<&2, Sigma<&2, &2, K, _ => W>>, f(k)(v), w => HsPt.bind(List<&2, Sigma<&2, &2, K, _ => W>>, List<&2, Sigma<&2, &2, K, _ => W>>, HsPt.mmap.go(~K, ~V, ~W, ~f, t), r => Inr{(k, w) <> r}))
 
 def HsPt.mmapk(~K: Data, ~V: Data, ~W: Data, ~f: K -> V -> Either<&2, &2, List<&2, Char>, W>, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, HsMap<K, W>>:
@@ -1099,8 +1099,8 @@ def HsPt.mfoldr.go(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> Either<&2, &2, Li
   match xs:
     case Nil{}:
       Inr{z}
-    case (k, v) <> t:
-      HsPt.bind(B, B, HsPt.mfoldr.go(~K, ~V, ~B, ~f, t, z), r => f(v)(r))
+    case (k, +v) <> t:
+      HsPt.bind(B, B, HsPt.mfoldr.go(~K, ~V, ~B, ~f, t, z), +r => f(v)(r))
 
 def HsPt.mfoldr(~K: Data, ~V: Data, ~B: Data, ~f: V -> B -> Either<&2, &2, List<&2, Char>, B>, z: B, m: HsMap<K, V>) -> Either<&2, &2, List<&2, Char>, B>:
   HsPt.mfoldr.go(~K, ~V, ~B, ~f, HsMap.toList(~K, ~V, m), z)
