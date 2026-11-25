@@ -10302,6 +10302,40 @@ def sp.pstys(xs: List<&2, X.Sx>, +cts: List<&2, Ct>) -> List<&2, X.Sx>:
     case x <> t:
       sp.psty(x, cts) <> sp.pstys(t, cts)
 
+# Two local functions of a def with one name (letsToApps' f, its algebra's and
+# its annotations'): the fold lifts each as DEF.NAME, so all but the first are
+# NAME_ID
+def sp.dup.funs(x: X.Sx, +acc: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match x:
+    case X.SxCons{+h, +t}:
+      +n = {X.SxCons{h, t} : X.Sx}
+      +v = sp.if(X.Sx, sp.head.is(n, "fun"), _ => sp.fa.unself(sp.at(n, 1n)), _ => X.SxNil{})
+      +isf = sp.if(Bool, sp.head.is(v, "l"), _ => Bool.and(Nat.is_gt(X.tsx.len(sp.at(sp.at(n, 4n), 1n)), 0n), Bool.not(sp.fa.mem(v, acc))), _ => False{})
+      sp.dup.funs(t, sp.dup.funs(h, Bool.pick(List<&2, X.Sx>, isf, List.append(&2, X.Sx, acc, [v]), acc)))
+    case _:
+      acc
+
+def sp.dup.mem(+n: List<&2, U32>, xs: List<&2, X.Sx>) -> Bool:
+  match xs:
+    case Nil{}:
+      False{}
+    case +v <> t:
+      Bool.or(S.eq(n, sp.sat(v, 1n)), sp.dup.mem(n, t))
+
+def sp.dup.go(vs: List<&2, X.Sx>, +seen: List<&2, X.Sx>, +x: X.Sx) -> X.Sx:
+  match vs:
+    case Nil{}:
+      x
+    case +v <> t:
+      sp.dup.go(t, v <> seen, sp.if(X.Sx, sp.dup.mem(sp.sat(v, 1n), seen), _ => sp.beta.sub(x, v, sp.beta.own(v)), _ => x))
+
+def sp.dups(xs: List<&2, X.Sx>) -> List<&2, X.Sx>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case +x <> t:
+      sp.if(X.Sx, sp.head.is(x, "top"), _ => sp.dup.go(sp.dup.funs(x, Nil{}), Nil{}, x), _ => x) <> sp.dups(t)
+
 def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: List<&2, Wc>, +dg: List<&2, List<&2, U32>>) -> IO(Unit):
   match fs:
     case Nil{}:
@@ -10316,7 +10350,7 @@ def sp.run(fs: List<String>, +out: String, +ix: Ix, list: List<&2, U32>, ws: Lis
         +ix2 : Ix <- IO.pure(Ix, sp.ix.module(xs, ix))
         +p : String <- IO.pure(String, out ++ "/" ++ S.base(f))
         +md : Md <- IO.pure(Md, sp.module(xs, ix2, ws))
-        S.write(p, sp.text(sp.pstys(sp.md.xs(md), sp.ix.cts(ix2))))
+        S.write(p, sp.text(sp.dups(sp.pstys(sp.md.xs(md), sp.ix.cts(ix2)))))
         sp.run(t, out, ix2, sp.cat(list, sp.cat(S.b(p), [10])), sp.md.wc(md), dg2)
 
 def sp.main(args: List<String>) -> IO(Unit):
