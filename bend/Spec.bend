@@ -6473,7 +6473,7 @@ def sp.cs.put(+e: X.Sx, +y: X.Sx) -> X.Sx:
   +g = sp.at(m1, 1n)
   +tys = sp.spine.tys(sp.pc.strip(g), Nil{})
   +fm = sp.cs.h(g, "GHC.Internal.Base.fmap")
-  +ok = Bool.and(Bool.and(sp.head.is(e, "app"), sp.head.is(e1, "app")), Bool.and(Bool.and(sp.head.is(m, "app"), sp.head.is(m1, "app")), Bool.and(sp.cs.h(sp.at(e1, 1n), "GHC.Internal.Data.OldList.intersperse"), Bool.or(fm, sp.cs.h(g, "GHC.Internal.Base.map")))))
+  +ok = Bool.and(Bool.and(sp.head.is(e, "app"), sp.head.is(e1, "app")), Bool.and(Bool.and(sp.head.is(m, "app"), sp.head.is(m1, "app")), Bool.and(sp.cs.h(sp.at(e1, 1n), "GHC.Internal.Data.OldList.intersperse"), Bool.or(fm, Bool.or(sp.cs.h(g, "GHC.Internal.Base.map"), sp.cs.h(g, "Cata.Base.mapList"))))))
   +a = Maybe.default(&2, X.Sx, sp.nth(tys, Bool.pick(Nat, fm, 1n, 0n)), X.SxNil{})
   Bool.pick(X.Sx, ok, sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("app"), sp.l([sp.a("tyapp"), sp.g(S.b("Cata.Base"), S.b("composeSep"), "var"), a]), sp.at(e1, 2n)]), sp.at(m1, 2n)]), sp.at(m, 2n)]), y)
 
