@@ -4156,6 +4156,28 @@ def sp.fa.key(fas: List<&2, Fa>) -> X.Sx:
     case Fa{i, a} <> t:
       X.SxCons{sp.l([X.SxAtom{S.b(Nat.show(i))}, a]), sp.fa.key(t)}
 
+# An argument's bound variables by their order, in its copy's name: two
+# arguments that are the same but for those are one copy (a derived
+# traverse's f at each field: \a1 -> f a1, \a2 -> f a2)
+def sp.fa.alpha.map(bs: List<&2, Asb>, +seen: List<&2, Asb>, +i: Nat) -> List<&2, Asb>:
+  match bs:
+    case Nil{}:
+      seen
+    case Asb{+v, t} <> r:
+      +b = sp.fa.bound(v, seen)
+      +w = sp.l([sp.a("l"), X.SxStr{S.b("%")}, X.SxAtom{S.b(Nat.show(i))}])
+      sp.fa.alpha.map(r, Bool.pick(List<&2, Asb>, b, seen, Asb{v, w} <> seen), Bool.pick(Nat, b, i, 1n+i))
+
+def sp.fa.alpha(+a: X.Sx) -> X.Sx:
+  sp.as.sub(a, None{}, sp.fa.alpha.map(List.reverse(&2, Asb, sp.fa.binds(a, Nil{})), Nil{}, 0n))
+
+def sp.fa.alphas(fas: List<&2, Fa>) -> List<&2, Fa>:
+  match fas:
+    case Nil{}:
+      Nil{}
+    case Fa{i, a} <> t:
+      Fa{i, sp.fa.alpha(a)} <> sp.fa.alphas(t)
+
 # A known argument whose free locals include a recursive local, a member of
 # a where's or a let's (rec ..) group, is copied into that group (sp.fl):
 # the member's reference is kept, the other free locals are the copy's
@@ -4413,7 +4435,7 @@ def sp.fa.at.go(fas0: List<&2, Fa>, +h: X.Sx, +x: X.Sx, +me: List<&2, U32>, +cur
       +fvt = sp.fa.tys(frees, env)
       +fas = sp.fa.canon(fas0, sp.fa.canon.map(frees, 0n))
       +base = sp.cat(sp.name(sp.sat(h, 2n), tys), S.b("_f"))
-      +n = sp.cat(base, S.b(U32.show(sp.fa.hash(X.tsx.show(sp.norm(sp.fa.key(fas), ix)), 5381))))
+      +n = sp.cat(base, S.b(U32.show(sp.fa.hash(X.tsx.show(sp.norm(sp.fa.key(sp.fa.alphas(fas)), ix)), 5381))))
       +inself = Bool.and(Bool.not(sp.fa.few(sp.sat(h, 2n))), Bool.or(S.eq(me, sp.sat(h, 2n)), Bool.and(S.prefix(me, base), Bool.not(S.eq(me, n)))))
       +ok = Bool.and(tyok, Bool.and(Bool.not(List.is_empty(&2, Fa, fas0)), Bool.and(sp.fa.tys.ok(fvt), Bool.not(Bool.or(inself, sp.fa.hasev(sp.fa.fn(x)))))))
       +hd = sp.fa.apps(frees, Bool.pick(X.Sx, loc, sp.l([sp.a("self"), sp.fl.var(n)]), sp.g(cur, n, "var")))
@@ -6188,31 +6210,31 @@ def sp.fl.q(r: Rw) -> List<&2, Rq>:
     case Rw{x, q}:
       q
 
-# whether x binds the local v: an (export v ..), or a (fun (self v) ..)
-def sp.fl.has(x: X.Sx, +v: X.Sx) -> Bool:
+# the variables x binds: the v of each (export v ..), and of each (fun (self v) ..)
+def sp.fl.bound(x: X.Sx, +acc: List<&2, X.Sx>) -> List<&2, X.Sx>:
   match x:
-    case X.SxCons{+h, +t}:
-      +n = {X.SxCons{h, t} : X.Sx}
-      +a = X.tsx.atom.of(h)
-      +ex = Bool.and(sp.is(a, "export"), sp.eq(sp.at(n, 1n), v))
-      +fu = Bool.and(sp.is(a, "fun"), sp.eq(sp.var.of(sp.at(n, 1n)), v))
-      +sub = Bool.or(sp.fl.has(h, v), sp.fl.has(t, v))
-      Bool.or(Bool.or(ex, fu), sub)
+    case X.SxCons{X.SxAtom{+a}, +t}:
+      +ex = sp.is(a, "export")
+      +fu = Bool.and(Bool.not(ex), sp.is(a, "fun"))
+      +acc2 = sp.if(List<&2, X.Sx>, ex, _ => sp.at(t, 0n) <> acc, _ => sp.if(List<&2, X.Sx>, fu, _ => sp.var.of(sp.at(t, 0n)) <> acc, _ => acc))
+      sp.fl.bound(t, acc2)
+    case X.SxCons{h, t}:
+      sp.fl.bound(t, sp.fl.bound(h, acc))
     case _:
-      False{}
+      acc
 
-# the first local copy q asks for that x has the group of and not the copy
-def sp.fl.want(+r: Rq, +x: X.Sx, +done: List<&2, List<&2, U32>>) -> Bool:
+# the first local copy q asks for that x (bs: what it binds) has the group of
+# and not the copy
+def sp.fl.want(+r: Rq, +bs: List<&2, X.Sx>, +done: List<&2, List<&2, U32>>) -> Bool:
   +n = sp.rq.n(r)
-  Bool.and(sp.fl.isfl(r), Bool.and(Bool.not(S.mem(n, done)), Bool.and(sp.fl.has(x, sp.fl.gv(r)), Bool.not(sp.fl.has(x, sp.fl.var(n))))))
+  sp.if(Bool, sp.fl.isfl(r), _ => sp.if(Bool, S.mem(n, done), _ => False{}, _ => sp.if(Bool, sp.fa.mem(sp.fl.gv(r), bs), _ => Bool.not(sp.fa.mem(sp.fl.var(n), bs)), _ => False{})), _ => False{})
 
-def sp.fl.next(q: List<&2, Rq>, +x: X.Sx, +done: List<&2, List<&2, U32>>) -> Maybe<&2, Rq>:
+def sp.fl.next(q: List<&2, Rq>, +bs: List<&2, X.Sx>, +done: List<&2, List<&2, U32>>) -> Maybe<&2, Rq>:
   match q:
     case Nil{}:
       None{}
     case +r <> t:
-      +rest = sp.fl.next(t, x, done)
-      Bool.pick(Maybe<&2, Rq>, sp.fl.want(r, x, done), Some{r}, rest)
+      sp.if(Maybe<&2, Rq>, sp.fl.want(r, bs, done), _ => Some{r}, _ => sp.fl.next(t, bs, done))
 
 # A local copy's parameters are fvHASH_i (HASH its name's), not fv_i: the
 # copy is in the scope of what encloses it, which may be a copy with its own
@@ -6306,12 +6328,17 @@ def sp.fl.locals(x: X.Sx, +acc: List<&2, X.Sx>) -> List<&2, X.Sx>:
     case _:
       acc
 
+# the unique: 9000 and the hash of the local's and the copy's (a Nat the fold
+# reads, of 48 bits at most, however deep the copies)
+def sp.fl.uniq.id(+cs: List<&2, U32>) -> List<&2, U32>:
+  sp.cat(S.b("9000"), S.b(U32.show(sp.fa.hash(cs, 5381))))
+
 def sp.fl.uniq.s(vs: List<&2, X.Sx>, +hs: List<&2, U32>) -> List<&2, Asb>:
   match vs:
     case Nil{}:
       Nil{}
     case +v <> t:
-      Asb{v, sp.l([sp.a("l"), X.SxStr{sp.sat(v, 1n)}, X.SxAtom{sp.cat(sp.lr.id(sp.at(v, 2n)), hs)}])} <> sp.fl.uniq.s(t, hs)
+      Asb{v, sp.l([sp.a("l"), X.SxStr{sp.sat(v, 1n)}, X.SxAtom{sp.fl.uniq.id(sp.cat(sp.lr.id(sp.at(v, 2n)), hs))}])} <> sp.fl.uniq.s(t, hs)
 
 def sp.fl.uniq(+c: X.Sx, +n: List<&2, U32>) -> X.Sx:
   +s = sp.fl.uniq.s(sp.fl.locals(c, Nil{}), sp.fl.hash(n, Nil{}))
@@ -6408,14 +6435,14 @@ def sp.fl.fix(fuel: Nat, m: Maybe<&2, Rq>, +x: X.Sx, +q: List<&2, Rq>, +done: Li
       +x2 = sp.fl.put(x, sp.fl.gv(r), sp.fl.x(c))
       +q2 = sp.rw.cat(q, sp.fl.q(c))
       +d2 = {sp.rq.n(r) <> done : List<&2, List<&2, U32>>}
-      sp.fl.fix(p, sp.fl.next(q2, x2, d2), x2, q2, d2, cur, ix, kn)
+      sp.fl.fix(p, sp.fl.next(q2, sp.fl.bound(x2, Nil{}), d2), x2, q2, d2, cur, ix, kn)
     case _ _:
       Rw{x, q}
 
 def sp.fl.start(r: Rw, +cur: List<&2, U32>, +ix: Ix, +kn: List<&2, Rq>) -> Rw:
   match r:
     case Rw{+x, +q}:
-      sp.fl.fix(64n, sp.fl.next(q, x, Nil{}), x, q, Nil{}, cur, ix, kn)
+      sp.fl.fix(64n, sp.fl.next(q, sp.fl.bound(x, Nil{}), Nil{}), x, q, Nil{}, cur, ix, kn)
 
 def sp.passes(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +kn: List<&2, Rq>, +rg: List<&2, X.Sx>) -> Rw:
   sp.fl.start(sp.passes0(x, cur, ix, Nil{}, Nil{}, kn, rg), cur, ix, kn)
