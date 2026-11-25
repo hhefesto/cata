@@ -443,6 +443,22 @@ mapMaybePairs f xs = case xs of
 onOp :: forall b c a. (b -> b -> c) -> (a -> b) -> a -> a -> c
 onOp f g x y = f (g x) (g y)
 
+-- | containers' unionWithKey: the first's pairs put in the second, at a key
+-- of both the function's (a known function is copied in, so it may be
+-- partial, as Resolve's DeferMap's is)
+unionWithKeyOp :: forall k a. Ord k => (k -> a -> a -> a) -> Map.Map k a -> Map.Map k a -> Map.Map k a
+unionWithKeyOp f a b = unionPairs f (Map.toAscList a) b
+
+unionPairs :: forall k a. Ord k => (k -> a -> a -> a) -> [(k, a)] -> Map.Map k a -> Map.Map k a
+unionPairs f xs b = case xs of
+  [] -> b
+  (k, v) : t -> insertPair f k v (unionPairs f t b)
+
+insertPair :: forall k a. Ord k => (k -> a -> a -> a) -> k -> a -> Map.Map k a -> Map.Map k a
+insertPair f k v m = case Map.lookup k m of
+  Nothing -> Map.insert k v m
+  Just w -> Map.insert k (f k v w) m
+
 -- | containers' mapKeys: fromList of the pairs, the greatest old key kept
 -- where two map to one
 mapKeys :: forall k2 k1 a. Ord k2 => (k1 -> k2) -> Map.Map k1 a -> Map.Map k2 a

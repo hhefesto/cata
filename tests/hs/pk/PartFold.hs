@@ -36,3 +36,13 @@ addRows colOf base tab0 rs = foldl addRow tab0 rs
 exRows :: Int -> [(Int, Int)] -> ([(Int, Int)], Int)
 exRows base rs = case addRows (Map.fromList [(0, 1), (1, base), (2, 5)]) base (Tab (IntMap.fromList [(1, base), (5, 2)]) 1) rs of
   Tab rows n -> (IntMap.toList rows, n)
+
+-- a partial function at Map.unionWithKey (Resolve's DeferMap)
+newtype DM = DM (Map.Map Int (Int, String))
+
+instance Semigroup DM where
+  DM a <> DM b = DM $ Map.unionWithKey f a b where
+    f k x@(_, s) (_, t) = if s /= t then error ("collision " ++ show k) else x
+
+exDM :: Int -> Int -> String -> String -> [(Int, (Int, String))]
+exDM a b s t = case DM (Map.fromList [(a, (1, s)), (2, (2, "q"))]) <> DM (Map.fromList [(b, (3, t)), (2, (4, "q"))]) of DM m -> Map.toList m
