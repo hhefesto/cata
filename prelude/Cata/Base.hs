@@ -88,6 +88,9 @@ pairAp (u, f) (v, x) = (u <> v, f x)
 pairLiftA2 :: forall w a b c. Monoid w => (a -> b -> c) -> (w, a) -> (w, b) -> (w, c)
 pairLiftA2 f (u, x) (v, y) = (u <> v, f x y)
 
+pairSequence :: forall w m a. Applicative m => (w, m a) -> m (w, a)
+pairSequence (w, x) = fmap (\b -> (w, b)) x
+
 pairTraverse :: forall w f a b. Applicative f => (a -> f b) -> (w, a) -> f (w, b)
 pairTraverse f (w, a) = fmap (\b -> (w, b)) (f a)
 
@@ -284,6 +287,11 @@ maybeSequenceA Nothing = pure Nothing
 maybeSequenceA (Just x) = fmap Just x
 
 -- | base's Semigroup and Monoid at Maybe
+maybeThenL :: forall a b. Maybe a -> Maybe b -> Maybe a
+maybeThenL Nothing b  = Nothing
+maybeThenL a Nothing  = Nothing
+maybeThenL a (Just b) = a
+
 maybeAppend :: forall a. Semigroup a => Maybe a -> Maybe a -> Maybe a
 maybeAppend Nothing b = b
 maybeAppend a Nothing = a
@@ -544,6 +552,14 @@ anaCofree g x = case g x of
 
 anaFix :: forall f a. Functor f => (a -> f a) -> a -> Fix f
 anaFix g x = Fix (fmap (\y -> anaFix g y) (g x))
+
+-- | recursion-schemes' para at Fix: a cata that hands back its own argument
+-- beside each answer
+paraFix :: forall f a. Functor f => (f (Fix f, a) -> a) -> Fix f -> a
+paraFix g t = snd (cata (paraAlg g) t)
+
+paraAlg :: forall f a. Functor f => (f (Fix f, a) -> a) -> f (Fix f, a) -> (Fix f, a)
+paraAlg g x = (Fix (fmap fst x), g x)
 
 -- | lens's transform at free's Cofree f l (its Plated instance there is the
 -- Traversable's children), the children first
