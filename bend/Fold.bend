@@ -14779,6 +14779,25 @@ def fd.sc.re(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
     case u:
       u
 
+# a partial function a let holds, used once, in its place (sizeTermM's
+# foldAborted = para f, what tidyUp is given)
+def fd.rx.lamof(v: T.Bt) -> Maybe<&2, T.Bt>:
+  match v:
+    case T.BtAnn{T.BtLam{m, x, b}, ty}:
+      Some{T.BtLam{m, x, b}}
+    case T.BtLam{m, x, b}:
+      Some{T.BtLam{m, x, b}}
+    case _:
+      None{}
+
+def fd.rx.let(m: Maybe<&2, T.Bt>, +x: List<&2, U32>, +v: T.Bt, +b: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
+  match m:
+    case Some{+l}:
+      +y = fd.unplus(x)
+      fd.pt.if(T.Bt, Bool.and(fd.pt.has(ks, l), fd.rx.once(y, b, l)), _ => T.tba.subst(b, y, l), _ => fd.sc.let(fd.pt.has(ks, v), x, v, b))
+    case None{}:
+      fd.sc.let(fd.pt.has(ks, v), x, v, b)
+
 def fd.rx(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
   match t:
     case T.BtApp{f, a}:
@@ -14797,7 +14816,7 @@ def fd.rx(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
       T.BtCase{p, fd.rx(b, ks), fd.rx(r, ks)}
     case T.BtLet{x, v, b}:
       +v2 = fd.rx(v, ks)
-      fd.sc.let(fd.pt.has(ks, v2), x, v2, fd.rx(b, ks))
+      fd.rx.let(fd.rx.lamof(v2), x, v2, fd.rx(b, ks), ks)
     case T.BtRw{e, p, b}:
       T.BtRw{e, p, fd.rx(b, ks)}
     case T.BtExpr{e}:

@@ -56,3 +56,18 @@ analyze budget at prog =
 
 exAnalyze :: Int -> Maybe (Map Int [Int], Fix TF)
 exAnalyze n = analyze n 2 (Fix (P (Fix (N 3)) (Fix (P (Fix (N 1)) (Fix (N 7))))))
+
+-- a partial function a point-free local holds, given to a local function
+size :: Int -> Fix TF -> Either Int Int
+size n x = tidy (walkE (cap x)) where
+  sizes = cata (\case
+    Z     -> 0
+    P a b -> a + b
+    N i   -> i
+    A _   -> error "size: A")
+  walkE t = if n > 3 then Left n else Right t
+  tidy r = case r of
+    Left k  -> Left (k + 1)
+    Right t -> case sizes t of
+      0 -> Left 0
+      k -> Right (k * n)
