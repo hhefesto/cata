@@ -5818,7 +5818,7 @@ def sp.lh(+x: X.Sx) -> X.Sx:
 # rows) is forced there, if at all: it is read at its uses, so that the
 # fold's bind of it is there too.
 type Lz is Data:
-  Lz{v: X.Sx, e: X.Sx, k: Bool}
+  Lz{v: X.Sx, e: X.Sx, k: Bool, t: X.Sx}
 
 def sp.lz.part(x: X.Sx, +ns: List<&2, List<&2, U32>>) -> Bool:
   match x:
@@ -5855,8 +5855,8 @@ def sp.lz.fun(+v: X.Sx, +f: X.Sx, +evs: List<&2, X.Sx>, +acc: List<&2, Lz>) -> L
   +g0 = sp.first(sp.els(sp.at(gr, 1n)))
   +e0 = sp.at(g0, 2n)
   +one = Bool.and(Bool.and(Nat.is_eq(List.length(&2, X.Sx, cs), 1n), Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")]))))
-  +ok = Bool.and(Bool.and(sp.head.is(v, "l"), one), Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), sp.lz.part(e0, sp.lz.names())))
-  sp.if(List<&2, Lz>, Bool.and(ok, Bool.not(sp.lg.mentions(e0, v))), _ => Lz{v, sp.lz.evs(evs, sp.lz.evs(evs, e0)), False{}} <> acc, _ => acc)
+  +ok = Bool.and(Bool.and(Bool.and(sp.head.is(v, "l"), Bool.not(S.suffix(sp.sat(v, 1n), S.b("_held")))), one), Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), sp.lz.part(e0, sp.lz.names())))
+  sp.if(List<&2, Lz>, Bool.and(ok, Bool.not(sp.lg.mentions(e0, v))), _ => Lz{v, sp.lz.evs(evs, sp.lz.evs(evs, e0)), False{}, sp.at(f, 2n)} <> acc, _ => acc)
 
 # a value whose type holds a function inside data, used several times: the
 # call again at each use
@@ -5876,7 +5876,7 @@ def sp.lz.fun2(+v: X.Sx, +f: X.Sx, +evs: List<&2, X.Sx>, +acc: List<&2, Lz>) -> 
   +e0 = sp.at(g0, 2n)
   +one = Bool.and(Bool.and(Nat.is_eq(List.length(&2, X.Sx, cs), 1n), Nat.is_eq(X.tsx.len(sp.at(gr, 1n)), 1n)), Bool.and(sp.eq(sp.at(g0, 1n), X.SxNil{}), sp.eq(sp.at(gr, 2n), sp.l([sp.a("binds")]))))
   +ok = Bool.and(Bool.and(sp.head.is(v, "l"), one), Bool.and(Nat.is_eq(X.tsx.len(sp.at(ms, 1n)), 0n), sp.lz.held(sp.at(f, 2n))))
-  sp.if(List<&2, Lz>, Bool.and(ok, Bool.not(sp.lg.mentions(e0, v))), _ => Lz{v, sp.lz.evs(evs, sp.lz.evs(evs, e0)), True{}} <> acc, _ => acc)
+  sp.if(List<&2, Lz>, Bool.and(ok, Bool.not(sp.lg.mentions(e0, v))), _ => Lz{v, sp.lz.evs(evs, sp.lz.evs(evs, e0)), True{}, sp.at(f, 2n)} <> acc, _ => acc)
 
 # (abs () () (exports) (evbinds..) (fun)): a value alone in its group
 def sp.lz.grp(+a: X.Sx, +acc: List<&2, Lz>) -> List<&2, Lz>:
@@ -5943,26 +5943,57 @@ def sp.lz.first(ls: List<&2, Lz>, +x: X.Sx) -> Maybe<&2, Lz>:
   match ls:
     case Nil{}:
       None{}
-    case Lz{+v, e, +k} <> t:
-      sp.if(Maybe<&2, Lz>, sp.lz.take(k, x, v), _ => Some{Lz{v, e, k}}, _ => sp.lz.first(t, x))
+    case Lz{+v, e, +k, ty} <> t:
+      sp.if(Maybe<&2, Lz>, sp.lz.take(k, x, v), _ => Some{Lz{v, e, k, ty}}, _ => sp.lz.first(t, x))
 
-def sp.lz.one(m: Maybe<&2, Lz>, +x: X.Sx, k: X.Sx -> X.Sx) -> X.Sx:
+# such a value of data's type is computed once, where it is bound, its error
+# held (Cata.Base's holdE), and read at its uses (readE, the error there): its
+# uses run many times (telomare's dualSolve: waitingAt, a Map over all the rows,
+# looked up by each column that moved)
+def sp.lz.either(+t: X.Sx) -> X.Sx:
+  sp.tc(S.b("GHC.Internal.Data.Either"), S.b("Either"), [sp.tc(S.b("GHC.Types"), S.b("List"), [sp.tc(S.b("GHC.Types"), S.b("Char"), Nil{})]), t])
+
+def sp.lz.fn(+n: String, +t: X.Sx) -> X.Sx:
+  sp.l([sp.a("tyapp"), sp.g(S.b("Cata.Base"), S.b(n), "var"), t])
+
+def sp.lz.v2(+v: X.Sx) -> X.Sx:
+  sp.l([sp.a("l"), X.SxStr{sp.cat(sp.sat(v, 1n), S.b("_held"))}, sp.at(v, 2n)])
+
+def sp.lz.bound(+n: X.Sx, +v: X.Sx, +t: X.Sx, +e: X.Sx) -> X.Sx:
+  +s = sp.at(n, 1n)
+  +ms = sp.l([sp.a("matches"), X.SxNil{}, sp.lz.either(t), sp.a("source"), sp.l([sp.l([sp.a("match"), X.SxNil{}, sp.l([sp.a("grhss"), sp.l([sp.l([sp.a("grhs"), X.SxNil{}, sp.l([sp.a("app"), sp.lz.fn("holdE", t), e])])]), sp.l([sp.a("binds")])])])])])
+  sp.l(List.append(&2, X.Sx, [sp.a("fun"), sp.lz.v2(v), sp.lz.either(t), sp.at(n, 3n), ms], List.drop(&2, X.Sx, sp.els(n), 5n)))
+
+def sp.lz.hold(x: X.Sx, +v: X.Sx, +t: X.Sx, +e: X.Sx) -> X.Sx:
+  match x:
+    case X.SxCons{X.SxAtom{+a}, +r}:
+      +n = {X.SxCons{X.SxAtom{a}, r} : X.Sx}
+      +ex = Bool.and(sp.is(a, "export"), sp.eq(sp.at(n, 1n), v))
+      +fn = sp.if(Bool, sp.is(a, "fun"), _ => sp.eq(sp.fa.unself(sp.at(n, 1n)), v), _ => False{})
+      sp.if(X.Sx, ex, _ => sp.l([sp.a("export"), sp.lz.v2(v), sp.lz.either(t)]), _ => sp.if(X.Sx, fn, _ => sp.lz.bound(n, v, t, e), _ => sp.if(X.Sx, sp.eq(n, v), _ => sp.l([sp.a("app"), sp.lz.fn("readE", t), sp.lz.v2(v)]), _ => X.SxCons{X.SxAtom{a}, sp.lz.hold(r, v, t, e)})))
+    case X.SxCons{h, r}:
+      X.SxCons{sp.lz.hold(h, v, t, e), sp.lz.hold(r, v, t, e)}
+    case y:
+      y
+
+def sp.lz.one(m: Maybe<&2, Lz>, +x: X.Sx, +sys: List<&2, Sy>, k: X.Sx -> X.Sx) -> X.Sx:
   match m:
-    case Some{Lz{+v, e, kd}}:
-      k(sp.beta.sub(sp.lh.drop(x, v), v, e))
+    case Some{Lz{+v, +e, kd, +ty}}:
+      +held = Bool.and(Bool.not(kd), Bool.and(sp.beta.data(ty, sys), Bool.not(sp.has(ty, S.b("tv")))))
+      k(sp.if(X.Sx, held, _ => sp.lz.hold(x, v, ty, e), _ => sp.beta.sub(sp.lh.drop(x, v), v, e)))
     case None{}:
       x
 
 # one at a time (another's value may use it; fuel)
-def sp.lz.go(n: Nat, +x: X.Sx) -> X.Sx:
+def sp.lz.go(n: Nat, +x: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
   match n:
     case 0n:
       x
     case 1n+p:
-      sp.lz.one(sp.lz.first(sp.lz.of(x, Nil{}), x), x, y => sp.lz.go(p, y))
+      sp.lz.one(sp.lz.first(sp.lz.of(x, Nil{}), x), x, sys, y => sp.lz.go(p, y, sys))
 
-def sp.lz(+x: X.Sx) -> X.Sx:
-  sp.lz.go(8n, x)
+def sp.lz(+x: X.Sx, +sys: List<&2, Sy>) -> X.Sx:
+  sp.lz.go(8n, x, sys)
 
 # show at a known showsPrec, applied (the prelude's showVia sp v): sp 0 v "",
 # and showList (showListVia sp vs): the model's showListWith sp 0 vs.  The
@@ -5999,7 +6030,7 @@ def sp.rw.sv(r: Rw, +hb: Bool) -> Rw:
       Rw{sp.sv(x, hb), q}
 
 def sp.passes0(+x: X.Sx, +cur: List<&2, U32>, +ix: Ix, +rl0: List<&2, X.Sx>, +ol0: List<&2, Og>, +kn: List<&2, Rq>, +rg: List<&2, X.Sx>) -> Rw:
-  +xr = sp.lr(sp.lh(sp.lz(sp.lec(x))), cur)
+  +xr = sp.lr(sp.lh(sp.lz(sp.lec(x), sp.ix.sys(ix))), cur)
   +xl = sp.lc(xr, sp.fa.binds(xr, Nil{}), sp.ix.cts(ix))
   +xm = sp.if(X.Sx, sp.ix.hasgen(ix), _ => sp.hm(xl, sp.hf.env(xl, sp.ix.sys(ix)), sp.ix.sys(ix), rg), _ => xl)
   +xq = sp.pl(sp.pc(xm, sp.ix.hasbase(ix), ix), sp.pl.toptvs(x), ix)

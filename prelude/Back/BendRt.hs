@@ -659,6 +659,8 @@ b'HsPrelude'HsPt'either'unit :: (B'Either e (B'List b)) -> (B'Either e B'Unit)
 b'HsPrelude'HsPt'either'unit r = case r of { Left e -> Left e; Right _ -> Right () }
 b'HsPrelude'HsPt'either'mapm_ :: (a -> (B'Either (B'List B'Char) (B'Either e b))) -> (B'List a) -> (B'Either (B'List B'Char) (B'Either e B'Unit))
 b'HsPrelude'HsPt'either'mapm_ f xs = b'HsPrelude'HsPt'either'mapm f xs >>= \r -> Right (b'HsPrelude'HsPt'either'unit r)
+b'HsPrelude'HsPt'hold :: (B'Either (B'List B'Char) a) -> (B'Either (B'List B'Char) a)
+b'HsPrelude'HsPt'hold m = m
 b'HsPrelude'HsNum'div :: B'Nat -> B'Nat -> (B'Either (B'List B'Char) B'Nat)
 b'HsPrelude'HsNum'div a b = if b == 0 then Left "divide by zero" else Right (a `div` b)
 b'HsPrelude'HsNum'sub :: B'Nat -> B'Nat -> (B'Either (B'List B'Char) B'Nat)

@@ -846,6 +846,15 @@ mapVoid m = Map.map (\_ -> ()) m
 attempt :: forall a. a -> Maybe a
 attempt x = Just x
 
+-- | x with its error, if it errs, kept for where it is read (cata: the failure
+-- value itself)
+holdE :: forall a. a -> Either String a
+holdE x = Right x
+
+readE :: forall a. Either String a -> a
+readE (Right x) = x
+readE (Left m)  = error m
+
 -- | the Map m that is m = Map.mapWithKey (g m) d: g's lookups in it are
 -- knotLookup's and knotFind's, an error at a key of d with no answer yet. By
 -- rounds: a key whose answer errs waits for the next; when a round adds none,

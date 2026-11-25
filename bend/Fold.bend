@@ -12916,7 +12916,14 @@ def fd.pt.any(+ks: List<&2, Pt>, rs: List<&2, List<&2, U32>>) -> Bool:
 # Cata.Base's attempt sees its argument's error (Nothing): what it is given is no
 # partial call of the def it is in
 def fd.att.is(+f: List<&2, U32>) -> Bool:
-  fd.is(f, "Cata_Base.attempt")
+  Bool.or(fd.is(f, "Cata_Base.attempt"), fd.is(f, "Cata_Base.holdE"))
+
+# (holdE keeps the error, for readE)
+def fd.att.pt(+f: List<&2, U32>) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, fd.is(f, "Cata_Base.holdE"), S.b("HsPrelude.HsPt.hold"), S.b("HsPrelude.HsPt.attempt"))
+
+def fd.att.mem(+rs: List<&2, List<&2, U32>>) -> Bool:
+  Bool.or(S.mem(S.b("Cata_Base.attempt"), rs), S.mem(S.b("Cata_Base.holdE"), rs))
 
 def fd.att.drop(t: T.Bt) -> T.Bt:
   match t:
@@ -12951,7 +12958,7 @@ def fd.att.drop(t: T.Bt) -> T.Bt:
 
 def fd.pt.refs(+t: T.Bt) -> List<&2, List<&2, U32>>:
   +rs = T.tba.refs(t, Nil{})
-  fd.exh.if(List<&2, List<&2, U32>>, S.mem(S.b("Cata_Base.attempt"), rs), _ => T.tba.refs(fd.att.drop(t), Nil{}), _ => rs)
+  fd.exh.if(List<&2, List<&2, U32>>, fd.att.mem(rs), _ => T.tba.refs(fd.att.drop(t), Nil{}), _ => rs)
 
 def fd.pt.has(+ks: List<&2, Pt>, t: T.Bt) -> Bool:
   fd.pt.any(ks, fd.pt.refs(t))
@@ -13190,16 +13197,16 @@ def fd.ph.find(ks: List<&2, Pt>, +all: List<&2, Pt>, +f: List<&2, U32>, +as: Lis
       fd.ph.find(t, all, f, as)
 
 # attempt given a partial call: the Either that call answers, seen
-def fd.pt.ho.att(+ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
+def fd.pt.ho.att(+f: List<&2, U32>, +ks: List<&2, Pt>, as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   match as:
     case t <> +x <> Nil{}:
-      Bool.pick(Maybe<&2, Ho>, fd.pt.has(ks, x), Some{Hz{S.b("HsPrelude.HsPt.attempt"), [False{}, True{}], t}}, None{})
+      Bool.pick(Maybe<&2, Ho>, fd.pt.has(ks, x), Some{Hz{fd.att.pt(f), [False{}, True{}], t}}, None{})
     case _:
       None{}
 
 def fd.pt.ho(+f: List<&2, U32>, +ks: List<&2, Pt>, +as: List<&2, T.Bt>) -> Maybe<&2, Ho>:
   +c = Bool.or(Bool.or(S.prefix(f, S.b("List.")), S.prefix(f, S.b("HsPrelude.HsList."))), Bool.or(fd.is(f, "hs.map"), S.prefix(f, S.b("HsPrelude.HsMap."))))
-  fd.pt.if(Maybe<&2, Ho>, fd.att.is(f), _ => fd.pt.ho.att(ks, as), _ => fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.unc(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as)))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => fd.ph.find(ks, ks, f, as))))
+  fd.pt.if(Maybe<&2, Ho>, fd.att.is(f), _ => fd.pt.ho.att(f, ks, as), _ => fd.pt.if(Maybe<&2, Ho>, c, _ => Maybe.or(&2, Ho, fd.pt.unc(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho.of(f, ks, as), Maybe.or(&2, Ho, fd.pt.ho2(f, ks, as), fd.pt.ho1(f, ks, as)))), _ => fd.pt.if(Maybe<&2, Ho>, fd.pt.hoq.name(f), _ => fd.pt.hoq(f, ks, as), _ => fd.ph.find(ks, ks, f, as))))
 
 def fd.pt.ho.mode(m: Maybe<&2, Ho>, d: Ptm) -> Ptm:
   match m:
@@ -13629,7 +13636,7 @@ def fd.att.rw(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
   match t:
     case T.BtApp{T.BtVar{+x}, T.BtArgs{+a, T.BtArgs{+e, T.BtANil{}}}}:
       +hit = Bool.and(fd.att.is(x), fd.pt.has(ks, e))
-      fd.exh.if(T.Bt, hit, _ => T.BtApp{T.BtVar{S.b("HsPrelude.HsPt.attempt")}, T.tba.args([a, fd.att.term(fd.pt.mk.lbody(fd.pt.go(ks, e, PtAm{}, a, 0n, False{}), a))])}, _ => T.BtApp{T.BtVar{x}, T.tba.args([fd.att.rw(a, ks), fd.att.rw(e, ks)])})
+      fd.exh.if(T.Bt, hit, _ => T.BtApp{T.BtVar{fd.att.pt(x)}, T.tba.args([a, fd.att.term(fd.pt.mk.lbody(fd.pt.go(ks, e, PtAm{}, a, 0n, False{}), a))])}, _ => T.BtApp{T.BtVar{x}, T.tba.args([fd.att.rw(a, ks), fd.att.rw(e, ks)])})
     case T.BtApp{h, a}:
       T.BtApp{fd.att.rw(h, ks), fd.att.rw(a, ks)}
     case T.BtTplArg{a}:
@@ -13658,7 +13665,7 @@ def fd.att.rw(t: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
       u
 
 def fd.att.body(+b: T.Bt, +ks: List<&2, Pt>) -> T.Bt:
-  fd.exh.if(T.Bt, S.mem(S.b("Cata_Base.attempt"), T.tba.refs(b, Nil{})), _ => fd.att.rw(b, ks), _ => b)
+  fd.exh.if(T.Bt, fd.att.mem(T.tba.refs(b, Nil{})), _ => fd.att.rw(b, ks), _ => b)
 
 def fd.pt.item(p: Bool, +ks: List<&2, Pt>, n: List<&2, U32>, ps: List<&2, T.BParam>, +r: T.Bt, b: T.Bt, d: List<&2, List<&2, U32>>) -> T.BItem:
   match p:

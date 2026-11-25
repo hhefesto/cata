@@ -546,3 +546,7 @@ def HsPt.either.unit(-E: Data, -B: Data, r: Either<&2, &2, E, List<&2, B>>) -> E
 
 def HsPt.either.mapm_(~E: Data, ~A: Data, ~B: Data, ~f: A -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, B>>, xs: List<&2, A>) -> Either<&2, &2, List<&2, Char>, Either<&2, &2, E, Unit>>:
   HsPt.bind(Either<&2, &2, E, List<&2, B>>, Either<&2, &2, E, Unit>, HsPt.either.mapm(~E, ~A, ~B, ~f, xs), r => Inr{HsPt.either.unit(E, B, r)})
+
+# Cata.Base's holdE given a partial call: what it answers, held
+def HsPt.hold(-A: Data, m: Either<&2, &2, List<&2, Char>, A>) -> Either<&2, &2, List<&2, Char>, A>:
+  m
