@@ -6974,8 +6974,8 @@ def sp.bin.g(+y: X.Sx) -> X.Sx:
   +fs = Bool.and(g, sp.is(k, "Data.ByteString.UTF8.fromString"))
   Bool.pick(X.Sx, fs, sp.g(S.b("Codec.Binary.UTF8.String"), S.b("encode"), "var"), sp.bin.model(Bool.pick(Maybe<&2, Pcr>, g, sp.pc.find(sp.bin.tab(), k), None{}), y))
 
-# IO as the model's State World (Cata.Base): its type, and base's console
-# and file actions
+# IO as the model's IOW (Cata.Base), State World under an ExceptT of the
+# message an action throws: its type, and base's console and file actions
 type Iok is Data:
   Iok{k: String, n: String}
 
@@ -7013,7 +7013,7 @@ def sp.io.down(+y: X.Sx) -> X.Sx:
   sp.if(X.Sx, Bool.and(ok, sp.head.is(y, "g")), _ => sp.l([sp.a("g"), X.SxStr{S.b("Cata.Base")}, sp.at(y, 2n), sp.at(y, 3n)]), _ => y)
 
 def sp.io.tc(+k: List<&2, U32>, +x: X.Sx, +y: X.Sx) -> X.Sx:
-  sp.if(X.Sx, sp.is(k, "GHC.Types.IO"), _ => sp.tc(S.b("Control.Monad.Trans.State.Lazy"), S.b("StateT"), sp.tc(S.b("Cata.Base"), S.b("World"), Nil{}) <> sp.tc(S.b("GHC.Internal.Data.Functor.Identity"), S.b("Identity"), Nil{}) <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.IO.Handle.Types.Handle"), _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.Data.Ord.Down"), _ => sp.tc(S.b("Cata.Base"), S.b("Down"), sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.Data.Functor.Const.Const"), _ => sp.tc(S.b("Cata.Base"), S.b("Const"), sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => y))))
+  sp.if(X.Sx, sp.is(k, "GHC.Types.IO"), _ => sp.tc(S.b("Control.Monad.Trans.Except"), S.b("ExceptT"), sp.tc(S.b("GHC.Internal.Base"), S.b("String"), Nil{}) <> sp.tc(S.b("Control.Monad.Trans.State.Lazy"), S.b("State"), [sp.tc(S.b("Cata.Base"), S.b("World"), Nil{})]) <> sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.IO.Handle.Types.Handle"), _ => sp.tc(S.b("GHC.Tuple"), S.b("Unit"), Nil{}), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.Data.Ord.Down"), _ => sp.tc(S.b("Cata.Base"), S.b("Down"), sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => sp.if(X.Sx, sp.is(k, "GHC.Internal.Data.Functor.Const.Const"), _ => sp.tc(S.b("Cata.Base"), S.b("Const"), sp.els(X.tsx.args(X.tsx.args(X.tsx.args(x))))), _ => y))))
 
 def sp.p5.tc(+k: List<&2, U32>, +x: X.Sx) -> X.Sx:
   +integer = sp.is(k, "GHC.Num.Integer.Integer")

@@ -28,13 +28,35 @@ def unline(r: List<&2, Char>) -> List<&2, Char>:
     case Nil{}:
       Nil{}
 
-def fin(r: Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Unit, (_ => CB.World)>>) -> IO(Unit):
+# what the program printed (IO.print ends the line itself), if anything
+def out.put(o: List<&2, Char>) -> IO(Unit):
+  match o:
+    case Nil{}:
+      IO.pure(Unit, Unit{})
+    case c <> t:
+      IO.print(String.from_list(List.reverse(&2, Char, unline(List.reverse(&2, Char, c <> t)))))
+
+# the end of a run, IO being IOW (Cata.Base: State World under an ExceptT of
+# the message an action throws): the output printed so far, then the
+# message of an error nothing caught, as GHC's run prints both
+def fin.io(r: Either<&2, &2, List<&2, Char>, Unit>, w: CB.World) -> IO(Unit):
+  match r:
+    case Inl{m}:
+      do IO<Unit>:
+        out.put(out.of(w))
+        IO.die(Unit, 1, String.from_list(m))
+    case Inr{u}:
+      out.put(out.of(w))
+
+# a failure of the pure code under the run is the program's alone (the
+# world it failed in is not kept)
+def fin(r: Either<&2, &1, List<&2, Char>, Sigma<&1, &1, Either<&2, &2, List<&2, Char>, Unit>, (_ => CB.World)>>) -> IO(Unit):
   match r:
     case Inl{m}:
       IO.die(Unit, 1, String.from_list(m))
     case Inr{p}:
       (u, w) = p
-      IO.print(String.from_list(List.reverse(&2, Char, unline(List.reverse(&2, Char, out.of(w))))))
+      fin.io(u, w)
 
 def input(r: Result<&1, &1, String, String>) -> List<&2, Char>:
   match r:

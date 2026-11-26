@@ -1902,6 +1902,8 @@ modules, through hs-export `--package`, spec, law `--package`; its
   writeFile, appendFile, isEOF, hFlush stdout (and ByteString's readFile and
   writeFile) as the model's actions, so that IO's code is State's; an action
   that throws is a partial one. No law runs IO yet: such defs are ok-check.
+  (11-25: IO is `IOW`, State World under an ExceptT of the message, so an
+  action that throws keeps the world it threw in; see the 11-25 section.)
   Other handles, caught exceptions, processes, time and randomness are not
   in the model.
 - **Others**: Map.unionWithKey, Map.mapMaybe, partition at lists, Set, Map
@@ -2597,3 +2599,70 @@ So the duplicates cost little time: the 31 written modules check in
 of "one program at several types" (715 texts for 807 names; 581 up to
 the copies they call) is the polymorphic def and its law of
 tests/natural, a dictionary as arguments: not made in Spec.
+
+## tictactoe through cata, master to Bend: prune, and IO that keeps its output (2026-11-25)
+
+The goal (the user, 11-24: "finish SmallMoth's work until you have a
+running tictactoe with a cata translation from haskell (master) to bend"):
+telomare master (4e97040) through hs-export, spec, the fold and
+run-prelude, with tictactoe's sized route written by hand as a front
+(tests/telomare/front/SizedBatch.bend, runSized's compile then evalLoop),
+played against GHC's `telomare tictactoe.tel` on three recorded games.
+
+**What kept it from finishing.** The fold's run of a game had gone 2 h
+49 min without an answer. GHC runs the route in 51 s (2.4 GB); with
+`cpGuidance` and `cpVerdict` forced (printed), 159 s (4.9 GB); `--compile`,
+which writes them to an artifact, 150 s. They are a second EAL inference of
+the sized program (`certifiedProgramFrom`'s deriveSizedGuidance, else
+inferEALCompiledWithin, and programWith's prologueCert), which only the IC
+runtime and an artifact read: telomare's own comment says the fields are
+lazy so that a reference run never pays for them. Bend built them. With
+them left out of the generated Telomare_Driver.bend by hand, each game ran
+in 13 min and printed GHC's answer. Two guesses were wrong and measured so:
+Bend's `&&`/`||` are eager (Bool.and(False, e) runs e; Fold now writes them
+as ifs, fadf7c4: hs1003 from 1 difference to 0), but `decendant` always stops; the
+pointer equality telomare's exactEq tries first is always false in cata,
+but GHC with it false runs the same 51 s.
+
+**The user's answer (11-25):** "A whole-program pass from the entry point:
+drop fields that nothing reachable reads, together with the steps that
+only feed them." That is bend/Prune.bend (README, "A program's run"):
+reachability from the front's roots, then unread fields, unused local
+groups and unused parameters, again until nothing changes. On telomare:
+4 rounds, 3776 forms to 3683, 183 s, 0.8 GB; CompiledProgram keeps cpExpr
+and cpPrologue, programWith is `CompiledProgram{sized, prologue}`,
+certifiedProgramFrom calls it alone. Folded with no GHC: 1833 ok-check,
+146 ok-type, 14 out (survey's, all unreached class defaults), 1 ok-law.
+Games 12457 and 519372846: GHC's output, 13:11 and 13:21.
+
+**IO (asked and answered "Yes", 11-25):** an uncaught error keeps the
+output printed so far. 112x39 runs out of input: GHC prints the boards,
+then dies of hGetLine's end of file; the fold died with the same message
+and printed nothing, IO being State World and the failure an Either
+around it. IO is now Cata.Base's `IOW = ExceptT String (State World)`
+(Spec's sp.io.tc), and getLine, getChar and readFile throw there
+(throwError) where they erred: the fold writes ExceptT over State as
+`World -> Either String A & World`, so the world at the throw is kept, and
+the front prints its output, then the message, then exits 1. All three
+games now print what GHC prints (13:10, 13:14, 13:11).
+
+**Left:**
+- A failure of pure code under IO (a partial function's `error`) is still
+  the program's Either around the run: the world it failed in is lost.
+  GHC would print the output so far there too. The fold's partial pass
+  would answer such a call, at IOW, with IOW's own failure at the state it
+  failed in; not done.
+- Speed: 13 min against GHC's 51 s, the 15x of the fast route too. A
+  sampling profile of an -O0 build of the patched program (2 ms, 1.98 M
+  samples over 66 min): the first half is List.append and Map and Set
+  inserts (the parse and the certification EAL, as an earlier profile of
+  the unpatched program has them); from 50% to 90% of the samples it is `Telomare.Size.analyzeChecks` (checkPlan's symbolic run, under
+  ReaderT over ExceptT over State: `analyzeChecks.f.mu`, `hs.res.bind`,
+  closures applied); the evaluator playing shows only in the last tenth.
+  checkDecisionBudget is 10^8 steps; how many GHC takes was not measured.
+- The IO change was run on telomare only; tests/xmonad and the other
+  packages that use IO were not rerun (`<*>` at ExceptT is still out, and
+  IO's is now ExceptT's).
+- tests/telomare/front/run.zsh writes these steps as one script; the runs
+  above were made step by step (/tmp/ct-vf/chain-p14.zsh, chain-io2*.zsh),
+  not by it.

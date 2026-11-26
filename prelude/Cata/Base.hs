@@ -20,6 +20,7 @@ import qualified Control.Applicative as A
 import Control.Comonad.Trans.Cofree (CofreeF (..))
 import qualified Control.Comonad.Cofree as C
 import Control.Exception (Exception)
+import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.State (State, get, gets, modify, put)
 import Data.Char (chr, ord)
 import qualified Data.Foldable as F
@@ -572,23 +573,29 @@ showsPrecDefault sh _ x s = sh x ++ s
 
 -- | IO, read as the state of what a program sees of the world: its
 -- console's input not read yet, its output so far, its files (a file of
--- bytes is their characters). Spec writes the type IO as State World and
--- base's console and file actions as the ones here, so that IO's binds are
--- State's; an action that throws (the end of the input, a file that is not
--- there) is a partial one. What the model leaves out (other handles,
+-- bytes is their characters). Spec writes the type IO as IOW, State World
+-- under an ExceptT of the message an action throws, and base's console and
+-- file actions as the ones here, so that IO's binds are ExceptT's over
+-- State: an action that throws (the end of the input, a file that is not
+-- there) stops the program there with its message, and the world it stopped
+-- in, the output printed so far, is kept, as a run of GHC's prints what it
+-- printed before the exception (agreed with the user 11-25: an uncaught
+-- error keeps the output printed so far). What the model leaves out (other handles,
 -- exceptions caught, processes, time, randomness) stays IO, and out.
 data World = World String String (Map.Map String String)
 
-ioPutStr :: String -> State World ()
+type IOW = ExceptT String (State World)
+
+ioPutStr :: String -> IOW ()
 ioPutStr s = modify (\w -> case w of World i o f -> World i (o ++ s) f)
 
-ioPutStrLn :: String -> State World ()
+ioPutStrLn :: String -> IOW ()
 ioPutStrLn s = ioPutStr (s ++ "\n")
 
-ioPutChar :: Char -> State World ()
+ioPutChar :: Char -> IOW ()
 ioPutChar c = ioPutStr [c]
 
-ioPrint :: forall a. Show a => a -> State World ()
+ioPrint :: forall a. Show a => a -> IOW ()
 ioPrint x = ioPutStr (show x ++ "\n")
 
 worldLine :: World -> Maybe (String, World)
@@ -597,11 +604,11 @@ worldLine (World i o f) = case i of
   _ -> case break (== '\n') i of
     (l, r) -> Just (l, World (drop 1 r) o f)
 
-ioGetLine :: State World String
+ioGetLine :: IOW String
 ioGetLine = do
   w <- get
   case worldLine w of
-    Nothing -> error "<stdin>: hGetLine: end of file"
+    Nothing -> throwError "<stdin>: hGetLine: end of file"
     Just (l, v) -> put v >> pure l
 
 worldChar :: World -> Maybe (Char, World)
@@ -609,59 +616,59 @@ worldChar (World i o f) = case i of
   [] -> Nothing
   c : r -> Just (c, World r o f)
 
-ioGetChar :: State World Char
+ioGetChar :: IOW Char
 ioGetChar = do
   w <- get
   case worldChar w of
-    Nothing -> error "<stdin>: hGetChar: end of file"
+    Nothing -> throwError "<stdin>: hGetChar: end of file"
     Just (c, v) -> put v >> pure c
 
 worldIn :: World -> (String, World)
 worldIn (World i o f) = (i, World [] o f)
 
-ioGetContents :: State World String
+ioGetContents :: IOW String
 ioGetContents = do
   w <- get
   case worldIn w of
     (i, v) -> put v >> pure i
 
-ioInteract :: (String -> String) -> State World ()
+ioInteract :: (String -> String) -> IOW ()
 ioInteract f = ioGetContents >>= \s -> ioPutStr (f s)
 
 worldEOF :: World -> Bool
 worldEOF (World i o f) = null i
 
-ioIsEOF :: State World Bool
+ioIsEOF :: IOW Bool
 ioIsEOF = gets worldEOF
 
 worldFile :: String -> World -> Maybe String
 worldFile p (World i o f) = Map.lookup p f
 
-ioReadFile :: String -> State World String
+ioReadFile :: String -> IOW String
 ioReadFile p = do
   w <- get
   case worldFile p w of
-    Nothing -> error (p ++ ": openFile: does not exist (No such file or directory)")
+    Nothing -> throwError (p ++ ": openFile: does not exist (No such file or directory)")
     Just s -> pure s
 
-ioWriteFile :: String -> String -> State World ()
+ioWriteFile :: String -> String -> IOW ()
 ioWriteFile p s = modify (\w -> case w of World i o f -> World i o (Map.insert p s f))
 
-ioAppendFile :: String -> String -> State World ()
+ioAppendFile :: String -> String -> IOW ()
 ioAppendFile p s = modify (\w -> case w of World i o f -> World i o (Map.insert p (Map.findWithDefault [] p f ++ s) f))
 
 -- | a file's bytes
-ioReadBytes :: String -> State World [Word8]
+ioReadBytes :: String -> IOW [Word8]
 ioReadBytes p = fmap (map (\c -> fromIntegral (ord c))) (ioReadFile p)
 
-ioWriteBytes :: String -> [Word8] -> State World ()
+ioWriteBytes :: String -> [Word8] -> IOW ()
 ioWriteBytes p bs = ioWriteFile p (map (\b -> chr (fromIntegral b)) bs)
 
 -- | the handle of the output, and its flush
 ioStdout :: ()
 ioStdout = ()
 
-ioFlush :: () -> State World ()
+ioFlush :: () -> IOW ()
 ioFlush _ = pure ()
 
 -- | base's Down: the order the other way round
