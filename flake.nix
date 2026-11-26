@@ -80,6 +80,10 @@
           # inlined, views made plain and constrained defs specialised at their
           # callers' types (bend/Spec.bend); survey, fold and law read its output
           spec = bendBinary pkgs "spec" "Spec.bend";
+          # `prune ROOTS OUT FILE.sexp...`: spec's output as the program whose
+          # entry calls ROOTS runs it: what nothing reached reads (a binding,
+          # a constructor's field, a def's parameter) left out (bend/Prune.bend)
+          prune = bendBinary pkgs "prune" "Prune.bend";
           # `fold OUT FILE.sexp...`: step 2's fold into checked Bend (bend/Fold.bend)
           fold = bendBinary pkgs "fold" "Fold.bend";
           # `law OUT FILE.sexp...`: the fold with GHC's example laws

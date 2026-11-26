@@ -833,6 +833,38 @@ numbers. In short: hs2bend is F, from Haskell's programs to Bend's;
   W.b(phi(a)), checked by bend), with mutants (two squares of one shape,
   their b's swapped) at GHC's answers and in the proofs.
 
+## A program's run: what nothing reads (prune)
+
+Bend evaluates a constructor's fields where it is built and a call's
+arguments where it is made; Haskell, only what something forces. A fold of
+a package as it is builds, at every run, what GHC's run of the same
+program never computes: telomare's `compileMainProgramWithin` builds a
+`CompiledProgram` whose `cpGuidance` and `cpVerdict` (a second EAL
+inference of the sized program) only the IC runtime and an artifact read,
+so the sized route's reference run never forces them, and the fold's run
+of tictactoe spent hours on them (GHC with them forced: 159 s against
+51 s). `bend/Prune.bend` (`prune ROOTS OUT FILE.sexp...`, spec's output
+in, the same format out) takes the package as one program, entered where
+ROOTS says (the defs a front written by hand calls, and the types it
+builds or matches), and leaves out, again until nothing changes:
+
+- the bindings nothing reached names;
+- each constructor field nothing reached reads (no pattern binds it to
+  more than `_`, no selector of it is reached, the constructor is never
+  applied short of it), from its data type, each construction and each
+  pattern: the term built for it goes with it;
+- each local binding (a where's or a let's group) nothing in its scope
+  names, unless a bang makes it strict;
+- each parameter of a def that no clause uses, from the def, its type
+  and each call, when every use of the def gives it (a def passed as a
+  value, or a root, keeps them): the argument is then never built.
+
+It is for a run: the laws are told on the package as it is.
+`tests/prune/` (P.hs: a record with two fields nothing reads, a where
+binding only they use, an argument nothing uses) checks the fold of its
+output; `tests/telomare/front/` is tictactoe's sized route by hand
+(SizedBatch.bend) and its roots (SizedBatch.roots).
+
 ## Build
 
     nix build .#hs-export .#survey .#fold .#law .#ghc

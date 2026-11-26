@@ -1,0 +1,12 @@
+# prune's roots for SizedBatch.bend (telomare's sized route, run by hand):
+# the package's defs the front calls, and the types it builds or matches
+Telomare.Driver.compileModulesWithin
+Telomare.Driver.programIteration
+Telomare.Driver.evalLoop
+Telomare.EAL.defaultVariableBudget
+Telomare.Parse.runParseModule
+Telomare.IR.Loc.locatedNameText
+type Cata.Base.World
+type Telomare.IR.Surface.ModuleItem
+type Telomare.IR.Surface.ImportDecl
+type Telomare.Driver.SizingOption
