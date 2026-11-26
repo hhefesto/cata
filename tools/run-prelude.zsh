@@ -1,12 +1,15 @@
 #!/usr/bin/env zsh
 # run-prelude.zsh PKG OUT: a fold or law package's modules as they are to run:
 # without their laws (the .exK defs), HsPrelude's Map and Set the balanced trees
-# of prelude/run/HsMapTree.bend (the same headers; the lists are what the laws
-# are told on). The tree file's parts go after the prelude's defs they name
-# (#@after NAME).
+# of prelude/run/HsMapTree.bend and its Int the integers past 2^48 of
+# prelude/run/HsIntBig.bend (the same headers; the lists and the Nats are what
+# the laws are told on). The tree file's parts go after the prelude's defs they name
+# (#@after NAME). RUN_PARTS: the run files to use (all of prelude/run).
 set -eu
 here=${0:A:h}/..
 pkg=$1 out=$2
+parts=(${=RUN_PARTS:-})
+(( $#parts )) || parts=($here/prelude/run/*.bend)
 mkdir -p $out
 awk '
   function name(l) { sub(/^(def|type) /, "", l); sub(/[(<: ].*/, "", l); return l }
@@ -21,7 +24,7 @@ awk '
     last = name($0); drop = (last in t)
   }
   { if (!drop) print }
-' $here/prelude/run/HsMapTree.bend $pkg/HsPrelude.bend > $out/HsPrelude.bend
+' <(cat $parts) $pkg/HsPrelude.bend > $out/HsPrelude.bend
 for f in $pkg/*.bend; do
   n=${f:t}
   case $n in HsPrelude.bend|*_all.bend|*_try.bend|Why_*|X1.bend|Dx.bend) continue ;; esac
