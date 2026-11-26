@@ -3655,6 +3655,20 @@ def fd.flip(+f: T.Bt, +x: T.Bt, +y: T.Bt) -> T.Bt:
     case h:
       fd.flip.plain(h, x, y)
 
+# a lazy && and || (Haskell's: the right side only when the left leaves it
+# open), an if with the right side in its branch
+def fd.sc.if(+c: T.Bt, a: T.Bt, b: T.Bt) -> T.Bt:
+  fd.callS("Bool.if", [fd.ty0("Bool"), c, T.BtLam{T.BmLive{}, S.b("_"), a}, T.BtLam{T.BmLive{}, S.b("_"), b}])
+
+def fd.sc.op(and: Bool, or: Bool, a: T.Bt, b: T.Bt) -> T.Bt:
+  match and or:
+    case True{} _:
+      fd.sc.if(a, b, T.BtCon{S.b("False"), T.BtANil{}})
+    case _ True{}:
+      fd.sc.if(a, T.BtCon{S.b("True"), T.BtANil{}}, b)
+    case _ _:
+      T.BtApp{T.BtVar{S.b("Bool.and")}, T.tba.args([a, b])}
+
 # a saturated call of one of base's functions, as Base writes it
 def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<&2, U32>>) -> T.Bt:
   match f tys xs:
@@ -3663,9 +3677,9 @@ def fd.bf.mk(f: Bf, tys: List<&2, T.Bt>, xs: List<&2, T.Bt>, +ls: List<&2, List<
     case BfNum{op} t <> _ a <> b <> _:
       fd.num(fd.tq(t), op, a, b)
     case BfAnd{} _ a <> b <> _:
-      fd.callS("Bool.and", [a, b])
+      fd.sc.op(True{}, False{}, a, b)
     case BfOr{} _ a <> b <> _:
-      fd.callS("Bool.or", [a, b])
+      fd.sc.op(False{}, True{}, a, b)
     case BfNot{} _ a <> _:
       fd.callS("Bool.not", [a])
     case BfTrue{} _ _:
@@ -14690,21 +14704,9 @@ def fd.rx.app(f: T.Bt, +a: T.Bt) -> T.Bt:
       T.BtApp{g, a}
 
 # What a lazy Haskell leaves unforced and a bind made early would force: the
-# right side of && and || where it is partial (an if), the tail of zip xs
+# right side of && and || (fd.bf.mk makes each an if), the tail of zip xs
 # (tail xs) (zip forces xs first, so that it is drop 1 xs), a partial let
 # only an if's branches use (it is theirs).
-def fd.sc.if(+c: T.Bt, a: T.Bt, b: T.Bt) -> T.Bt:
-  fd.callS("Bool.if", [fd.ty0("Bool"), c, T.BtLam{T.BmLive{}, S.b("_"), a}, T.BtLam{T.BmLive{}, S.b("_"), b}])
-
-def fd.sc.op(and: Bool, or: Bool, a: T.Bt, b: T.Bt) -> T.Bt:
-  match and or:
-    case True{} _:
-      fd.sc.if(a, b, T.BtCon{S.b("False"), T.BtANil{}})
-    case _ True{}:
-      fd.sc.if(a, T.BtCon{S.b("True"), T.BtANil{}}, b)
-    case _ _:
-      T.BtApp{T.BtVar{S.b("Bool.and")}, T.tba.args([a, b])}
-
 def fd.sc.tail(same: Bool, t: T.Bt, x: List<&2, U32>, d: T.Bt) -> T.Bt:
   match same:
     case True{}:

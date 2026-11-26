@@ -325,6 +325,11 @@ character counts one column here, two there). `Pos` is a Nat,
   2^48 - 1 and -(2^48 - 1): an HsInt is a sign and a Nat, and Bend's
   runtime holds a Nat up to its largest immediate, 2^48 - 1 (one past it
   stops the run), a range Haskell 2010 allows (at least 2^29 - 1).
+  In a package that is to run (`tools/run-prelude.zsh`), an Int or
+  Integer past it is `prelude/run/HsIntBig.bend`'s `HsInt.Big` (its limbs,
+  base 2^24) and the run goes on (telomare's Size numbers the input's
+  positions 2n + 1 and 2n + 2 as an Integer); `tests/ints/run.zsh PKG`
+  checks it against the Nat integers below 2^48 and against bc past it.
 - `tests/telomare/run.sh SRC PKG FILE.tel..` runs telomare's
   `runParseModule` under GHC and in cata's Bend (PKG: a `--package`
   output through Telomare.Parse) on each file, and compares the skeletons
